@@ -493,6 +493,7 @@ def etl():
                         print(f"Chain ID: {chain_id}")
                         print(f"Tags: {tags}")
                         raise ValueError(f"Final error: {response.text}")
+                    # deleting the rows is triggered in airtable_write_depreciated_owner_project
 
     @task()
     def revoke_old_attestations():

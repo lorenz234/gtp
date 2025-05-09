@@ -57,6 +57,11 @@ class OLI:
         # Initialize EAS contract
         self.eas = self.w3.eth.contract(address=self.eas_address, abi=self.eas_abi)
     
+    
+    ### internal functions the user should not call directly
+
+    # offchain attestation functions
+
     def encode_label_data(self, chain_id, tags_json):
         """
         Encode label data in the OLI format.
@@ -197,34 +202,6 @@ class OLI:
         response = requests.post(self.eas_api_url, json=payload, headers=headers)
         return response
     
-    def create_offchain_label(self, address, chain_id, tags, ref_uid="0x0000000000000000000000000000000000000000000000000000000000000000"):
-        """
-        Create an offchain OLI label attestation for a contract.
-        
-        Args:
-            address (str): The contract address to label
-            chain_id (str): Chain ID in CAIP-2 format where the address/contract resides
-            tags (dict): OLI compliant tags as a dict  information (name, version, etc.)
-            ref_uid (str): Reference UID
-            
-        Returns:
-            dict: API response
-        """
-        # Check all necessary input parameters
-        address = self.checks_address(address)
-        chain_id = self.checks_chain_id(chain_id)
-        tags = self.checks_tags(tags)
-        ref_uid = self.checks_ref_uid(ref_uid)
-            
-        # Encode the label data
-        data = self.encode_label_data(chain_id, tags)
-        
-        # Create the attestation
-        attestation = self.create_offchain_attestation(recipient=address, schema=self.oli_label_pool_schema, data=data, ref_uid=ref_uid)
-        
-        # Submit to the API
-        return self.submit_offchain_attestation(attestation)
-    
     def calculate_attestation_uid_v2(self, schema, recipient, attester, timestamp, data, expiration_time=0, revocable=True, ref_uid="0x0000000000000000000000000000000000000000000000000000000000000000", bump=0, salt=None):
         """
         Calculate the UID for an offchain attestation (v2).
@@ -279,6 +256,113 @@ class OLI:
         # Calculate keccak256 hash
         uid = Web3.keccak(packed_data)
         return uid
+    
+    # data check functions
+
+    def checks_chain_id(self, chain_id):
+        """
+        Check if chain_id for a label is in CAIP-2 format.
+        
+        Args:
+            chain_id (str): Chain ID to check
+            
+        Returns:
+            chain_id (str): Chain ID that was checked
+        """
+        if chain_id.startswith('eip155:'):
+            return chain_id
+        else:
+            print(chain_id)
+            raise ValueError("Chain ID must be in CAIP-2 format (e.g., Base -> 'eip155:8453')")
+
+    def checks_address(self, address):
+        """
+        Check if address is a valid Ethereum address.
+        
+        Args:
+            address (str): Address to check
+            
+        Returns:
+            address (str): Address in the correct format
+        """
+        if self.w3.is_address(address):
+            return address
+        elif self.w3.is_address(address[2:]):
+            return '0x' + address[2:]
+        else:
+            print(address)
+            raise ValueError("address must be a valid Ethereum address in hex format")
+        
+    def checks_tags(self, tags):
+        """
+        Check if tags are in the correct format.
+        
+        Args:
+            tags (dict): Tags to check
+            
+        Returns:
+            tags (dict): Tags that were checked
+        """
+        if isinstance(tags, dict):
+            return tags
+        else:
+            print(tags)
+            raise ValueError("tags must be a dictionary with OLI compliant tags")
+
+    def checks_ref_uid(self, ref_uid):
+        """
+        Check if ref_uid is a valid UID.
+        
+        Args:
+            ref_uid (str): Reference UID to check
+            
+        Returns:
+            ref_uid: Reference UID that was checked
+        """
+        if ref_uid.startswith('0x') and len(ref_uid) == 66:
+            return ref_uid
+        else:
+            print(ref_uid)
+            raise ValueError("ref_uid must be a valid UID in hex format, leave empty if not used")
+
+    
+    ### functions the user should call to create attestations
+    
+    def create_offchain_label(self, address, chain_id, tags, ref_uid="0x0000000000000000000000000000000000000000000000000000000000000000", retry=5):
+        """
+        Create an offchain OLI label attestation for a contract.
+        
+        Args:
+            address (str): The contract address to label
+            chain_id (str): Chain ID in CAIP-2 format where the address/contract resides
+            tags (dict): OLI compliant tags as a dict  information (name, version, etc.)
+            ref_uid (str): Reference UID
+            retry (int): Number of retries for the AP post request to EAS ipfs
+            
+        Returns:
+            dict: API request response
+        """
+        # Check all necessary input parameters
+        address = self.checks_address(address)
+        chain_id = self.checks_chain_id(chain_id)
+        tags = self.checks_tags(tags)
+        ref_uid = self.checks_ref_uid(ref_uid)
+        
+        # Encode the label data
+        data = self.encode_label_data(chain_id, tags)
+        
+        # Create the attestation
+        attestation = self.create_offchain_attestation(recipient=address, schema=self.oli_label_pool_schema, data=data, ref_uid=ref_uid)
+        
+        # Submit to the API
+        response = self.submit_offchain_attestation(attestation)
+        while response.status_code != 200 and retry > 0:
+            print(f"Retrying submission... {retry} attempts left")
+            retry -= 1
+            time.sleep(2 ** (5 - retry)) # exponential backoff
+            response = self.submit_offchain_attestation(attestation)
+
+        return response
     
     def create_onchain_label(self, address, chain_id, tags, ref_uid="0x0000000000000000000000000000000000000000000000000000000000000000", gas_limit=1000000):
         """
@@ -416,72 +500,6 @@ class OLI:
         uids = ['0x' + log.data.hex() for log in txn_receipt.logs]
 
         return f"0x{txn_hash.hex()}", uids
-        
-    def checks_chain_id(self, chain_id):
-        """
-        Check if chain_id for a label is in CAIP-2 format.
-        
-        Args:
-            chain_id (str): Chain ID to check
-            
-        Returns:
-            chain_id (str): Chain ID that was checked
-        """
-        if chain_id.startswith('eip155:'):
-            return chain_id
-        else:
-            print(chain_id)
-            raise ValueError("Chain ID must be in CAIP-2 format (e.g., Base -> 'eip155:8453')")
-
-    def checks_address(self, address):
-        """
-        Check if address is a valid Ethereum address.
-        
-        Args:
-            address (str): Address to check
-            
-        Returns:
-            address (str): Address in the correct format
-        """
-        if self.w3.is_address(address):
-            return address
-        elif self.w3.is_address(address[2:]):
-            return '0x' + address[2:]
-        else:
-            print(address)
-            raise ValueError("address must be a valid Ethereum address in hex format")
-        
-    def checks_tags(self, tags):
-        """
-        Check if tags are in the correct format.
-        
-        Args:
-            tags (dict): Tags to check
-            
-        Returns:
-            tags (dict): Tags that were checked
-        """
-        if isinstance(tags, dict):
-            return tags
-        else:
-            print(tags)
-            raise ValueError("tags must be a dictionary with OLI compliant tags")
-
-    def checks_ref_uid(self, ref_uid):
-        """
-        Check if ref_uid is a valid UID.
-        
-        Args:
-            ref_uid (str): Reference UID to check
-            
-        Returns:
-            ref_uid: Reference UID that was checked
-        """
-        if ref_uid.startswith('0x') and len(ref_uid) == 66:
-            return ref_uid
-        else:
-            print(ref_uid)
-            raise ValueError("ref_uid must be a valid UID in hex format, leave empty if not used")
 
     def revoke_attestation(self, uid_hex, onchain, gas_limit=200000):
         """
@@ -585,7 +603,10 @@ class OLI:
         else:
             raise Exception(f"Transaction failed: {txn_receipt}")
 
+    # functions the user should call to query attestations
+
     def graphql_query_attestations(self, address=None, attester=None, timeCreated=None, revocationTime=None):
+        # add keywords to search in decodedDataJson
         """
         Queries attestations from the EAS GraphQL API based on the specified filters.
         
@@ -660,6 +681,9 @@ class OLI:
             return response.json()
         else:
             raise Exception(f"GraphQL query failed with status code {response.status_code}: {response.text}")
+    
+    # function to get raw data labels (from gtp query)
+    # function to get decoded data labels (from gtp query)
 
 
 """
