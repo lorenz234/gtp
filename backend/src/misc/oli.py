@@ -257,6 +257,30 @@ class OLI:
         uid = Web3.keccak(packed_data)
         return uid
     
+    # functions for onchain attestations
+
+    def estimate_gas(self, function, tx_params, gas_limit:int):
+        """
+        Estimate gas for a transaction.
+        
+        Args:
+            function: The function to estimate gas for
+            tx_params (dict): Transaction parameters
+            
+        Returns:
+            tx_params (dict): Transaction parameters with estimated 'gas' field
+        """
+        try:
+            if gas_limit != 0:
+                # Estimate gas with a buffer (e.g., 10% more than the estimate)
+                estimated_gas = function.estimate_gas(tx_params)
+                tx_params["gas"] = int(estimated_gas * 1.1)  # Add 10% buffer
+            else:
+                tx_params["gas"] = gas_limit
+        except Exception as e:
+            tx_params["gas"] = 10000000  # Default fallback
+        return tx_params
+    
     # data check functions
 
     def checks_chain_id(self, chain_id):
@@ -368,7 +392,7 @@ class OLI:
 
         return response
     
-    def create_onchain_label(self, address, chain_id, tags, ref_uid="0x0000000000000000000000000000000000000000000000000000000000000000", gas_limit=1000000):
+    def create_onchain_label(self, address:str, chain_id:str, tags:dict, ref_uid:str="0x0000000000000000000000000000000000000000000000000000000000000000", gas_limit:int=0) -> tuple[str, str]:
         """
         Create an onchain OLI label attestation for a contract.
         
@@ -377,7 +401,7 @@ class OLI:
             chain_id (str): Chain ID in CAIP-2 format where the address/contract resides
             tags (dict): OLI compliant tags as a dict  information (name, version, etc.)
             ref_uid (str): Reference UID
-            gas_limit (int): Gas limit for the transaction
+            gas_limit (int): Gas limit for the transaction. If set to 0, the function will estimate the gas limit.
             
         Returns:
             str: Transaction hash
@@ -392,8 +416,8 @@ class OLI:
         # Encode the label data
         data = self.encode_label_data(chain_id, tags)
         
-        # Prepare transaction parameters
-        transaction = self.eas.functions.attest({
+        # Create the attestation
+        function = self.eas.functions.attest({
             'schema': self.w3.to_bytes(hexstr=self.oli_label_pool_schema),
             'data': {
                 'recipient': self.w3.to_checksum_address(address),
@@ -403,19 +427,30 @@ class OLI:
                 'data': self.w3.to_bytes(hexstr=data),
                 'value': 0
             }
-        }).build_transaction({
+        })
+
+        # Define the transaction parameters
+        tx_params = {
             'chainId': self.rpc_chain_number,
-            'gas': gas_limit,
             'gasPrice': self.w3.eth.gas_price,
             'nonce': self.w3.eth.get_transaction_count(self.address),
-        })
+        }
+
+        # Estimate gas if no limit provided
+        tx_params = self.estimate_gas(self, function, tx_params, gas_limit)
         
+        # Build the transaction to attest one label
+        transaction = function.build_transaction(tx_params)
+
         # Sign the transaction with the private key
         signed_txn = self.w3.eth.account.sign_transaction(transaction, private_key=self.private_key)
         
         # Send the transaction
-        txn_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
-        
+        try:
+            txn_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        except Exception as e:
+            raise Exception(f"Failed to send transaction to mempool: {e}")
+
         # Wait for the transaction receipt
         txn_receipt = self.w3.eth.wait_for_transaction_receipt(txn_hash)
         
@@ -423,19 +458,19 @@ class OLI:
         if txn_receipt.status == 1:
             return f"0x{txn_hash.hex()}", f"0x{txn_receipt.logs[0].data.hex()}"
         else:
-            raise Exception(f"Transaction failed: {txn_receipt}")
+            raise Exception(f"Transaction failed onchain: {txn_receipt}")
     
-    def create_multi_onchain_labels(self, labels, gas_limit=10000000):
+    def create_multi_onchain_labels(self, labels:list, gas_limit:int=0) -> tuple[str, list]:
         """
         Batch submit OLI labels in one transaction.
         
         Args:
-            labels (list): List of labels to create, containing dictionaries with 'address', 'tags', and 'chain_id' (, optional 'ref_uid')
+            labels (list): List of labels, containing dictionaries with 'address', 'tags', and 'chain_id' (, optional 'ref_uid')
                 address (str): The contract address to label
                 chain_id (str): Chain ID in CAIP-2 format where the address/contract resides
                 tags (dict): OLI compliant tags as a dict  information (name, version, etc.)
                 ref_uid (str): Reference UID
-            gas_limit (int): Gas limit for the transaction, make sure to set it high enough for multiple attestations!
+            gas_limit (int): Gas limit for one transaction to submit all labels passed, make sure to set it high enough for multiple attestations! If set to 0, the function will estimate the gas limit.
             
         Returns:
             str: Transaction hash
@@ -481,33 +516,46 @@ class OLI:
             'data': full_data
         }]
 
-        # Create the transaction to call the multiAttest function
-        transaction = self.eas.functions.multiAttest(
-            multi_requests
-        ).build_transaction({
-            'chainId': self.rpc_chain_number, # for Base use: 8453 
-            'gas': gas_limit,  # Increased gas limit for multiple attestations
+        # Create the function call
+        function = self.eas.functions.multiAttest(multi_requests)
+
+        # Define the transaction parameters
+        tx_params = {
+            'chainId': self.rpc_chain_number,
             'gasPrice': self.w3.eth.gas_price,
             'nonce': self.w3.eth.get_transaction_count(self.address),
-        })
+        }
+
+        # Estimate gas if no limit provided
+        tx_params = self.estimate_gas(self, function, tx_params, gas_limit)
+
+        # Build the transaction to revoke an attestation
+        transaction = function.build_transaction(tx_params)
 
         # Sign the transaction with the private key
         signed_txn = self.w3.eth.account.sign_transaction(transaction, private_key=self.private_key)
         
         # Send the transaction
-        txn_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        try:
+            txn_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        except Exception as e:
+            raise Exception(f"Failed to send transaction to mempool: {e}")
         
         # Wait for the transaction receipt
         txn_receipt = self.w3.eth.wait_for_transaction_receipt(txn_hash)
+
+        # Check if the transaction was successful
+        if txn_receipt.status != 1:
+            raise Exception(f"Transaction failed onchain: {txn_receipt}")
 
         # log the UIDs of the attestations in a list
         uids = ['0x' + log.data.hex() for log in txn_receipt.logs]
 
         return f"0x{txn_hash.hex()}", uids
 
-    def revoke_attestation(self, uid_hex, onchain, gas_limit=200000):
+    def revoke_attestation(self, uid_hex:str, onchain:bool, gas_limit:int=0) -> str:
         """
-        Revoke an onchain attestation (onchain or offchain) using its UID.
+        Revoke an onchain attestation (onchain or offchain) using its UID. Revoking an attestation, weather it is onchain or offchain, requires an onchain transaction.
         
         Args:
             uid_hex (str): UID of the attestation to revoke (in hex format)
@@ -517,7 +565,7 @@ class OLI:
         Returns:
             str: Transaction hash
         """
-        # use the correct function based on wether the attestation is onchain or offchain
+        # different function required based on wether the attestation is onchain or offchain
         if onchain:
             function = self.eas.functions.revoke({
                 'schema': self.w3.to_bytes(hexstr=self.oli_label_pool_schema),
@@ -529,19 +577,27 @@ class OLI:
         else:
             function = self.eas.functions.revokeOffchain(self.w3.to_bytes(hexstr=uid_hex))
 
-        # Build the transaction to revoke an attestation
-        transaction = function.build_transaction({
+        # Define the transaction parameters
+        tx_params = {
             'chainId': self.rpc_chain_number,
-            'gas': gas_limit,
             'gasPrice': self.w3.eth.gas_price,
             'nonce': self.w3.eth.get_transaction_count(self.address),
-        })
+        }
+
+        # Estimate gas if no limit provided
+        tx_params = self.estimate_gas(self, function, tx_params, gas_limit)
+
+        # Build the transaction to revoke an attestation
+        transaction = function.build_transaction(tx_params)
 
         # Sign the transaction
         signed_txn = self.w3.eth.account.sign_transaction(transaction, private_key=self.private_key)
 
         # Send the transaction
-        txn_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        try:
+            txn_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+        except Exception as e:
+            raise Exception(f"Failed to send revoke transaction to mempool: {e}")
 
         # Get the transaction receipt
         txn_receipt = self.w3.eth.wait_for_transaction_receipt(txn_hash)
@@ -552,20 +608,20 @@ class OLI:
         else:
             raise Exception(f"Transaction failed: {txn_receipt}")
     
-    def multi_revoke_attestations(self, uids:list, onchain:bool, gas_limit=1000000):
+    def multi_revoke_attestations(self, uids:list, onchain:bool, gas_limit:int=0) -> tuple[str, int]:
         """
-        Revoke multiple attestations (onchain or offchain) in a single transaction.
+        Revoke multiple attestations (onchain or offchain, no mixing!) in a single transaction. Revoking attestations, weather it is onchain or offchain, requires an onchain transaction.
         
         Args:
             uids (list): List of UIDs to revoke (in hex format)
             onchain (bool): Whether the attestations are onchain or offchain (no mix possible)
-            gas_limit (int): Gas limit for the transaction
+            gas_limit (int): Gas limit for the transaction, if 0, it will be estimated
             
         Returns:
             str: Transaction hash
             int: Number of attestations revoked
         """
-        # use the correct function based on wether the attestation is onchain or offchain
+        # different function required based on wether the attestation is onchain or offchain
         if onchain:
             revocation_data = []
             for uid in uids:
@@ -584,13 +640,18 @@ class OLI:
                 revocation_data.append(self.w3.to_bytes(hexstr=uid))
             function = self.eas.functions.multiRevokeOffchain(revocation_data)
 
-        # Build the transaction to multi revoke attestations
-        transaction = function.build_transaction({
+        # Define the transaction parameters
+        tx_params = {
             'chainId': self.rpc_chain_number,
-            'gas': gas_limit,  # Increased gas limit for large revocations
             'gasPrice': self.w3.eth.gas_price,
             'nonce': self.w3.eth.get_transaction_count(self.address),
-        })
+        }
+
+        # Estimate gas if no limit provided
+        tx_params = self.estimate_gas(self, function, tx_params, gas_limit)
+
+        # Build the transaction
+        transaction = function.build_transaction(tx_params)
 
         # Sign the transaction
         signed_txn = self.w3.eth.account.sign_transaction(transaction, private_key=self.private_key)
@@ -609,7 +670,7 @@ class OLI:
 
     # functions the user should call to query attestations
 
-    def graphql_query_attestations(self, address=None, attester=None, timeCreated=None, revocationTime=None):
+    def graphql_query_attestations(self, address:str=None, attester:str=None, timeCreated:int=None, revocationTime:int=None) -> dict:
         # add keywords to search in decodedDataJson
         """
         Queries attestations from the EAS GraphQL API based on the specified filters.
