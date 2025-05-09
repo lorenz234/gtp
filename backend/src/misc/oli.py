@@ -60,8 +60,6 @@ class OLI:
     
     ### internal functions the user should not call directly
 
-    # offchain attestation functions
-
     def encode_label_data(self, chain_id, tags_json):
         """
         Encode label data in the OLI format.
@@ -80,6 +78,8 @@ class OLI:
         # ABI encode the data
         encoded_data = encode(['string', 'string'], [chain_id, tags_json])
         return f"0x{encoded_data.hex()}"
+
+    # offchain attestation functions
     
     def create_offchain_attestation(self, recipient, schema, data, ref_uid, revocable=True, expiration_time=0):
         """
@@ -259,7 +259,7 @@ class OLI:
     
     # functions for onchain attestations
 
-    def estimate_gas(self, function, tx_params, gas_limit:int):
+    def estimate_gas_limit(self, function, tx_params:dict, gas_limit:int):
         """
         Estimate gas for a transaction.
         
@@ -271,7 +271,7 @@ class OLI:
             tx_params (dict): Transaction parameters with estimated 'gas' field
         """
         try:
-            if gas_limit != 0:
+            if gas_limit == 0:
                 # Estimate gas with a buffer (e.g., 10% more than the estimate)
                 estimated_gas = function.estimate_gas(tx_params)
                 tx_params["gas"] = int(estimated_gas * 1.1)  # Add 10% buffer
@@ -437,7 +437,7 @@ class OLI:
         }
 
         # Estimate gas if no limit provided
-        tx_params = self.estimate_gas(self, function, tx_params, gas_limit)
+        tx_params = self.estimate_gas_limit(function, tx_params, gas_limit)
         
         # Build the transaction to attest one label
         transaction = function.build_transaction(tx_params)
@@ -496,16 +496,17 @@ class OLI:
             if 'ref_uid' not in label:
                 label['ref_uid'] = "0x0000000000000000000000000000000000000000000000000000000000000000"
             else:
-                ref_uid = self.checks_ref_uid(label.get('ref_uid'))
-            
+                label['ref_uid'] = self.checks_ref_uid(label.get('ref_uid'))
+
             # ABI encode data for each attestation
-            encoded_data = encode(['string', 'string'], [chain_id, tags])
-            data = f"0x{encoded_data.hex()}"
+            #encoded_data = encode(['string', 'string'], [chain_id, tags])
+            #data = f"0x{encoded_data.hex()}"
+            data = self.encode_label_data(chain_id, tags)
             full_data.append({
                 'recipient': self.w3.to_checksum_address(address),
                 'expirationTime': 0,
                 'revocable': True,
-                'refUID': self.w3.to_bytes(hexstr=ref_uid),
+                'refUID': self.w3.to_bytes(hexstr=label['ref_uid']),
                 'data': self.w3.to_bytes(hexstr=data),
                 'value': 0
             })
@@ -527,7 +528,7 @@ class OLI:
         }
 
         # Estimate gas if no limit provided
-        tx_params = self.estimate_gas(self, function, tx_params, gas_limit)
+        tx_params = self.estimate_gas_limit(function, tx_params, gas_limit)
 
         # Build the transaction to revoke an attestation
         transaction = function.build_transaction(tx_params)
@@ -553,14 +554,14 @@ class OLI:
 
         return f"0x{txn_hash.hex()}", uids
 
-    def revoke_attestation(self, uid_hex:str, onchain:bool, gas_limit:int=0) -> str:
+    def revoke_attestation(self, uid_hex:str, onchain:bool, gas_limit:int=200000) -> str:
         """
         Revoke an onchain attestation (onchain or offchain) using its UID. Revoking an attestation, weather it is onchain or offchain, requires an onchain transaction.
         
         Args:
             uid_hex (str): UID of the attestation to revoke (in hex format)
             onchain (bool): Whether the attestation is onchain or offchain
-            gas_limit (int): Gas limit for the transaction
+            gas_limit (int): Gas limit for the transaction. If not set, defaults to 200000. Gas estimation is not possible for revoke transactions.
             
         Returns:
             str: Transaction hash
@@ -585,7 +586,7 @@ class OLI:
         }
 
         # Estimate gas if no limit provided
-        tx_params = self.estimate_gas(self, function, tx_params, gas_limit)
+        tx_params = self.estimate_gas_limit(function, tx_params, gas_limit)
 
         # Build the transaction to revoke an attestation
         transaction = function.build_transaction(tx_params)
@@ -608,14 +609,14 @@ class OLI:
         else:
             raise Exception(f"Transaction failed: {txn_receipt}")
     
-    def multi_revoke_attestations(self, uids:list, onchain:bool, gas_limit:int=0) -> tuple[str, int]:
+    def multi_revoke_attestations(self, uids:list, onchain:bool, gas_limit:int=10000000) -> tuple[str, int]:
         """
         Revoke multiple attestations (onchain or offchain, no mixing!) in a single transaction. Revoking attestations, weather it is onchain or offchain, requires an onchain transaction.
         
         Args:
             uids (list): List of UIDs to revoke (in hex format)
             onchain (bool): Whether the attestations are onchain or offchain (no mix possible)
-            gas_limit (int): Gas limit for the transaction, if 0, it will be estimated
+            gas_limit (int): Gas limit for the transaction. If not set, defaults to 10000000. Gas estimation is not possible for revoke transactions.
             
         Returns:
             str: Transaction hash
@@ -648,7 +649,7 @@ class OLI:
         }
 
         # Estimate gas if no limit provided
-        tx_params = self.estimate_gas(self, function, tx_params, gas_limit)
+        tx_params = self.estimate_gas_limit(function, tx_params, gas_limit)
 
         # Build the transaction
         transaction = function.build_transaction(tx_params)
