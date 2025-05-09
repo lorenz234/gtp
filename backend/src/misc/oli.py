@@ -328,7 +328,7 @@ class OLI:
     
     ### functions the user should call to create attestations
     
-    def create_offchain_label(self, address, chain_id, tags, ref_uid="0x0000000000000000000000000000000000000000000000000000000000000000", retry=5):
+    def create_offchain_label(self, address, chain_id, tags, ref_uid="0x0000000000000000000000000000000000000000000000000000000000000000", retry=4):
         """
         Create an offchain OLI label attestation for a contract.
         
@@ -337,7 +337,7 @@ class OLI:
             chain_id (str): Chain ID in CAIP-2 format where the address/contract resides
             tags (dict): OLI compliant tags as a dict  information (name, version, etc.)
             ref_uid (str): Reference UID
-            retry (int): Number of retries for the AP post request to EAS ipfs
+            retry (int): Number of retries for the API post request to EAS ipfs
             
         Returns:
             dict: API request response
@@ -354,13 +354,17 @@ class OLI:
         # Create the attestation
         attestation = self.create_offchain_attestation(recipient=address, schema=self.oli_label_pool_schema, data=data, ref_uid=ref_uid)
         
-        # Submit to the API
+        # Submit to the API & retry if status code is not 200
         response = self.submit_offchain_attestation(attestation)
+        n0 = retry
         while response.status_code != 200 and retry > 0:
-            print(f"Retrying submission... {retry} attempts left")
             retry -= 1
-            time.sleep(2 ** (5 - retry)) # exponential backoff
+            time.sleep(2 ** (n0 - retry)) # exponential backoff
             response = self.submit_offchain_attestation(attestation)
+        
+        # if it fails after all retries, raise an error
+        if response.status_code != 200:
+            raise Exception(f"Failed to submit offchain attestation to EAS API ipfs post endpoint after {n0} retries: {response.status_code} - {response.text}")
 
         return response
     
