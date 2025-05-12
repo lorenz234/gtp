@@ -49,7 +49,7 @@ def check_gcs_connection(gcs_connection):
     """
     return gcs_connection is not None
 
-def save_data_for_range_gcs(df, block_start, block_end, chain, bucket_name):
+def save_data_for_range(df, block_start, block_end, chain, bucket_name):
     """
     Saves the transaction data for a range of blocks to a GCS bucket in parquet format.
     Uses the structure: gcs_bucket_name/{chain_name}/{YYYY-MM-DD}/{file}
@@ -92,29 +92,3 @@ def save_data_for_range_gcs(df, block_start, block_end, chain, bucket_name):
     blob.upload_from_file(parquet_buffer, content_type='application/octet-stream')
     
     print(f"...saved data to GCS: {file_key}")
-
-def upload_parquet_to_gcs(bucket_name, path_name, df):
-    """
-    Uploads a pandas DataFrame as a parquet file to Google Cloud Storage.
-    
-    Args:
-        bucket_name (str): The name of the GCS bucket.
-        path_name (str): The path where the parquet file will be stored.
-        df (pd.DataFrame): The DataFrame to upload.
-    """
-    # Connect to GCS
-    gcs, _ = connect_to_gcs()
-    bucket = gcs.bucket(bucket_name)
-    
-    # Convert DataFrame to parquet and upload to GCS
-    parquet_buffer = io.BytesIO()
-    df.to_parquet(parquet_buffer, index=False)
-    parquet_buffer.seek(0)
-    
-    # Create the blob
-    blob = bucket.blob(f"{path_name}.parquet")
-    
-    # Upload the parquet data
-    blob.upload_from_file(parquet_buffer, content_type='application/octet-stream')
-    
-    print(f"...uploaded to GCS: {path_name}.parquet")

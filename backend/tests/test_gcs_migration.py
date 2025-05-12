@@ -5,8 +5,7 @@ from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs, check_gcs_connection
-from src.adapters.rpc_funcs.utils import connect_to_s3, check_s3_connection, save_data_for_range
+from src.adapters.rpc_funcs.utils import connect_to_gcs, check_gcs_connection, save_data_for_range
 
 def test_gcs_connection():
     """Test that we can establish a GCS connection directly."""
@@ -39,22 +38,20 @@ def test_gcs_connection():
         print(f"Error establishing GCS connection: {str(e)}")
         return None, None
 
-def test_s3_compatibility():
-    """Test that the S3 compatibility layer is working."""
-    print("\n--- Testing S3 Compatibility Layer ---")
+def test_gcs_compatibility():
+    """Test that the GCS compatibility layer is working."""
+    print("\n--- Testing GCS Compatibility Layer ---")
     try:
-        # This should now call connect_to_gcs() internally
-        s3, bucket_name = connect_to_s3()
-        print(f"S3 Compatibility Connection established: {s3 is not None}")
+        gcs, bucket_name = connect_to_gcs()
+        print(f"GCS Connection established: {gcs is not None}")
         print(f"Bucket name: {bucket_name}")
         
-        # Test if the connection is valid using check_s3_connection
-        is_valid = check_s3_connection(s3)
-        print(f"S3 Compatibility Connection is valid: {is_valid}")
+        is_valid = check_gcs_connection(gcs)
+        print(f"GCS Connection is valid: {is_valid}")
         
-        return s3, bucket_name
+        return gcs, bucket_name
     except Exception as e:
-        print(f"Error using S3 compatibility layer: {str(e)}")
+        print(f"Error using GCS compatibility layer: {str(e)}")
         return None, None
 
 def test_save_data_for_range():
@@ -106,6 +103,6 @@ def test_save_data_for_range():
 if __name__ == "__main__":
     print("Starting GCS Migration Tests")
     test_gcs_connection()
-    test_s3_compatibility()
+    test_gcs_compatibility()
     test_save_data_for_range()
     print("\nGCS Migration Tests Completed") 

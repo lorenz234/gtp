@@ -11,7 +11,7 @@ from src.adapters.rpc_funcs.web3 import Web3CC
 from sqlalchemy import text
 from src.main_config import get_main_config 
 from src.adapters.rpc_funcs.chain_configs import chain_configs
-from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs, check_gcs_connection, save_data_for_range_gcs
+from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs, check_gcs_connection, save_data_for_range
 
 # ---------------- Utility Functions ---------------------
 def safe_float_conversion(x):
@@ -630,32 +630,6 @@ def connect_to_node(rpc_config):
         print(f"ERROR: failed to connect to the node with config {rpc_config}: {e}")
         raise
 
-def connect_to_s3():
-    """
-    Establishes a connection to Google Cloud Storage using credentials from environment variables.
-    This function is kept for backward compatibility but uses GCS instead of S3.
-    
-    Returns:
-        tuple: A tuple containing the GCS client object and the bucket name.
-
-    Raises:
-        ConnectionError: If the connection to GCS fails.
-    """
-    return connect_to_gcs()
-
-def check_s3_connection(s3_connection):
-    """
-    Checks if the connection to Google Cloud Storage is established.
-    This function is kept for backward compatibility but checks GCS connection instead of S3.
-    
-    Args:
-        s3_connection: The GCS connection object.
-
-    Returns:
-        bool: True if the connection is valid, False otherwise.
-    """
-    return check_gcs_connection(s3_connection)
-
 # ---------------- Generic Preparation Function ------------------
 def prep_dataframe_new(df, chain):
     """
@@ -974,23 +948,9 @@ def fetch_data_for_range(w3, block_start, block_end):
     except Exception as e:
         raise e
 
-def save_data_for_range(df, block_start, block_end, chain, bucket_name):
-    """
-    Saves the transaction data for a range of blocks to a GCS bucket in parquet format.
-    Uses the structure: gcs_bucket_name/{chain_name}/{YYYY-MM-DD}/{file}
-    
-    Args:
-        df (pd.DataFrame): The DataFrame containing transaction data.
-        block_start (int): The starting block number.
-        block_end (int): The ending block number.
-        chain (str): The name of the blockchain chain.
-        bucket_name (str): The name of the GCS bucket.
-    """
-    save_data_for_range_gcs(df, block_start, block_end, chain, bucket_name)
-
 def fetch_and_process_range(current_start, current_end, chain, w3, table_name, bucket_name, db_connector, rpc_url):
     """
-    Fetches and processes transaction data for a range of blocks, saves it to S3, and inserts it into the database.
+    Fetches and processes transaction data for a range of blocks, saves it to GCS, and inserts it into the database.
     Retries the operation on failure with exponential backoff.
 
     Args:
@@ -999,7 +959,7 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
         chain (str): The name of the blockchain chain.
         w3: The Web3 instance for interacting with the blockchain.
         table_name (str): The database table name to insert data into.
-        bucket_name (str): The name of the S3 bucket.
+        bucket_name (str): The name of the GCS bucket.
         db_connector: The database connector object.
         rpc_url (str): The RPC URL used for fetching data.
 

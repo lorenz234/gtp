@@ -1,6 +1,6 @@
 from src.adapters.rpc_funcs.funcs_backfill import check_and_record_missing_block_ranges
 from src.adapters.abstract_adapters import AbstractAdapterRaw
-from src.adapters.rpc_funcs.utils import connect_to_s3, check_s3_connection, handle_retry_exception, check_db_connection, save_data_for_range
+from src.adapters.rpc_funcs.utils import connect_to_gcs, check_gcs_connection, handle_retry_exception, check_db_connection, save_data_for_range
 from queue import Queue, Empty
 from threading import Thread, Lock
 import requests
@@ -21,8 +21,8 @@ class AdapterStarknet(AbstractAdapterRaw):
             raise ValueError("No RPC configurations provided.")
         self.active_rpcs = set()
 
-        # Initialize S3 connection
-        self.s3_connection, self.bucket_name = connect_to_s3()
+        # Initialize GCS connection
+        self.gcs_connection, self.bucket_name = connect_to_gcs()
 
     def extract_raw(self, load_params:dict):
         self.block_start = load_params['block_start']
@@ -36,10 +36,10 @@ class AdapterStarknet(AbstractAdapterRaw):
         else:
             print("Successfully connected to database.")
 
-        if not check_s3_connection(self.s3_connection):
-            raise ConnectionError("S3 is not connected.")
+        if not check_gcs_connection(self.gcs_connection):
+            raise ConnectionError("GCS is not connected.")
         else:
-            print("Successfully connected to S3.")
+            print("Successfully connected to GCS.")
 
         latest_block = None
         for rpc_config in self.rpc_configs:
