@@ -1,4 +1,5 @@
 import json
+import yaml
 import secrets
 import time
 import requests
@@ -41,7 +42,6 @@ class OLI:
             private_key_bytes = private_key[2:]
         else:
             private_key_bytes = private_key
-            
         private_key_obj = keys.PrivateKey(bytes.fromhex(private_key_bytes))
         
         # Create account from private key
@@ -57,6 +57,12 @@ class OLI:
         # Initialize EAS contract
         self.eas = self.w3.eth.contract(address=self.eas_address, abi=self.eas_abi)
     
+        # get latest official OLI tag ids
+        self.tag_definitions = self.get_OLI_tags()
+        self.tag_ids = list(self.tag_definitions.keys())
+
+        # get latest value_sets for the OLI tags
+        self.tag_value_sets = self.get_OLI_value_sets()
     
     ### internal functions the user should not call directly
 
@@ -281,9 +287,74 @@ class OLI:
             tx_params["gas"] = 10000000  # Default fallback
         return tx_params
     
+    # init functions
+
+    def get_OLI_tags(self) -> dict:
+        """
+        Get latest OLI tags from OLI Github repo.
+        
+        Returns:
+            dict: Dictionary of official OLI tags
+        """
+        url = "https://raw.githubusercontent.com/lorenz234/OLI/refs/heads/main/1_data_model/tags/tag_definitions.yml" #### change from my fork to official repo
+        response = requests.get(url)
+        if response.status_code == 200:
+            y = yaml.safe_load(response.text)
+            y = {i['tag_id']: i for i in y['tags']}
+            return y
+        else:
+            raise Exception(f"Failed to fetch OLI tags from Github: {response.status_code} - {response.text}")
+
+    def get_OLI_value_sets(self) -> dict:
+        """
+        Get latest value sets for OLI tags.
+        
+        Returns:
+            dict: Dictionary of value sets with tag_id as key
+        """
+        value_sets = {}
+
+        # value set for owner_project
+        url = "https://api.growthepie.xyz/v1/labels/projects.json" 
+        response = requests.get(url)
+        if response.status_code == 200:
+            y = yaml.safe_load(response.text)
+            value_sets["owner_project"] = [i[0] for i in y['data']['data']]
+        else:
+            raise Exception(f"Failed to fetch owner_project value set from grwothepie projects api: {response.status_code} - {response.text}")
+
+        # value set for usage_category
+        url = "https://raw.githubusercontent.com/lorenz234/OLI/refs/heads/main/1_data_model/tags/valuesets/usage_category.yml" ### change from my fork to official repo
+        response = requests.get(url)
+        if response.status_code == 200:
+            y = yaml.safe_load(response.text)
+            value_sets['usage_category'] = [i['category_id'] for i in y['categories']]
+        else:
+            raise Exception(f"Failed to fetch usage_category value set from OLI Github: {response.status_code} - {response.text}")
+
+        return value_sets
+
     # data check functions
 
-    def checks_chain_id(self, chain_id):
+    def check_label_correctness(self, address:str, chain_id:str, tags:dict, ref_uid:str="0x0000000000000000000000000000000000000000000000000000000000000000") -> bool:
+        """
+        Check if the label is correct.
+        
+        Args:
+            address (str): Address to check
+            chain_id (str): Chain ID to check
+            tags (dict): Tags to check
+            
+        Returns:
+            bool: True if the label is correct, False otherwise
+        """
+        self.checks_address(address)
+        self.checks_chain_id(chain_id)
+        self.checks_tags(tags)
+        self.checks_ref_uid(ref_uid)
+        return True
+        
+    def checks_chain_id(self, chain_id:str) -> bool:
         """
         Check if chain_id for a label is in CAIP-2 format.
         
@@ -291,13 +362,33 @@ class OLI:
             chain_id (str): Chain ID to check
             
         Returns:
-            chain_id (str): Chain ID that was checked
+            bool: True if correct, False otherwise
         """
-        if chain_id.startswith('eip155:'):
-            return chain_id
-        else:
-            print(chain_id)
-            raise ValueError("Chain ID must be in CAIP-2 format (e.g., Base -> 'eip155:8453')")
+        # Define whitelist of chain ID prefixes according to CAIP-2 format
+        self.allowed_prefixes = [
+            'eip155:',  # Ethereum and EVM-compatible chains
+            'solana:',  # Solana
+            'tron:',    # TRON
+            'stellar:', # Stellar
+            'bip122:'   # Bitcoin
+        ]
+        
+        # Check if the chain_id starts with any of the allowed prefixes
+        for prefix in self.allowed_prefixes:
+            if chain_id.startswith(prefix):
+                # For eip155, further validate that the rest is a number or 'any'
+                if prefix == 'eip155:':
+                    rest = chain_id[len(prefix):]
+                    if rest == 'any' or rest.isdigit():
+                        return True
+                    else:
+                        print(f"Invalid EIP155 chain ID format: {chain_id}")
+                        raise ValueError("For EIP155 chains, format must be 'eip155:' followed by a number or 'any'")
+                return True
+        
+        # If we get here, the chain_id didn't match any allowed format
+        print(f"Unsupported chain ID format: {chain_id}")
+        raise ValueError("Chain ID must be in CAIP-2 format (e.g., Base -> 'eip155:8453'), see this guide on CAIP-2: https://docs.portalhq.io/resources/chain-id-formatting")
 
     def checks_address(self, address):
         """
@@ -307,17 +398,15 @@ class OLI:
             address (str): Address to check
             
         Returns:
-            address (str): Address in the correct format
+            bool: True if correct, False otherwise
         """
         if self.w3.is_address(address):
-            return address
-        elif self.w3.is_address(address[2:]):
-            return '0x' + address[2:]
+            return True
         else:
             print(address)
-            raise ValueError("address must be a valid Ethereum address in hex format")
+            raise ValueError("Address must be a valid Ethereum address in hex format")
         
-    def checks_tags(self, tags):
+    def checks_tags(self, tags:dict) -> bool:
         """
         Check if tags are in the correct format.
         
@@ -325,13 +414,48 @@ class OLI:
             tags (dict): Tags to check
             
         Returns:
-            tags (dict): Tags that were checked
+            bool: True if correct, False otherwise
         """
+
+        # Check if tags is a dictionary
         if isinstance(tags, dict):
-            return tags
+            pass
         else:
             print(tags)
-            raise ValueError("tags must be a dictionary with OLI compliant tags")
+            raise ValueError("Tags must be a dictionary with OLI compliant tags (e.g., {'contract_name': 'example', 'is_eoa': True})")
+        
+        # Check each tag_id in the dictionary
+        for tag_id in tags.keys():
+            
+            # Check if the tag_id is in the official OLI tag list
+            if tag_id not in self.tag_ids:
+                print(f"WARNING: Tag tag_id '{tag_id}' is not an official OLI tag. Please check the 'oli.tag_definitions' or https://github.com/openlabelsinitiative/OLI/blob/main/1_data_model/tags/tag_definitions.yml.")
+            
+            # Check if the tag_id is in the correct format. So far implemented [boolean, string, integer, float, string(42), string(66), date (YYYY-MM-DD HH:MM:SS)]
+            else:
+                if self.tag_definitions[tag_id]['type'] == 'boolean' and not isinstance(tags[tag_id], bool):
+                    print(f"WARNING: Tag value for {tag_id} must be a boolean (True/False).")
+                elif self.tag_definitions[tag_id]['type'] == 'string' and not isinstance(tags[tag_id], str):
+                    print(f"WARNING: Tag value for {tag_id} must be a string.")
+                elif self.tag_definitions[tag_id]['type'] == 'integer' and not isinstance(tags[tag_id], int):
+                    print(f"WARNING: Tag value for {tag_id} must be an integer.")
+                elif self.tag_definitions[tag_id]['type'] == 'float' and not isinstance(tags[tag_id], float):
+                    print(f"WARNING: Tag value for {tag_id} must be a float.")
+                elif self.tag_definitions[tag_id]['type'] == 'string(42)' and not self.w3.is_address(tags[tag_id]):
+                    print(f"WARNING: Tag value for {tag_id} must be a valid Ethereum address string with '0x'.")
+                elif self.tag_definitions[tag_id]['type'] == 'string(66)' and not (len(tags[tag_id]) == 66 and tags[tag_id].startswith('0x')):
+                    print(f"WARNING: Tag value for {tag_id} must be a valid hex string with '0x' prefix and 64 hex characters (66 characters total).")
+                elif self.tag_definitions[tag_id]['type'] == 'date (YYYY-MM-DD HH:MM:SS)' and not isinstance(tags[tag_id], str):
+                    print(f"WARNING: Tag value for {tag_id} must be a string in the format 'YYYY-MM-DD HH:MM:SS'.")
+
+            # Check if the value is in the value set
+            if tag_id in self.tag_value_sets and tags[tag_id] not in self.tag_value_sets[tag_id]:
+                print(f"WARNING: Invalid tag value for {tag_id}: {tags[tag_id]}")
+                if tag_id == 'owner_project':
+                    print(f"Please use a valid owner_project name from the OSS directory: https://github.com/opensource-observer/oss-directory/tree/main/data/projects")
+                else:
+                    print(f"Please use one of the following values: {self.tag_value_sets[tag_id]}")
+
 
     def checks_ref_uid(self, ref_uid):
         """
@@ -341,13 +465,13 @@ class OLI:
             ref_uid (str): Reference UID to check
             
         Returns:
-            ref_uid: Reference UID that was checked
+            bool: True if correct, False otherwise
         """
         if ref_uid.startswith('0x') and len(ref_uid) == 66:
-            return ref_uid
+            return True
         else:
             print(ref_uid)
-            raise ValueError("ref_uid must be a valid UID in hex format, leave empty if not used")
+            raise ValueError("Ref_uid must be a valid UID in hex format, leave empty if not used")
 
     
     ### functions the user should call to create attestations
