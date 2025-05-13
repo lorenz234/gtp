@@ -359,8 +359,6 @@ stables_mapping = {
         "bridged": {
             "ethereum": [
                 "0x2658723Bf70c7667De6B25F99fcce13A16D25d08", # Canonical: Generic escrow (L1StandardBridge) - holds LSK, USDT, WBTC, TRB
-                "0x26dB93F8b8b4f7016240af62F7730979d353f9A7", # Canonical: Escrow for ETH (OptimismPortal) - holds ETH
-                "0x9348AF23B01F2B517AFE8f29B3183d2Bb7d69Fcf", # External: Escrow for wstETH (L1ERC20TokenBridge) - holds wstETH
                 "0xE3622468Ea7dD804702B56ca2a4f88C0936995e6"  # External: Escrow for USDC (L1OpUSDCBridgeAdapter) - holds USDC
             ],
         },
