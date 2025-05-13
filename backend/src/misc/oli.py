@@ -491,10 +491,7 @@ class OLI:
             dict: API request response
         """
         # Check all necessary input parameters
-        address = self.checks_address(address)
-        chain_id = self.checks_chain_id(chain_id)
-        tags = self.checks_tags(tags)
-        ref_uid = self.checks_ref_uid(ref_uid)
+        self.check_label_correctness(address, chain_id, tags, ref_uid)
         
         # Encode the label data
         data = self.encode_label_data(chain_id, tags)
@@ -532,10 +529,7 @@ class OLI:
             str: UID of the attestation
         """
         # Check all necessary input parameters
-        address = self.checks_address(address)
-        chain_id = self.checks_chain_id(chain_id)
-        tags = self.checks_tags(tags)
-        ref_uid = self.checks_ref_uid(ref_uid)
+        self.check_label_correctness(address, chain_id, tags, ref_uid)
 
         # Encode the label data
         data = self.encode_label_data(chain_id, tags)
@@ -612,9 +606,7 @@ class OLI:
                 raise ValueError("tags dictionary must be provided for each label")
             
             # run checks on each label
-            chain_id = self.checks_chain_id(label.get('chain_id'))
-            address = self.checks_address(label.get('address'))
-            tags = self.checks_tags(label.get('tags'))
+            self.check_label_correctness(label.get('address'), label.get('chain_id'), label.get('tags'))
 
             # check if ref_uid is provided
             if 'ref_uid' not in label:
@@ -623,11 +615,9 @@ class OLI:
                 label['ref_uid'] = self.checks_ref_uid(label.get('ref_uid'))
 
             # ABI encode data for each attestation
-            #encoded_data = encode(['string', 'string'], [chain_id, tags])
-            #data = f"0x{encoded_data.hex()}"
-            data = self.encode_label_data(chain_id, tags)
+            data = self.encode_label_data(label.get('chain_id'), label.get('tags'))
             full_data.append({
-                'recipient': self.w3.to_checksum_address(address),
+                'recipient': self.w3.to_checksum_address(label.get('address')),
                 'expirationTime': 0,
                 'revocable': True,
                 'refUID': self.w3.to_bytes(hexstr=label['ref_uid']),
