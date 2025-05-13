@@ -1,0 +1,25 @@
+{#
+    A query to get the total sum of the txcount metric from the fact_kpis table.
+
+    Parameters:
+    - days: default = 30; The time interval (in days) to consider for data extraction.
+    - metric_key: The metric key to filter the data.
+#}
+
+{% set days = days | default(30) %}
+
+SELECT 
+    fk."date",
+    sum(fk.value) as value
+FROM fact_kpis fk
+WHERE fk.metric_key = '{{ metric_key }}'
+    AND fk.origin_key not in (
+        'da_celestia',
+        'da_ethereum_blobs',
+        'da_ethereum_calldata',
+        'ethereum'
+    )
+    AND fk."date" >= current_date - INTERVAL '{{ days }} days' 
+    AND fk."date" < current_date
+GROUP BY 1
+ORDER BY 1 DESC

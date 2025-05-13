@@ -24,31 +24,6 @@ from src.misc.airflow_utils import alert_via_webhook
 
 def etl():
     @task()
-    def run_market_chart():
-        from src.db_connector import DbConnector
-        from src.adapters.adapter_coingecko import AdapterCoingecko
-        import os
-        adapter_params = {
-            'api_key' : os.getenv("COINGECKO_API")
-        }
-
-        load_params = {
-            'load_type' : 'project',
-            'metric_keys' : ['price', 'volume', 'market_cap'],
-            'origin_keys' : None, # could also be a list
-            'days' : 'auto', # auto, max, or a number (as string)
-            'vs_currencies' : ['usd', 'eth']
-        }
-
-        # initialize adapter
-        db_connector = DbConnector()
-        ad = AdapterCoingecko(adapter_params, db_connector)
-        # extract
-        df = ad.extract(load_params)
-        # load
-        ad.load(df)
-
-    @task()
     def run_direct():
         from src.db_connector import DbConnector
         from src.adapters.adapter_coingecko import AdapterCoingecko
@@ -73,6 +48,5 @@ def etl():
         # load
         ad.load(df)
     
-    run_market_chart()
     run_direct()
 etl()
