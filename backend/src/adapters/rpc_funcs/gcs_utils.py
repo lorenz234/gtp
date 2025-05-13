@@ -4,6 +4,7 @@ import time
 from google.cloud import storage
 from google.oauth2 import service_account
 import io
+import numpy as np
 
 def connect_to_gcs():
     """
@@ -72,11 +73,58 @@ def save_data_for_range(df, block_start, block_end, chain, bucket_name):
     # Generate the filename
     filename = f"{chain}_tx_{block_start}_{block_end}.parquet"
     
-    # Get the current date for folder structure
-    current_date = time.strftime("%Y-%m-%d")
+    # Get the date from the first block timestamp instead of current date
+    print(f"DataFrame columns: {df.columns.tolist()}")
+    
+    # Determine which timestamp column to use
+    timestamp_col = None
+    if 'block_timestamp' in df.columns:
+        timestamp_col = 'block_timestamp'
+        print(f"Found 'block_timestamp' column")
+    
+    # Get date_str based on available timestamp column
+    if timestamp_col and not df.empty:
+        # Use the timestamp from the first row
+        block_timestamp = df[timestamp_col].iloc[0]
+        print(f"Using {timestamp_col}, value: {block_timestamp}, type: {type(block_timestamp)}")
+        
+        # Convert timestamp to date format YYYY-MM-DD
+        try:
+            # Handle different timestamp formats
+            if isinstance(block_timestamp, (int, float, np.int64, np.float64)):
+                # Unix timestamp (seconds since epoch)
+                from datetime import datetime
+                timestamp_value = float(block_timestamp)
+                date_str = datetime.fromtimestamp(timestamp_value).strftime("%Y-%m-%d")
+                print(f"Converted unix timestamp {timestamp_value} to date: {date_str}")
+            else:
+                # String timestamp or datetime object
+                from datetime import datetime
+                if isinstance(block_timestamp, str):
+                    # Try to parse the string timestamp
+                    try:
+                        date_str = datetime.strptime(block_timestamp, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d")
+                    except ValueError:
+                        # Try ISO format
+                        date_str = datetime.fromisoformat(block_timestamp.replace('Z', '+00:00')).strftime("%Y-%m-%d")
+                else:
+                    # Assume it's already a datetime object
+                    date_str = block_timestamp.strftime("%Y-%m-%d")
+                print(f"Converted {type(block_timestamp)} timestamp to date: {date_str}")
+        except Exception as e:
+            # Fallback to current date if there's an error parsing the timestamp
+            print(f"Error parsing block timestamp, falling back to current date: {str(e)}")
+            date_str = time.strftime("%Y-%m-%d")
+            print(f"Using current date: {date_str}")
+    else:
+        # Fallback to current date if timestamp column doesn't exist
+        print("No suitable timestamp column found in DataFrame")
+        date_str = time.strftime("%Y-%m-%d")
+        print(f"Using current date: {date_str}")
     
     # Create GCS file path
-    file_key = f"{chain}/{current_date}/{filename}"
+    file_key = f"{chain}/{date_str}/{filename}"
+    print(f"Created file path: {file_key}")
     
     # Connect to GCS
     gcs, _ = connect_to_gcs()

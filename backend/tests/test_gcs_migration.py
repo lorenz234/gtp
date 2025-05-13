@@ -63,7 +63,10 @@ def test_save_data_for_range():
         return
     
     try:
-        # Create a simple test dataframe
+        # Create a simple test dataframe with a specific timestamp
+        specific_date = datetime(2023, 5, 15, 12, 0, 0)  # Using May 15, 2023 as a fixed date
+        expected_date_str = "2023-05-15"
+        
         df = pd.DataFrame({
             'block_number': [1, 2, 3],
             'tx_hash': ['0x123', '0x456', '0x789'],
@@ -72,7 +75,7 @@ def test_save_data_for_range():
             'value': [1.0, 2.0, 3.0],
             'gas_price': [10, 20, 30],
             'gas_used': [100, 200, 300],
-            'block_timestamp': [datetime.now(), datetime.now(), datetime.now()]
+            'block_timestamp': [specific_date, specific_date, specific_date]
         })
         
         # Define test parameters
@@ -84,9 +87,8 @@ def test_save_data_for_range():
         print(f"Saving test data for blocks {block_start} to {block_end} in chain '{chain}'")
         save_data_for_range(df, block_start, block_end, chain, bucket_name)
         
-        # Verify the file was created by listing blobs with the prefix
-        current_date = datetime.now().strftime("%Y-%m-%d")
-        prefix = f"{chain}/{current_date}/{chain}_tx_{block_start}_{block_end}"
+        # Verify the file was created by listing blobs with the prefix using the expected date
+        prefix = f"{chain}/{expected_date_str}/{chain}_tx_{block_start}_{block_end}"
         bucket = gcs.bucket(bucket_name)
         blobs = list(bucket.list_blobs(prefix=prefix))
         
@@ -94,6 +96,47 @@ def test_save_data_for_range():
             print(f"Successfully found {len(blobs)} files with prefix '{prefix}':")
             for blob in blobs:
                 print(f" - {blob.name} ({blob.size} bytes)")
+                # Verify the date in the path matches our expected date
+                expected_path = f"{chain}/{expected_date_str}/{chain}_tx_{block_start}_{block_end}.parquet"
+                if blob.name == expected_path:
+                    print(f"✅ Path matches expected format with timestamp-derived date: {expected_date_str}")
+                else:
+                    print(f"❌ Path doesn't match expected format: {blob.name} vs {expected_path}")
+        else:
+            print(f"No files found with prefix '{prefix}'")
+            
+        # Also test with Unix timestamp format
+        print("\nTesting with Unix timestamp format:")
+        unix_df = pd.DataFrame({
+            'block_number': [4, 5, 6],
+            'tx_hash': ['0xabc', '0xdef', '0xghi'],
+            'from_address': ['0x123', '0x456', '0x789'],
+            'to_address': ['0xabc', '0xdef', '0xghi'],
+            'value': [4.0, 5.0, 6.0],
+            'gas_price': [40, 50, 60],
+            'gas_used': [400, 500, 600],
+            'block_timestamp': [specific_date.timestamp(), specific_date.timestamp(), specific_date.timestamp()]
+        })
+        
+        # Save the data with Unix timestamps
+        block_start = 4
+        block_end = 6
+        print(f"Saving test data with Unix timestamps for blocks {block_start} to {block_end} in chain '{chain}'")
+        save_data_for_range(unix_df, block_start, block_end, chain, bucket_name)
+        
+        # Verify file was created with the same expected date
+        prefix = f"{chain}/{expected_date_str}/{chain}_tx_{block_start}_{block_end}"
+        blobs = list(bucket.list_blobs(prefix=prefix))
+        
+        if blobs:
+            print(f"Successfully found {len(blobs)} files with prefix '{prefix}':")
+            for blob in blobs:
+                print(f" - {blob.name} ({blob.size} bytes)")
+                expected_path = f"{chain}/{expected_date_str}/{chain}_tx_{block_start}_{block_end}.parquet"
+                if blob.name == expected_path:
+                    print(f"✅ Path matches expected format with Unix timestamp-derived date: {expected_date_str}")
+                else:
+                    print(f"❌ Path doesn't match expected format: {blob.name} vs {expected_path}")
         else:
             print(f"No files found with prefix '{prefix}'")
             
