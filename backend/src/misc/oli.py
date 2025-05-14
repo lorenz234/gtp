@@ -518,9 +518,9 @@ class OLI:
                         if i not in self.tag_value_sets[tag_id]:
                             print(f"WARNING: Invalid tag value for {tag_id}: {i}")
                             if len(self.tag_value_sets[tag_id]) < 100:
-                                print(f"Please use one of the following values for {tag_id}: {self.tag_value_sets[tag_id]}")
+                                print(f"Please use a list of values from the predefined value_set for {tag_id}: {self.tag_value_sets[tag_id]}")
                             else:
-                                print(f"Please use a valid value from the predefined value_set for {tag_id}: {self.tag_definitions[tag_id]['value_set']}")
+                                print(f"Please use a list of values from the predefined value_set for {tag_id}: {self.tag_definitions[tag_id]['value_set']}")
 
     def checks_ref_uid(self, ref_uid):
         """
