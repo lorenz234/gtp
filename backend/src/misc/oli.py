@@ -549,9 +549,11 @@ class OLI:
         Returns:
             bool: True if correct, False otherwise
         """
-        if chain_id == 'eip155:any' and 'is_eoa' not in tags:
-            if tags['is_eoa'] != True:
-                raise ValueError("If chain_id is 'eip155:any', the tag_id 'is_eoa' must be set to True!")
+        if chain_id == 'eip155:any':
+            if 'is_eoa' not in tags:
+                raise ValueError("chain_id can only be set to 'eip155:any' if the address is an EOA, make sure to add the tag_id 'is_eoa' and set to True!")
+            elif tags['is_eoa'] != True:
+                raise ValueError("chain_id can only be set to 'eip155:any' if the address is an EOA, make sure to set the tag_id 'is_eoa' to True!")
         return True
 
 
