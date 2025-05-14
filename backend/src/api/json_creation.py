@@ -1300,6 +1300,9 @@ class JSONCreation():
         else:
             main_config_filtered = self.main_config
 
+        ## filter df to date < today (because mcap has also today's date)
+        df_tmp = df.loc[df.date < datetime.now(timezone.utc).strftime('%Y-%m-%d')].copy()
+
         ## loop over all chains and generate a chain details json for all chains and with all possible metrics
         for chain in main_config_filtered:
             origin_key = chain.origin_key
@@ -1319,7 +1322,7 @@ class JSONCreation():
 
                 print(f'..processing: Chain details for {origin_key} - {metric}')
                 
-                mk_list = self.generate_daily_list(df, metric, origin_key)
+                mk_list = self.generate_daily_list(df_tmp, metric, origin_key)
                 mk_list_int = mk_list[0]
                 mk_list_columns = mk_list[1]
 
@@ -1334,7 +1337,7 @@ class JSONCreation():
                 }
 
                 if self.metrics[metric]['ranking_bubble']:
-                    ranking_dict[metric] = self.get_ranking(df, metric, origin_key)
+                    ranking_dict[metric] = self.get_ranking(df_tmp, metric, origin_key)
             
             ## Hottest Contract
             if chain.runs_aggregate_blockspace and 'blockspace' not in chain.api_exclude_metrics:
