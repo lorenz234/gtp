@@ -62,15 +62,15 @@ class OLI:
         # get latest official OLI tag ids
         self.tag_definitions = self.get_OLI_tags()
         self.tag_ids = list(self.tag_definitions.keys())
-        print(f"Found {len(self.tag_ids)} OLI tags.")
 
         # get latest value_sets for the OLI tags
         self.tag_value_sets = self.get_OLI_value_sets()
-        print("OLI API client initialized successfully.")
+
+        print("...OLI client initialized successfully.")
     
     ### internal functions the user should not call directly
 
-    def encode_label_data(self, chain_id, tags_json):
+    def _encode_label_data(self, chain_id, tags_json):
         """
         Encode label data in the OLI format.
         
@@ -91,9 +91,9 @@ class OLI:
 
     # offchain attestation functions
     
-    def create_offchain_attestation(self, recipient, schema, data, ref_uid, revocable=True, expiration_time=0):
+    def build_offchain_attestation(self, recipient, schema, data, ref_uid, revocable=True, expiration_time=0):
         """
-        Create an attestation with the given parameters.
+        Build an attestation with the given parameters.
         
         Args:
             recipient (str): Ethereum address of the contract to be labeled
@@ -182,9 +182,9 @@ class OLI:
         
         return result
     
-    def submit_offchain_attestation(self, attestation, filename="OLI.txt"):
+    def post_offchain_attestation(self, attestation, filename="OLI.txt"):
         """
-        Submit an attestation to the EAS API.
+        Post API an attestation to the EAS API.
         
         Args:
             attestation (dict): The attestation package
@@ -318,12 +318,21 @@ class OLI:
         """
         value_sets = {}
 
+        # value sets from self.tag_definitions (must be a list)
+        additional_value_sets = {i['tag_id']: i['value_set'] for i in self.tag_definitions.values() if 'value_set' in i}
+        for tag_id, value_set in additional_value_sets.items():
+            if isinstance(value_set, list):
+                # convert all string values to lowercase and keep the rest as is
+                value_set = [i.lower() if isinstance(i, str) else i for i in value_set]
+                value_sets[tag_id] = value_set
+
         # value set for owner_project
         url = "https://api.growthepie.xyz/v1/labels/projects.json" 
         response = requests.get(url)
         if response.status_code == 200:
             y = yaml.safe_load(response.text)
             value_sets["owner_project"] = [i[0] for i in y['data']['data']]
+            value_sets["owner_project"] = [i.lower() if isinstance(i, str) else i for i in value_sets["owner_project"]]
         else:
             raise Exception(f"Failed to fetch owner_project value set from grwothepie projects api: {response.status_code} - {response.text}")
 
@@ -333,6 +342,7 @@ class OLI:
         if response.status_code == 200:
             y = yaml.safe_load(response.text)
             value_sets['usage_category'] = [i['category_id'] for i in y['categories']]
+            value_sets['usage_category'] = [i.lower() if isinstance(i, str) else i for i in value_sets['usage_category']]
         else:
             raise Exception(f"Failed to fetch usage_category value set from OLI Github: {response.status_code} - {response.text}")
 
@@ -342,11 +352,11 @@ class OLI:
 
     def fix_simple_tags_formatting(self, tags:dict) -> dict:
         """
-        Fix basic formatting errors in the tags dictionary. This includes:
-        - Ensuring that the keys are in lowercase
+        Fix basic formatting in the tags dictionary. This includes:
+        - Ensuring all tag_ids and their value are lowercase
         - Booling values are converted from strings to booleans
-        - Removing any leading/trailing whitespace from string values
-        - Checksum any address (string(42)) and transaction hash (string(66)) tags
+        - Removing leading/trailing whitespace from string values
+        - Checksum address (string(42)) tags
         
         Args:
             tags (dict): Dictionary of tags
@@ -354,33 +364,36 @@ class OLI:
         Returns:
             dict: Formatted tags
         """
-        # Convert keys to lowercase
+        # Convert tag_ids to lowercase
         tags = {k.lower(): v for k, v in tags.items()}
-        # Convert boolean values from strings to booleans
+
+        # Convert all tag_values to lower case & strip whitespaces, then single boolean values from strings to booleans
         for k, v in tags.items():
             if isinstance(v, str):
-                if v.lower() == 'true':
+                tags[k] = v.strip().lower()
+                if tags[k] == 'true':
                     tags[k] = True
-                elif v.lower() == 'false':
+                elif tags[k] == 'false':
                     tags[k] = False
-                else:
-                    tags[k] = v.strip()
-        # Checksum any address (string(42)) and transaction hash (string(66)) tags
+            elif isinstance(v, list):
+                tags[k] = [i.strip().lower() if isinstance(i, str) else i for i in v]
+
+        # Checksum address (string(42)) and transaction hash (string(66)) tags
         for k, v in tags.items():
             if self.tag_definitions[k]['type'] == 'string(42)':
                 tags[k] = self.w3.to_checksum_address(v)
-            elif self.tag_definitions[k]['type'] == 'string(66)':
-                tags[k] = self.w3.to_hex(v)
+
         return tags
 
     def check_label_correctness(self, address:str, chain_id:str, tags:dict, ref_uid:str="0x0000000000000000000000000000000000000000000000000000000000000000") -> bool:
         """
-        Check if the label is OLI conform. See OLI github for more details: https://github.com/openlabelsinitiative/OLI
+        Check if the label is compliant with the OLI Data Model. See OLI Github documentation for more details: https://github.com/openlabelsinitiative/OLI
         
         Args:
             address (str): Address to check
             chain_id (str): Chain ID to check
             tags (dict): Tags to check
+            ref_uid (str): Reference UID to check
             
         Returns:
             bool: True if the label is correct, False otherwise
@@ -491,12 +504,23 @@ class OLI:
                     print(f"WARNING: Tag value for {tag_id} must be a string in the format 'YYYY-MM-DD HH:MM:SS'.")
 
             # Check if the value is in the value set
-            if tag_id in self.tag_value_sets and tags[tag_id] not in self.tag_value_sets[tag_id]:
-                print(f"WARNING: Invalid tag value for {tag_id}: {tags[tag_id]}")
-                if tag_id == 'owner_project':
-                    print(f"Please use a valid owner_project name from the OSS directory: https://github.com/opensource-observer/oss-directory/tree/main/data/projects")
-                else:
-                    print(f"Please use one of the following values: {self.tag_value_sets[tag_id]}")
+            if tag_id in self.tag_value_sets:
+                # single value
+                if tags[tag_id] not in self.tag_value_sets[tag_id] and not isinstance(tags[tag_id], list):
+                    print(f"WARNING: Invalid tag value for {tag_id}: '{tags[tag_id]}'")
+                    if len(self.tag_value_sets[tag_id]) < 100:
+                        print(f"Please use one of the following values: {self.tag_value_sets[tag_id]}")
+                    else:
+                        print(f"Please use a valid value from the predefined value_set: {self.tag_definitions[tag_id]['value_set']}")
+                # list of values
+                elif tags[tag_id] not in self.tag_value_sets[tag_id] and isinstance(tags[tag_id], list):
+                    for i in tags[tag_id]:
+                        if i not in self.tag_value_sets[tag_id]:
+                            print(f"WARNING: Invalid tag value for {tag_id}: {i}")
+                            if len(self.tag_value_sets[tag_id]) < 100:
+                                print(f"Please use one of the following values: {self.tag_value_sets[tag_id]}")
+                            else:
+                                print(f"Please use a valid value from the predefined value_set: {self.tag_definitions[tag_id]['value_set']}")
 
     def checks_ref_uid(self, ref_uid):
         """
@@ -551,18 +575,18 @@ class OLI:
         self.check_label_correctness(address, chain_id, tags, ref_uid)
         
         # Encode the label data
-        data = self.encode_label_data(chain_id, tags)
+        data = self._encode_label_data(chain_id, tags)
         
-        # Create the attestation
-        attestation = self.create_offchain_attestation(recipient=address, schema=self.oli_label_pool_schema, data=data, ref_uid=ref_uid)
+        # Build the attestation
+        attestation = self.build_offchain_attestation(recipient=address, schema=self.oli_label_pool_schema, data=data, ref_uid=ref_uid)
         
-        # Submit to the API & retry if status code is not 200
-        response = self.submit_offchain_attestation(attestation)
+        # Post to the API & retry if status code is not 200
+        response = self.post_offchain_attestation(attestation)
         n0 = retry
         while response.status_code != 200 and retry > 0:
             retry -= 1
             time.sleep(2 ** (n0 - retry)) # exponential backoff
-            response = self.submit_offchain_attestation(attestation)
+            response = self.post_offchain_attestation(attestation)
         
         # if it fails after all retries, raise an error
         if response.status_code != 200:
@@ -589,7 +613,7 @@ class OLI:
         self.check_label_correctness(address, chain_id, tags, ref_uid)
 
         # Encode the label data
-        data = self.encode_label_data(chain_id, tags)
+        data = self._encode_label_data(chain_id, tags)
         
         # Create the attestation
         function = self.eas.functions.attest({
@@ -662,19 +686,22 @@ class OLI:
             elif 'tags' not in label:
                 raise ValueError("tags dictionary must be provided for each label")
             
+            # fix simple formatting errors in tags
+            label['tags'] = self.fix_simple_tags_formatting(label['tags'])
+
             # run checks on each label
-            self.check_label_correctness(label.get('address'), label.get('chain_id'), label.get('tags'))
+            self.check_label_correctness(label['address'], label['chain_id'], label['tags'])
 
             # check if ref_uid is provided
             if 'ref_uid' not in label:
                 label['ref_uid'] = "0x0000000000000000000000000000000000000000000000000000000000000000"
             else:
-                label['ref_uid'] = self.checks_ref_uid(label.get('ref_uid'))
+                label['ref_uid'] = self.checks_ref_uid(label['ref_uid'])
 
             # ABI encode data for each attestation
-            data = self.encode_label_data(label.get('chain_id'), label.get('tags'))
+            data = self._encode_label_data(label['chain_id'], label['tags'])
             full_data.append({
-                'recipient': self.w3.to_checksum_address(label.get('address')),
+                'recipient': self.w3.to_checksum_address(label['address']),
                 'expirationTime': 0,
                 'revocable': True,
                 'refUID': self.w3.to_bytes(hexstr=label['ref_uid']),
