@@ -20,7 +20,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Update Airtable for contracts labelling',
     tags=['oli', 'daily'],
     start_date=datetime(2023,9,10),
-    schedule='20 01 * * *' #after coingecko and after sql_blockspace, before sql materialize
+    schedule='50 00 * * *' #after coingecko, after oli_oss_directory, and before metrics_sql_blockspace
 )
 
 def etl():
