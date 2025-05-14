@@ -354,9 +354,24 @@ class OLI:
         Returns:
             dict: Formatted tags
         """
-        # Check if tags is a dictionary
-        pass
-        #TODO    
+        # Convert keys to lowercase
+        tags = {k.lower(): v for k, v in tags.items()}
+        # Convert boolean values from strings to booleans
+        for k, v in tags.items():
+            if isinstance(v, str):
+                if v.lower() == 'true':
+                    tags[k] = True
+                elif v.lower() == 'false':
+                    tags[k] = False
+                else:
+                    tags[k] = v.strip()
+        # Checksum any address (string(42)) and transaction hash (string(66)) tags
+        for k, v in tags.items():
+            if self.tag_definitions[k]['type'] == 'string(42)':
+                tags[k] = self.w3.to_checksum_address(v)
+            elif self.tag_definitions[k]['type'] == 'string(66)':
+                tags[k] = self.w3.to_hex(v)
+        return tags
 
     def check_label_correctness(self, address:str, chain_id:str, tags:dict, ref_uid:str="0x0000000000000000000000000000000000000000000000000000000000000000") -> bool:
         """
@@ -456,7 +471,7 @@ class OLI:
             if tag_id not in self.tag_ids:
                 print(f"WARNING: Tag tag_id '{tag_id}' is not an official OLI tag. Please check the 'oli.tag_definitions' or https://github.com/openlabelsinitiative/OLI/blob/main/1_data_model/tags/tag_definitions.yml.")
             
-            # Check if the tag_id is in the correct format. So far implemented [boolean, string, integer, float, string(42), string(66), date (YYYY-MM-DD HH:MM:SS)]
+            # Check if the tag_id is in the correct format. So far implemented [boolean, string, integer, list, float, string(42), string(66), date (YYYY-MM-DD HH:MM:SS)]
             else:
                 if self.tag_definitions[tag_id]['type'] == 'boolean' and not isinstance(tags[tag_id], bool):
                     print(f"WARNING: Tag value for {tag_id} must be a boolean (True/False).")
@@ -466,6 +481,8 @@ class OLI:
                     print(f"WARNING: Tag value for {tag_id} must be an integer.")
                 elif self.tag_definitions[tag_id]['type'] == 'float' and not isinstance(tags[tag_id], float):
                     print(f"WARNING: Tag value for {tag_id} must be a float.")
+                elif self.tag_definitions[tag_id]['type'] == 'list' and not isinstance(tags[tag_id], list):
+                    print(f"WARNING: Tag value for {tag_id} must be a list.")
                 elif self.tag_definitions[tag_id]['type'] == 'string(42)' and not self.w3.is_address(tags[tag_id]):
                     print(f"WARNING: Tag value for {tag_id} must be a valid Ethereum address string with '0x'.")
                 elif self.tag_definitions[tag_id]['type'] == 'string(66)' and not (len(tags[tag_id]) == 66 and tags[tag_id].startswith('0x')):
