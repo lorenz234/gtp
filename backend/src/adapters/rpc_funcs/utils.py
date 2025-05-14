@@ -11,6 +11,7 @@ from src.adapters.rpc_funcs.web3 import Web3CC
 from sqlalchemy import text
 from src.main_config import get_main_config 
 from src.adapters.rpc_funcs.chain_configs import chain_configs
+from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs, check_gcs_connection, save_data_for_range
 
 # ---------------- Utility Functions ---------------------
 def safe_float_conversion(x):
@@ -629,66 +630,6 @@ def connect_to_node(rpc_config):
         print(f"ERROR: failed to connect to the node with config {rpc_config}: {e}")
         raise
 
-def connect_to_s3():
-    """
-    Establishes a connection to an S3 bucket using credentials from environment variables.
-    
-    Returns:
-        tuple: A tuple containing the S3 client object and the bucket name.
-
-    Raises:
-        ConnectionError: If the connection to S3 fails.
-    """
-    try:
-        aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
-        aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-        bucket_name = os.getenv("S3_LONG_TERM_BUCKET")
-
-        if not aws_access_key_id or not aws_secret_access_key or not bucket_name:
-            raise EnvironmentError("AWS access key ID, secret access key, or bucket name not found in environment variables.")
-
-        s3 = boto3.client('s3',
-                            aws_access_key_id=aws_access_key_id,
-                            aws_secret_access_key=aws_secret_access_key)
-        return s3, bucket_name
-    except Exception as e:
-        print("ERROR: An error occurred while connecting to S3:", str(e))
-        raise ConnectionError(f"An error occurred while connecting to S3: {str(e)}")
-
-def check_s3_connection(s3_connection):
-    """
-    Checks if the connection to S3 is established.
-    
-    Args:
-        s3_connection: The S3 connection object.
-
-    Returns:
-        bool: True if the connection is valid, False otherwise.
-    """
-    return s3_connection is not None
-
-def s3_file_exists(s3, file_key, bucket_name):
-    """
-    Checks if a file exists in the specified S3 bucket.
-    
-    Args:
-        s3: The S3 client object.
-        file_key (str): The key (file path) in the S3 bucket.
-        bucket_name (str): The name of the S3 bucket.
-
-    Returns:
-        bool: True if the file exists, False otherwise.
-    """
-    try:
-        s3.head_object(Bucket=bucket_name, Key=file_key)
-        return True
-    except botocore.exceptions.ClientError as e:
-        error_code = int(e.response['Error']['Code'])
-        if error_code == 404:
-            return False
-        else:
-            raise e
-
 # ---------------- Generic Preparation Function ------------------
 def prep_dataframe_new(df, chain):
     """
@@ -1007,38 +948,9 @@ def fetch_data_for_range(w3, block_start, block_end):
     except Exception as e:
         raise e
 
-def save_data_for_range(df, block_start, block_end, chain, bucket_name):
-    """
-    Saves the transaction data for a range of blocks to an S3 bucket in parquet format.
-    
-    Args:
-        df (pd.DataFrame): The DataFrame containing transaction data.
-        block_start (int): The starting block number.
-        block_end (int): The ending block number.
-        chain (str): The name of the blockchain chain.
-        bucket_name (str): The name of the S3 bucket.
-    """
-    # Convert any 'object' dtype columns to string
-    for col in df.columns:
-        if df[col].dtype == 'object':
-            try:
-                df[col] = df[col].apply(str)
-            except Exception as e:
-                raise e
-
-    # Generate the filename
-    filename = f"{chain}_tx_{block_start}_{block_end}.parquet"
-    
-    # Create S3 file path
-    file_key = f"{chain}/{filename}"
-    
-    # Use the S3 functionality in pandas to write directly to S3
-    s3_path = f"s3://{bucket_name}/{file_key}"
-    df.to_parquet(s3_path, index=False)
-
 def fetch_and_process_range(current_start, current_end, chain, w3, table_name, bucket_name, db_connector, rpc_url):
     """
-    Fetches and processes transaction data for a range of blocks, saves it to S3, and inserts it into the database.
+    Fetches and processes transaction data for a range of blocks, saves it to GCS, and inserts it into the database.
     Retries the operation on failure with exponential backoff.
 
     Args:
@@ -1047,7 +959,7 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
         chain (str): The name of the blockchain chain.
         w3: The Web3 instance for interacting with the blockchain.
         table_name (str): The database table name to insert data into.
-        bucket_name (str): The name of the S3 bucket.
+        bucket_name (str): The name of the GCS bucket.
         db_connector: The database connector object.
         rpc_url (str): The RPC URL used for fetching data.
 
@@ -1090,45 +1002,6 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
             # Check if elapsed time exceeds 5 minutes
             if elapsed_time >= 300:
                 raise MaxWaitTimeExceededException(f"For {rpc_url}: Maximum wait time exceeded for blocks {current_start} to {current_end}")
-
-def save_to_s3(df, chain, s3_connection, bucket_name):
-    """
-    Saves the provided DataFrame to an S3 bucket in parquet format.
-    
-    Args:
-        df (pd.DataFrame): The DataFrame to save.
-        chain (str): The name of the blockchain chain.
-        s3_connection: The S3 connection object.
-        bucket_name (str): The name of the S3 bucket.
-
-    Raises:
-        Exception: If the file upload fails.
-    """
-    # Convert any 'object' dtype columns to string
-    for col in df.columns:
-        if df[col].dtype == 'object':
-            try:
-                df[col] = df[col].apply(str)
-            except Exception as e:
-                print(f"ERROR: converting column {col} to string: {e}")
-                raise e
-    
-    # Generate a unique filename based on the current timestamp
-    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    filename = f"{chain}_data_{timestamp}.parquet"
-    
-    # Create S3 file path
-    file_key = f"{chain}/{filename}"
-    
-    # Use the S3 functionality in pandas to write directly to S3
-    s3_path = f"s3://{bucket_name}/{file_key}"
-    df.to_parquet(s3_path, index=False)
-    
-    if s3_file_exists(s3_connection, file_key, bucket_name):
-        print(f"...file {file_key} uploaded to S3 bucket {bucket_name}.")
-    else:
-        print(f"...file {file_key} not found in S3 bucket {bucket_name}.")
-        raise Exception(f"File {file_key} not uploaded to S3 bucket {bucket_name}. Stopping execution.")
 
 def get_chain_config(db_connector, chain_name):
     """

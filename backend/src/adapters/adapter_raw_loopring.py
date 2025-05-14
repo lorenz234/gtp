@@ -5,7 +5,7 @@ import numpy as np
 from src.adapters.abstract_adapters import AbstractAdapterRaw
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import traceback
-from src.adapters.rpc_funcs.utils import connect_to_s3, check_s3_connection, handle_retry_exception, check_db_connection, save_data_for_range
+from src.adapters.rpc_funcs.utils import connect_to_gcs, check_gcs_connection, handle_retry_exception, check_db_connection, save_data_for_range
 import requests
 
 class AdapterLoopring(AbstractAdapterRaw):
@@ -16,8 +16,8 @@ class AdapterLoopring(AbstractAdapterRaw):
         self.table_name = f'{self.chain}_tx'   
         self.db_connector = db_connector
         
-        # Initialize S3 connection
-        self.s3_connection, self.bucket_name = connect_to_s3()
+        # Initialize GCS connection
+        self.gcs_connection, self.bucket_name = connect_to_gcs()
         
     def extract_raw(self, load_params:dict):
         self.block_start = load_params['block_start']
@@ -114,10 +114,10 @@ class AdapterLoopring(AbstractAdapterRaw):
         else:
             print("Successfully connected to database.")
 
-        if not check_s3_connection(self.s3_connection):
-            raise ConnectionError("S3 is not connected.")
+        if not check_gcs_connection(self.gcs_connection):
+            raise ConnectionError("GCS is not connected.")
         else:
-            print("Successfully connected to S3.")
+            print("Successfully connected to GCS.")
             
         latest_block = get_latest_block_id()
         if latest_block is None:
@@ -185,7 +185,7 @@ class AdapterLoopring(AbstractAdapterRaw):
                     print(f"Skipping blocks {current_start} to {current_end} due to no data.")
                     return
 
-                # Save data to S3
+                # Save data to GCS
                 save_data_for_range(df, current_start, current_end, chain, bucket_name)
 
                 # Dataframe preparation specific to Loopring
