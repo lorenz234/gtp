@@ -18,7 +18,7 @@ class Glo:
     def get_mapping_sheet(self):
         SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 
-        credentials_info = json.loads(os.getenv('GOOGLE_CREDENTIALS'))
+        credentials_info = json.loads(os.getenv('GOOGLE_CREDENTIALS_GLO'))
         credentials = service_account.Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
 
         SPREADSHEET_ID = '11GWiQhuGyzYVSKLXxLDyZjU0lFYy8HVxVI7NsSeV50A'
