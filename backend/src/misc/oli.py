@@ -17,6 +17,8 @@ class OLI:
             private_key (str): The private key to sign attestations
             is_production (bool): Whether to use production or testnet
         """
+        print("Initializing OLI API client...")
+
         # Set network based on environment
         if is_production:
             self.rpc = "https://mainnet.base.org"
@@ -60,9 +62,11 @@ class OLI:
         # get latest official OLI tag ids
         self.tag_definitions = self.get_OLI_tags()
         self.tag_ids = list(self.tag_definitions.keys())
+        print(f"Found {len(self.tag_ids)} OLI tags.")
 
         # get latest value_sets for the OLI tags
         self.tag_value_sets = self.get_OLI_value_sets()
+        print("OLI API client initialized successfully.")
     
     ### internal functions the user should not call directly
 
@@ -336,9 +340,27 @@ class OLI:
 
     # data check functions
 
+    def fix_simple_tags_formatting(self, tags:dict) -> dict:
+        """
+        Fix basic formatting errors in the tags dictionary. This includes:
+        - Ensuring that the keys are in lowercase
+        - Booling values are converted from strings to booleans
+        - Removing any leading/trailing whitespace from string values
+        - Checksum any address (string(42)) and transaction hash (string(66)) tags
+        
+        Args:
+            tags (dict): Dictionary of tags
+            
+        Returns:
+            dict: Formatted tags
+        """
+        # Check if tags is a dictionary
+        pass
+        #TODO    
+
     def check_label_correctness(self, address:str, chain_id:str, tags:dict, ref_uid:str="0x0000000000000000000000000000000000000000000000000000000000000000") -> bool:
         """
-        Check if the label is correct.
+        Check if the label is OLI conform. See OLI github for more details: https://github.com/openlabelsinitiative/OLI
         
         Args:
             address (str): Address to check
@@ -348,10 +370,13 @@ class OLI:
         Returns:
             bool: True if the label is correct, False otherwise
         """
+        # basic checks
         self.checks_address(address)
         self.checks_chain_id(chain_id)
         self.checks_tags(tags)
         self.checks_ref_uid(ref_uid)
+        # advanced checks
+        self.checks_eip155_any(chain_id, tags)
         return True
         
     def checks_chain_id(self, chain_id:str) -> bool:
@@ -382,8 +407,8 @@ class OLI:
                     if rest == 'any' or rest.isdigit():
                         return True
                     else:
-                        print(f"Invalid EIP155 chain ID format: {chain_id}")
-                        raise ValueError("For EIP155 chains, format must be 'eip155:' followed by a number or 'any'")
+                        print(f"Invalid eip155 chain_id format: {chain_id}")
+                        raise ValueError("For eip155 chains, format must be 'eip155:' followed by a number or 'any'")
                 return True
         
         # If we get here, the chain_id didn't match any allowed format
@@ -456,7 +481,6 @@ class OLI:
                 else:
                     print(f"Please use one of the following values: {self.tag_value_sets[tag_id]}")
 
-
     def checks_ref_uid(self, ref_uid):
         """
         Check if ref_uid is a valid UID.
@@ -465,7 +489,7 @@ class OLI:
             ref_uid (str): Reference UID to check
             
         Returns:
-            bool: True if correct, False otherwise
+            bool: True if correct, throws error otherwise
         """
         if ref_uid.startswith('0x') and len(ref_uid) == 66:
             return True
@@ -473,7 +497,23 @@ class OLI:
             print(ref_uid)
             raise ValueError("Ref_uid must be a valid UID in hex format, leave empty if not used")
 
-    
+    def checks_eip155_any(self, chain_id:str, tags:dict) -> bool:
+        """
+        If the chain_id is 'eip155:any' the tag_id 'is_eoa' = True has to be applied.
+        
+        Args:
+            chain_id (str): chain_id
+            tags (dict): tags
+            
+        Returns:
+            bool: True if correct, False otherwise
+        """
+        if chain_id == 'eip155:any' and 'is_eoa' not in tags:
+            if tags['is_eoa'] != True:
+                raise ValueError("If chain_id is 'eip155:any', the tag_id 'is_eoa' must be set to True!")
+        return True
+
+
     ### functions the user should call to create attestations
     
     def create_offchain_label(self, address, chain_id, tags, ref_uid="0x0000000000000000000000000000000000000000000000000000000000000000", retry=4):
