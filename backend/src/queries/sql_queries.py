@@ -123,7 +123,7 @@ sql_queries = [
         ,*standard_evm_queries("orderly")
         ## Worldchain
         ,*standard_evm_queries("worldchain")
-        ,SQLQuery(metric_key = "txcount_type4", origin_key = "worldchain", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
+        #,SQLQuery(metric_key = "txcount_type4", origin_key = "worldchain", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
         ## Mint
         ,*standard_evm_queries("mint")
         ## Fraxtal
@@ -132,7 +132,7 @@ sql_queries = [
         ,*standard_evm_queries("ink")
         ## Soneium
         ,*standard_evm_queries("soneium")
-        ,SQLQuery(metric_key = "txcount_type4", origin_key = "soneium", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
+        #,SQLQuery(metric_key = "txcount_type4", origin_key = "soneium", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
 
         ## Swell
         ,*standard_evm_queries("swell")
