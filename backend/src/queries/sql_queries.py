@@ -53,6 +53,8 @@ sql_queries = [
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "ethereum", jinja_path='chain_metrics/select_fees_paid.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "ethereum", jinja_path='chain_metrics/select_txcosts_median.sql.j2')
         
+        ,SQLQuery(metric_key = "txcount_type4", origin_key = "ethereum", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
+
         # --- DA Layers ---
         # Celestia
         ,SQLQuery(metric_key = "da_data_posted_bytes", origin_key = "da_celestia", jinja_path='da_metrics/celestia_da_data_posted_bytes.sql.j2', currency_dependent = False)
