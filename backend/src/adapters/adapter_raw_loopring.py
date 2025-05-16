@@ -162,6 +162,9 @@ class AdapterLoopring(AbstractAdapterRaw):
 
                 # Exclude empty or all-NA columns before concatenation
                 block_data_df = block_data_df.dropna(how='all', axis=1)
+
+                ## add block_date column based on block_timestamp
+                block_data_df['block_date'] = pd.to_datetime(block_data_df['block_timestamp'], unit='ms').dt.date
                 
                 # Concatenate DataFrames
                 all_blocks_df = pd.concat([all_blocks_df, block_data_df], ignore_index=True)
