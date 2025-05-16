@@ -78,73 +78,23 @@ def json_creation():
         }    
 
         ##type4 tx count
-        query_parameters = {
-            'origin_key': 'ethereum',
-            'metric_key': 'txcount_type4',
-        }
-        df = execute_jinja_query(db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
-        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
-        df.sort_values(by=['date'], inplace=True, ascending=True)
-        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
-        df = df.drop(columns=['date'])
-
-        data_dict["data"]["type4_tx_count"]["ethereum"]= {
-            "daily": {
-                "types": df.columns.tolist(),
-                "values": df.values.tolist()
+        for origin_key in ['ethereum', 'optimism', 'base', 'unichain']:
+            query_parameters = {
+                'origin_key': origin_key,
+                'metric_key': 'txcount_type4',
             }
-        }
+            df = execute_jinja_query(db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+            df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+            df.sort_values(by=['date'], inplace=True, ascending=True)
+            df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
+            df = df.drop(columns=['date'])
 
-        query_parameters = {
-            'origin_key': 'base',
-            'metric_key': 'txcount_type4',
-        }
-        df = execute_jinja_query(db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
-        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
-        df.sort_values(by=['date'], inplace=True, ascending=True)
-        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
-        df = df.drop(columns=['date'])
-
-        data_dict["data"]["type4_tx_count"]["base"]= {
-            "daily": {
-                "types": df.columns.tolist(),
-                "values": df.values.tolist()
+            data_dict["data"]["type4_tx_count"][origin_key]= {
+                "daily": {
+                    "types": df.columns.tolist(),
+                    "values": df.values.tolist()
+                }
             }
-        }
-
-        query_parameters = {
-            'origin_key': 'optimism',
-            'metric_key': 'txcount_type4',
-        }
-        df = execute_jinja_query(db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
-        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
-        df.sort_values(by=['date'], inplace=True, ascending=True)
-        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
-        df = df.drop(columns=['date'])
-
-        data_dict["data"]["type4_tx_count"]["optimism"]= {
-            "daily": {
-                "types": df.columns.tolist(),
-                "values": df.values.tolist()
-            }
-        }
-
-        query_parameters = {
-            'origin_key': 'unichain',
-            'metric_key': 'txcount_type4',
-        }
-        df = execute_jinja_query(db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
-        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
-        df.sort_values(by=['date'], inplace=True, ascending=True)
-        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
-        df = df.drop(columns=['date'])
-
-        data_dict["data"]["type4_tx_count"]["unichain"]= {
-            "daily": {
-                "types": df.columns.tolist(),
-                "values": df.values.tolist()
-            }
-        }
 
         data_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         data_dict = fix_dict_nan(data_dict, 'pectra-fork')
