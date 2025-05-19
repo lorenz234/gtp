@@ -467,7 +467,11 @@ class JSONCreation():
             where kpi.origin_key in ({chains_string})
                 and kpi.metric_key in ({metrics_string})
                 and kpi."date" >= '2021-06-01'
-                and kpi."date" < date_trunc('day', now())
+                AND (
+                    (kpi.metric_key not in ('market_cap_usd', 'market_cap_eth') AND kpi."date" < date_trunc('day', now()))
+                    OR
+                    (kpi.metric_key in ('market_cap_usd', 'market_cap_eth'))
+                )
         """
 
         df = pd.read_sql(exec_string, self.db_connector.engine.connect())
@@ -1296,6 +1300,9 @@ class JSONCreation():
         else:
             main_config_filtered = self.main_config
 
+        ## filter df to date < today (because mcap has also today's date)
+        df_tmp = df.loc[df.date < datetime.now(timezone.utc).strftime('%Y-%m-%d')].copy()
+
         ## loop over all chains and generate a chain details json for all chains and with all possible metrics
         for chain in main_config_filtered:
             origin_key = chain.origin_key
@@ -1315,7 +1322,7 @@ class JSONCreation():
 
                 print(f'..processing: Chain details for {origin_key} - {metric}')
                 
-                mk_list = self.generate_daily_list(df, metric, origin_key)
+                mk_list = self.generate_daily_list(df_tmp, metric, origin_key)
                 mk_list_int = mk_list[0]
                 mk_list_columns = mk_list[1]
 
@@ -1330,7 +1337,7 @@ class JSONCreation():
                 }
 
                 if self.metrics[metric]['ranking_bubble']:
-                    ranking_dict[metric] = self.get_ranking(df, metric, origin_key)
+                    ranking_dict[metric] = self.get_ranking(df_tmp, metric, origin_key)
             
             ## Hottest Contract
             if chain.runs_aggregate_blockspace and 'blockspace' not in chain.api_exclude_metrics:
@@ -2451,6 +2458,136 @@ class JSONCreation():
 
         self.run_app_details_jsons(projects, is_all=True)
         empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/apps/details/*')
+
+    ########################################################################
+    ### ETH AGG
+    ########################################################################
+
+    def create_traction_json(self):
+        traction_dict = {
+            "data": {
+                "count_layer2s" : {},
+                "tps" : {
+                    "layer_2s" : {},
+                    "ethereum_mainnet" : {}
+                },
+                "stables" : {
+                    "layer_2s" : {},
+                    "ethereum_mainnet" : {}
+                }
+            }
+        }
+
+        ## Count Layer 2s
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'count_l2s_live',
+            "origin_key": 'all'
+        }
+        df = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+        df.sort_values(by=['date'], inplace=True, ascending=True)
+        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
+        df = df.drop(columns=['date'])
+
+        traction_dict["data"]["count_layer2s"]= {
+            "daily": {
+                "types": df.columns.tolist(),
+                "values": df.values.tolist()
+            }
+        }         
+
+        ## txcount layer 2s
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'txcount',
+        }
+
+        df = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s.sql.j2", query_parameters, return_df=True)
+        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+        df.sort_values(by=['date'], inplace=True, ascending=True)
+        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
+        df = df.drop(columns=['date'])
+
+        ## divide all values by 60*60*24 to get TPS
+        df['value'] = df['value'] / (60*60*24)
+
+        traction_dict["data"]["tps"]["layer_2s"]= {
+            "daily": {
+                "types": df.columns.tolist(),
+                "values": df.values.tolist()
+            }
+        }         
+
+        ## txcount ethereum mainnet
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'txcount',
+            "origin_key": 'ethereum'
+        }
+        df = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+        df.sort_values(by=['date'], inplace=True, ascending=True)
+        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
+        df = df.drop(columns=['date'])
+
+        ## divide all values by 60*60*24 to get TPS
+        df['value'] = df['value'] / (60*60*24)
+
+        traction_dict["data"]["tps"]["ethereum_mainnet"]= {
+            "daily": {
+                "types": df.columns.tolist(),
+                "values": df.values.tolist()
+            }
+        }      
+
+        ## stables layers 2s
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'stables_mcap',
+        }
+        df = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s.sql.j2", query_parameters, return_df=True)
+        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+        df.sort_values(by=['date'], inplace=True, ascending=True)
+        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
+        df = df.drop(columns=['date'])
+
+        traction_dict["data"]["stables"]["layer_2s"]= {
+            "daily": {
+                "types": df.columns.tolist(),
+                "values": df.values.tolist()
+            }
+        }        
+
+        ## stables ethereum mainnet
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'stables_mcap',
+            "origin_key": 'ethereum'
+        }
+        df = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+        df.sort_values(by=['date'], inplace=True, ascending=True)
+        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
+        df = df.drop(columns=['date'])
+
+        traction_dict["data"]["stables"]["ethereum_mainnet"]= {
+            "daily": {
+                "types": df.columns.tolist(),
+                "values": df.values.tolist()
+            }
+        }        
+
+        traction_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        traction_dict = fix_dict_nan(traction_dict, 'traction_dict')
+
+        if self.s3_bucket == None:
+            self.save_to_json(traction_dict, 'traction_dict')
+        else:
+            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/eth_agg/traction', traction_dict, self.cf_distribution_id)
+        print(f'DONE -- ETH agg Traction export')
+
+
 
     #######################################################################
     ### LABELS

@@ -24,7 +24,7 @@ from src.misc.airflow_utils import alert_via_webhook
 
 def etl():
     @task()
-    def run_market_chart():
+    def run_market_chart_hourly():
         from src.db_connector import DbConnector
         from src.adapters.adapter_coingecko import AdapterCoingecko
         import os
@@ -48,6 +48,40 @@ def etl():
         df = ad.extract(load_params)
         # load
         ad.load(df)
-    
-    run_market_chart()
+
+    @task()
+    def run_market_chart_daily():
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_coingecko import AdapterCoingecko
+        import os
+        adapter_params = {
+            'api_key' : os.getenv("COINGECKO_API")
+        }
+
+        load_params = {
+            'load_type' : 'project',
+            'metric_keys' : ['price', 'volume', 'market_cap'],
+            'origin_keys' : None, # could also be a list
+            'days' : 'auto', # auto, max, or a number (as string)
+            'vs_currencies' : ['usd', 'eth']
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterCoingecko(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+        # load
+        ad.load(df)
+
+        ## new mcap json
+        from src.api.json_creation import JSONCreation
+        api_version = 'v1'
+
+        json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
+        df = json_creator.get_all_data()
+        json_creator.create_metric_details_jsons(df, ['market_cap'])
+
+    run_market_chart_hourly()
+    run_market_chart_daily()
 etl()

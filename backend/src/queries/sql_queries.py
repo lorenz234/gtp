@@ -53,6 +53,8 @@ sql_queries = [
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "ethereum", jinja_path='chain_metrics/select_fees_paid.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "ethereum", jinja_path='chain_metrics/select_txcosts_median.sql.j2')
         
+        ,SQLQuery(metric_key = "txcount_type4", origin_key = "ethereum", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
+
         # --- DA Layers ---
         # Celestia
         ,SQLQuery(metric_key = "da_data_posted_bytes", origin_key = "da_celestia", jinja_path='da_metrics/celestia_da_data_posted_bytes.sql.j2', currency_dependent = False)
@@ -75,7 +77,7 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "arbitrum", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_fees_paid.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcosts_median.sql.j2')
-
+        
         ## Real
         ,SQLQuery(metric_key = "txcount_raw", origin_key = "real", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = "real", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
@@ -105,10 +107,12 @@ sql_queries = [
         # SUPERCHAIN
         ## OP Mainnet
         ,*standard_evm_queries("optimism")
+        ,SQLQuery(metric_key = "txcount_type4", origin_key = "optimism", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
         ## Base
         ,*standard_evm_queries("base")
+        ,SQLQuery(metric_key = "txcount_type4", origin_key = "base", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
         ## Zora
-        ,*standard_evm_queries("zora")        
+        ,*standard_evm_queries("zora")  
         ## Mode
         ,*standard_evm_queries("mode")
         ## Redstone
@@ -119,6 +123,7 @@ sql_queries = [
         ,*standard_evm_queries("orderly")
         ## Worldchain
         ,*standard_evm_queries("worldchain")
+        #,SQLQuery(metric_key = "txcount_type4", origin_key = "worldchain", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
         ## Mint
         ,*standard_evm_queries("mint")
         ## Fraxtal
@@ -127,10 +132,11 @@ sql_queries = [
         ,*standard_evm_queries("ink")
         ## Soneium
         ,*standard_evm_queries("soneium")
+        #,SQLQuery(metric_key = "txcount_type4", origin_key = "soneium", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
 
         ## Swell
         ,*standard_evm_queries("swell")
-
+        
         # Elastic Chain
         ## ZKsync Era
         ,*standard_evm_queries("zksync_era")
@@ -150,12 +156,24 @@ sql_queries = [
         ,*standard_evm_queries("taiko")
         ## Manta
         ,*standard_evm_queries("manta")
-        ## Zircuit
-        ,*standard_evm_queries("zircuit")
         ## Unichain
         ,*standard_evm_queries("unichain")
+        ,SQLQuery(metric_key = "txcount_type4", origin_key = "unichain", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
 
         ,*standard_evm_queries("lisk")
+
+        ## Zircuit
+        ,SQLQuery(metric_key = "txcount_raw", origin_key = "zircuit", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount", origin_key = 'zircuit', jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "daa", origin_key = 'zircuit', jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "maa", origin_key = 'zircuit', jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "aa_last7d", origin_key = 'zircuit', jinja_path='chain_metrics/select_aa_lastXXd.sql.j2', query_parameters={"timerange" : 7}, currency_dependent = False)
+        ,SQLQuery(metric_key = "aa_last30d", origin_key = 'zircuit', jinja_path='chain_metrics/select_aa_lastXXd.sql.j2',query_parameters={"timerange" : 30}, currency_dependent = False)
+        ,SQLQuery(metric_key = "gas_per_second", origin_key = 'zircuit', jinja_path='chain_metrics/select_gas_per_second.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "cca_last7d_exclusive", origin_key = 'zircuit', jinja_path='chain_metrics/select_cca_last7d.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = 'zircuit', jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = 'zircuit', jinja_path='chain_metrics/select_fees_paid.sql.j2')
+        ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = 'zircuit', jinja_path='chain_metrics/select_txcosts_median.sql.j2')
 
         # Others EVM Custom Gas Token
         ## Mantle (also custom gas query)

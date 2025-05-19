@@ -9,9 +9,9 @@
 {% set days = days | default(7) %}
 
 SELECT
-    date_trunc('day', block_timestamp) AS day,
+    block_date AS day,
     SUM(gas_used - l1_gas_used) / (24*60*60) AS value
 FROM {{ origin_key }}_tx
-WHERE block_timestamp >= current_date - interval '{{ days }} days' 
-    AND block_timestamp < current_date
+WHERE block_date >= current_date - interval '{{ days }} days' 
+    AND block_date < current_date
 GROUP BY 1;

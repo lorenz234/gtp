@@ -8,13 +8,6 @@ from sqlalchemy import text
 # Load environment variables
 load_dotenv()
 
-BUCKET_NAME=os.getenv("S3_LONG_TERM_BUCKET")
-DB_NAME = os.getenv("DB_DATABASE")
-DB_USER = os.getenv("DB_USERNAME")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = os.getenv("DB_PORT")
-
 # ------------------ Batch Processing Functions ------------------
 def check_and_record_missing_block_ranges(db_connector, table_name, start_block, end_block):
     """

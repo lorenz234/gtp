@@ -29,11 +29,11 @@ eth_price AS (
 ),
 tx_filtered AS (
     SELECT
-        date_trunc('day', "block_timestamp") AS day,
+        block_date AS day,
         SUM(tx_fee) AS total_tx_fee
     FROM {{ origin_key }}_tx
-    WHERE block_timestamp >= current_date - interval '{{ days }} days' 
-        AND block_timestamp < current_date
+    WHERE block_date >= current_date - interval '{{ days }} days' 
+        AND block_date < current_date
     GROUP BY 1
 )
 
