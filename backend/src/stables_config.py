@@ -355,6 +355,16 @@ stables_mapping = {
             }
         }
     },
+    "lisk": {
+        "bridged": {
+            "ethereum": [
+                "0x2658723Bf70c7667De6B25F99fcce13A16D25d08", # Canonical: Generic escrow (L1StandardBridge) - holds LSK, USDT, WBTC, TRB
+                "0xE3622468Ea7dD804702B56ca2a4f88C0936995e6"  # External: Escrow for USDC (L1OpUSDCBridgeAdapter) - holds USDC
+            ],
+        },
+        # LSK is primarily accounted for via its balance in the L1StandardBridge.
+        "direct": {},
+    },
     "celo": {
         "direct": {
             "tether": {

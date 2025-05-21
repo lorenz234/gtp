@@ -13,10 +13,10 @@
 {% set days = days | default(7) %}
 
 SELECT 
-    date_trunc('day', block_timestamp) AS day,
+    block_date AS day,
     COUNT(*) AS value
 FROM {{ origin_key }}_tx
 WHERE {{ filter_col }} > 0
-    AND block_timestamp >= current_date - interval '{{ days }} days' 
-    AND block_timestamp < current_date
+    AND block_date >= current_date - interval '{{ days }} days' 
+    AND block_date < current_date
 GROUP BY 1;

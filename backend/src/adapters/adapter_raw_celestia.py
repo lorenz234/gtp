@@ -7,7 +7,7 @@ import time
 import pandas as pd
 from src.adapters.rpc_funcs.funcs_backfill import check_and_record_missing_block_ranges
 from src.adapters.abstract_adapters import AbstractAdapterRaw
-from src.adapters.rpc_funcs.utils import connect_to_s3, save_data_for_range, handle_retry_exception
+from src.adapters.rpc_funcs.utils import connect_to_gcs, save_data_for_range, handle_retry_exception
 
 class AdapterCelestia(AbstractAdapterRaw):
     def __init__(self, adapter_params: dict, db_connector):
@@ -17,8 +17,8 @@ class AdapterCelestia(AbstractAdapterRaw):
         self.table_name = f'{self.chain}_tx'   
         self.db_connector = db_connector
         
-        # Initialize S3 connection
-        self.s3_connection, self.bucket_name = connect_to_s3()
+        # Initialize GCS connection
+        self.gcs_connection, self.bucket_name = connect_to_gcs()
         
     def extract_raw(self, load_params:dict):
         self.block_start = load_params['block_start']
@@ -271,7 +271,7 @@ class AdapterCelestia(AbstractAdapterRaw):
                     print(f"Skipping blocks {current_start} to {current_end} due to no data.")
                     return
 
-                # Save data to S3
+                # Save data to GCS
                 save_data_for_range(df, current_start, current_end, chain, bucket_name)
 
                 # Remove duplicates and set index

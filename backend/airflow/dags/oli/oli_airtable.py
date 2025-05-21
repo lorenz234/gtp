@@ -20,7 +20,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Update Airtable for contracts labelling',
     tags=['oli', 'daily'],
     start_date=datetime(2023,9,10),
-    schedule='20 01 * * *' #after coingecko and after sql_blockspace, before sql materialize
+    schedule='50 00 * * *' #after coingecko, after oli_oss_directory, and before metrics_sql_blockspace
 )
 
 def etl():
@@ -508,16 +508,19 @@ def etl():
 
     # all tasks
     read_contracts = airtable_read_contracts()  ## read in contracts from airtable and attest
-    read_pool = airtable_read_label_pool_reattest() ## read in approved labels from airtable and attest
+    read_pool = airtable_read_label_pool_reattest() ## read in approved labels from airtable and attest 
     read_remap = airtable_read_depreciated_owner_project() ## read in remap owner project from airtable and attest
-    refresh_tags = refresh_oli_tags() ## read in oli tags from gtp-dna Github and upsert to DB table oli_tags
+    
+    refresh_tags = refresh_oli_tags() ## read in oli tags from oli Github and upsert to DB table oli_tags
     trusted_entities = refresh_trusted_entities() ## read in trusted entities from gtp-dna Github and upsert to DB
     sync_to_db = sync_attestations() ## updates oli bronze and silver tables with new labels from the label pool
     refresh = run_refresh_materialized_view() ## refresh materialized views vw_oli_label_pool_gold and vw_oli_label_pool_gold_pivoted
+    
     write_oss = airtable_write_oss_projects() ## write oss projects from DB to airtable
     write_chain = airtable_write_chain_info() ## write chain info from main config to airtable
     write_contracts = airtable_write_contracts()  ## write contracts from DB to airtable
     write_owner_project = airtable_write_depreciated_owner_project() ## write remap owner project from DB to airtable
+    
     revoke_onchain = revoke_old_attestations() ## revoke old attestations from the label pool
 
     # Define execution order

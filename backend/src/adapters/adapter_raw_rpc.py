@@ -4,7 +4,7 @@ from src.adapters.abstract_adapters import AbstractAdapterRaw
 from src.adapters.rpc_funcs.funcs_backfill import check_and_record_missing_block_ranges, find_first_block_of_day, find_last_block_of_day, date_to_unix_timestamp
 from queue import Queue, Empty
 from threading import Thread, Lock
-from src.adapters.rpc_funcs.utils import Web3CC, connect_to_s3, check_db_connection, check_s3_connection, get_latest_block, connect_to_node, fetch_and_process_range
+from src.adapters.rpc_funcs.utils import Web3CC, connect_to_gcs, check_db_connection, check_gcs_connection, get_latest_block, connect_to_node, fetch_and_process_range
 from datetime import datetime
 
 
@@ -47,8 +47,8 @@ class NodeAdapter(AbstractAdapterRaw):
         if self.w3 is None:
             raise ConnectionError("Failed to connect to any provided RPC node.")
         
-        # Initialize S3 connection
-        self.s3_connection, self.bucket_name = connect_to_s3()
+        # Initialize GCS connection
+        self.gcs_connection, self.bucket_name = connect_to_gcs()
             
     def extract_raw(self, load_params:dict):
         """
@@ -103,7 +103,7 @@ class NodeAdapter(AbstractAdapterRaw):
 
     def run(self, block_start, batch_size):
         """
-        Runs the transaction extraction process, checking connections to the database and S3.
+        Runs the transaction extraction process, checking connections to the database and GCS.
         Fetches the latest block and enqueues block ranges for processing.
 
         Args:
@@ -111,7 +111,7 @@ class NodeAdapter(AbstractAdapterRaw):
             batch_size (int): Number of blocks to process per batch.
 
         Raises:
-            ConnectionError: If database or S3 connection is not established.
+            ConnectionError: If database or GCS connection is not established.
             ValueError: If the start block is higher than the latest block.
         """
         if not check_db_connection(self.db_connector):
@@ -119,10 +119,10 @@ class NodeAdapter(AbstractAdapterRaw):
         else:
             print("Successfully connected to database.")
 
-        if not check_s3_connection(self.s3_connection):
-            raise ConnectionError("S3 is not connected.")
+        if not check_gcs_connection(self.gcs_connection):
+            raise ConnectionError("GCS is not connected.")
         else:
-            print("Successfully connected to S3.")
+            print("Successfully connected to GCS.")
 
         latest_block = get_latest_block(self.w3)
         if latest_block is None:
