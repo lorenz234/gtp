@@ -38,7 +38,7 @@ def etl():
         from pyairtable import Api
         from src.db_connector import DbConnector
         import src.misc.airtable_functions as at
-        from src.misc.oli import OLI
+        from oli import OLI
 
         # initialize Airtable instance
         AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
@@ -47,7 +47,7 @@ def etl():
         # initialize db connection
         db_connector = DbConnector()
         # initialize OLI instance
-        oli = OLI(os.getenv("OLI_gtp_pk"), is_production=True)
+        oli = OLI(private_key=os.getenv("OLI_gtp_pk"))
 
         # read current airtable labels
         table = api.table(AIRTABLE_BASE_ID, 'Unlabeled Contracts')
@@ -84,22 +84,9 @@ def etl():
                 tags = df_merged.set_index('tag_id')['value'].to_dict() 
                 address = group[0][0]
                 chain_id = group[0][1]
-                # call the API
-                max_attempts = 5 # API has many internal server errors, therefor we retry x times
-                for attempt in range(1, max_attempts + 1):
-                    # function to create the offchain label
-                    response = oli.create_offchain_label(address, chain_id, tags)
-                    if response.status_code == 200:
-                        break
-                    else:
-                        print(f"Attempt {attempt} failed: {response.text}")
-                        time.sleep(2 ** attempt)  # Exponential backoff
-                else:
-                    print("Failed to get a 200 response after 5 attempts.")
-                    print(f"Address: {address}")
-                    print(f"Chain ID: {chain_id}")
-                    print(f"Tags: {tags}")
-                    raise ValueError(f"Final error: {response.text}")
+                # submit offchain attestation, try 10 times
+                response = oli.submit_offchain_label(address, chain_id, tags, retry=10)
+                print(f"Successfully attested label for {address} on {chain_id}: {response.json()}")
 
     @task()
     def refresh_oli_tags():
@@ -265,6 +252,7 @@ def etl():
         db_connector = DbConnector()
         table = api.table(AIRTABLE_BASE_ID, 'Unlabeled Contracts')
 
+        # clears all records in the airtable table except for the ones that has the column temp_owner_project filled out
         at.clear_all_airtable(table)
         
         # get top unlabelled contracts, short and long term and also inactive contracts
@@ -366,7 +354,7 @@ def etl():
         from src.db_connector import DbConnector
         import src.misc.airtable_functions as at
         from pyairtable import Api
-        from src.misc.oli import OLI
+        from oli import OLI
         import pandas as pd
         import time
         import os
@@ -381,7 +369,7 @@ def etl():
             # initialize db connection
             db_connector = DbConnector()
             # OLI instance
-            oli = OLI(os.getenv("OLI_gtp_pk"), is_production=True)
+            oli = OLI(private_key=os.getenv("OLI_gtp_pk"))
             # remove duplicates address, origin_key
             df = df.drop_duplicates(subset=['address', 'chain_id'])
             # keep track of ids
@@ -416,23 +404,9 @@ def etl():
                 tags = df_merged.set_index('tag_id')['value'].to_dict()
                 address = group[0][0]
                 chain_id = group[0][1]
-                # call the API
-                max_attempts = 5 # API has many internal server errors, therefor we retry x times
-                for attempt in range(1, max_attempts + 1):
-                    # function to create the offchain label
-                    response = oli.create_offchain_label(address, chain_id, tags)
-                    if response.status_code == 200:
-                        print(f"Successfully attested label for {address} on {chain_id}: {response.json()}")
-                        break
-                    else:
-                        print(f"Attempt {attempt} failed, will retry for {chain_id}:{address}: {response.text}")
-                        time.sleep(2 ** attempt)  # Exponential backoff
-                else:
-                    print("Failed to get a 200 response after 5 attempts.")
-                    print(f"Address: {address}")
-                    print(f"Chain ID: {chain_id}")
-                    print(f"Tags: {tags}")
-                    raise ValueError(f"Final error: {response.text}")
+                # submit offchain attestation, try 10 times
+                response = oli.submit_offchain_label(address, chain_id, tags, retry=10)
+                print(f"Successfully attested label for {address} on {chain_id}: {response.json()}")
             # at the end delete just uploaded rows from airtable
             at.delete_airtable_ids(table, ids)
 
@@ -446,7 +420,7 @@ def etl():
         from pyairtable import Api
         from src.db_connector import DbConnector
         import src.misc.airtable_functions as at
-        from src.misc.oli import OLI
+        from oli import OLI
 
         #initialize Airtable instance
         AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
@@ -461,7 +435,7 @@ def etl():
             # db connection
             db_connector = DbConnector()
             # initialize OLI instance
-            oli = OLI(os.getenv("OLI_gtp_pk"), is_production=True)
+            oli = OLI(private_key=os.getenv("OLI_gtp_pk"))
             # iterate over each owner_project that was changed
             for i, row in df.iterrows():
                 # get the old and new owner project
@@ -476,23 +450,10 @@ def etl():
                     chain_id = group[0][1]
                     # replace with new owner project
                     tags['owner_project'] = new_owner_project
-                    # call the API
-                    max_attempts = 5 # API has many internal server errors, therefor we retry x times
-                    for attempt in range(1, max_attempts + 1):
-                        # function to create the offchain label
-                        response = oli.create_offchain_label(address, chain_id, tags)
-                        if response.status_code == 200:
-                            print(response.json())
-                            break
-                        else:
-                            print(f"Attempt {attempt} failed: {response.text}")
-                            time.sleep(2 ** attempt)  # Exponential backoff
-                    else:
-                        print("Failed to get a 200 response after 5 attempts.")
-                        print(f"Address: {address}")
-                        print(f"Chain ID: {chain_id}")
-                        print(f"Tags: {tags}")
-                        raise ValueError(f"Final error: {response.text}")
+                    # post the label to EAS API
+                    response = oli.submit_offchain_label(address, chain_id, tags, retry=10)
+                    print(f"Successfully attested label for {address} on {chain_id}: {response.json()}")
+                    # deleting the rows is triggered in airtable_write_depreciated_owner_project
 
     @task()
     def revoke_old_attestations():
@@ -501,7 +462,7 @@ def etl():
         It reads the labels from the DB and revokes them in batches of 500.
         """
         from src.db_connector import DbConnector
-        from src.misc.oli import OLI
+        from oli import OLI
         import os
 
         db_connector = DbConnector()
@@ -518,7 +479,7 @@ def etl():
         if uids_offchain == [] and uids_onchain == []:
             print("No labels to be revoked")
         else:
-            oli = OLI(os.getenv("OLI_gtp_pk"), is_production=True)
+            oli = OLI(private_key=os.getenv("OLI_gtp_pk"))
             # revoke with max 500 uids at once
             for i in range(0, len(uids_offchain), 500):
                 tx_hash, count = oli.multi_revoke_attestations(uids_offchain[i:i + 500], onchain=False, gas_limit=15000000)
