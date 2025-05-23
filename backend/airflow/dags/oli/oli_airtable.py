@@ -33,7 +33,6 @@ def etl():
         This task reads the contracts from Airtable and attests them to the OLI label pool.
         """
         import os
-        import time
         import pandas as pd
         from pyairtable import Api
         from src.db_connector import DbConnector
@@ -82,7 +81,7 @@ def etl():
                 df_merged = df_merged.drop(columns=['source'])
                 # attest the label
                 tags = df_merged.set_index('tag_id')['value'].to_dict() 
-                address = group[0][0]
+                address = group[0][0].replace('\\x', '0x')
                 chain_id = group[0][1]
                 # submit offchain attestation, try 10 times
                 response = oli.submit_offchain_label(address, chain_id, tags, retry=10)
@@ -356,7 +355,6 @@ def etl():
         from pyairtable import Api
         from oli import OLI
         import pandas as pd
-        import time
         import os
         # airtable instance
         AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
@@ -402,7 +400,7 @@ def etl():
                 df_merged = df_merged.drop(columns=['source'])
                 # attest the label
                 tags = df_merged.set_index('tag_id')['value'].to_dict()
-                address = group[0][0]
+                address = group[0][0].replace('\\x', '0x')
                 chain_id = group[0][1]
                 # submit offchain attestation, try 10 times
                 response = oli.submit_offchain_label(address, chain_id, tags, retry=10)
@@ -416,7 +414,6 @@ def etl():
         This task reads the remap owner project table and reattests the labels with the new owner project.
         """
         import os
-        import time
         from pyairtable import Api
         from src.db_connector import DbConnector
         import src.misc.airtable_functions as at
@@ -446,7 +443,7 @@ def etl():
                 # reattest the labels with the new owner project, going one by one and attest the new labels
                 for group in df_labels.groupby(['address', 'caip2']):
                     tags = group[1].set_index('tag_id')['tag_value'].to_dict()
-                    address = group[0][0]
+                    address = group[0][0].replace('\\x', '0x')
                     chain_id = group[0][1]
                     # replace with new owner project
                     tags['owner_project'] = new_owner_project
