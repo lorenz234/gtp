@@ -16,6 +16,8 @@ def alert_via_webhook(context, user='mseidl'):
         user_id = '326358477335298050'
     elif user == 'mike':
         user_id = '253618927572221962'
+    elif user == 'ahoura':
+        user_id = '874921624720257037'
 
     message = f"<@{user_id}> -- A failure occurred in {dag_run.dag_id} on task {task_instance.task_id}. Might just be a transient issue -- Exception: {exception}"
     send_discord_message(message[:499], webhook_url)
