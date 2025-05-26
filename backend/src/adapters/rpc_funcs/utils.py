@@ -806,6 +806,10 @@ def fetch_block_transaction_details(w3, block):
     Returns:
         list: A list of dictionaries containing transaction details.
     """
+    # Static set to track which RPCs we've already logged messages for
+    if not hasattr(fetch_block_transaction_details, "_logged_rpcs"):
+        fetch_block_transaction_details._logged_rpcs = set()
+
     transaction_details = []
     block_timestamp = block['timestamp']  # Get the block timestamp
     base_fee_per_gas = block['baseFeePerGas'] if 'baseFeePerGas' in block else None  # Fetch baseFeePerGas from the block
@@ -839,7 +843,9 @@ def fetch_block_transaction_details(w3, block):
     
     # Skip batch receipt fetch if this RPC is known not to support it
     if not Web3CC.is_method_supported(rpc_url, "get_block_receipts"):
-        print(f"Skipping batch receipt fetch for RPC {rpc_url} (known to not support get_block_receipts)")
+        if rpc_url not in fetch_block_transaction_details._logged_rpcs:
+            print(f"Skipping batch receipt fetch for RPC {rpc_url} (known to not support get_block_receipts)")
+            fetch_block_transaction_details._logged_rpcs.add(rpc_url)
         use_fallback = True
     else:
         use_fallback = False
@@ -880,7 +886,8 @@ def fetch_block_transaction_details(w3, block):
             use_fallback = True
             
             # If this is a method not supported error, mark this RPC as not supporting get_block_receipts
-            if any(x in str(e).lower() for x in ["method not found", "not supported", "method not supported", "not implemented"]):
+            if any(x in str(e).lower() for x in ["method not found", "not supported", "method not supported", "not implemented", 
+                                                "hex number > 64 bits", "method handler crashed"]):
                 Web3CC.method_not_supported(rpc_url, "get_block_receipts")
 
     if use_fallback:
