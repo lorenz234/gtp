@@ -76,7 +76,7 @@ class AdapterL2Beat(AbstractAdapter):
             naming = chain.aliases_l2beat_slug
             url = f"https://l2beat.com/api/scaling/tvs/{naming}?range=max"       
             print(url)
-            response_json = api_get_call(url, sleeper=10, retries=3)
+            response_json = api_get_call(url, sleeper=10, retries=10)
             if response_json['success']:
                 df = pd.json_normalize(response_json['data']['chart'], record_path=['data'], sep='_')
 
@@ -100,7 +100,7 @@ class AdapterL2Beat(AbstractAdapter):
                 dfMain = pd.concat([dfMain,df])
 
                 print(f"...{self.name} - loaded TVS for {origin_key}. Shape: {df.shape}")
-                time.sleep(1)
+                time.sleep(10)
             else:
                 print(f'Error loading TVS data for {origin_key}')
                 send_discord_message(f'L2Beat: Error loading TVS data for {origin_key}. Other chains are not impacted.', self.webhook)            
