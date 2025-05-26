@@ -79,8 +79,11 @@ def save_data_for_range(df, block_start, block_end, chain, bucket_name):
     
     # Determine which timestamp column to use
     timestamp_col = None
-    if 'block_timestamp' in df.columns:
-        timestamp_col = 'block_timestamp'
+    # Check for timestamp column (case-insensitive)
+    for col in df.columns:
+        if col.lower() == 'block_timestamp':
+            timestamp_col = col
+            break
     
     # Get date_str based on available timestamp column
     if timestamp_col and not df.empty:
@@ -113,14 +116,13 @@ def save_data_for_range(df, block_start, block_end, chain, bucket_name):
             print(f"Error parsing block timestamp, falling back to current date: {str(e)}")
             date_str = time.strftime("%Y-%m-%d")
     else:
-        # Fallback to current date if timestamp column doesn't exist
         print("No suitable timestamp column found in DataFrame")
-        date_str = time.strftime("%Y-%m-%d")
-        print(f"Using current date: {date_str}")
+        print(df.columns)
+        raise ValueError("No suitable timestamp column found in DataFrame")
     
     # Create GCS file path
     file_key = f"{chain}/{date_str}/{filename}"
-    print(f"Created file path: {file_key}")
+    #print(f"Created file path: {file_key}")
     
     # Connect to GCS
     gcs, _ = connect_to_gcs()
@@ -135,4 +137,4 @@ def save_data_for_range(df, block_start, block_end, chain, bucket_name):
     blob = bucket.blob(file_key)
     blob.upload_from_file(parquet_buffer, content_type='application/octet-stream')
     
-    print(f"...saved data to GCS: {file_key}")
+    #print(f"...saved data to GCS: {file_key}")
