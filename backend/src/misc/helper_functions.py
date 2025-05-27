@@ -219,20 +219,24 @@ def call_contract_function(w3: Web3, contract_address: str, abi: dict, function_
     :return: The result of the contract function or None if an error occurs.
     """
 
-    # check if the contract was deployed at the given address
-    code = w3.eth.get_code(contract_address, block_identifier=at_block)
-    time.sleep(0.1)  # Sleep to avoid rate limiting
-    if code == b'':  # Contract not deployed by this block
-        print(f"Contract not deployed at address {contract_address} with block {at_block}")
-        return None
+    if at_block != 'latest':
+        # check if the contract was deployed at the given address
+        code = w3.eth.get_code(contract_address, block_identifier=at_block)
+        time.sleep(0.1)  # Sleep to avoid rate limiting
+        if code == b'':  # Contract not deployed by this block
+            print(f"Contract not deployed at address {contract_address} with block {at_block}")
+            return None
+        block_number = int(at_block)
+    else:
+        block_number = int(w3.eth.block_number)
 
     try:
         contract = w3.eth.contract(address=Web3.to_checksum_address(contract_address), abi=abi)
         time.sleep(0.1)  # Sleep to avoid rate limiting
         function = getattr(contract.functions, function_name)
-        return function(*args).call(block_identifier=int(at_block))
+        return function(*args).call(block_identifier=block_number)
     except Exception as e:
-        print(f"Error calling function {function_name} with args {args} on contract {contract_address} with block_identifier {at_block}: {e}")
+        print(f"Error calling function {function_name} with args {args} on contract {contract_address} with block_identifier {block_number}: {e}")
         ## print datatypes of all variables
         print(f"contract_address: {type(contract_address)}")
         print(f"abi: {type(abi)}")

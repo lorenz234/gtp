@@ -257,7 +257,18 @@ stables_metadata = {
             "ethereum": "0x4f604735c1cf31399c6e711d5962b2b3e0225ad3",
             "celo": "0x4f604735c1cf31399c6e711d5962b2b3e0225ad3"
         }
-    }
+    },
+    "usdx": {
+        "name": "Stables Labs USDX",
+        "symbol": "USDX",
+        "decimals": 18,
+        "coingecko_id": "usdx-money-usdx",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "arbitrum": "0xf3527ef8dE265eAa3716FB312c12847bFBA66Cef",
+        }
+    },
 }
 
 
@@ -299,7 +310,42 @@ stables_mapping = {
         },
     },
     "base": {},
-    "arbitrum": {},
+    "arbitrum": {
+        "bridged": {
+            "ethereum": [
+                "0xa3A7B6F88361F48403514059F1F16C8E78d60EeC", # Arbitrum L1 ERC20 Gateway
+                "0xcEe284F754E854890e311e3280b767F80797180d", # Arbitrum: L1 Arb-Custom Gateway
+                "0xA10c7CE4b876998858b1a9E12b10092229539400" # DAI Escrow contract
+            ],
+        },
+        "direct": {
+            "usdc": {
+                "token_address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",  # USDC native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            "usdx": {
+                "token_address": "0xf3527ef8dE265eAa3716FB312c12847bFBA66Cef",  # USDX native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            "frax": {
+                "token_address": "0x17FC002b466eEc40DaE837Fc4bE5c67993ddBd6F",  # FRAX native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            "mountain-protocol-usdm": {
+                "token_address": "0x59D9356E565Ab3A36dD77763Fc0d87fEaf85508C",  # USDM native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            "tether": {
+                "token_address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",  # USDT native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",  # USDe native on Arbitrum
+                "method_name": "totalSupply",
+            },
+        }
+
+    },
     "arbitrum_nova": {
         "bridged": {
             "ethereum": [
