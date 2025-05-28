@@ -220,15 +220,17 @@ def call_contract_function(w3: Web3, contract_address: str, abi: dict, function_
     """
 
     if at_block != 'latest':
+        block_number = int(at_block)
         # check if the contract was deployed at the given address
-        code = w3.eth.get_code(contract_address, block_identifier=at_block)
+        code = w3.eth.get_code(contract_address, block_identifier=block_number)
         time.sleep(0.1)  # Sleep to avoid rate limiting
         if code == b'':  # Contract not deployed by this block
-            print(f"Contract not deployed at address {contract_address} with block {at_block}")
+            print(f"Contract not deployed at address {contract_address} with block {block_number}")
             return None
-        block_number = int(at_block)
     else:
         block_number = int(w3.eth.block_number)
+
+    print(f"Calling function {function_name} on contract {contract_address} at block {block_number} with args: {args}")
 
     try:
         contract = w3.eth.contract(address=Web3.to_checksum_address(contract_address), abi=abi)
