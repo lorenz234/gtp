@@ -10,6 +10,7 @@
 # fiat: the fiat currency is the currency that the token is pegged to
 # logo: (optional) the logo is a link to the token's logo 
 # addresses: the addresses are the contract addresses for the token on the Ethereum network
+# exceptions: (optional) a dictionary of exceptions for the token on different chains, e.g. if the token is bridged and natively minted on a chain (example: USDT0 on Arbitrum)
 
 #TODO: add logic for non-usd backed stables (should be enough to add the token to the total supply calculation)
 
