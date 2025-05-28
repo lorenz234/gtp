@@ -82,6 +82,7 @@ def json_creation():
             query_parameters = {
                 'origin_key': origin_key,
                 'metric_key': 'txcount_type4',
+                'days': 120
             }
             df = execute_jinja_query(db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
             df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
