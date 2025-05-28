@@ -1,0 +1,21 @@
+{# 
+    A query to sum the base and priority fees (tx_fee) that users paid to use the chain over the last 'days' days.
+
+    metric_key = 'fees_paid_eth'
+
+    Parameters:
+    - origin_key: The name of the chain to identify the table.
+    - days: default = 7; The time interval (in days) to consider for the data extraction.
+#}
+
+{% set days = days | default(7) %}
+
+SELECT
+    date AS day,
+    SUM(value) AS value
+FROM fact_kpis
+WHERE date >= current_date - interval '{{ days }} days' 
+    AND date < current_date
+    AND metric_key in ('fees_paid_base_eth', 'fees_paid_priority_eth')
+    AND origin_key = '{{ origin_key }}'
+GROUP BY 1;
