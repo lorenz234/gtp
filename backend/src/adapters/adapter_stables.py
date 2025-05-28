@@ -537,6 +537,15 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     df['origin_key'] = chain
                     df['token_key'] = stablecoin_id
                     df['value'] = 0.0  # Initialize balance column
+
+                    ## check for exceptions 
+                    start_date = None
+                    if self.stables_metadata[stablecoin_id].get('exceptions') is not None:
+                        exceptions = self.stables_metadata[stablecoin_id]['exceptions']
+                        if source_chain in exceptions and chain in exceptions[source_chain]:
+                            start_date = exceptions[source_chain][chain]['start_date']
+                            start_date = pd.Timestamp(start_date)
+                            print(f"Exceptions found for {symbol} on {chain}, using bridge addresses until {start_date}")
                     
                     # Create contract instance
                     try:
@@ -552,6 +561,10 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         if date < first_block_date:
                             print(f"Reached first block date ({first_block_date}) for {chain}, stopping")
                             break  # Stop if we reach the first block date
+
+                        if start_date and date < start_date:
+                            print(f"Exception END: Skipping {symbol} on {chain} after end date {start_date}")
+                            break  # Skip dates before the start date in exceptions
 
                         block = df['block'].iloc[i]
                         print(f"...retrieving bridged balance for {symbol} at block {block} ({date})")

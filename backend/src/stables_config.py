@@ -35,6 +35,13 @@ stables_metadata = {
         "addresses": {
             "ethereum": "0xdac17f958d2ee523a2206206994597c13d831ec7",
             "celo": "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+        },
+        "exceptions": {
+            "ethereum": {
+                "arbitrum": {
+                    "start_date": "2025-02-06",  # USDT0 native on Arbitrum, don't double count USDT on Ethereum bridge before Feb 6th, 2025
+                }
+            }
         }
     },
     "dai": {
@@ -336,7 +343,7 @@ stables_mapping = {
                 "method_name": "totalSupply",
             },
             "tether": {
-                "token_address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",  # USDT native on Arbitrum
+                "token_address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",  # USDT0 native on Arbitrum, don't double count USDT on Ethereum bridge before Feb 6th, 2025
                 "method_name": "totalSupply",
             },
             "ethena-usde": {
