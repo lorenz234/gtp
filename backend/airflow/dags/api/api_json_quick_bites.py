@@ -102,5 +102,55 @@ def json_creation():
 
         upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/pectra-fork', data_dict, cf_distribution_id)
 
+    @task()
+    def run_arbitrum_timeboost():
+        import datetime
+        import pandas as pd
+        from datetime import datetime, timezone
+        import os
+        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
+        from src.db_connector import DbConnector
+        from src.misc.jinja_helper import execute_jinja_query
+
+        db_connector = DbConnector()
+        s3_bucket = os.getenv("S3_CF_BUCKET")
+        cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
+
+        data_dict = {
+            "data": {
+                "fees_paid_base_eth" : {},
+                "fees_paid_priority_eth" : {}
+            }    
+        }    
+
+        for metric_key in ['fees_paid_base_eth', 'fees_paid_priority_eth']:
+            query_parameters = {
+                'origin_key': 'arbitrum',
+                'metric_key': metric_key,
+                'days': (datetime.now(timezone.utc) - datetime(2025, 4, 10, tzinfo=timezone.utc)).days ## days since '2025-04-10' to today
+            }
+            df = execute_jinja_query(db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+            df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+            df.sort_values(by=['date'], inplace=True, ascending=True)
+            df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
+            df = df.drop(columns=['date'])
+
+            data_dict["data"][metric_key]= {
+                "daily": {
+                    "types": df.columns.tolist(),
+                    "values": df.values.tolist()
+                }
+            }
+
+            if metric_key == 'fees_paid_priority_eth':
+                data_dict["data"][metric_key]["total"] = df['value'].sum()
+
+        data_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        data_dict = fix_dict_nan(data_dict, 'arbitrum-timeboost')
+
+        upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/arbitrum-timeboost', data_dict, cf_distribution_id)
+
     run_pectra_fork()    
+    run_arbitrum_timeboost()
+
 json_creation()
