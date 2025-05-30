@@ -1,5 +1,4 @@
 import pandas as pd
-from datetime import datetime, timedelta
 
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.helper_functions import print_init, print_load, print_extract
@@ -52,8 +51,7 @@ class AdapterEigenDA(AbstractAdapter):
         import requests
         import json
 
-        yesterday = datetime.now() - timedelta(days=1)
-        yesterday = yesterday.strftime("%Y-%m-%d")
+        yesterday = (pd.Timestamp.now() - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
         self.endpoint = f"{self.load_params.get('endpoint')}/{yesterday}.json"
         
         response = requests.get(self.endpoint)
@@ -65,7 +63,6 @@ class AdapterEigenDA(AbstractAdapter):
             raise Exception(f"API call failed with status code {response.status_code}")
         
     def prepare_df(self, df: pd.DataFrame):
-
         # convert mb to bytes
         df["eigenda_blob_size_bytes"] = (df["total_size_mb"] * 1000).astype(int)
         df = df.drop(columns=['total_size_mb'])
@@ -76,5 +73,9 @@ class AdapterEigenDA(AbstractAdapter):
         # only get the last x days as defined in load_params, else max
         day = pd.Timestamp.now() - pd.Timedelta(days=self.load_params.get('days', 999))
         df = df[df['date'] >= day.strftime('%Y-%m-%d')]
+
+        # TODO: left join gtp-dna
+        # TODO: calculate daily totals
+        # TODO: melt df
 
         return df
