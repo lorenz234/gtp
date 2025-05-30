@@ -126,7 +126,7 @@ class AdapterL2Beat(AbstractAdapter):
                 print(f'...loading stage and maturity info for {origin_key} with l2beat_id: {l2beat_id}') 
 
                 ## processing stage
-                stage = response['data']['projects'][l2beat_id]['stage']
+                stage = response['projects'][l2beat_id]['stage']
                 if stage in ['NotApplicable', 'Not applicable']:
                     stage = 'NA'
                 # Compare with the existing stage in the main_config
@@ -139,9 +139,9 @@ class AdapterL2Beat(AbstractAdapter):
                 ## processing maturity
                 maturity_level = 'NA'
 
-                tvs = response['data']['projects'][l2beat_id]['tvs']['breakdown']['total']
+                tvs = response['projects'][l2beat_id]['tvs']['breakdown']['total']
                 positive_risk_count = 0
-                for risks in response['data']['projects'][l2beat_id]['risks']:
+                for risks in response['projects'][l2beat_id]['risks']:
                     if risks['sentiment'] == 'good':
                         positive_risk_count += 1
                 launch_date = chain.metadata_launch_date

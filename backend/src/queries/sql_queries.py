@@ -75,7 +75,8 @@ sql_queries = [
         ,SQLQuery(metric_key = "gas_per_second", origin_key = "arbitrum", jinja_path='chain_metrics/custom/orbit_select_gas_per_second.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "cca_last7d_exclusive", origin_key = "arbitrum", jinja_path='chain_metrics/select_cca_last7d.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "arbitrum", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
-        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_fees_paid.sql.j2')
+        ,SQLQuery(metric_key = "fees_paid_base_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_fees_paid.sql.j2')
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_fees_paid_combined.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcosts_median.sql.j2')
         
         ## Real

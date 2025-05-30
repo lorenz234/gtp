@@ -520,6 +520,8 @@ class DbConnector:
                                         WHEN 'costs_total_eth' THEN 'costs_total_usd'
                                         WHEN 'da_fees_eth' THEN 'da_fees_usd'
                                         WHEN 'fees_paid_eth' THEN 'fees_paid_usd'
+                                        WHEN 'fees_paid_base_eth' THEN 'fees_paid_base_usd'
+                                        WHEN 'fees_paid_priority_eth' THEN 'fees_paid_priority_usd'
                                         WHEN 'profit_eth' THEN 'profit_usd'
                                         WHEN 'txcosts_median_eth' THEN 'txcosts_median_usd'
                                         WHEN 'da_fees_per_mbyte_eth' THEN 'da_fees_per_mbyte_usd'

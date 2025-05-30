@@ -1184,6 +1184,7 @@ class JSONCreation():
             },
             'maturity_levels': self.maturity_levels,
             'main_chart_config': self.main_chart_config,
+            'ethereum_events': self.ethereum_events['upgrades'],
         }
 
         master_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
