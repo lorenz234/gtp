@@ -1,4 +1,7 @@
 import pandas as pd
+import requests
+import json
+import yaml
 
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.helper_functions import print_init, print_load, print_extract, convert_economics_mapping_into_df
@@ -26,7 +29,7 @@ class AdapterEigenDA(AbstractAdapter):
         df = self.call_api_endpoint()
         
         # prepare df
-        #df = self.prepare_df(df)
+        df = self.prepare_df(df)
 
         # print extract info
         print_extract(self.name, load_params, df.shape[0])
@@ -43,14 +46,10 @@ class AdapterEigenDA(AbstractAdapter):
                 print(f"Error loading {table}: {e}")
         else:
             print("No load_type specified in load_params. Data not loaded!")
-        print_load(self.name, upserted, table)
 
     ### api call function
 
     def call_api_endpoint(self):
-        import requests
-        import json
-
         yesterday = (pd.Timestamp.now() - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
         self.endpoint = f"{self.load_params.get('endpoint')}/{yesterday}.json"
         
@@ -63,6 +62,14 @@ class AdapterEigenDA(AbstractAdapter):
             raise Exception(f"API call failed with status code {response.status_code}")
         
     def prepare_df(self, df: pd.DataFrame):
+        # convert from hourly to daily values
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        df['datetime'] = df['datetime'].dt.date
+        df = df.groupby(['datetime', 'customer_id']).sum().reset_index()
+
+        # drop account_name (customer_id is more accurate)
+        df = df.drop(columns=['account_name'])
+
         # convert mb to bytes
         df["eigenda_blob_size_bytes"] = (df["total_size_mb"] * 1024 * 1024) # convert MiB to kiB to bytes, this is MiB (according to EigenDA, but number was rounded)
         df = df.drop(columns=['total_size_mb'])
@@ -107,6 +114,9 @@ class AdapterEigenDA(AbstractAdapter):
         df = df.drop(columns=['customer_id'])
         df_melted2 = df.melt(id_vars=['date', 'origin_key'], var_name='metric_key', value_name='value')
         # merge melted dataframes
-        df_melted = pd.concat([df_melted, df_melted2], ignore_index=True)
+        df_melt = pd.concat([df_melted, df_melted2], ignore_index=True)
 
-        return df_melted
+        # set index
+        df_melt = df_melt.set_index(['date', 'origin_key', 'metric_key'])
+
+        return df_melt
