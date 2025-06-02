@@ -33,7 +33,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         
         # Initialize web3 connections to different chains
         self.connections = {}
-        self.supported_chains = [] 
+        self.supported_chains = []
         
         # Add L2 chains that are in the mapping
         for chain_name in self.stables_mapping.keys():
@@ -549,6 +549,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
                     ## check for exceptions 
                     start_date = None
+                    mk_value = 'supply_bridged'
                     if self.stables_metadata[stablecoin_id].get('exceptions') is not None:
                         exceptions = self.stables_metadata[stablecoin_id]['exceptions']
                         if source_chain in exceptions and chain in exceptions[source_chain]:
@@ -572,8 +573,8 @@ class AdapterStablecoinSupply(AbstractAdapter):
                             break  # Stop if we reach the first block date
 
                         if start_date and date < start_date:
-                            print(f"Exception END: Skipping {symbol} on {chain} after end date {start_date}")
-                            break  # Skip dates before the start date in exceptions
+                            print(f"Exception END: changing metric_key for {symbol} on {chain} after end date {start_date}")
+                            mk_value = 'supply_bridged_exceptions'
 
                         block = df['block'].iloc[i]
                         print(f"...retrieving bridged balance for {symbol} at block {block} ({date})")
@@ -604,8 +605,8 @@ class AdapterStablecoinSupply(AbstractAdapter):
                             break
                         
                         df.loc[df.index[i], 'value'] = total_balance
+                        df.loc[df.index[i], 'metric_key'] = mk_value
                     
-                    df['metric_key'] = 'supply_bridged'
                     # Drop unneeded columns
                     df.drop(columns=['block'], inplace=True)
 
@@ -948,6 +949,13 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     days=self.days
                 )
         
+        df_bridged_exceptions = self.db_connector.get_data_from_table("fact_stables",
+                    filters={
+                        "metric_key": "supply_bridged_exceptions"
+                    },
+                    days=self.days
+                )
+        
         # Reset index to work with the dataframes
         if not df_bridged.empty:
             df_bridged = df_bridged.reset_index()
@@ -955,6 +963,16 @@ class AdapterStablecoinSupply(AbstractAdapter):
             df_direct = df_direct.reset_index()
         if not df_locked.empty:
             df_locked = df_locked.reset_index()
+        if not df_bridged_exceptions.empty:
+            df_bridged_exceptions.reset_index()
+
+        df_bridged_all = pd.concat([df_bridged, df_bridged_exceptions])
+
+        ## sum up bridged supply for for all chains that aren't Ethereum
+        df_bridged_l2s = df_bridged_all[df_bridged_all['origin_key'] != 'ethereum']
+        df_bridged_l2s.drop(columns=['origin_key'], inplace=True)
+        df_bridged_l2s = df_bridged_l2s.groupby(['date'])['value'].sum().reset_index()
+        df_bridged_l2s['metric_key'] = 'stables_mcap'
         
         # Combine datasets
         df = pd.concat([df_bridged, df_direct, df_locked])
@@ -967,6 +985,17 @@ class AdapterStablecoinSupply(AbstractAdapter):
         # Also create total across all stablecoins
         df_total = df.groupby(['origin_key', 'date'])['value'].sum().reset_index()
         df_total['metric_key'] = 'stables_mcap'
+
+        df_total_ethereum = df_total[df_total['origin_key'] == 'ethereum'].copy()
+        df_total = df_total[df_total['origin_key'] != 'ethereum']
+
+        ## join df_total_ethereum with df_bridged_l2s
+        df_total_ethereum = df_total_ethereum.merge(df_bridged_l2s, on='date', how='left', suffixes=('', '_l2s'))
+        df_total_ethereum['value'] = df_total_ethereum['value'] - df_total_ethereum['value_l2s'].fillna(0)
+        df_total_ethereum.drop(columns=['value_l2s', 'metric_key_l2s'], inplace=True)
+
+        # Combine total Ethereum with other chains
+        df_total = pd.concat([df_total, df_total_ethereum])
         
         # Set index and return
         df_total.set_index(['metric_key', 'origin_key', 'date'], inplace=True)

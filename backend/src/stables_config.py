@@ -280,7 +280,7 @@ stables_metadata = {
     "buidl": {
         "name": "BlackRock USD Institutional Digital Liquidity Fund",
         "symbol": "BUIDL",
-        "decimals": 18,
+        "decimals": 6,
         "coingecko_id": "blackrock-usd-institutional-digital-liquidity-fund",
         "fiat": "usd",
         "logo": None,
@@ -393,7 +393,20 @@ stables_mapping = {
                 "token_address": "0x4f604735c1cf31399c6e711d5962b2b3e0225ad3",  # USDGLO native on Ethereum
                 "method_name": "totalSupply",
             }
-        }
+        },
+
+        "locked_supply": {
+            "tether": {
+                "ethereum": [
+                    "0x5754284f345afc66a98fbB0a0Afe71e0F007B949"  # Tether Treasury
+                ]
+            },
+            "usdc": {
+                "ethereum": [
+                    "0x55fe002aeff02f77364de339a1292923a15844b8",  # Circle Treasury
+                ]
+            },
+        }  
     },
 
     ## Layer 2s
