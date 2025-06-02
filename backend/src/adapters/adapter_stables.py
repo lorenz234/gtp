@@ -33,7 +33,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         
         # Initialize web3 connections to different chains
         self.connections = {}
-        self.supported_chains = ['ethereum']  # Default supported chains
+        self.supported_chains = [] 
         
         # Add L2 chains that are in the mapping
         for chain_name in self.stables_mapping.keys():
@@ -41,10 +41,14 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 self.supported_chains.append(chain_name)
 
         self.chains = adapter_params.get('origin_keys', self.supported_chains)
-        self.chains.append('ethereum')  # Always include Ethereum as source chain
+
+        connection_chains = self.chains.copy()
+        # Always include Ethereum as source chain for block data
+        if 'ethereum' not in connection_chains:
+            connection_chains.append('ethereum')
         
         # Create connections to each chain
-        for chain in self.chains:
+        for chain in connection_chains:
             try:
                 rpc_url = self.db_connector.get_special_use_rpc(chain)
                 w3 = Web3(Web3.HTTPProvider(rpc_url))
@@ -265,8 +269,13 @@ class AdapterStablecoinSupply(AbstractAdapter):
         """
         df_main = pd.DataFrame()
         print(f"Getting block data for {self.days} days and update set to {update}")
+
+        block_chains = self.chains.copy()
+        # Always include Ethereum as source chain for block data
+        if 'ethereum' not in block_chains:
+            block_chains.append('ethereum')
         
-        for chain in self.chains:
+        for chain in block_chains:
             print(f"Processing {chain} block data")
             ## check if chain dict has a key "direct" and if it contains data
             if chain != 'ethereum' and (self.stables_mapping[chain].get("direct") is None or len(self.stables_mapping[chain]["direct"]) == 0):
