@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import re
 from google.cloud import storage
 from google.oauth2 import service_account
 import io
@@ -106,8 +107,30 @@ def save_data_for_range(df, block_start, block_end, chain, bucket_name):
                     try:
                         date_str = datetime.strptime(block_timestamp, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d")
                     except ValueError:
-                        # Try ISO format
-                        date_str = datetime.fromisoformat(block_timestamp.replace('Z', '+00:00')).strftime("%Y-%m-%d")
+                        # Try ISO format - normalize fractional seconds to microseconds
+                        timestamp_str = block_timestamp.replace('Z', '+00:00')
+                        
+                        # Handle fractional seconds of varying precision
+                        # Pattern: YYYY-MM-DDTHH:MM:SS.fractional+TZ
+                        fractional_pattern = r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)(\+\d{2}:\d{2})'
+                        match = re.match(fractional_pattern, timestamp_str)
+                        
+                        if match:
+                            date_part = match.group(1)
+                            fractional_part = match.group(2)
+                            timezone_part = match.group(3)
+                            
+                            # Normalize fractional seconds to exactly 6 digits (microseconds)
+                            if len(fractional_part) > 6:
+                                # Truncate to 6 digits (nanoseconds -> microseconds)
+                                fractional_part = fractional_part[:6]
+                            elif len(fractional_part) < 6:
+                                # Pad with zeros to reach 6 digits
+                                fractional_part = fractional_part.ljust(6, '0')
+                            
+                            timestamp_str = f"{date_part}.{fractional_part}{timezone_part}"
+                        
+                        date_str = datetime.fromisoformat(timestamp_str).strftime("%Y-%m-%d")
                 else:
                     # Assume it's already a datetime object
                     date_str = block_timestamp.strftime("%Y-%m-%d")
