@@ -11,6 +11,8 @@ class AdapterEigenDA(AbstractAdapter):
         super().__init__("EigenDA", adapter_params, db_connector)
         self.adapter_params = adapter_params
         print_init(self.name, self.adapter_params)
+        # initialize economics mapping
+        self.map = self.get_economics_mapping()
 
     def extract(self, load_params: dict):
         """
@@ -48,6 +50,15 @@ class AdapterEigenDA(AbstractAdapter):
             print("No load_type specified in load_params. Data not loaded!")
 
     ### api call function
+
+    def get_economics_mapping(self):
+        # map customer_id to origin_key for df, based on economics_mapping.yml
+        url = "https://raw.githubusercontent.com/growthepie/gtp-dna/refs/heads/main/economics_da/economics_mapping.yml"
+        response = requests.get(url)
+        data = yaml.load(response.text, Loader=yaml.FullLoader)
+        map = convert_economics_mapping_into_df(data)
+        map = map[map['da_layer'] == 'eigenda'][['origin_key', 'customer_id']]
+        return map
 
     def call_api_endpoint(self):
         yesterday = (pd.Timestamp.now() - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
@@ -95,14 +106,8 @@ class AdapterEigenDA(AbstractAdapter):
         # add origin_key
         df_grouped['origin_key'] = 'da_eigenda'
 
-        # map customer_id to origin_key for df, based on economics_mapping.yml
-        url = "https://raw.githubusercontent.com/lorenz234/gtp-dna/refs/heads/main/economics_da/economics_mapping.yml" ### change to production URL when ready
-        response = requests.get(url)
-        data = yaml.load(response.text, Loader=yaml.FullLoader)
-        map = convert_economics_mapping_into_df(data)
-        map = map[map['da_layer'] == 'eigenda'][['origin_key', 'customer_id']]
         # left join map on df, thenn remove unmapped (unknown blob producers)
-        df = df.merge(map, on='customer_id', how='left')
+        df = df.merge(self.map, on='customer_id', how='left')
         df = df[df['origin_key'].notnull()]
 
         # calculate fees paid 
