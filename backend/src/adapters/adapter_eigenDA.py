@@ -1,7 +1,7 @@
 import pandas as pd
 
 from src.adapters.abstract_adapters import AbstractAdapter
-from src.misc.helper_functions import print_init, print_load, print_extract
+from src.misc.helper_functions import print_init, print_load, print_extract, convert_economics_mapping_into_df
 
 class AdapterEigenDA(AbstractAdapter):
     def __init__(self, adapter_params: dict, db_connector):
@@ -26,7 +26,7 @@ class AdapterEigenDA(AbstractAdapter):
         df = self.call_api_endpoint()
         
         # prepare df
-        df = self.prepare_df(df)
+        #df = self.prepare_df(df)
 
         # print extract info
         print_extract(self.name, load_params, df.shape[0])
@@ -64,18 +64,49 @@ class AdapterEigenDA(AbstractAdapter):
         
     def prepare_df(self, df: pd.DataFrame):
         # convert mb to bytes
-        df["eigenda_blob_size_bytes"] = (df["total_size_mb"] * 1000).astype(int)
+        df["eigenda_blob_size_bytes"] = (df["total_size_mb"] * 1024 * 1024) # convert MiB to kiB to bytes, this is MiB (according to EigenDA, but number was rounded)
         df = df.drop(columns=['total_size_mb'])
 
-        # rename blob_count to eigenda_blob_count
-        df = df.rename(columns={'blob_count': 'eigenda_blob_count'})
+        # rename blob_count to eigenda_blob_count, datetime to date
+        df = df.rename(columns={
+            'blob_count': 'eigenda_blob_count',
+            'datetime': 'date'
+        })
 
-        # only get the last x days as defined in load_params, else max
-        day = pd.Timestamp.now() - pd.Timedelta(days=self.load_params.get('days', 999))
-        df = df[df['date'] >= day.strftime('%Y-%m-%d')]
+        # only get the last x days as defined in load_params, else pull in all data
+        day = pd.Timestamp.now() - pd.Timedelta(days=self.load_params.get('days', 99999))
+        df = df[df['date'] >= day.date()]
 
-        # TODO: left join gtp-dna
-        # TODO: calculate daily totals
-        # TODO: melt df
+        # calculate daily total values
+        df_grouped = df.groupby('date').sum().reset_index()
+        df_grouped = df_grouped.sort_values(by='date', ascending=False)[['date', 'eigenda_blob_count', 'eigenda_blob_size_bytes']]
+        # rename columns to correct metric_keys
+        df_grouped = df_grouped.rename(columns={
+            'eigenda_blob_count': 'da_blob_count',
+            'eigenda_blob_size_bytes': 'da_data_posted_bytes'
+        })
+        # add origin_key
+        df_grouped['origin_key'] = 'da_eigenda'
 
-        return df
+        # map customer_id to origin_key for df, based on economics_mapping.yml
+        url = "https://raw.githubusercontent.com/lorenz234/gtp-dna/refs/heads/main/economics_da/economics_mapping.yml" ### change to production URL when ready
+        response = requests.get(url)
+        data = yaml.load(response.text, Loader=yaml.FullLoader)
+        map = convert_economics_mapping_into_df(data)
+        map = map[map['da_layer'] == 'eigenda'][['origin_key', 'customer_id']]
+        # left join map on df, thenn remove unmapped (unknown blob producers)
+        df = df.merge(map, on='customer_id', how='left')
+        df = df[df['origin_key'].notnull()]
+
+        # calculate fees paid 
+        pricing = 0.015 # ETH per GiB (source: https://www.blog.eigenlayer.xyz/eigenda-updated-pricing/)
+        df['eigenda_blobs_eth'] = (df['eigenda_blob_size_bytes'] / (1024 * 1024 * 1024)) * pricing # convert bytes to GiB and multiply by price
+
+        # melt and merge columns
+        df_melted = df_grouped.melt(id_vars=['date', 'origin_key'], var_name='metric_key', value_name='value')
+        df = df.drop(columns=['customer_id'])
+        df_melted2 = df.melt(id_vars=['date', 'origin_key'], var_name='metric_key', value_name='value')
+        # merge melted dataframes
+        df_melted = pd.concat([df_melted, df_melted2], ignore_index=True)
+
+        return df_melted
