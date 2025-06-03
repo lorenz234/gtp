@@ -15,9 +15,9 @@ from src.misc.airflow_utils import alert_via_webhook
         'retry_delay': timedelta(minutes=5),
         'on_failure_callback': alert_via_webhook
     },
-    dag_id='eigendata_loader',
+    dag_id='EigenDA Metrics',
     description='Load data from EigenDA API.',
-    tags=['eigendata', 'fact_kpi'],
+    tags=['EigenDA', 'fact_kpi'],
     start_date=datetime(2024, 7, 22),
     schedule='33 1 * * *'  # Run daily at 1:33 am
 )
@@ -39,6 +39,7 @@ def run_dag():
         }
         
         df = eigen.extract(load_params)
+        df = df.set_index(['date', 'origin_key', 'metric_key'])
         eigen.load(df)
 
     run_eigendata_extract_load()
