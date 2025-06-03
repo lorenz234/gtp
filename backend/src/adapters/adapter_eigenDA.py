@@ -115,18 +115,18 @@ class AdapterEigenDA(AbstractAdapter):
         # add origin_key
         df_grouped['origin_key'] = 'da_eigenda'
 
-        # left join map on df, thenn remove unmapped (unknown blob producers)
-        df = df.merge(self.map, on='namespace', how='left')
+        # left join map on df, thenn remove unmapped (unknown blob producers) & drop customer_id + namespace
+        df = df.merge(self.map, left_on='customer_id', right_on='namespace', how='left')
         df = df[df['origin_key'].notnull()]
+        df = df.drop(columns=['namespace', 'customer_id'])
 
         # calculate fees paid by converting bytes to GiB and multiply by price
         pricing = 0.015 # ETH per GiB (source: https://www.blog.eigenlayer.xyz/eigenda-updated-pricing/)
         df['eigenda_blobs_eth'] = (df['eigenda_blob_size_bytes'] / (1024 * 1024 * 1024)) * pricing
         df_grouped['da_fees_eth'] = (df_grouped['da_data_posted_bytes'] / (1024 * 1024 * 1024)) * pricing
 
-        # melt and merge columns
+        # melt columns
         df_melted = df_grouped.melt(id_vars=['date', 'origin_key'], var_name='metric_key', value_name='value')
-        df = df.drop(columns=['namespace'])
         df_melted2 = df.melt(id_vars=['date', 'origin_key'], var_name='metric_key', value_name='value')
         # merge melted dataframes
         df_melt = pd.concat([df_melted, df_melted2], ignore_index=True)
