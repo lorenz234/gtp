@@ -2475,6 +2475,10 @@ class JSONCreation():
                 "stables" : {
                     "layer_2s" : {},
                     "ethereum_mainnet" : {}
+                },
+                "gdp" : {
+                    "layer_2s" : {},
+                    "ethereum_mainnet" : {}
                 }
             }
         }
@@ -2590,6 +2594,60 @@ class JSONCreation():
         df.rename(columns={'value_usd': 'usd', 'value_eth': 'eth'}, inplace=True)
 
         traction_dict["data"]["stables"]["ethereum_mainnet"]= {
+            "daily": {
+                "types": df.columns.tolist(),
+                "values": df.values.tolist()
+            }
+        }        
+
+        ## gdp layers 2s
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'fees_paid_usd',
+        }
+        df_usd = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s.sql.j2", query_parameters, return_df=True)
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'fees_paid_eth',
+        }
+        df_eth = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s.sql.j2", query_parameters, return_df=True)
+        df = pd.merge(df_usd, df_eth, on=['date'], how='left', suffixes=('_usd', '_eth'))
+
+        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+        df.sort_values(by=['date'], inplace=True, ascending=True)
+        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
+        df = df.drop(columns=['date'])
+        df.rename(columns={'value_usd': 'usd', 'value_eth': 'eth'}, inplace=True)
+
+        traction_dict["data"]["gdp"]["layer_2s"]= {
+            "daily": {
+                "types": df.columns.tolist(),
+                "values": df.values.tolist()
+            }
+        }        
+
+        ## gdp ethereum mainnet
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'fees_paid_usd',
+            "origin_key": 'ethereum'
+        }
+        df_usd = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'fees_paid_eth',
+            "origin_key": 'ethereum'
+        }
+        df_eth = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df = pd.merge(df_usd, df_eth, on=['date'], how='left', suffixes=('_usd', '_eth'))
+
+        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+        df.sort_values(by=['date'], inplace=True, ascending=True)
+        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
+        df = df.drop(columns=['date'])
+        df.rename(columns={'value_usd': 'usd', 'value_eth': 'eth'}, inplace=True)
+
+        traction_dict["data"]["gdp"]["ethereum_mainnet"]= {
             "daily": {
                 "types": df.columns.tolist(),
                 "values": df.values.tolist()
