@@ -76,7 +76,7 @@ class AdapterEigenDA(AbstractAdapter):
         # convert from hourly to daily values
         df['datetime'] = pd.to_datetime(df['datetime'])
         df['datetime'] = df['datetime'].dt.date
-        df = df.groupby(['datetime', 'namespace']).agg({
+        df = df.groupby(['datetime', 'customer_id']).agg({
             'blob_count': 'sum',
             'total_size_mb': 'sum',
             'account_name': 'first'
