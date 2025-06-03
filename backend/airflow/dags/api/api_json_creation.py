@@ -57,6 +57,13 @@ def etl():
         json_creator.create_landingpage_json(df)
 
     @task()
+    def run_create_eco_overview():
+        db_connector = DbConnector()
+        json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
+
+        json_creator.create_eco_overview_json()
+
+    @task()
     def run_create_economics():
         db_connector = DbConnector()
         json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
@@ -160,13 +167,16 @@ def etl():
         json_creator.create_eth_supply_json(df)
         json_creator.create_eth_holders_json()
 
-    # Main
+    ## Main
     run_create_master()    
     run_create_chain_details()
     run_create_metrics_details()
     run_create_landingpage()
     run_create_economics()
     run_create_da_overview()
+
+    ## Eco Overview
+    run_create_eco_overview()
 
     ## Blockspace
     run_create_blockspace_overview()
