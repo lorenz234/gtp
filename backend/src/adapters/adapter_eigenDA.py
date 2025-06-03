@@ -20,7 +20,7 @@ class AdapterEigenDA(AbstractAdapter):
 
         Parameters:
         load_params : dict
-            - 'days' (int): The number of days to look back for data extraction.
+            - 'days' (int): The number of days to look back for data extraction (min date is hard coded to 2025-01-01).
             - 'endpoint' (str): The API endpoint to fetch data from.
             - 'table' (str): The name of the table to load the data into.
         """
@@ -81,6 +81,9 @@ class AdapterEigenDA(AbstractAdapter):
             'total_size_mb': 'sum',
             'account_name': 'first'
         }).reset_index()
+
+        # hard drop everything pre 2025-01-01
+        df = df[df['datetime'] >= pd.Timestamp('2025-01-01').date()]
 
         # drop account_name (namespace is more accurate)
         df = df.drop(columns=['account_name'])
