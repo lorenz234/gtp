@@ -46,7 +46,7 @@ class JSONCreation():
         self.db_connector = db_connector
         self.main_config = get_main_config(api_version=self.api_version)
         self.multi_config = get_multi_config()
-        self.da_config = get_da_config()
+        self.da_config = get_da_config(api_version=self.api_version)
         self.latest_eth_price = self.db_connector.get_last_price_usd('ethereum')
 
         eim_yamls = get_eim_yamls(['eth_exported_entities', 'ethereum_events'])
@@ -2464,7 +2464,7 @@ class JSONCreation():
     ### ETH AGG
     ########################################################################
 
-    def create_traction_json(self):
+    def create_eco_overview_json(self):
         traction_dict = {
             "data": {
                 "count_layer2s" : {},
@@ -2547,11 +2547,19 @@ class JSONCreation():
             "days": 9999,
             "metric_key": 'stables_mcap',
         }
-        df = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s.sql.j2", query_parameters, return_df=True)
+        df_usd = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s.sql.j2", query_parameters, return_df=True)
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'stables_mcap_eth',
+        }
+        df_eth = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s.sql.j2", query_parameters, return_df=True)
+        df = pd.merge(df_usd, df_eth, on=['date'], how='left', suffixes=('_usd', '_eth'))
+
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
         df = df.drop(columns=['date'])
+        df.rename(columns={'value_usd': 'usd', 'value_eth': 'eth'}, inplace=True)
 
         traction_dict["data"]["stables"]["layer_2s"]= {
             "daily": {
@@ -2566,11 +2574,20 @@ class JSONCreation():
             "metric_key": 'stables_mcap',
             "origin_key": 'ethereum'
         }
-        df = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df_usd = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'stables_mcap_eth',
+            "origin_key": 'ethereum'
+        }
+        df_eth = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df = pd.merge(df_usd, df_eth, on=['date'], how='left', suffixes=('_usd', '_eth'))
+
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
         df = df.drop(columns=['date'])
+        df.rename(columns={'value_usd': 'usd', 'value_eth': 'eth'}, inplace=True)
 
         traction_dict["data"]["stables"]["ethereum_mainnet"]= {
             "daily": {
@@ -2580,13 +2597,13 @@ class JSONCreation():
         }        
 
         traction_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        traction_dict = fix_dict_nan(traction_dict, 'traction_dict')
+        traction_dict = fix_dict_nan(traction_dict, 'ecosystem_overview')
 
         if self.s3_bucket == None:
-            self.save_to_json(traction_dict, 'traction_dict')
+            self.save_to_json(traction_dict, 'ecosystem_overview')
         else:
-            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/eth_agg/traction', traction_dict, self.cf_distribution_id)
-        print(f'DONE -- ETH agg Traction export')
+            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/ecosystem/overview', traction_dict, self.cf_distribution_id)
+        print(f'DONE -- Ecosystem overview export')
 
 
 

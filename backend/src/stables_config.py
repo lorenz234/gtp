@@ -277,20 +277,139 @@ stables_metadata = {
             "arbitrum": "0xf3527ef8dE265eAa3716FB312c12847bFBA66Cef",
         }
     },
+    "buidl": {
+        "name": "BlackRock USD Institutional Digital Liquidity Fund",
+        "symbol": "BUIDL",
+        "decimals": 6,
+        "coingecko_id": "blackrock-usd-institutional-digital-liquidity-fund",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x7712c34205737192402172409a8F7ccef8aA2AEc", 
+        }
+    },
 }
 
 
-# Layer 2 bridge or direct token mapping
-## bridged: locked value is calculated based on bridge contracts on different chains
+# Bridge or direct token mapping
+## bridged: locked value is calculated based on bridge contracts on source chains
 ### Check for any stable that we track if it is locked in here
 
-## direct: token is directly minted on Layer 2
+## direct: token is directly minted on a chain, so we can get the total supply directly from the token contract
 ### Call method to get total supply of the token on the chain
 
 ## locked_supply: list of tokens that should be subtracted from the total supply
 ### This is useful for tokens that are locked in contracts of the issuer
 
 stables_mapping = {
+    ## Ethereum Mainnet is a slightly special case, as it is the source chain for most bridged stablecoins
+    "ethereum": {
+        "direct": {
+            "usdc": {
+                "token_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "tether": { 
+                "token_address": "0xdac17f958d2ee523a2206206994597c13d831ec7",  # USDT native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "buidl": {
+                "token_address": "0x7712c34205737192402172409a8F7ccef8aA2AEc",  # BUIDL native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "dai": {
+                "token_address": "0x6b175474e89094c44da98b954eedeac495271d0f",  # DAI native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "usds": {
+                "token_address": "0xdc035d45d973e3ec169d2276ddab16f1e407384f",  # USDS native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "ethena-usde": {
+                "token_address": "0x4c9edd5852cd905f086c759e8383e09bff1e68b3",  # USDe native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "binance_usd": {
+                "token_address": "0x4fabb145d64652a948d72533023f6e7a623c7c53",  # BUSD native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "true_usd": {
+                "token_address": "0x0000000000085d4780b73119b644ae5ecd22b376",  # TUSD native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "frax": {
+                "token_address": "0x853d955acef822db058eb8505911ed77f175b99e",  # FRAX native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "pax-dollar": {
+                "token_address": "0x8e870d67f660d95d5be530380d0ec0bd388289e1",  # USDP native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "gemini-usd": {
+                "token_address": "0x056fd409e1d7a124bd7017459dfea2f387b6d5cd",  # GUSD native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "paypal-usd": {
+                "token_address": "0x6c3ea9036406852006290770bedfcaba0e23a0e8",  # PYUSD native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "liquity-usd": {
+                "token_address": "0x5f98805a4e8be255a32880fdec7f6728c6568ba0",  # LUSD native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "mountain-protocol-usdm": {
+                "token_address": "0x59d9356e565ab3a36dd77763fc0d87feaf85508c",  # USDM native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "izumi-bond-usd": {
+                "token_address": "0x0a3bb08b3a15a19b4de82f8acfc862606fb69a2d",  # IUSD native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "electronic-usd": {
+                "token_address": "0xa0d69e286b938e21cbf7e51d71f6a4c8918f482f",  # eUSD native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "curve-usd": {
+                "token_address": "0xf939e0a03fb07f59a73314e73794be0e57ac1b4e",  # crvUSDC native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "dola": {
+                "token_address": "0x865377367054516e17014ccded1e7d814edc9ce4",  # DOLA native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "alchemix-usd": {
+                "token_address": "0xbc6da0fe9ad5f3b0d58160288917aa56653660e9",  # ALUSD native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "first-digital-usd": {
+                "token_address": "0xc5f0f7b66764f6ec8c8dff7ba683102295e16409",  # FDUSD native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "usual-usd": {
+                "token_address": "0x73a15fed60bf67631dc6cd7bc5b6e8da8190acf5",  # USD0 native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "glo-dollar": {
+                "token_address": "0x4f604735c1cf31399c6e711d5962b2b3e0225ad3",  # USDGLO native on Ethereum
+                "method_name": "totalSupply",
+            }
+        },
+
+        "locked_supply": {
+            "tether": {
+                "ethereum": [
+                    "0x5754284f345afc66a98fbB0a0Afe71e0F007B949"  # Tether Treasury
+                ]
+            },
+            "usdc": {
+                "ethereum": [
+                    "0x55fe002aeff02f77364de339a1292923a15844b8",  # Circle Treasury
+                ]
+            },
+        }  
+    },
+
+    ## Layer 2s
     "swell": {
         "bridged": {
             "ethereum": [
