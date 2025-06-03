@@ -7,6 +7,8 @@
     {% set metric_key = "= 'ethereum_blob_size_bytes'" %}
 {% elif da_layer == "da_celestia" %}
     {% set metric_key = "= 'celestia_blob_size_bytes'" %}
+{% elif da_layer == "da_eigenda" %}
+    {% set metric_key = "= 'eigenda_blob_size_bytes'" %}
 {% endif %}
 
 with econ_names as (
