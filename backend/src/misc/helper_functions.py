@@ -594,14 +594,13 @@ def convert_economics_mapping_into_df(data): # turns yml object of economics_map
             f.get('from_address'), 
             f.get('to_address'), 
             f.get('method'), 
-            f.get('namespace') if settlement_layer == 'celestia' else None,
-            f.get('customer_id') if settlement_layer == 'eigenda' else None
+            f.get('namespace') if settlement_layer in ['celestia', 'eigenda'] else None
         ]
         for L2, layers in data.items()
         for settlement_layer, filters in layers.items() if isinstance(filters, list)
         for f in filters
     ]
-    df = pd.DataFrame(table, columns=['origin_key', 'name', 'da_layer', 'from_address', 'to_address', 'method', 'namespace', 'customer_id'])
+    df = pd.DataFrame(table, columns=['origin_key', 'name', 'da_layer', 'from_address', 'to_address', 'method', 'namespace'])
     return df
 
 # get all official Open Labels Initative tags from OLI Github

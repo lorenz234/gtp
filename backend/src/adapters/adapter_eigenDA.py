@@ -52,12 +52,12 @@ class AdapterEigenDA(AbstractAdapter):
     ### api call function
 
     def get_economics_mapping(self):
-        # map customer_id to origin_key for df, based on economics_mapping.yml
+        # map namespace to origin_key for df, based on economics_mapping.yml
         url = "https://raw.githubusercontent.com/growthepie/gtp-dna/refs/heads/main/economics_da/economics_mapping.yml"
         response = requests.get(url)
         data = yaml.load(response.text, Loader=yaml.FullLoader)
         map = convert_economics_mapping_into_df(data)
-        map = map[map['da_layer'] == 'eigenda'][['origin_key', 'customer_id']]
+        map = map[map['da_layer'] == 'eigenda'][['origin_key', 'namespace']]
         return map
 
     def call_api_endpoint(self):
@@ -76,9 +76,13 @@ class AdapterEigenDA(AbstractAdapter):
         # convert from hourly to daily values
         df['datetime'] = pd.to_datetime(df['datetime'])
         df['datetime'] = df['datetime'].dt.date
-        df = df.groupby(['datetime', 'customer_id']).sum().reset_index()
+        df = df.groupby(['datetime', 'namespace']).agg({
+            'blob_count': 'sum',
+            'total_size_mb': 'sum',
+            'account_name': 'first'
+        }).reset_index()
 
-        # drop account_name (customer_id is more accurate)
+        # drop account_name (namespace is more accurate)
         df = df.drop(columns=['account_name'])
 
         # convert mb to bytes
@@ -96,32 +100,38 @@ class AdapterEigenDA(AbstractAdapter):
         df = df[df['date'] >= day.date()]
 
         # calculate daily total values
-        df_grouped = df.groupby('date').sum().reset_index()
-        df_grouped = df_grouped.sort_values(by='date', ascending=False)[['date', 'eigenda_blob_count', 'eigenda_blob_size_bytes']]
+        df_grouped = df.groupby('date').agg({
+            'eigenda_blob_count': 'sum',
+            'eigenda_blob_size_bytes': 'sum',
+            'namespace': 'nunique'
+        }).reset_index()
+        df_grouped = df_grouped.sort_values(by='date', ascending=False)
         # rename columns to correct metric_keys
         df_grouped = df_grouped.rename(columns={
-            'eigenda_blob_count': 'da_blob_count',
-            'eigenda_blob_size_bytes': 'da_data_posted_bytes'
+            'eigenda_blob_count': 'da_blob_count', # daily blob count EigenDA
+            'eigenda_blob_size_bytes': 'da_data_posted_bytes', # daily data posted to EigenDA in bytes
+            'namespace': 'da_unique_blob_producers' # daily number of unique blob producers to EigenDA
         })
         # add origin_key
         df_grouped['origin_key'] = 'da_eigenda'
 
         # left join map on df, thenn remove unmapped (unknown blob producers)
-        df = df.merge(self.map, on='customer_id', how='left')
+        df = df.merge(self.map, on='namespace', how='left')
         df = df[df['origin_key'].notnull()]
 
-        # calculate fees paid 
+        # calculate fees paid by converting bytes to GiB and multiply by price
         pricing = 0.015 # ETH per GiB (source: https://www.blog.eigenlayer.xyz/eigenda-updated-pricing/)
-        df['eigenda_blobs_eth'] = (df['eigenda_blob_size_bytes'] / (1024 * 1024 * 1024)) * pricing # convert bytes to GiB and multiply by price
+        df['eigenda_blobs_eth'] = (df['eigenda_blob_size_bytes'] / (1024 * 1024 * 1024)) * pricing
+        df_grouped['da_fees_eth'] = (df_grouped['da_data_posted_bytes'] / (1024 * 1024 * 1024)) * pricing
 
         # melt and merge columns
         df_melted = df_grouped.melt(id_vars=['date', 'origin_key'], var_name='metric_key', value_name='value')
-        df = df.drop(columns=['customer_id'])
+        df = df.drop(columns=['namespace'])
         df_melted2 = df.melt(id_vars=['date', 'origin_key'], var_name='metric_key', value_name='value')
         # merge melted dataframes
         df_melt = pd.concat([df_melted, df_melted2], ignore_index=True)
 
-        # set index
-        df_melt = df_melt.set_index(['date', 'origin_key', 'metric_key'])
+        # set index (moved set index into the DAG)
+        #df_melt = df_melt.set_index(['date', 'origin_key', 'metric_key'])
 
         return df_melt
