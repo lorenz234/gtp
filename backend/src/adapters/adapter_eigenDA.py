@@ -103,14 +103,14 @@ class AdapterEigenDA(AbstractAdapter):
         df_grouped = df.groupby('date').agg({
             'eigenda_blob_count': 'sum',
             'eigenda_blob_size_bytes': 'sum',
-            'namespace': 'nunique'
+            'customer_id': 'nunique'
         }).reset_index()
         df_grouped = df_grouped.sort_values(by='date', ascending=False)
         # rename columns to correct metric_keys
         df_grouped = df_grouped.rename(columns={
             'eigenda_blob_count': 'da_blob_count', # daily blob count EigenDA
             'eigenda_blob_size_bytes': 'da_data_posted_bytes', # daily data posted to EigenDA in bytes
-            'namespace': 'da_unique_blob_producers' # daily number of unique blob producers to EigenDA
+            'customer_id': 'da_unique_blob_producers' # daily number of unique blob producers to EigenDA
         })
         # add origin_key
         df_grouped['origin_key'] = 'da_eigenda'
