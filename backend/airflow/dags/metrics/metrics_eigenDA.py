@@ -15,7 +15,7 @@ from src.misc.airflow_utils import alert_via_webhook
         'retry_delay': timedelta(minutes=5),
         'on_failure_callback': alert_via_webhook
     },
-    dag_id='EigenDA Metrics',
+    dag_id='metrics_eigenda',
     description='Load data from EigenDA API.',
     tags=['EigenDA', 'fact_kpi'],
     start_date=datetime(2024, 7, 22),
