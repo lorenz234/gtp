@@ -474,6 +474,7 @@ class DbConnector:
                                         WHEN 'rent_paid_usd' THEN 'rent_paid_eth'
                                         WHEN 'fees_paid_usd' THEN 'fees_paid_eth'
                                         WHEN 'profit_usd' THEN 'profit_eth'
+                                        WHEN 'app_fees_usd' THEN 'app_fees_eth'
                                         WHEN 'tvl' THEN 'tvl_eth'
                                         WHEN 'stables_mcap' THEN 'stables_mcap_eth' 
                                         WHEN 'txcosts_median_usd' THEN 'txcosts_median_eth'
