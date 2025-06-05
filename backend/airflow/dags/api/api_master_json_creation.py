@@ -28,6 +28,7 @@ def json_creation():
     def run_create_master(**kwargs):
         import os
         import pickle
+        import pandas as pd
         from src.main_config import get_main_config
         from src.da_config import get_da_config
         from src.db_connector import DbConnector
@@ -44,6 +45,11 @@ def json_creation():
             pickle.dump(main_conf, file)
         upload_file_to_cf_s3(os.getenv("S3_CF_BUCKET"), f"{api_version}/main_conf.pkl", "main_conf.pkl", os.getenv("CF_DISTRIBUTION_ID"))
 
+        ## Update sys_main_conf table in database
+        df_main_conf = pd.DataFrame([vars(project) for project in main_conf])
+        df_main_conf.set_index(['origin_key'], inplace=True)
+        db_connector.upsert_table('sys_main_conf', df_main_conf)
+        
         ## Create new DA conf pickle in S3
         da_conf = get_da_config(source='github')
         with open("da_conf.pkl", "wb") as file:
