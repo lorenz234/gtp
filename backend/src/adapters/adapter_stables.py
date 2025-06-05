@@ -624,10 +624,14 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         self.load(df)                    
         
         # Clean up data
-        df_main = df_main[df_main['value'] != 0]
-        df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
-        df_main = df_main.dropna()
-        df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+        if not df_main.empty:
+            df_main = df_main[df_main['value'] != 0]
+            df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+            df_main = df_main.dropna()
+            df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+        else:
+            # Return empty dataframe with correct structure
+            df_main = pd.DataFrame(columns=['metric_key', 'origin_key', 'date', 'token_key', 'value']).set_index(['metric_key', 'origin_key', 'date', 'token_key'])
         return df_main
     
     def get_direct_supply(self, update=False):
@@ -758,13 +762,17 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     self.load(df)
 
                 
-        
+                        
 
         # Clean up data
-        df_main = df_main[df_main['value'] != 0]
-        df_main = df_main.dropna()
-        df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
-        df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+        if not df_main.empty:
+            df_main = df_main[df_main['value'] != 0]
+            df_main = df_main.dropna()
+            df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+            df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+        else:
+            # Return empty dataframe with correct structure
+            df_main = pd.DataFrame(columns=['metric_key', 'origin_key', 'date', 'token_key', 'value']).set_index(['metric_key', 'origin_key', 'date', 'token_key'])
         return df_main
     
 
@@ -912,10 +920,14 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         self.load(df)                    
         
         # Clean up data
-        df_main = df_main[df_main['value'] != 0]
-        df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
-        df_main = df_main.dropna()
-        df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+        if not df_main.empty:
+            df_main = df_main[df_main['value'] != 0]
+            df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+            df_main = df_main.dropna()
+            df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+        else:
+            # Return empty dataframe with correct structure
+            df_main = pd.DataFrame(columns=['metric_key', 'origin_key', 'date', 'token_key', 'value']).set_index(['metric_key', 'origin_key', 'date', 'token_key'])
         return df_main
     
     def get_total_supply(self):
