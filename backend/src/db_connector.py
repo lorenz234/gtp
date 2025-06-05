@@ -198,7 +198,7 @@ class DbConnector:
                 
         def get_stage(self, origin_key:str):
                 try:
-                        query = f"SELECT l2beat_stage FROM sys_chains WHERE origin_key = '{origin_key}' LIMIT 1"
+                        query = f"SELECT l2beat_stage FROM sys_main_conf WHERE origin_key = '{origin_key}' LIMIT 1"
                         with self.engine.connect() as connection:
                                 result = connection.execute(query)
                                 stage = result.scalar()
@@ -209,20 +209,20 @@ class DbConnector:
                         return None
                 
         def get_stages_dict(self):
-                exec_string = "SELECT origin_key, l2beat_stage FROM sys_chains WHERE l2beat_stage IS NOT NULL"
+                exec_string = "SELECT origin_key, l2beat_stage FROM sys_main_conf WHERE l2beat_stage IS NOT NULL"
                 df = pd.read_sql(exec_string, self.engine.connect())
                 stages_dict = df.set_index("origin_key").to_dict()["l2beat_stage"]
                 return stages_dict
         
         def get_maturity_dict(self):
-                exec_string = "SELECT origin_key, maturity FROM sys_chains WHERE maturity IS NOT NULL"
+                exec_string = "SELECT origin_key, maturity FROM sys_main_conf WHERE maturity IS NOT NULL"
                 df = pd.read_sql(exec_string, self.engine.connect())
                 maturity_dict = df.set_index("origin_key").to_dict()["maturity"]
                 return maturity_dict
                 
         def get_chain_info(self, origin_key:str, column:str):
                 try:
-                        query = f"SELECT {column} FROM sys_chains WHERE origin_key = '{origin_key}' LIMIT 1"
+                        query = f"SELECT {column} FROM sys_main_conf WHERE origin_key = '{origin_key}' LIMIT 1"
                         with self.engine.connect() as connection:
                                 result = connection.execute(query)
                                 value = result.scalar()
@@ -1653,8 +1653,8 @@ class DbConnector:
                 return df
 
         ### Sys Chains functions
-        # This function takes a dataframe with origin_key and an additional columns as input and updates row-by-row the table sys_chains without overwriting other columns
-        def update_sys_chains(self, df, column_type='str'):
+        # This function takes a dataframe with origin_key and an additional columns as input and updates row-by-row the table sys_main_conf without overwriting other columns
+        def update_sys_main_conf(self, df, column_type='str'):
                 columns = df.columns.str.lower()
                 
                 if 'origin_key' not in columns:
@@ -1678,14 +1678,14 @@ class DbConnector:
                         set_clause = ", ".join(set_clauses)
                         
                         exec_string = f"""
-                        UPDATE sys_chains
+                        UPDATE sys_main_conf
                         SET {set_clause}
                         WHERE origin_key = '{row['origin_key']}';
                         """
                         
                         self.engine.execute(exec_string)
                 
-                print(f"{len(df)} records updated in sys_chains")
+                print(f"{len(df)} records updated in sys_main_conf")
                 
 
         ### OLI functions, Open Labels Initative ###
@@ -1994,25 +1994,25 @@ class DbConnector:
         ## This function is used to generate the API endpoints for the OLI labels
         def get_oli_labels(self, chain_id='origin_key'):
                 if chain_id == 'origin_key':
-                        chain_str = 'origin_key'
+                        chain_str = 'g.origin_key'
                 elif chain_id == 'caip2':
-                        chain_str = 'caip2 as chain_id'
+                        chain_str = 's.caip2 as chain_id'
                 else:
                         raise ValueError("chain_id must be either 'origin_key' or 'caip2'")
                 
                 exec_string = f"""
                         SELECT 
-                                address,
+                                g.address,
                                 {chain_str},
-                                contract_name as name,
-                                owner_project,
-                                usage_category,
-                                is_factory_contract,
-                                deployment_tx,
-                                deployer_address,
-                                deployment_date
-                        FROM public.vw_oli_label_pool_gold_pivoted
-                        LEFT JOIN sys_chains USING (origin_key)
+                                g.contract_name as name,
+                                g.owner_project,
+                                g.usage_category,
+                                g.is_factory_contract,
+                                g.deployment_tx,
+                                g.deployer_address,
+                                g.deployment_date
+                        FROM public.vw_oli_label_pool_gold_pivoted g
+                        LEFT JOIN sys_main_conf s USING (origin_key)
                         WHERE owner_project IS NOT NULL
                         """
 
@@ -2069,7 +2069,7 @@ class DbConnector:
                         left join prev_period prev using (address, origin_key)
                         left join vw_oli_label_pool_gold_pivoted lab using (address, origin_key)
                         left join oli_oss_directory oss on oss.name = lab.owner_project
-                        left join sys_chains syc on cl.origin_key = syc.origin_key
+                        left join sys_main_conf syc on cl.origin_key = syc.origin_key
                         where cl.origin_key IN ('{"','".join(origin_keys)}')
                                 and (lab.owner_project is null OR oss.active = true)
                         order by {order_by} desc
@@ -2102,7 +2102,7 @@ class DbConnector:
                                 {aggregation}
                         FROM public.blockspace_fact_contract_level cl
                         left join vw_oli_label_pool_gold_pivoted lab using (address, origin_key)
-                        left join sys_chains syc on cl.origin_key = syc.origin_key
+                        left join sys_main_conf syc on cl.origin_key = syc.origin_key
                         where cl."date"  >= current_date - interval '180 days'
                                 and cl."date" < current_date
                                 and (lab.contract_name is not null OR lab.owner_project is not null OR lab.deployment_tx is not null OR lab.deployer_address is not null OR lab.deployment_date is not null)

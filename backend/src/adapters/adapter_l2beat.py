@@ -59,8 +59,8 @@ class AdapterL2Beat(AbstractAdapter):
             upserted, tbl_name = upsert_to_kpis(df, self.db_connector)
             print_load(self.name, upserted, tbl_name)
         elif self.load_type == 'stages':
-            self.db_connector.update_sys_chains(df, 'str')
-            print_load(self.name, df.shape, 'sys_chains')
+            self.db_connector.update_sys_main_conf(df, 'str')
+            print_load(self.name, df.shape, 'sys_main_conf')
         elif self.load_type == 'sys_l2beat':
             self.db_connector.upsert_table('sys_l2beat', df, if_exists='replace')
             print_load(self.name, df.shape[0], 'sys_l2beat')

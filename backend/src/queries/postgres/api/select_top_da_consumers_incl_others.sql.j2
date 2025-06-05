@@ -29,7 +29,7 @@ RankedData as (
         RANK() OVER (ORDER BY SUM(value) DESC) AS rank
     FROM public.fact_kpis
     left join econ_names eco using (origin_key)
-    left join sys_chains c using (origin_key)
+    left join sys_main_conf c using (origin_key)
     where metric_key {{ metric_key }}
     AND "date" >= current_date - INTERVAL '{{ days }} days' 
         AND "date" < current_date
