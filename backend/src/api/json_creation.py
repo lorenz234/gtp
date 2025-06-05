@@ -2484,12 +2484,7 @@ class JSONCreation():
         }
 
         ## Count Layer 2s
-        query_parameters = {
-            "days": 9999,
-            "metric_key": 'count_l2s_live',
-            "origin_key": 'all'
-        }
-        df = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df = execute_jinja_query(self.db_connector, "api/select_l2count_over_time.sql.j2", query_parameters={}, return_df=True)
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
