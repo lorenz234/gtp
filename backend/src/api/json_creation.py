@@ -3047,13 +3047,26 @@ class JSONCreation():
         
         ## put dataframe into a json string
         fundamentals_dict = df.to_dict(orient='records')
-
         fundamentals_dict = fix_dict_nan(fundamentals_dict, 'fundamentals')
 
         if self.s3_bucket == None:
             self.save_to_json(fundamentals_dict, 'fundamentals')
         else:
             upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/fundamentals', fundamentals_dict, self.cf_distribution_id)
+
+        ## json for ethereum.org (just last 7 days)
+        #df = df[df.metric_key.isin(['txcount', 'txcosts_median_usd', 'aa_last7d'])]
+        df = df.loc[df.date >= (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')]
+
+        eth_fundamentals_dict = df.to_dict(orient='records')
+        eth_fundamentals_dict = fix_dict_nan(eth_fundamentals_dict, 'fundamentals_7d')
+
+        if self.s3_bucket == None:
+            self.save_to_json(eth_fundamentals_dict, 'fundamentals_7d')
+        else:
+            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/fundamentals_7d', eth_fundamentals_dict, self.cf_distribution_id)
+        print(f'DONE -- Fundamentals export done')
+
     
     def create_fundamentals_full_json(self, df):
         df = df[['metric_key', 'origin_key', 'date', 'value']].copy()
