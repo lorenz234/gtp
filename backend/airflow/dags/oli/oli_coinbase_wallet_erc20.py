@@ -72,7 +72,7 @@ def etl():
                     chain_id=chain_id,
                     tags=tag_ids,
                     ref_uid=refUID,
-                    retry=3
+                    retry=5
                 )
                 print(f"Successfully attested label for {address} on {chain_id}: {tag_ids}")
     
