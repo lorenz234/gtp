@@ -2475,17 +2475,16 @@ class JSONCreation():
                 "stables" : {
                     "layer_2s" : {},
                     "ethereum_mainnet" : {}
+                },
+                "gdp" : {
+                    "layer_2s" : {},
+                    "ethereum_mainnet" : {}
                 }
             }
         }
 
         ## Count Layer 2s
-        query_parameters = {
-            "days": 9999,
-            "metric_key": 'count_l2s_live',
-            "origin_key": 'all'
-        }
-        df = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df = execute_jinja_query(self.db_connector, "api/select_l2count_over_time.sql.j2", query_parameters={}, return_df=True)
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
@@ -2590,6 +2589,60 @@ class JSONCreation():
         df.rename(columns={'value_usd': 'usd', 'value_eth': 'eth'}, inplace=True)
 
         traction_dict["data"]["stables"]["ethereum_mainnet"]= {
+            "daily": {
+                "types": df.columns.tolist(),
+                "values": df.values.tolist()
+            }
+        }        
+
+        ## gdp layers 2s
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'fees_paid_usd',
+        }
+        df_usd = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s.sql.j2", query_parameters, return_df=True)
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'fees_paid_eth',
+        }
+        df_eth = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s.sql.j2", query_parameters, return_df=True)
+        df = pd.merge(df_usd, df_eth, on=['date'], how='left', suffixes=('_usd', '_eth'))
+
+        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+        df.sort_values(by=['date'], inplace=True, ascending=True)
+        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
+        df = df.drop(columns=['date'])
+        df.rename(columns={'value_usd': 'usd', 'value_eth': 'eth'}, inplace=True)
+
+        traction_dict["data"]["gdp"]["layer_2s"]= {
+            "daily": {
+                "types": df.columns.tolist(),
+                "values": df.values.tolist()
+            }
+        }        
+
+        ## gdp ethereum mainnet
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'fees_paid_usd',
+            "origin_key": 'ethereum'
+        }
+        df_usd = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        query_parameters = {
+            "days": 9999,
+            "metric_key": 'fees_paid_eth',
+            "origin_key": 'ethereum'
+        }
+        df_eth = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df = pd.merge(df_usd, df_eth, on=['date'], how='left', suffixes=('_usd', '_eth'))
+
+        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+        df.sort_values(by=['date'], inplace=True, ascending=True)
+        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
+        df = df.drop(columns=['date'])
+        df.rename(columns={'value_usd': 'usd', 'value_eth': 'eth'}, inplace=True)
+
+        traction_dict["data"]["gdp"]["ethereum_mainnet"]= {
             "daily": {
                 "types": df.columns.tolist(),
                 "values": df.values.tolist()
@@ -2989,13 +3042,26 @@ class JSONCreation():
         
         ## put dataframe into a json string
         fundamentals_dict = df.to_dict(orient='records')
-
         fundamentals_dict = fix_dict_nan(fundamentals_dict, 'fundamentals')
 
         if self.s3_bucket == None:
             self.save_to_json(fundamentals_dict, 'fundamentals')
         else:
             upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/fundamentals', fundamentals_dict, self.cf_distribution_id)
+
+        ## json for ethereum.org (just last 7 days)
+        #df = df[df.metric_key.isin(['txcount', 'txcosts_median_usd', 'aa_last7d'])]
+        df = df.loc[df.date >= (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')]
+
+        eth_fundamentals_dict = df.to_dict(orient='records')
+        eth_fundamentals_dict = fix_dict_nan(eth_fundamentals_dict, 'fundamentals_7d')
+
+        if self.s3_bucket == None:
+            self.save_to_json(eth_fundamentals_dict, 'fundamentals_7d')
+        else:
+            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/fundamentals_7d', eth_fundamentals_dict, self.cf_distribution_id)
+        print(f'DONE -- Fundamentals export done')
+
     
     def create_fundamentals_full_json(self, df):
         df = df[['metric_key', 'origin_key', 'date', 'value']].copy()

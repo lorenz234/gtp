@@ -43,7 +43,7 @@ class AdapterSQL(AbstractAdapter):
 
         ## aggregation types
         if load_type == 'usd_to_eth': ## also make sure to add new metrics in db_connector
-            raw_metrics = ['tvl', 'stables_mcap', 'fdv_usd']
+            raw_metrics = ['tvl', 'stables_mcap', 'fdv_usd', 'app_fees_usd']
             ## only keep metrics that are in raw_metrics and metric_keys
             if metric_keys is not None:
                 metric_keys = [x for x in metric_keys if x in raw_metrics]

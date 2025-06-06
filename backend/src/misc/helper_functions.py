@@ -18,7 +18,7 @@ import dotenv
 dotenv.load_dotenv()
 
 ## API interaction functions
-def api_get_call(url, sleeper=0.5, retries=15, header=None, _remove_control_characters=False, as_json=True, proxy=None):
+def api_get_call(url, sleeper=1, retries=15, header=None, _remove_control_characters=False, as_json=True, proxy=None):
     retry_counter = 0
     interupt = False
 
@@ -36,7 +36,7 @@ def api_get_call(url, sleeper=0.5, retries=15, header=None, _remove_control_char
             else:
                 retry_counter += 1
                 if retry_counter <= retries:
-                    waiting_time = retry_counter ** 2
+                    waiting_time = retry_counter * sleeper
                     print(f"-- Code: {response.status_code} -- sleep for {str(waiting_time)}s then retry API call #{str(retry_counter)} with: {url}")
                     print(response.reason)
                     for i in range(1, waiting_time):
