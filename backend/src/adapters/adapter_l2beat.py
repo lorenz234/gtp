@@ -1,7 +1,6 @@
 import time
 import pandas as pd
 from datetime import datetime
-from lxml import html
 import os
 
 from src.adapters.abstract_adapters import AbstractAdapter
@@ -47,6 +46,8 @@ class AdapterL2Beat(AbstractAdapter):
         elif self.load_type == 'stages':
             df = self.extract_stages(
                 projects_to_load=projects_to_load)
+        elif self.load_type == 'sys_l2beat':
+            df = self.extract_sys_l2beat()
         else:
             raise NotImplementedError(f"load_type {self.load_type} not recognized")
 
@@ -58,8 +59,11 @@ class AdapterL2Beat(AbstractAdapter):
             upserted, tbl_name = upsert_to_kpis(df, self.db_connector)
             print_load(self.name, upserted, tbl_name)
         elif self.load_type == 'stages':
-            self.db_connector.update_sys_chains(df, 'str')
-            print_load(self.name, df.shape, 'sys_chains')
+            self.db_connector.update_sys_main_conf(df, 'str')
+            print_load(self.name, df.shape, 'sys_main_conf')
+        elif self.load_type == 'sys_l2beat':
+            self.db_connector.upsert_table('sys_l2beat', df)
+            print_load(self.name, df.shape[0], 'sys_l2beat')
         else:
             raise NotImplementedError(f"load_type {self.load_type} not recognized")
 
@@ -213,3 +217,96 @@ class AdapterL2Beat(AbstractAdapter):
             
         df = pd.DataFrame(stages)
         return df
+    
+    def extract_sys_l2beat(self):
+        data = api_get_call("https://l2beat.com/api/scaling/summary")
+        data['projects']
+        df = pd.DataFrame(data['projects'])
+        # transpose the dataframe
+        df = df.T
+
+        ## extract the tvs column
+        for badge in ['VM', 'DA', 'Stack', 'Infra']:
+            col_name = badge.lower()
+            df[col_name] = None
+            ## iterate over list in column 'tvs'
+            for i in range(len(df)):
+                for badge_obj in df['badges'][i]:
+                    if badge_obj['type'] == badge:
+                        df[col_name][i] = badge_obj['id']
+                        break
+
+        df.reset_index(inplace=True)
+
+        ## filter to type = 'layer2'
+        df = df[df['type'] == 'layer2']
+
+        ## keep only columns index, name, slug, type, hostChain, category, provider, isArchived, isUpcoming, isUnderReview, stage, VM, DA, Stack, Infra
+        df = df[['index', 'name', 'slug', 'type', 'hostChain', 'category', 'provider', 'isArchived', 'isUpcoming', 'isUnderReview', 'stage', 'vm', 'da', 'stack', 'infra']] 
+
+        ## add underscore infront of each capital letter in column names
+        df.columns = df.columns.str.replace(r'([A-Z])', r'_\1', regex=True).str.lower() 
+        df.columns = df.columns.str.lower()
+
+        df_meta = df.copy()
+        df_main = pd.DataFrame()
+
+        ## iterate over each row of the df and call 
+        for i, row in df_meta.iterrows():
+            naming = row['slug']
+            url = f"https://l2beat.com/api/scaling/tvs/{naming}?range=max"       
+            response_json = api_get_call(url, sleeper=10)
+
+            if 'data' not in response_json:
+                print(f"Error with {naming}: {response_json}")
+                time.sleep(10)
+                continue
+
+            df = pd.json_normalize(response_json['data']['chart'], record_path=['data'], sep='_')
+
+            ## only keep the columns 0 (date), 1 (canonical tvl), 2 (external tvl), 3 (native tvl)
+            df = df.iloc[:,[0,1,2,3]]
+            df['date'] = pd.to_datetime(df[0],unit='s')
+            df['date'] = df['date'].dt.date
+
+            df.drop([0], axis=1, inplace=True)
+            ## sum column 1,2,3
+            df['value'] = df.iloc[:,0:3].sum(axis=1)
+            ## drop the 3 tvl columns
+            df = df[['date','value']]
+            df['metric_key'] = 'tvl'
+            df['l2beat_slug'] = naming
+            df_main = pd.concat([df_main, df])
+            
+            print(f"..finished {naming}")
+            time.sleep(10)
+
+        ## order by date and l2beat_slug ascending
+        df_main.sort_values(by=['date','l2beat_slug'], inplace=True)
+
+        df_meta['date_10k'] = None
+        df_meta['date_100k'] = None
+        df_meta['date_1m'] = None
+        df_meta['date_10m'] = None
+        df_meta['date_100m'] = None
+        df_meta['date_1b'] = None
+        df_meta['date_10b'] = None
+
+
+        ## iterate over df_meta
+        for i, row in df_meta.iterrows():
+            slug = row['slug']
+            ## filter df_main by l2beat_slug
+            df_filtered = df_main[df_main['l2beat_slug'] == slug]
+            ## iterate over df_filtered and find first dates where TVL is above certain thresholds
+            df_meta.at[i, 'date_10k'] = df_filtered[df_filtered['value'] > 10000]['date'].min()
+            df_meta.at[i, 'date_100k'] = df_filtered[df_filtered['value'] > 100000]['date'].min()
+            df_meta.at[i, 'date_1m'] = df_filtered[df_filtered['value'] > 1000000]['date'].min()
+            df_meta.at[i, 'date_10m'] = df_filtered[df_filtered['value'] > 10000000]['date'].min()
+            df_meta.at[i, 'date_100m'] = df_filtered[df_filtered['value'] > 100000000]['date'].min()
+            df_meta.at[i, 'date_1b'] = df_filtered[df_filtered['value'] > 1000000000]['date'].min()
+            df_meta.at[i, 'date_10b'] = df_filtered[df_filtered['value'] > 10000000000]['date'].min()
+
+        df_meta.set_index(['index'], inplace=True)
+
+        return df_meta

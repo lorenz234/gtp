@@ -60,7 +60,27 @@ def etl():
         df = ad.extract(load_params)
         # load
         ad.load(df)
+
+    @task()
+    def run_sys_table():
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_l2beat import AdapterL2Beat
+
+        adapter_params = {}
+        load_params = {
+            'origin_keys' : None,
+            'load_type' : 'sys_l2beat',
+        }
+
+       # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterL2Beat(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+        # load
+        ad.load(df)
     
     run_tvs()
     run_stages()
+    run_sys_table()
 etl()

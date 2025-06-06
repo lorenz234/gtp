@@ -1,6 +1,5 @@
 import time
 import pandas as pd
-from datetime import datetime
 
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.main_config import get_main_config
