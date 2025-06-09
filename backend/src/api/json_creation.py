@@ -257,7 +257,7 @@ class JSONCreation():
 
                     df_tmp = pd.concat([df_tmp, new_df], ignore_index=True)
 
-        ## trime leading zeros
+        ## trim leading zeros
         df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
         df_tmp = df_tmp.groupby('metric_key').apply(self.trim_leading_zeros).reset_index(drop=True)
 
@@ -312,9 +312,13 @@ class JSONCreation():
 
         ## drop column date
         df_tmp = df_tmp.drop(columns=['date'])
+
+        ## trim leading zeros
+        df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
+        df_tmp = df_tmp.groupby('metric_key').apply(self.trim_leading_zeros).reset_index(drop=True)
+
         ## metric_key to column
         df_tmp = df_tmp.pivot(index='unix', columns='metric_key', values='value').reset_index()
-        df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
 
         df_tmp = self.df_rename(df_tmp, metric_id, tmp_metrics_dict, col_name_removal=True)
 
@@ -466,7 +470,7 @@ class JSONCreation():
             FROM public.fact_kpis kpi
             where kpi.origin_key in ({chains_string})
                 and kpi.metric_key in ({metrics_string})
-                and kpi."date" >= '2021-06-01'
+                and kpi."date" >= '2020-01-01'
                 AND (
                     (kpi.metric_key not in ('market_cap_usd', 'market_cap_eth') AND kpi."date" < date_trunc('day', now()))
                     OR
