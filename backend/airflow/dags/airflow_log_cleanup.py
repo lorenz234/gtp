@@ -1,13 +1,8 @@
 """
 A maintenance workflow that you can deploy into Airflow to periodically clean
-out the task logs to avoid those getting too big.
-airflow trigger_dag --conf '[curly-braces]"maxLogAgeInDays":30[curly-braces]' airflow-log-cleanup
---conf options:
-    maxLogAgeInDays:<INT> - Optional
+out the task logs to avoid those getting too big.Optional
 """
 
-import logging
-import os
 from datetime import timedelta
 
 import airflow
@@ -32,8 +27,7 @@ except Exception:
 
 DEFAULT_MAX_LOG_AGE_IN_DAYS = Variable.get("airflow_log_cleanup__max_log_age_in_days", 5)
 ENABLE_DELETE = True  # set to False for dry-run
-NUMBER_OF_WORKERS = 2
-LOG_CLEANUP_PROCESS_LOCK_FILE = "/tmp/airflow_log_cleanup_worker.lock"
+LOCK_FILE = "/tmp/airflow_log_cleanup.lock"
 
 if not BASE_LOG_FOLDER or BASE_LOG_FOLDER.strip() == "":
     raise ValueError("BASE_LOG_FOLDER is empty. Please set it in airflow.cfg.")
@@ -71,49 +65,41 @@ echo "BASE_LOG_FOLDER: {BASE_LOG_FOLDER}"
 echo "MAX_LOG_AGE_IN_DAYS: $MAX_LOG_AGE_IN_DAYS"
 echo "ENABLE_DELETE: $ENABLE_DELETE"
 
-if [ ! -f {LOG_CLEANUP_PROCESS_LOCK_FILE} ]; then
-    echo "Creating lock file to prevent collisions..."
-    touch {LOG_CLEANUP_PROCESS_LOCK_FILE} || exit 1
+if [ ! -f {LOCK_FILE} ]; then
+    echo "Creating lock file..."
+    touch {LOCK_FILE} || exit 1
 
-    echo "Running cleanup..."
-
-    # Find and delete old log files
+    echo "Deleting old log files..."
     FIND_CMD="find {BASE_LOG_FOLDER} -type f -name '*.log' -mtime +$MAX_LOG_AGE_IN_DAYS"
     DELETE_CMD="$FIND_CMD -delete"
 
     if [ "$ENABLE_DELETE" == "true" ]; then
-        echo "Executing: $DELETE_CMD"
         eval $DELETE_CMD
     else
-        echo "Dry-run: $FIND_CMD"
         eval $FIND_CMD
     fi
 
-    # Clean up empty directories (optional)
-    FIND_EMPTY_DIRS="find {BASE_LOG_FOLDER} -type d -empty"
-    DELETE_EMPTY_DIRS="$FIND_EMPTY_DIRS -delete"
+    echo "Deleting empty directories..."
+    FIND_EMPTY="find {BASE_LOG_FOLDER} -type d -empty"
+    DELETE_EMPTY="$FIND_EMPTY -delete"
 
     if [ "$ENABLE_DELETE" == "true" ]; then
-        echo "Cleaning empty directories..."
-        eval $DELETE_EMPTY_DIRS
+        eval $DELETE_EMPTY
     else
-        echo "Dry-run: $FIND_EMPTY_DIRS"
-        eval $FIND_EMPTY_DIRS
+        eval $FIND_EMPTY
     fi
 
     echo "Cleanup complete."
-
-    rm -f {LOG_CLEANUP_PROCESS_LOCK_FILE} || exit 1
+    rm -f {LOCK_FILE} || exit 1
 else
-    echo "Another cleanup process is already running. Exiting."
+    echo "Cleanup already running. Exiting."
 fi
 """
 
-for worker_id in range(1, NUMBER_OF_WORKERS + 1):
-    task = BashOperator(
-        task_id=f'log_cleanup_worker_{worker_id}',
-        bash_command=log_cleanup,
-        params={"sleep_time": worker_id * 3},
-        dag=dag
-    )
-    task.set_upstream(start)
+log_cleanup_task = BashOperator(
+    task_id='log_cleanup',
+    bash_command=log_cleanup,
+    dag=dag
+)
+
+start >> log_cleanup_task
