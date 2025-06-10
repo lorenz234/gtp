@@ -100,6 +100,9 @@ class RedisSSEServer:
                 "tps": float(fields.get("tps", 0)),
                 "block_number": int(fields.get("block_number", 0)),
                 "timestamp": int(fields.get("timestamp", 0)),
+                "tx_count": int(fields.get("tx_count", 0)),
+                "chain_type": fields.get("chain_type", "unknown"),
+                "errors": int(fields.get("errors", 0)),
                 "last_updated": datetime.fromtimestamp(int(fields.get("timestamp", 0)) / 1000).isoformat()
             }
             
@@ -142,8 +145,8 @@ class RedisSSEServer:
             
             # Get Ethereum data if available
             eth_data = chain_data.get("ethereum", {})
-            eth_tx_cost_usd = eth_data.get("tx_cost_erc20_transfer_usd", None)
-            eth_tx_cost_eth = eth_data.get("tx_cost_erc20_transfer", None)
+            ethereum_tx_cost_usd = eth_data.get("tx_cost_erc20_transfer_usd", None)
+            ethereum_tx_cost_eth = eth_data.get("tx_cost_erc20_transfer", None)
             
             
             # Calculate average L2 costs (excluding Ethereum)
@@ -183,10 +186,10 @@ class RedisSSEServer:
                 "total_tps": round(total_tps, 2),
                 "total_chains": len(chain_data),
                 "active_chains": active_chains,
-                "eth_tx_cost_usd": eth_tx_cost_usd,
-                "eth_tx_cost_eth": eth_tx_cost_eth,
-                "avg_l2_tx_cost_usd": round(avg_l2_tx_cost_usd, 4) if avg_l2_tx_cost_usd else None,
-                "avg_l2_tx_cost_eth": round(avg_l2_tx_cost_eth, 4) if avg_l2_tx_cost_eth else None,
+                "ethereum_tx_cost_usd": ethereum_tx_cost_usd,
+                "ethereum_tx_cost_eth": ethereum_tx_cost_eth,
+                "layer2s_tx_cost_usd": round(avg_l2_tx_cost_usd, 4) if avg_l2_tx_cost_usd else None,
+                "layer2s_tx_cost_eth": round(avg_l2_tx_cost_eth, 4) if avg_l2_tx_cost_eth else None,
                 "last_updated": datetime.now().isoformat()
             }
             
