@@ -377,7 +377,7 @@ class RedisSSEServer:
     async def history_handler(self, request):
         """Handle requests for historical data formatted as SSE events."""
         # Get query parameters
-        seconds = int(request.query.get('seconds', 20))  # Default 20 seconds
+        seconds = int(request.query.get('seconds', 60))  # Default 60 seconds
         format_type = request.query.get('format', 'sse')  # 'sse' or 'json'
         
         try:
