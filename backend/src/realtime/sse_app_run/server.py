@@ -124,6 +124,55 @@ class RedisSSEServer:
                 "error": str(e)
             }
     
+    async def get_historical_chain_data(self, chain_name: str, seconds: int = 20) -> List[Dict[str, Any]]:
+        """Get historical data for a specific chain from Redis stream."""
+        try:
+            stream_key = f"chain:{chain_name}"
+            
+            # Calculate timestamp range (last N seconds)
+            current_time_ms = int(datetime.now().timestamp() * 1000)
+            start_time_ms = current_time_ms - (seconds * 1000)
+            
+            # Get entries from the last N seconds
+            entries = await self.redis_client.xrevrange(
+                stream_key, 
+                max=current_time_ms,
+                min=start_time_ms,
+                count=100  # Limit to prevent too much data
+            )
+            
+            historical_data = []
+            
+            for entry_id, fields in entries:
+                # Convert string values back to appropriate types
+                chain_data = {
+                    "chain_name": chain_name,
+                    "tps": float(fields.get("tps", 0)),
+                    "block_number": int(fields.get("block_number", 0)),
+                    "timestamp": int(fields.get("timestamp", 0)),
+                    "tx_count": int(fields.get("tx_count", 0)),
+                    "chain_type": fields.get("chain_type", "unknown"),
+                    "errors": int(fields.get("errors", 0)),
+                    "last_updated": datetime.fromtimestamp(int(fields.get("timestamp", 0)) / 1000).isoformat()
+                }
+                
+                # Add cost data for EVM chains
+                if fields.get("chain_type") == "evm":
+                    chain_data.update({
+                        "gas_used": int(fields.get("gas_used", 0)),
+                        "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
+                        "tx_cost_erc20_transfer_usd": float(fields.get("tx_cost_erc20_transfer_usd", 0)),
+                    })
+                
+                historical_data.append(chain_data)
+            
+            # Return in chronological order (oldest first)
+            return list(reversed(historical_data))
+            
+        except Exception as e:
+            logger.error(f"Error getting historical data for {chain_name}: {str(e)}")
+            return []
+    
     async def get_all_chain_data(self) -> Dict[str, Any]:
         """Get latest data for all chains."""
         chains = await self.get_all_chains()
@@ -188,8 +237,8 @@ class RedisSSEServer:
                 "active_chains": active_chains,
                 "ethereum_tx_cost_usd": ethereum_tx_cost_usd,
                 "ethereum_tx_cost_eth": ethereum_tx_cost_eth,
-                "layer2s_tx_cost_usd": round(avg_l2_tx_cost_usd, 4) if avg_l2_tx_cost_usd else None,
-                "layer2s_tx_cost_eth": round(avg_l2_tx_cost_eth, 4) if avg_l2_tx_cost_eth else None,
+                "layer2s_tx_cost_usd": avg_l2_tx_cost_usd, 
+                "layer2s_tx_cost_eth": avg_l2_tx_cost_eth,
                 "last_updated": datetime.now().isoformat()
             }
             
@@ -325,6 +374,112 @@ class RedisSSEServer:
         
         return response
     
+    async def history_handler(self, request):
+        """Handle requests for historical data formatted as SSE events."""
+        # Get query parameters
+        seconds = int(request.query.get('seconds', 20))  # Default 20 seconds
+        format_type = request.query.get('format', 'sse')  # 'sse' or 'json'
+        
+        try:
+            # Get current chains
+            chains = await self.get_all_chains()
+            
+            # Create timeline by getting historical data for each chain
+            timeline_events = []
+            
+            # Get historical data for each chain
+            for chain_name in chains:
+                chain_history = await self.get_historical_chain_data(chain_name, seconds)
+                
+                for historical_point in chain_history:
+                    timestamp_ms = historical_point["timestamp"]
+                    
+                    # Find or create timeline event for this timestamp (group by time)
+                    existing_event = None
+                    for event in timeline_events:
+                        if abs(event["timestamp_ms"] - timestamp_ms) < 2000:  # Within 2 seconds
+                            existing_event = event
+                            break
+                    
+                    if existing_event:
+                        # Add this chain's data to existing event
+                        existing_event["data"][chain_name] = historical_point
+                    else:
+                        # Create new timeline event
+                        timeline_events.append({
+                            "timestamp_ms": timestamp_ms,
+                            "data": {chain_name: historical_point},
+                            "iso_timestamp": datetime.fromtimestamp(timestamp_ms / 1000).isoformat()
+                        })
+            
+            # Sort by timestamp and calculate global metrics for each event
+            timeline_events.sort(key=lambda x: x["timestamp_ms"])
+            
+            # Calculate global metrics for each timeline event
+            formatted_events = []
+            for event in timeline_events:
+                global_metrics = await self.calculate_global_metrics(event["data"])
+                global_metrics["timestamp_ms"] = event["timestamp_ms"]
+                
+                formatted_event = {
+                    "type": "historical",
+                    "data": event["data"],
+                    "global_metrics": global_metrics,
+                    "timestamp": event["iso_timestamp"]
+                }
+                
+                formatted_events.append(formatted_event)
+            
+            # Limit to reasonable number of events (last 20 events)
+            formatted_events = formatted_events[-20:]
+            
+            if format_type == 'json':
+                return web.json_response({
+                    "events": formatted_events,
+                    "count": len(formatted_events),
+                    "timeframe_seconds": seconds,
+                    "chains_included": len(chains),
+                    "timestamp": datetime.now().isoformat()
+                })
+            
+            else:
+                # SSE format
+                response = web.StreamResponse()
+                response.headers['Content-Type'] = 'text/event-stream'
+                response.headers['Cache-Control'] = 'no-cache'
+                response.headers['Connection'] = 'keep-alive'
+                response.headers['X-Accel-Buffering'] = 'no'
+                
+                await response.prepare(request)
+                
+                # Send historical events with small delays
+                for i, event in enumerate(formatted_events):
+                    sse_message = f"data: {json.dumps(event)}\n\n"
+                    await response.write(sse_message.encode('utf-8'))
+                    
+                    # Small delay between events for smooth playback
+                    if i < len(formatted_events) - 1:
+                        await asyncio.sleep(0.1)  # 100ms between events
+                
+                # Send completion marker
+                completion_event = {
+                    "type": "history_complete",
+                    "message": f"Sent {len(formatted_events)} historical events from last {seconds}s",
+                    "count": len(formatted_events),
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                await response.write(f"data: {json.dumps(completion_event)}\n\n".encode('utf-8'))
+                
+                return response
+                
+        except Exception as e:
+            logger.error(f"Error in history handler: {str(e)}")
+            return web.json_response({
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }, status=500)
+    
     async def health_handler(self, request):
         """Health check endpoint."""
         return web.json_response({
@@ -365,6 +520,7 @@ async def create_app(server: RedisSSEServer):
         web.get("/events", server.sse_handler),
         web.get("/health", server.health_handler),
         web.get("/api/data", server.api_data_handler),
+        web.get("/history", server.history_handler),  # New history endpoint
     ]
     
     for route in routes:
@@ -390,8 +546,9 @@ async def main():
         # Start the web server
         logger.info(f"🚀 Starting SSE server on {SERVER_HOST}:{SERVER_PORT}")
         logger.info(f"📡 SSE endpoint: http://{SERVER_HOST}:{SERVER_PORT}/events")
+        logger.info(f"📊 History endpoint: http://{SERVER_HOST}:{SERVER_PORT}/history")
         logger.info(f"🏥 Health check: http://{SERVER_HOST}:{SERVER_PORT}/health")
-        logger.info(f"📊 API endpoint: http://{SERVER_HOST}:{SERVER_PORT}/api/data")
+        logger.info(f"📈 API endpoint: http://{SERVER_HOST}:{SERVER_PORT}/api/data")
         
         runner = web.AppRunner(app)
         await runner.setup()
