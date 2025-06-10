@@ -99,10 +99,9 @@ class RedisSSEServer:
                 "chain_name": chain_name,
                 "tps": float(fields.get("tps", 0)),
                 "block_number": int(fields.get("block_number", 0)),
+                "timestamp": int(fields.get("timestamp", 0)),
                 "tx_count": int(fields.get("tx_count", 0)),
                 "chain_type": fields.get("chain_type", "unknown"),
-                "timestamp": int(fields.get("timestamp", 0)),
-                "blocks_processed": int(fields.get("blocks_processed", 0)),
                 "errors": int(fields.get("errors", 0)),
                 "last_updated": datetime.fromtimestamp(int(fields.get("timestamp", 0)) / 1000).isoformat()
             }
@@ -111,10 +110,7 @@ class RedisSSEServer:
             if fields.get("chain_type") == "evm":
                 chain_data.update({
                     "gas_used": int(fields.get("gas_used", 0)),
-                    "base_fee_gwei": float(fields.get("base_fee_gwei", 0)),
-                    "tx_cost_native": float(fields.get("tx_cost_native", 0)),
                     "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
-                    "tx_cost_native_usd": float(fields.get("tx_cost_native_usd", 0)),
                     "tx_cost_erc20_transfer_usd": float(fields.get("tx_cost_erc20_transfer_usd", 0)),
                 })
             
@@ -149,19 +145,12 @@ class RedisSSEServer:
             
             # Get Ethereum data if available
             eth_data = chain_data.get("ethereum", {})
-            eth_tx_cost = eth_data.get("tx_cost_erc20_transfer_usd", None)
+            ethereum_tx_cost_usd = eth_data.get("tx_cost_erc20_transfer_usd", None)
+            ethereum_tx_cost_eth = eth_data.get("tx_cost_erc20_transfer", None)
             
-            # Calculate average transaction costs for active EVM chains
-            evm_costs = [
-                data.get("tx_cost_erc20_transfer_usd", 0) 
-                for data in chain_data.values()
-                if (data.get("chain_type") == "evm" and 
-                    data.get("tps", 0) > 0 and 
-                    data.get("tx_cost_erc20_transfer_usd", 0) > 0)
-            ]
             
             # Calculate average L2 costs (excluding Ethereum)
-            l2_costs = [
+            l2_costs_usd = [
                 data.get("tx_cost_erc20_transfer_usd", 0) 
                 for name, data in chain_data.items()
                 if (name != "ethereum" and 
@@ -169,9 +158,18 @@ class RedisSSEServer:
                     data.get("tps", 0) > 0 and 
                     data.get("tx_cost_erc20_transfer_usd", 0) > 0)
             ]
+
+            l2_costs_eth = [
+                data.get("tx_cost_erc20_transfer", 0) 
+                for name, data in chain_data.items()
+                if (name != "ethereum" and 
+                    data.get("chain_type") == "evm" and 
+                    data.get("tps", 0) > 0 and 
+                    data.get("tx_cost_erc20_transfer", 0) > 0)
+            ]
             
-            avg_tx_cost = sum(evm_costs) / len(evm_costs) if evm_costs else None
-            avg_l2_tx_cost = sum(l2_costs) / len(l2_costs) if l2_costs else None
+            avg_l2_tx_cost_usd = sum(l2_costs_usd) / len(l2_costs_usd) if l2_costs_usd else None
+            avg_l2_tx_cost_eth = sum(l2_costs_eth) / len(l2_costs_eth) if l2_costs_eth else None
             
             # Count chains by type
             chain_types = {}
@@ -188,10 +186,10 @@ class RedisSSEServer:
                 "total_tps": round(total_tps, 2),
                 "total_chains": len(chain_data),
                 "active_chains": active_chains,
-                "chain_types": chain_types,
-                "eth_tx_cost_usd": eth_tx_cost,
-                "avg_tx_cost_usd": round(avg_tx_cost, 4) if avg_tx_cost else None,
-                "avg_l2_tx_cost_usd": round(avg_l2_tx_cost, 4) if avg_l2_tx_cost else None,
+                "ethereum_tx_cost_usd": ethereum_tx_cost_usd,
+                "ethereum_tx_cost_eth": ethereum_tx_cost_eth,
+                "layer2s_tx_cost_usd": round(avg_l2_tx_cost_usd, 4) if avg_l2_tx_cost_usd else None,
+                "layer2s_tx_cost_eth": round(avg_l2_tx_cost_eth, 4) if avg_l2_tx_cost_eth else None,
                 "last_updated": datetime.now().isoformat()
             }
             
