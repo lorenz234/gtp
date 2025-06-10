@@ -51,7 +51,7 @@ top_7_ts as (
 	FROM public.fact_kpis f
 	inner join top_7 t7 on f.origin_key = t7.da_consumer_key
 	left join econ_names eco using (origin_key)
-	left join sys_chains c using (origin_key)
+	left join sys_main_conf c using (origin_key)
 	WHERE f.metric_key = '{{ metric_key }}'
 	    AND "date" >= current_date - INTERVAL '{{ days }} days' 
 	    AND "date" < current_date

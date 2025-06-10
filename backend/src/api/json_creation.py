@@ -257,7 +257,7 @@ class JSONCreation():
 
                     df_tmp = pd.concat([df_tmp, new_df], ignore_index=True)
 
-        ## trime leading zeros
+        ## trim leading zeros
         df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
         df_tmp = df_tmp.groupby('metric_key').apply(self.trim_leading_zeros).reset_index(drop=True)
 
@@ -312,9 +312,13 @@ class JSONCreation():
 
         ## drop column date
         df_tmp = df_tmp.drop(columns=['date'])
+
+        ## trim leading zeros
+        df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
+        df_tmp = df_tmp.groupby('metric_key').apply(self.trim_leading_zeros).reset_index(drop=True)
+
         ## metric_key to column
         df_tmp = df_tmp.pivot(index='unix', columns='metric_key', values='value').reset_index()
-        df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
 
         df_tmp = self.df_rename(df_tmp, metric_id, tmp_metrics_dict, col_name_removal=True)
 
@@ -466,7 +470,7 @@ class JSONCreation():
             FROM public.fact_kpis kpi
             where kpi.origin_key in ({chains_string})
                 and kpi.metric_key in ({metrics_string})
-                and kpi."date" >= '2021-06-01'
+                and kpi."date" >= '2020-01-01'
                 AND (
                     (kpi.metric_key not in ('market_cap_usd', 'market_cap_eth') AND kpi."date" < date_trunc('day', now()))
                     OR
@@ -1249,12 +1253,12 @@ class JSONCreation():
 
         #start_date = datetime.now() - timedelta(days=731)
         #start_date = start_date.replace(tzinfo=timezone.utc) 
-        ## start date should be 2023-01-01
-        start_date = datetime(2023, 1, 1, tzinfo=timezone.utc)
+        ## start date should be 2021-06-01
+        start_date = datetime(2021, 6, 1, tzinfo=timezone.utc)
         ## calculate the days between start_date and today
         days = (datetime.now(timezone.utc) - start_date).days
 
-        for metric_id in ['throughput', 'txcount', 'stables_mcap', 'fees', 'rent_paid', 'market_cap']:
+        for metric_id in ['throughput', 'txcount', 'stables_mcap', 'rent_paid', 'market_cap']:
             landing_dict['data']['all_l2s']['metrics'][metric_id] = self.generate_all_l2s_metric_dict(df, metric_id, rolling_avg=True, days=days)
 
             if metric_id != 'rent_paid':
@@ -2484,12 +2488,7 @@ class JSONCreation():
         }
 
         ## Count Layer 2s
-        query_parameters = {
-            "days": 9999,
-            "metric_key": 'count_l2s_live',
-            "origin_key": 'all'
-        }
-        df = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df = execute_jinja_query(self.db_connector, "api/select_l2count_over_time.sql.j2", query_parameters={}, return_df=True)
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)

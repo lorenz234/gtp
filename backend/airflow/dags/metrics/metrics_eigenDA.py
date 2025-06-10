@@ -19,7 +19,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load data from EigenDA API.',
     tags=['EigenDA', 'fact_kpi'],
     start_date=datetime(2024, 7, 22),
-    schedule='33 1 * * *'  # Run daily at 1:33 am
+    schedule='30 3 * * *'  # Run daily at 3:30 AM. Needs to be before metrics_sql dag
 )
 def run_dag():
     @task()

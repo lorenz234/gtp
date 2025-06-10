@@ -28,7 +28,7 @@ select
 	sum(value) as data_posted
 from fact_kpis fk 
 left join econ_names eco using (origin_key)
-left join sys_chains c using (origin_key)
+left join sys_main_conf c using (origin_key)
 where metric_key = '{{ metric_key }}'
 group by 1,2,3
 having sum(value) > 0.1 * 1024 * 1024 * 1024 --at least 100MB of data posted

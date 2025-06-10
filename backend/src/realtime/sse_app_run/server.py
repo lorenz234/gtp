@@ -1,0 +1,427 @@
+import asyncio
+import json
+import logging
+import os
+from datetime import datetime
+from typing import Dict, List, Any, Set
+
+import redis.asyncio as aioredis
+from aiohttp import web
+import aiohttp_cors
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger("redis_sse_server")
+
+# Redis configuration
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
+
+# Server configuration
+SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
+SERVER_PORT = int(os.getenv("SERVER_PORT", "8080"))
+UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", "3"))  # seconds
+
+
+class RedisSSEServer:
+    """SSE Server that reads blockchain data from Redis streams."""
+    
+    def __init__(self):
+        self.redis_client = None
+        self.connected_clients: Set[web.StreamResponse] = set()
+        self.latest_data: Dict[str, Any] = {}
+        self.global_metrics: Dict[str, Any] = {}
+        
+    async def initialize(self):
+        """Initialize Redis connection."""
+        try:
+            redis_params = {
+                "host": REDIS_HOST,
+                "port": REDIS_PORT,
+                "db": REDIS_DB,
+                "decode_responses": True,
+                "socket_keepalive": True,
+                "retry_on_timeout": True,
+                "health_check_interval": 30,
+            }
+            
+            if REDIS_PASSWORD:
+                redis_params["password"] = REDIS_PASSWORD
+                
+            self.redis_client = aioredis.Redis(**redis_params)
+            await self.redis_client.ping()
+            logger.info(f"✅ Connected to Redis at {REDIS_HOST}:{REDIS_PORT}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to connect to Redis: {str(e)}")
+            raise
+    
+    async def close(self):
+        """Close Redis connection."""
+        if self.redis_client:
+            await self.redis_client.close()
+    
+    async def get_all_chains(self) -> List[str]:
+        """Get all chain names from Redis."""
+        try:
+            keys = await self.redis_client.keys("chain:*")
+            return [key.replace("chain:", "") for key in keys]
+        except Exception as e:
+            logger.error(f"Error getting chain keys: {str(e)}")
+            return []
+    
+    async def get_latest_chain_data(self, chain_name: str) -> Dict[str, Any]:
+        """Get latest data for a specific chain from Redis stream."""
+        try:
+            stream_key = f"chain:{chain_name}"
+            
+            # Get the latest entry from the stream
+            entries = await self.redis_client.xrevrange(stream_key, count=1)
+            
+            if not entries:
+                return {
+                    "chain_name": chain_name,
+                    "tps": 0,
+                    "error": "No data available"
+                }
+            
+            # Parse the latest entry
+            entry_id, fields = entries[0]
+            
+            # Convert string values back to appropriate types
+            chain_data = {
+                "chain_name": chain_name,
+                "tps": float(fields.get("tps", 0)),
+                "block_number": int(fields.get("block_number", 0)),
+                "tx_count": int(fields.get("tx_count", 0)),
+                "chain_type": fields.get("chain_type", "unknown"),
+                "timestamp": int(fields.get("timestamp", 0)),
+                "blocks_processed": int(fields.get("blocks_processed", 0)),
+                "errors": int(fields.get("errors", 0)),
+                "last_updated": datetime.fromtimestamp(int(fields.get("timestamp", 0)) / 1000).isoformat()
+            }
+            
+            # Add cost data for EVM chains
+            if fields.get("chain_type") == "evm":
+                chain_data.update({
+                    "gas_used": int(fields.get("gas_used", 0)),
+                    "base_fee_gwei": float(fields.get("base_fee_gwei", 0)),
+                    "tx_cost_native": float(fields.get("tx_cost_native", 0)),
+                    "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
+                    "tx_cost_native_usd": float(fields.get("tx_cost_native_usd", 0)),
+                    "tx_cost_erc20_transfer_usd": float(fields.get("tx_cost_erc20_transfer_usd", 0)),
+                })
+            
+            return chain_data
+            
+        except Exception as e:
+            logger.error(f"Error getting data for {chain_name}: {str(e)}")
+            return {
+                "chain_name": chain_name,
+                "tps": 0,
+                "error": str(e)
+            }
+    
+    async def get_all_chain_data(self) -> Dict[str, Any]:
+        """Get latest data for all chains."""
+        chains = await self.get_all_chains()
+        chain_data = {}
+        
+        for chain_name in chains:
+            chain_data[chain_name] = await self.get_latest_chain_data(chain_name)
+        
+        return chain_data
+    
+    async def calculate_global_metrics(self, chain_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate global metrics from chain data."""
+        try:
+            # Calculate total TPS across all chains
+            total_tps = sum(
+                data.get("tps", 0) for data in chain_data.values() 
+                if isinstance(data.get("tps"), (int, float))
+            )
+            
+            # Get Ethereum data if available
+            eth_data = chain_data.get("ethereum", {})
+            eth_tx_cost = eth_data.get("tx_cost_erc20_transfer_usd", None)
+            
+            # Calculate average transaction costs for active EVM chains
+            evm_costs = [
+                data.get("tx_cost_erc20_transfer_usd", 0) 
+                for data in chain_data.values()
+                if (data.get("chain_type") == "evm" and 
+                    data.get("tps", 0) > 0 and 
+                    data.get("tx_cost_erc20_transfer_usd", 0) > 0)
+            ]
+            
+            # Calculate average L2 costs (excluding Ethereum)
+            l2_costs = [
+                data.get("tx_cost_erc20_transfer_usd", 0) 
+                for name, data in chain_data.items()
+                if (name != "ethereum" and 
+                    data.get("chain_type") == "evm" and 
+                    data.get("tps", 0) > 0 and 
+                    data.get("tx_cost_erc20_transfer_usd", 0) > 0)
+            ]
+            
+            avg_tx_cost = sum(evm_costs) / len(evm_costs) if evm_costs else None
+            avg_l2_tx_cost = sum(l2_costs) / len(l2_costs) if l2_costs else None
+            
+            # Count chains by type
+            chain_types = {}
+            active_chains = 0
+            
+            for data in chain_data.values():
+                if "error" not in data:
+                    chain_type = data.get("chain_type", "unknown")
+                    chain_types[chain_type] = chain_types.get(chain_type, 0) + 1
+                    if data.get("tps", 0) > 0:
+                        active_chains += 1
+            
+            return {
+                "total_tps": round(total_tps, 2),
+                "total_chains": len(chain_data),
+                "active_chains": active_chains,
+                "chain_types": chain_types,
+                "eth_tx_cost_usd": eth_tx_cost,
+                "avg_tx_cost_usd": round(avg_tx_cost, 4) if avg_tx_cost else None,
+                "avg_l2_tx_cost_usd": round(avg_l2_tx_cost, 4) if avg_l2_tx_cost else None,
+                "last_updated": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error calculating global metrics: {str(e)}")
+            return {
+                "total_tps": 0,
+                "total_chains": 0,
+                "active_chains": 0,
+                "error": str(e)
+            }
+    
+    async def update_data(self):
+        """Fetch latest data from Redis and update internal state."""
+        try:
+            # Get all chain data
+            chain_data = await self.get_all_chain_data()
+            
+            # Calculate global metrics
+            global_metrics = await self.calculate_global_metrics(chain_data)
+            
+            # Update internal state
+            self.latest_data = chain_data
+            self.global_metrics = global_metrics
+            
+            logger.debug(f"Updated data for {len(chain_data)} chains, total TPS: {global_metrics.get('total_tps', 0)}")
+            
+        except Exception as e:
+            logger.error(f"Error updating data: {str(e)}")
+    
+    async def broadcast_to_clients(self):
+        """Broadcast updated data to all connected SSE clients."""
+        if not self.connected_clients:
+            return
+        
+        try:
+            # Prepare the message
+            message = json.dumps({
+                "type": "update",
+                "data": self.latest_data,
+                "global_metrics": self.global_metrics,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            # Format for SSE
+            sse_message = f"data: {message}\n\n"
+            
+            # Send to all clients
+            disconnected_clients = set()
+            
+            for client in self.connected_clients:
+                try:
+                    await client.write(sse_message.encode('utf-8'))
+                    await client.drain()
+                except (ConnectionResetError, ConnectionAbortedError):
+                    disconnected_clients.add(client)
+                except Exception as e:
+                    logger.warning(f"Error sending to client: {str(e)}")
+                    disconnected_clients.add(client)
+            
+            # Remove disconnected clients
+            if disconnected_clients:
+                self.connected_clients.difference_update(disconnected_clients)
+                logger.info(f"Removed {len(disconnected_clients)} disconnected clients. {len(self.connected_clients)} remaining.")
+                
+        except Exception as e:
+            logger.error(f"Error broadcasting to clients: {str(e)}")
+    
+    async def data_update_loop(self):
+        """Background task that continuously updates data and broadcasts to clients."""
+        logger.info(f"Starting data update loop with {UPDATE_INTERVAL}s interval")
+        
+        while True:
+            try:
+                # Update data from Redis
+                await self.update_data()
+                
+                # Broadcast to clients
+                await self.broadcast_to_clients()
+                
+                # Wait before next update
+                await asyncio.sleep(UPDATE_INTERVAL)
+                
+            except Exception as e:
+                logger.error(f"Error in data update loop: {str(e)}")
+                await asyncio.sleep(5)  # Wait longer on error
+    
+    async def sse_handler(self, request):
+        """Handle SSE connection requests."""
+        response = web.StreamResponse()
+        response.headers['Content-Type'] = 'text/event-stream'
+        response.headers['Cache-Control'] = 'no-cache'
+        response.headers['Connection'] = 'keep-alive'
+        response.headers['X-Accel-Buffering'] = 'no'
+        
+        client_ip = request.remote
+        logger.info(f"New SSE client connected from {client_ip}")
+        
+        try:
+            await response.prepare(request)
+            
+            # Add client to connected set
+            self.connected_clients.add(response)
+            logger.info(f"Client added. Total clients: {len(self.connected_clients)}")
+            
+            # Send initial data
+            initial_message = json.dumps({
+                "type": "initial",
+                "data": self.latest_data,
+                "global_metrics": self.global_metrics,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            await response.write(f"data: {initial_message}\n\n".encode('utf-8'))
+            
+            # Keep connection alive with heartbeats
+            while True:
+                await asyncio.sleep(30)  # Heartbeat every 30 seconds
+                try:
+                    await response.write(b": heartbeat\n\n")
+                    await response.drain()
+                except Exception:
+                    logger.info(f"Client {client_ip} disconnected during heartbeat")
+                    break
+                    
+        except (ConnectionResetError, ConnectionAbortedError):
+            logger.info(f"Client {client_ip} disconnected")
+        except Exception as e:
+            logger.error(f"Error in SSE handler: {str(e)}")
+        finally:
+            self.connected_clients.discard(response)
+            logger.info(f"Client removed. Total clients: {len(self.connected_clients)}")
+        
+        return response
+    
+    async def health_handler(self, request):
+        """Health check endpoint."""
+        return web.json_response({
+            "status": "healthy",
+            "connected_clients": len(self.connected_clients),
+            "total_chains": len(self.latest_data),
+            "active_chains": self.global_metrics.get("active_chains", 0),
+            "total_tps": self.global_metrics.get("total_tps", 0),
+            "redis_connected": self.redis_client is not None,
+            "timestamp": datetime.now().isoformat()
+        })
+    
+    async def api_data_handler(self, request):
+        """REST API endpoint to get current data."""
+        return web.json_response({
+            "data": self.latest_data,
+            "global_metrics": self.global_metrics,
+            "timestamp": datetime.now().isoformat()
+        })
+
+
+async def create_app(server: RedisSSEServer):
+    """Create and configure the aiohttp application."""
+    app = web.Application()
+    
+    # Configure CORS
+    cors = aiohttp_cors.setup(app, defaults={
+        "*": aiohttp_cors.ResourceOptions(
+            allow_credentials=True,
+            expose_headers="*",
+            allow_headers="*",
+            allow_methods="*"
+        )
+    })
+    
+    # Add routes
+    routes = [
+        web.get("/events", server.sse_handler),
+        web.get("/health", server.health_handler),
+        web.get("/api/data", server.api_data_handler),
+    ]
+    
+    for route in routes:
+        cors.add(app.router.add_route(route.method, route.path, route.handler))
+    
+    return app
+
+
+async def main():
+    """Main function to start the SSE server."""
+    server = RedisSSEServer()
+    
+    try:
+        # Initialize Redis connection
+        await server.initialize()
+        
+        # Create the web application
+        app = await create_app(server)
+        
+        # Start the data update loop
+        update_task = asyncio.create_task(server.data_update_loop())
+        
+        # Start the web server
+        logger.info(f"🚀 Starting SSE server on {SERVER_HOST}:{SERVER_PORT}")
+        logger.info(f"📡 SSE endpoint: http://{SERVER_HOST}:{SERVER_PORT}/events")
+        logger.info(f"🏥 Health check: http://{SERVER_HOST}:{SERVER_PORT}/health")
+        logger.info(f"📊 API endpoint: http://{SERVER_HOST}:{SERVER_PORT}/api/data")
+        
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, SERVER_HOST, SERVER_PORT)
+        await site.start()
+        
+        # Keep server running
+        try:
+            await asyncio.Future()  # Run forever
+        except KeyboardInterrupt:
+            logger.info("🛑 Received shutdown signal")
+        finally:
+            logger.info("🧹 Cleaning up...")
+            update_task.cancel()
+            await server.close()
+            await runner.cleanup()
+            logger.info("✅ Shutdown complete")
+            
+    except Exception as e:
+        logger.error(f"❌ Fatal error: {str(e)}")
+        raise
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n👋 Server shutdown requested by user")
+    except Exception as e:
+        print(f"💥 Fatal error: {e}")
+        exit(1)

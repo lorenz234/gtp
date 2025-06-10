@@ -41,6 +41,7 @@ class MainConfig(BaseModel):
     aliases_coingecko: Optional[str] = Field(alias="aliases_coingecko", default=None)
     aliases_rhino: Optional[str] = Field(alias="aliases_rhino", default=None)
     aliases_blockscout_url: Optional[str] = Field(alias="aliases_blockscout_url", default=None)
+    aliases_defillama: Optional[str] = Field(alias="aliases_defillama", default=None)
 
     ## METADATA
     metadata_description: Optional[str] = Field(alias="metadata_description", default=None)
