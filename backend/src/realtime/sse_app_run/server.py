@@ -217,7 +217,7 @@ class RedisSSEServer:
                     data.get("tx_cost_erc20_transfer", 0) > 0)
             ]
             
-            avg_l2_tx_cost_usd = sum(   ) / len(l2_costs_usd) if l2_costs_usd else None
+            avg_l2_tx_cost_usd = sum(l2_costs_usd) / len(l2_costs_usd) if l2_costs_usd else None
             avg_l2_tx_cost_eth = sum(l2_costs_eth) / len(l2_costs_eth) if l2_costs_eth else None
             
             # Count chains by type
