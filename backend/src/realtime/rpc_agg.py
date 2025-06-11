@@ -322,7 +322,7 @@ class RtBackend:
             "ethereum": {"prep_script": "evm", "sleeper": 6},
             "blast": {"prep_script": "evm", "sleeper": 3},
             "scroll": {"prep_script": "evm", "sleeper": 3},
-            "arbitrum": {"prep_script": "evm", "sleeper": 1},
+            "arbitrum": {"prep_script": "evm", "sleeper": 2},
             "unichain": {"prep_script": "evm", "sleeper": 3},
             "mantle": {"prep_script": "evm_custom_gas", "sleeper": 3},  # custom gas token
             "taiko": {"prep_script": "evm", "sleeper": 6},
