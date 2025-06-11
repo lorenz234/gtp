@@ -24,9 +24,9 @@ REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
 
 # Server configuration
-SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
-SERVER_PORT = int(os.getenv("SERVER_PORT", "8080"))
-UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", "3"))  # seconds
+SERVER_HOST = "0.0.0.0"
+SERVER_PORT = "8080"
+UPDATE_INTERVAL = "1.5" # seconds
 
 
 class RedisSSEServer:
@@ -217,7 +217,7 @@ class RedisSSEServer:
                     data.get("tx_cost_erc20_transfer", 0) > 0)
             ]
             
-            avg_l2_tx_cost_usd = sum(l2_costs_usd) / len(l2_costs_usd) if l2_costs_usd else None
+            avg_l2_tx_cost_usd = sum(   ) / len(l2_costs_usd) if l2_costs_usd else None
             avg_l2_tx_cost_eth = sum(l2_costs_eth) / len(l2_costs_eth) if l2_costs_eth else None
             
             # Count chains by type
