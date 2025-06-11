@@ -2483,7 +2483,8 @@ class JSONCreation():
                 "gdp" : {
                     "layer_2s" : {},
                     "ethereum_mainnet" : {}
-                }
+                },
+                "meet_l2s" : {}
             }
         }
 
@@ -2652,6 +2653,48 @@ class JSONCreation():
                 "values": df.values.tolist()
             }
         }        
+
+        ## meet layer 2s
+        l2s_to_meet = ['optimism', 'arbitrum', 'base', 'soneium', 'celo']
+        for l2 in l2s_to_meet:
+            query_parameters = {
+                "origin_key": l2
+            }
+            aa_total = execute_jinja_query(self.db_connector, "api/select_total_aa.sql.j2", query_parameters, return_df=True).iloc[0, 0]
+
+            query_parameters = {
+                "origin_key": l2,
+                "metric_key": 'daa',
+            }
+            aa_yesterday = execute_jinja_query(self.db_connector, "api/select_fact_kpis_latest.sql.j2", query_parameters, return_df=True).iloc[0, 1]
+
+            query_parameters = {
+                "origin_key": l2,
+                "metric_key": 'stables_mcap',
+            }
+            stables_mcap_usd = execute_jinja_query(self.db_connector, "api/select_fact_kpis_latest.sql.j2", query_parameters, return_df=True).iloc[0, 1]
+
+            query_parameters = {
+                "origin_key": l2,
+                "metric_key": 'stables_mcap_eth',
+            }
+            stables_mcap_eth = execute_jinja_query(self.db_connector, "api/select_fact_kpis_latest.sql.j2", query_parameters, return_df=True).iloc[0, 1]
+
+            query_parameters = {
+                "origin_key": l2,
+                "metric_key": 'txcount',
+            }
+            tps = execute_jinja_query(self.db_connector, "api/select_fact_kpis_latest.sql.j2", query_parameters, return_df=True).iloc[0, 1] / (24*60*60)  # convert to TPS
+
+            l2_dict = {
+                "total_aa": int(aa_total),
+                "yesterday_aa": int(aa_yesterday),
+                "stables_mcap_usd": float(stables_mcap_usd),
+                "stables_mcap_eth": float(stables_mcap_eth),
+                "tps": float(tps)
+            }
+
+            traction_dict["data"]["meet_l2s"][l2] = l2_dict
 
         traction_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         traction_dict = fix_dict_nan(traction_dict, 'ecosystem_overview')

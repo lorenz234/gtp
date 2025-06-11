@@ -1,0 +1,16 @@
+{#
+    A query to get the latest data from the fact_kpis tabe
+
+    Parameters:
+    - metric_key: The metric key to consider for data extraction.
+    - orgin_key: The origin key to consider for data extraction.
+#}
+
+SELECT 
+    fk."date",
+    fk.value
+FROM public.fact_kpis fk
+WHERE fk.metric_key = '{{ metric_key }}'
+    AND fk.origin_key = '{{ origin_key }}'
+    AND fk."date" = current_date - INTERVAL '1 days' 
+ORDER BY fk."date" DESC

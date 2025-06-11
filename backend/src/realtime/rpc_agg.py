@@ -316,20 +316,20 @@ class RtBackend:
         rpc_config = {
             "zksync_era": {"prep_script": "evm", "sleeper": 3},
             "mode": {"prep_script": "evm", "sleeper": 3},
-            "base": {"prep_script": "evm", "sleeper": 3},
+            "base": {"prep_script": "evm", "sleeper": 2},
             "linea": {"prep_script": "evm", "sleeper": 3},
             "optimism": {"prep_script": "evm", "sleeper": 3},
             "ethereum": {"prep_script": "evm", "sleeper": 6},
             "blast": {"prep_script": "evm", "sleeper": 3},
             "scroll": {"prep_script": "evm", "sleeper": 3},
-            "arbitrum": {"prep_script": "evm", "sleeper": 2},
+            "arbitrum": {"prep_script": "evm", "sleeper": 1},
             "unichain": {"prep_script": "evm", "sleeper": 3},
             "mantle": {"prep_script": "evm_custom_gas", "sleeper": 3},  # custom gas token
             "taiko": {"prep_script": "evm", "sleeper": 6},
             "manta": {"prep_script": "evm", "sleeper": 3},
             "redstone": {"prep_script": "evm", "sleeper": 3},
             "soneium": {"prep_script": "evm", "sleeper": 3},
-            "celo": {"prep_script": "evm_custom_gas", "sleeper": 3},  # custom gas token
+            "celo": {"prep_script": "evm_custom_gas", "sleeper": 2},  # custom gas token
             "worldchain": {"prep_script": "evm", "sleeper": 3},
             "arbitrum_nova": {"prep_script": "evm", "sleeper": 3},
             "zircuit": {"prep_script": "evm", "sleeper": 3},
@@ -562,7 +562,7 @@ class RtBackend:
         
         publish_data = {
             "block_number": block_number,
-            "tps": tps,
+            "tps": round(tps, 1),
             "tx_count": tx_count,
             "gas_used": gas_used,
             "base_fee_gwei": chain_data.get("base_fee_gwei", 0),

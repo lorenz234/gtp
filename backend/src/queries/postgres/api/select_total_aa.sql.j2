@@ -1,0 +1,11 @@
+{#
+    A query to get the total number of active addresses from the fact_active_addresses_hll table.
+
+    Parameters:
+    - orgin_key: The origin key to consider for data extraction.
+#}
+
+SELECT
+    hll_cardinality(hll_union_agg(hll_addresses))::int AS value
+FROM fact_active_addresses_hll
+where origin_key = '{{ origin_key }}'
