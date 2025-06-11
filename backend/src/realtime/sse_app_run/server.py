@@ -26,7 +26,7 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
 # Server configuration
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = "8080"
-UPDATE_INTERVAL = "l1.5 # seconds
+UPDATE_INTERVAL = 1.5 # seconds
 
 
 class RedisSSEServer:
