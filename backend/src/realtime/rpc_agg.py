@@ -554,7 +554,7 @@ class RtBackend:
         # Publish to Redis
         asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, tps))
         
-        return tps, 1
+        return tps
 
     async def _publish_chain_update(self, chain_name: str, block_number: int, tx_count: int, gas_used: int, tps: float) -> None:
         """Publish chain update to Redis stream."""
