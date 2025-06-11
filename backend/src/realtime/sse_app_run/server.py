@@ -315,15 +315,15 @@ class RedisSSEServer:
             try:
                 # Update data from Redis
                 await self.update_data()
-                logger.debug("Data updated successfully")
+                logger.info("Data updated successfully")
                 
                 # Broadcast to clients
                 await self.broadcast_to_clients()
-                logger.debug("Broadcasted data to connected clients")
+                logger.info("Broadcasted data to connected clients")
                 
                 # Wait before next update
                 await asyncio.sleep(UPDATE_INTERVAL)
-                logger.debug(f"Just waited for {UPDATE_INTERVAL}s before next update")
+                logger.info(f"Just waited for {UPDATE_INTERVAL}s before next update")
                 
             except Exception as e:
                 logger.error(f"Error in data update loop: {str(e)}")
