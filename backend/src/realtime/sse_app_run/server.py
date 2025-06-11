@@ -26,7 +26,7 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
 # Server configuration
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = "8080"
-UPDATE_INTERVAL = 1.5 # seconds
+UPDATE_INTERVAL = 1 # seconds
 
 
 class RedisSSEServer:
@@ -315,15 +315,12 @@ class RedisSSEServer:
             try:
                 # Update data from Redis
                 await self.update_data()
-                logger.info("Data updated successfully")
                 
                 # Broadcast to clients
                 await self.broadcast_to_clients()
-                logger.info("Broadcasted data to connected clients")
                 
                 # Wait before next update
                 await asyncio.sleep(UPDATE_INTERVAL)
-                logger.info(f"Just waited for {UPDATE_INTERVAL}s before next update")
                 
             except Exception as e:
                 logger.error(f"Error in data update loop: {str(e)}")
