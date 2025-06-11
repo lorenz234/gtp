@@ -98,18 +98,18 @@ class RedisSSEServer:
             chain_data = {
                 "chain_name": chain_name,
                 "tps": float(fields.get("tps", 0)),
-                "block_number": int(fields.get("block_number", 0)),
+                #"block_number": int(fields.get("block_number", 0)),
                 "timestamp": int(fields.get("timestamp", 0)),
-                "tx_count": int(fields.get("tx_count", 0)),
+                #"tx_count": int(fields.get("tx_count", 0)),
                 "chain_type": fields.get("chain_type", "unknown"),
-                "errors": int(fields.get("errors", 0)),
+                #"errors": int(fields.get("errors", 0)),
                 "last_updated": datetime.fromtimestamp(int(fields.get("timestamp", 0)) / 1000).isoformat()
             }
             
             # Add cost data for EVM chains
             if fields.get("chain_type") == "evm":
                 chain_data.update({
-                    "gas_used": int(fields.get("gas_used", 0)),
+                    #"gas_used": int(fields.get("gas_used", 0)),
                     "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
                     "tx_cost_erc20_transfer_usd": float(fields.get("tx_cost_erc20_transfer_usd", 0)),
                 })
@@ -148,18 +148,18 @@ class RedisSSEServer:
                 chain_data = {
                     "chain_name": chain_name,
                     "tps": float(fields.get("tps", 0)),
-                    "block_number": int(fields.get("block_number", 0)),
+                    #"block_number": int(fields.get("block_number", 0)),
                     "timestamp": int(fields.get("timestamp", 0)),
-                    "tx_count": int(fields.get("tx_count", 0)),
+                    #"tx_count": int(fields.get("tx_count", 0)),
                     "chain_type": fields.get("chain_type", "unknown"),
-                    "errors": int(fields.get("errors", 0)),
+                    #"errors": int(fields.get("errors", 0)),
                     "last_updated": datetime.fromtimestamp(int(fields.get("timestamp", 0)) / 1000).isoformat()
                 }
                 
                 # Add cost data for EVM chains
                 if fields.get("chain_type") == "evm":
                     chain_data.update({
-                        "gas_used": int(fields.get("gas_used", 0)),
+                        #"gas_used": int(fields.get("gas_used", 0)),
                         "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
                         "tx_cost_erc20_transfer_usd": float(fields.get("tx_cost_erc20_transfer_usd", 0)),
                     })
@@ -315,12 +315,15 @@ class RedisSSEServer:
             try:
                 # Update data from Redis
                 await self.update_data()
+                logger.debug("Data updated successfully")
                 
                 # Broadcast to clients
                 await self.broadcast_to_clients()
+                logger.debug("Broadcasted data to connected clients")
                 
                 # Wait before next update
                 await asyncio.sleep(UPDATE_INTERVAL)
+                logger.debug(f"Just waited for {UPDATE_INTERVAL}s before next update")
                 
             except Exception as e:
                 logger.error(f"Error in data update loop: {str(e)}")
