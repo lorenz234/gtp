@@ -232,7 +232,7 @@ class RedisSSEServer:
                         active_chains += 1
             
             return {
-                "total_tps": round(total_tps, 1),
+                "total_tps": f"{total_tps:.1f}",
                 "total_chains": len(chain_data),
                 "active_chains": active_chains,
                 "ethereum_tx_cost_usd": ethereum_tx_cost_usd,
