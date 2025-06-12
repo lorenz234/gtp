@@ -191,6 +191,12 @@ class RedisSSEServer:
                 data.get("tps", 0) for data in chain_data.values() 
                 if isinstance(data.get("tps"), (int, float))
             )
+
+            # Store highest recorded TPS value across all chains
+            highest_tps = max(
+                (data.get("tps", 0) for data in chain_data.values() if isinstance(data.get("tps"), (int, float))),
+                default=0
+            )
             
             # Get Ethereum data if available
             eth_data = chain_data.get("ethereum", {})
@@ -233,6 +239,7 @@ class RedisSSEServer:
             
             return {
                 "total_tps": round(total_tps, 1), 
+                "highest_tps": round(highest_tps, 1),
                 "total_chains": len(chain_data),
                 "active_chains": active_chains,
                 "ethereum_tx_cost_usd": ethereum_tx_cost_usd,
