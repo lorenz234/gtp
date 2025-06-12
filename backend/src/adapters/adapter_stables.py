@@ -930,7 +930,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             df_main = pd.DataFrame(columns=['metric_key', 'origin_key', 'date', 'token_key', 'value']).set_index(['metric_key', 'origin_key', 'date', 'token_key'])
         return df_main
     
-    def get_total_supply(self):
+    def get_total_supply(self, days=None):
         """
         Calculate the total stablecoin supply (bridged + direct - locked) per chain
         
@@ -941,31 +941,36 @@ class AdapterStablecoinSupply(AbstractAdapter):
         4. Combines them to get total stablecoin supply by chain and stablecoin
         5. Also calculates a total across all stablecoins for each chain
         """
+
+        if days is not None:
+            self.days = 9999
+        
+
         # Check if we have existing data in the database
         df_bridged = self.db_connector.get_data_from_table("fact_stables",
                     filters={
                         "metric_key": "supply_bridged"
                     },
-                    days=self.days
+                    days=days
                 )
         df_direct = self.db_connector.get_data_from_table("fact_stables",
                     filters={
                         "metric_key": "supply_direct"
                     },
-                    days=self.days
+                    days=days
                 )
         df_locked = self.db_connector.get_data_from_table("fact_stables",
                     filters={
                         "metric_key": "locked_supply"
                     },
-                    days=self.days
+                    days=days
                 )
         
         df_bridged_exceptions = self.db_connector.get_data_from_table("fact_stables",
                     filters={
                         "metric_key": "supply_bridged_exceptions"
                     },
-                    days=self.days
+                    days=days
                 )
         
         # Reset index to work with the dataframes
