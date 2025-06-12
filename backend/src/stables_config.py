@@ -635,7 +635,34 @@ stables_mapping = {
                 "0xC7bCb0e8839a28A1cFadd1CF716de9016CdA51ae"
             ]
         }
-    }
+    },
+    "mint": {
+        "bridged": {
+            "ethereum": [
+                # Primary L1→Mint bridge escrow (holds USDC, USDT, WBTC, etc.)
+                "0x2b3F201543adF73160bA42E1a5b7750024F30420",
+
+                # Auxiliary genesis escrow (mostly ETH but include for completeness)
+                "0x59625d1FE0Eeb8114a4d13c863978F39b3471781"
+            ]
+        }
+    },
+    "worldchain": {
+        "bridged": {
+            "ethereum": [
+                "0x470458C91978D2d929704489Ad730DC3E3001113",  # Main L1StandardBridge escrow
+                "0xd5ec14a83B7d95BE1E2Ac12523e2dEE12Cbeea6C"   # Early/aux escrow still holding ETH & some stables
+            ]
+        },
+        "direct": {
+            # Circle-bridged USDC (contract lives on World Chain, track via totalSupply)
+            "usdc": {
+                "token_address": "0x79A02482A880bCE3F13e09Da970dC34db4CD24d1",
+                "method_name": "totalSupply"
+            }
+        }
+    },
+
     #"gravity": {},
     #"mint": {},
     #"metis": {},

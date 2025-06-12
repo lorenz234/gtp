@@ -7,10 +7,31 @@ Safely runs steps 1-4, then compares current vs new total supply calculation
 import sys
 import os
 import pandas as pd
+from datetime import datetime, date
 sys.path.append(f"{os.getcwd()}/backend/")
 
 from src.db_connector import DbConnector
 from src.adapters.adapter_stables import AdapterStablecoinSupply
+
+def calculate_days_from_date(start_date_str):
+    """
+    Calculate number of days from start_date to today
+    
+    Args:
+        start_date_str: Date string in format "YYYY-MM-DD" (e.g., "2024-05-14")
+    
+    Returns:
+        int: Number of days from start_date to today
+    """
+    start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+    today = date.today()
+    days = (today - start_date).days + 1  # +1 to include today
+    
+    print(f"📅 Start date: {start_date}")
+    print(f"📅 Today: {today}")
+    print(f"📅 Days to load: {days}")
+    
+    return days
 
 def get_current_total_supply(db_connector, days=3):
     """
@@ -98,24 +119,36 @@ def get_current_total_supply(db_connector, days=3):
     
     return final_totals
 
-def test_stables_config(chains_to_test=None):
+def test_stables_config(chains_to_test=None, start_date=None, load_full_history=False):
     """
     Test stablecoin configuration safely and compare results
+    
+    Args:
+        chains_to_test: List of chains to test, or None for all
+        start_date: Start date string "YYYY-MM-DD" for historical data loading
+        load_full_history: If True, load all historical data from start_date
     """
     # Initialize DB Connector
     db_connector = DbConnector()
-    days = 3
+    
+    # Calculate days based on start_date or use default
+    if start_date and load_full_history:
+        days = calculate_days_from_date(start_date)
+        print(f"\n🏗️  LOADING FULL HISTORICAL DATA ({days} days)")
+    else:
+        days = 3
+        print(f"\n🧪 TESTING MODE ({days} days)")
 
     # Create adapter params
     adapter_params = {}
     if chains_to_test:
         adapter_params['origin_keys'] = chains_to_test
 
-    print("🧪 TESTING STABLECOIN CONFIGURATION")
+    print(f"\n🧪 TESTING STABLECOIN CONFIGURATION")
     print("="*60)
     
-    # Step 0: Get current total supply
-    current_totals = get_current_total_supply(db_connector, days)
+    # Step 0: Get current total supply (only for comparison, use fewer days for speed)
+    current_totals = get_current_total_supply(db_connector, days=3)
 
     # Initialize the Stablecoin Adapter
     print(f"\n🔧 Initializing adapter...")
@@ -124,34 +157,40 @@ def test_stables_config(chains_to_test=None):
 
     try:
         # Step 1: Get block data
-        print(f"\n📊 Step 1: Block data...")
+        print(f"\n📊 Step 1: Block data ({days} days)...")
         block_params = {'days': days, 'load_type': 'block_data'}
         block_df = stablecoin_adapter.extract(block_params, update=True)
         print(f"✓ Generated {len(block_df)} block records")
 
         # Step 2: Get bridged supply
-        print(f"\n🌉 Step 2: Bridged supply...")
+        print(f"\n🌉 Step 2: Bridged supply ({days} days)...")
         bridged_params = {'days': days, 'load_type': 'bridged_supply'}
         bridged_df = stablecoin_adapter.extract(bridged_params, update=True)
         print(f"✓ Generated {len(bridged_df)} bridged records")
 
         # Step 3: Get direct supply
-        print(f"\n🏭 Step 3: Direct supply...")
+        print(f"\n🏭 Step 3: Direct supply ({days} days)...")
         direct_params = {'days': days, 'load_type': 'direct_supply'}
         direct_df = stablecoin_adapter.extract(direct_params, update=True)
         print(f"✓ Generated {len(direct_df)} direct records")
 
         # Step 4: Get locked supply
-        print(f"\n🔒 Step 4: Locked supply...")
+        print(f"\n🔒 Step 4: Locked supply ({days} days)...")
         locked_params = {'days': days, 'load_type': 'locked_supply'}
         locked_df = stablecoin_adapter.extract(locked_params, update=True)
         print(f"✓ Generated {len(locked_df)} locked records")
 
-        print("\n✅ Steps 1-4 completed and loaded to fact_stables")
+        if load_full_history:
+            print(f"\n✅ FULL HISTORICAL DATA LOADED ({days} days)")
+            print("✅ Steps 1-4 completed and loaded to fact_stables")
+            print("✅ Historical data is now available for total supply calculation")
+            return None  # Don't generate comparison for full history load
+        else:
+            print("\n✅ Steps 1-4 completed and loaded to fact_stables")
 
-        # Step 5: Generate new total supply (DON'T LOAD)
+        # Step 5: Generate new total supply (DON'T LOAD) - only for testing mode
         print(f"\n🧮 Step 5: Generating NEW total supply (NOT LOADING)...")
-        total_params = {'days': days, 'load_type': 'total_supply'}
+        total_params = {'days': 3, 'load_type': 'total_supply'}  # Use 3 days for comparison
         new_total_df = stablecoin_adapter.extract(total_params)
         print(f"✓ Generated {len(new_total_df)} total supply records")
 
@@ -227,9 +266,17 @@ def verify_chain_config(chain_name):
     
     # Check direct config
     if 'direct' in config:
-        print(f"✓ Direct config found: {len(config['direct'])} tokens")
-        for token_id, token_config in config['direct'].items():
-            print(f"  - {token_id}: {token_config['token_address']}")
+        direct_config = config['direct']
+        if isinstance(direct_config, dict):
+            print(f"✓ Direct config found: {len(direct_config)} tokens")
+            for token_id, token_config in direct_config.items():
+                print(f"  - {token_id}: {token_config['token_address']}")
+        elif isinstance(direct_config, list):
+            print(f"✓ Direct config found: {len(direct_config)} token addresses")
+            for i, address in enumerate(direct_config):
+                print(f"  - Token {i+1}: {address}")
+        else:
+            print(f"⚠️  Direct config has unexpected format: {type(direct_config)}")
     
     # Check locked supply config
     if 'locked_supply' in config:
@@ -241,21 +288,40 @@ def verify_chain_config(chain_name):
     return True
 
 if __name__ == "__main__":
-    # Test specific chains - modify this list as needed
-    chains_to_test = ['redstone']
+    # CONFIGURATION - Modify these settings as needed
+    chains_to_test = ['worldchain']  # Chains to test: ['metis', 'taiko', 'mantle'] or None for all
     
-    print("🧪 Testing Stablecoin Configuration with Comparison")
-    print("This script compares current vs new total supply calculations")
+    # HISTORICAL DATA LOADING - Set start_date to load full history
+    start_date = "2024-10-12"  # Format: "YYYY-MM-DD" - Set to None for testing mode
+    load_full_history = True   # Set to True to load historical data, False for testing
+    
+    print("🧪 Testing Stablecoin Configuration")
+    
+    if load_full_history and start_date:
+        print("🏗️  HISTORICAL DATA LOADING MODE")
+        print(f"This will load ALL data from {start_date} to today")
+        print("⚠️  This may take a while and will load data to fact_stables")
+    else:
+        print("🧪 TESTING MODE")
+        print("This script compares current vs new total supply calculations")
     
     # First verify the configuration for new chains
     if chains_to_test:
         for chain in chains_to_test:
             verify_chain_config(chain)
     
-    # Run the test and comparison
-    new_total_df = test_stables_config(chains_to_test)
+    # Run the test or historical data loading
+    new_total_df = test_stables_config(
+        chains_to_test=chains_to_test, 
+        start_date=start_date,
+        load_full_history=load_full_history
+    )
     
-    if new_total_df is not None:
+    if load_full_history:
+        print(f"\n✅ Historical data loading completed!")
+        print("All data has been loaded to fact_stables.")
+        print("You can now run in testing mode to verify total supply calculation.")
+    elif new_total_df is not None:
         print(f"\n✅ Test completed successfully!")
         print("Review the comparison above.")
         print("If everything looks correct, you can load the new totals:")
