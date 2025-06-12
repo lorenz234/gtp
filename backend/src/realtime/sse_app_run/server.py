@@ -26,7 +26,7 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
 # Server configuration
 SERVER_HOST = "0.0.0.0"
 SERVER_PORT = "8080"
-UPDATE_INTERVAL = 1.5 # seconds
+UPDATE_INTERVAL = 1 # seconds
 
 
 class RedisSSEServer:
@@ -191,6 +191,12 @@ class RedisSSEServer:
                 data.get("tps", 0) for data in chain_data.values() 
                 if isinstance(data.get("tps"), (int, float))
             )
+
+            # Store highest recorded TPS value across all chains
+            highest_tps = max(
+                (data.get("tps", 0) for data in chain_data.values() if isinstance(data.get("tps"), (int, float))),
+                default=0
+            )
             
             # Get Ethereum data if available
             eth_data = chain_data.get("ethereum", {})
@@ -232,7 +238,8 @@ class RedisSSEServer:
                         active_chains += 1
             
             return {
-                "total_tps": round(total_tps, 1),
+                "total_tps": round(total_tps, 1), 
+                "highest_tps": round(highest_tps, 1),
                 "total_chains": len(chain_data),
                 "active_chains": active_chains,
                 "ethereum_tx_cost_usd": ethereum_tx_cost_usd,
@@ -315,15 +322,12 @@ class RedisSSEServer:
             try:
                 # Update data from Redis
                 await self.update_data()
-                logger.info("Data updated successfully")
                 
                 # Broadcast to clients
                 await self.broadcast_to_clients()
-                logger.info("Broadcasted data to connected clients")
                 
                 # Wait before next update
                 await asyncio.sleep(UPDATE_INTERVAL)
-                logger.info(f"Just waited for {UPDATE_INTERVAL}s before next update")
                 
             except Exception as e:
                 logger.error(f"Error in data update loop: {str(e)}")
