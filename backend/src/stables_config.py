@@ -565,6 +565,104 @@ stables_mapping = {
             }
         }
     },
+    "mantle": {
+        "bridged": {
+            "ethereum": [
+                "0x95fC37A27a2f68e3A647CDc081F0A89bb47c3012"  # Canonical L1StandardBridge escrow
+            ]
+        },
+
+        "direct": {
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply"
+            }
+        }
+    },
+    "metis": {
+        "bridged": {
+            "ethereum": [
+                "0x3980c9ed79d2c191A89E02Fa3529C60eD6e9c04b"   # Metis Canonical L1StandardBridge escrow
+            ]
+        }
+    },
+    "mode": {
+        "bridged": {
+            "ethereum": [
+                "0x735aDBbE72226BD52e818E7181953f42E3b0FF21",  # Mode Canonical L1StandardBridge
+                "0x8B34b14c7c7123459Cf3076b8Cb929BE097d0C07"   # (also holds ETH & may custody stables)
+            ]
+        },
+
+        "direct": {
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply"
+            },
+            "savings-dai": {
+                "token_address": "0x3f51c6c5927B88CDEc4b61e2787F9BD0f5249138",
+                "method_name": "totalSupply"
+            }
+        }
+    },
+    "taiko": {
+        "bridged": {
+            "ethereum": [
+                
+                "0x996282cA11E5DEb6B5D122CC3B9A1FcAAD4415Ab", # Main canonical bridge (ERC-20 & ETH)
+                "0xd60247c6848B7Ca29eDdF63AA924E53dB6Ddd8EC"
+            ]
+        },
+        "direct": {
+            # Circle‐bridged USDC.e (Stargate).  
+            "usdc": {
+                "token_address": "0x19e26B0638bf63aa9fa4d14c6baF8D52eBE86C5C",  # USDC.e
+                "method_name": "totalSupply"
+            },
+
+            # Native USDT contract deployed May 2024.  
+            "tether": {
+                "token_address": "0x9c2dc7377717603eB92b2655c5f2E7997a4945BD",  # USDT
+                "method_name": "totalSupply"
+            }
+        }
+    },
+    "redstone": {
+        "bridged": {
+            "ethereum": [
+                # Canonical rollup bridge escrows
+                "0xc473ca7E02af24c129c2eEf51F2aDf0411c1Df69",
+                "0xC7bCb0e8839a28A1cFadd1CF716de9016CdA51ae"
+            ]
+        }
+    },
+    "mint": {
+        "bridged": {
+            "ethereum": [
+                # Primary L1→Mint bridge escrow (holds USDC, USDT, WBTC, etc.)
+                "0x2b3F201543adF73160bA42E1a5b7750024F30420",
+
+                # Auxiliary genesis escrow (mostly ETH but include for completeness)
+                "0x59625d1FE0Eeb8114a4d13c863978F39b3471781"
+            ]
+        }
+    },
+    "worldchain": {
+        "bridged": {
+            "ethereum": [
+                "0x470458C91978D2d929704489Ad730DC3E3001113",  # Main L1StandardBridge escrow
+                "0xd5ec14a83B7d95BE1E2Ac12523e2dEE12Cbeea6C"   # Early/aux escrow still holding ETH & some stables
+            ]
+        },
+        "direct": {
+            # Circle-bridged USDC (contract lives on World Chain, track via totalSupply)
+            "usdc": {
+                "token_address": "0x79A02482A880bCE3F13e09Da970dC34db4CD24d1",
+                "method_name": "totalSupply"
+            }
+        }
+    },
+
     #"gravity": {},
     #"mint": {},
     #"metis": {},
