@@ -565,13 +565,13 @@ stables_mapping = {
             }
         }
     },
-    # "metis": {
-    #     "bridged": {
-    #         "ethereum": [
-    #             "0x3980c9ed79d2c191A89E02Fa3529C60eD6e9c04b"   # Metis Canonical L1StandardBridge escrow
-    #         ]
-    #     }
-    # },
+    "metis": {
+        "bridged": {
+            "ethereum": [
+                "0x3980c9ed79d2c191A89E02Fa3529C60eD6e9c04b"   # Metis Canonical L1StandardBridge escrow
+            ]
+        }
+    },
     "mode": {
         "bridged": {
             "ethereum": [
@@ -613,15 +613,15 @@ stables_mapping = {
             }
         }
     },
-    # "redstone": {
-    #     "bridged": {
-    #         "ethereum": [
-    #             # Canonical rollup bridge escrows
-    #             "0xc473ca7E02af24c129c2eEf51F2aDf0411c1Df69",
-    #             "0xC7bCb0e8839a28A1cFadd1CF716de9016CdA51ae"
-    #         ]
-    #     }
-    # },
+    "redstone": {
+        "bridged": {
+            "ethereum": [
+                # Canonical rollup bridge escrows
+                "0xc473ca7E02af24c129c2eEf51F2aDf0411c1Df69",
+                "0xC7bCb0e8839a28A1cFadd1CF716de9016CdA51ae"
+            ]
+        }
+    },
     "mint": {
         "bridged": {
             "ethereum": [
