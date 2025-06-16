@@ -89,8 +89,6 @@ class EVMProcessor(BlockchainProcessor):
                     "timestamp": hex(block.timestamp),
                     "gasUsed": hex(block.gasUsed),
                     "gasLimit": hex(block.gasLimit),
-                    "baseFeePerGas": hex(block.baseFeePerGas) if hasattr(block, 'baseFeePerGas') else None,
-                    "size": hex(block.size) if hasattr(block, 'size') else None,
                 }
             
             # Extract all block info from receipts
@@ -135,11 +133,10 @@ class EVMProcessor(BlockchainProcessor):
             # Build block dictionary using receipt data and current timestamp
             block_dict = {
                 "number": hex(block_number),
+                "transactions": [receipt.transactionHash.hex() for receipt in receipts],
                 "timestamp": hex(int(time.time())),
                 "gasUsed": hex(total_gas_used),
                 "gasLimit": None,  # Not available in receipts
-                "baseFeePerGas": hex(estimated_base_fee),
-                "size": None,  # Not available in receipts
             }
             
             # Calculate average costs with fallbacks
@@ -163,25 +160,25 @@ class EVMProcessor(BlockchainProcessor):
             # Update chain data
             base_fee_gwei = estimated_base_fee / 1e9
             
-            self.backend.chain_data[chain_name].update({
-                "base_fee_gwei": base_fee_gwei,
-                "tx_cost_native": avg_native_cost_eth,
-                "tx_cost_erc20_transfer": avg_erc20_cost_eth,
-                "tx_cost_native_usd": avg_native_cost_usd,
-                "tx_cost_erc20_transfer_usd": avg_erc20_cost_usd,
-                "tx_cost_swap": avg_swap_cost_eth,
-                "tx_cost_swap_usd": avg_swap_cost_usd,
-                "receipt_stats": {
-                    "total_transactions": len(receipts),
-                    "native_transfers": len(native_transfers),
-                    "erc20_transfers": len(erc20_transfers),
-                    "swaps": len(swaps),
-                    "avg_gas_price_gwei": sum(gas_prices) / len(gas_prices) / 1e9,
-                    "estimated_base_fee_gwei": base_fee_gwei
-                }
-            })
+            # self.backend.chain_data[chain_name].update({
+            #     "base_fee_gwei": base_fee_gwei,
+            #     "tx_cost_native": avg_native_cost_eth,
+            #     "tx_cost_erc20_transfer": avg_erc20_cost_eth,
+            #     "tx_cost_native_usd": avg_native_cost_usd,
+            #     "tx_cost_erc20_transfer_usd": avg_erc20_cost_usd,
+            #     "tx_cost_swap": avg_swap_cost_eth,
+            #     "tx_cost_swap_usd": avg_swap_cost_usd,
+            #     "receipt_stats": {
+            #         "total_transactions": len(receipts),
+            #         "native_transfers": len(native_transfers),
+            #         "erc20_transfers": len(erc20_transfers),
+            #         "swaps": len(swaps),
+            #         "avg_gas_price_gwei": sum(gas_prices) / len(gas_prices) / 1e9,
+            #         "estimated_base_fee_gwei": base_fee_gwei
+            #     }
+            # })
 
-            logger.info(self.backend.chain_data[chain_name])
+            # logger.info(self.backend.chain_data[chain_name])
             
             return block_dict
             
@@ -280,8 +277,6 @@ class StarknetProcessor(BlockchainProcessor):
                     "timestamp": hex(timestamp) if timestamp else "0x0",
                     "gasUsed": "N/A",  # Starknet doesn't use traditional gas
                     "gasLimit": "N/A",
-                    "baseFeePerGas": None,
-                    "size": None,
                 }
                 
                 #logger.debug(f"Fetched Starknet block {block_number} with {len(transactions)} transactions")
