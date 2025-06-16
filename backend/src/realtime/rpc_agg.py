@@ -471,26 +471,11 @@ class RtBackend:
             stream_key = f"chain:{chain_name}"
             
             # Base data that all chains have
-            redis_data = {
-                "timestamp": str(int(time.time() * 1000)),
-                "block_number": str(data.get("block_number", 0)),
-                "tps": str(data.get("tps", 0)),
-                "tx_count": str(data.get("tx_count", 0)),
-                "blocks_processed": str(data.get("blocks_processed", 0)),
-                "errors": str(data.get("errors", 0)),
-            }
-            
-            redis_data.update({
-                "gas_used": str(data.get("gas_used", 0)),
-                "tx_cost_native": str(data.get("tx_cost_native", "N/A")),
-                "tx_cost_erc20_transfer": str(data.get("tx_cost_erc20_transfer", "N/A")),
-                "tx_cost_native_usd": str(data.get("tx_cost_native_usd", "N/A")),
-                "tx_cost_erc20_transfer_usd": str(data.get("tx_cost_erc20_transfer_usd", "N/A")),
-            })
+            data["timestamp"] = str(int(time.time() * 1000))
 
             await self.redis_client.xadd(
                 stream_key,
-                redis_data,
+                data,
                 maxlen=REDIS_STREAM_MAXLEN,
                 approximate=True
             )
@@ -584,6 +569,8 @@ class RtBackend:
             "tx_cost_erc20_transfer": chain_data.get("tx_cost_erc20_transfer", 0),
             "tx_cost_native_usd": chain_data.get("tx_cost_native_usd", 0),
             "tx_cost_erc20_transfer_usd": chain_data.get("tx_cost_erc20_transfer_usd", 0),
+            "tx_cost_swap": chain_data.get("tx_cost_swap", 0),
+            "tx_cost_swap_usd": chain_data.get("tx_cost_swap_usd", 0),
             "blocks_processed": chain_data.get("blocks_processed", 0),
             "errors": chain_data.get("errors", 0)
         }
