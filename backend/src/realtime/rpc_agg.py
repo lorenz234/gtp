@@ -439,7 +439,7 @@ class RtBackend:
                 "tx_cost_native_usd": None,
                 "tx_cost_erc20_transfer_usd": None,
                 "block_history": [],
-                "prep_script": config["prep_script"],
+                #"prep_script": config["prep_script"],
             }
 
     async def update_eth_price(self) -> None:
@@ -479,9 +479,6 @@ class RtBackend:
         try:
             stream_key = f"chain:{chain_name}"
             
-            # Get prep script to determine what data to include
-            prep_script = self.chain_data[chain_name]["prep_script"]
-            
             # Base data that all chains have
             redis_data = {
                 "timestamp": str(int(time.time() * 1000)),
@@ -490,48 +487,22 @@ class RtBackend:
                 "tx_count": str(data.get("tx_count", 0)),
                 "blocks_processed": str(data.get("blocks_processed", 0)),
                 "errors": str(data.get("errors", 0)),
-                "chain_type": prep_script,
             }
             
-            # Add transaction cost data only for regular EVM chains (not custom gas)
-            if prep_script == "evm":
-                redis_data.update({
-                    "gas_used": str(data.get("gas_used", 0)),
-                    "base_fee_gwei": str(data.get("base_fee_gwei", 0)),
-                    "tx_cost_native": str(data.get("tx_cost_native", 0)),
-                    "tx_cost_erc20_transfer": str(data.get("tx_cost_erc20_transfer", 0)),
-                    "tx_cost_native_usd": str(data.get("tx_cost_native_usd", 0)),
-                    "tx_cost_erc20_transfer_usd": str(data.get("tx_cost_erc20_transfer_usd", 0)),
-                })
-            elif prep_script == "evm_custom_gas":
-                # EVM with custom gas token - include gas data but not costs
-                redis_data.update({
-                    "gas_used": str(data.get("gas_used", 0)),
-                    "base_fee_gwei": "N/A",
-                    "tx_cost_native": "N/A",
-                    "tx_cost_erc20_transfer": "N/A",
-                    "tx_cost_native_usd": "N/A",
-                    "tx_cost_erc20_transfer_usd": "N/A",
-                })
-            else:
-                # Non-EVM chains (like Starknet) - minimal data
-                redis_data.update({
-                    "gas_used": "N/A",
-                    "base_fee_gwei": "N/A",
-                    "tx_cost_native": "N/A",
-                    "tx_cost_erc20_transfer": "N/A",
-                    "tx_cost_native_usd": "N/A",
-                    "tx_cost_erc20_transfer_usd": "N/A",
-                })
-            
+            redis_data.update({
+                "gas_used": str(data.get("gas_used", 0)),
+                "tx_cost_native": str(data.get("tx_cost_native", "N/A")),
+                "tx_cost_erc20_transfer": str(data.get("tx_cost_erc20_transfer", "N/A")),
+                "tx_cost_native_usd": str(data.get("tx_cost_native_usd", "N/A")),
+                "tx_cost_erc20_transfer_usd": str(data.get("tx_cost_erc20_transfer_usd", "N/A")),
+            })
+
             await self.redis_client.xadd(
                 stream_key,
                 redis_data,
                 maxlen=REDIS_STREAM_MAXLEN,
                 approximate=True
             )
-            
-            #logger.debug(f"Published {prep_script} data to Redis stream {stream_key}")
             
         except Exception as e:
             logger.error(f"Failed to publish to Redis stream for {chain_name}: {str(e)}")
@@ -735,10 +706,11 @@ class RtBackend:
         """Process a single chain continuously."""
         logger.info(f"Starting processing for chain: {chain_name}")
         sleeper = self.RPC_ENDPOINTS[chain_name].get("sleeper", 3)
-        calc_fees = self.chain_data[chain_name].get("calc_fees", False)
+        calc_fees = rpc_config[chain_name].get("calc_fees", False)
         
         while True:
             try:
+                logger.info(f"Fetching latest block for {chain_name} (calc_fees={calc_fees})")
                 block = await self.fetch_latest_block(chain_name, calc_fees)
                 
                 if block:
@@ -748,8 +720,6 @@ class RtBackend:
                     last_logged_block = self.chain_data[chain_name].get('last_logged_block', None)
                     
                     if tps > 0 and current_block_number != last_logged_block:
-                        chain_type = self.chain_data[chain_name]["prep_script"]
-                        #logger.info(f"{chain_name} ({chain_type}): Block {current_block_number}, TPS: {tps:.2f}, Tx: {len(block['transactions'])}")
                         self.chain_data[chain_name]["last_logged_block"] = current_block_number
                         
                 await asyncio.sleep(sleeper)
