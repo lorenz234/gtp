@@ -38,7 +38,7 @@ class BlockchainProcessor(ABC):
     """Abstract base class for blockchain processors."""
     
     @abstractmethod
-    async def fetch_latest_block(self, client: Any, chain_name: str) -> Optional[Dict[str, Any]]:
+    async def fetch_latest_block(self, client: Any, chain_name: str, calc_fees: bool) -> Optional[Dict[str, Any]]:
         """Fetch the latest block for this blockchain type."""
         pass
     
@@ -68,7 +68,7 @@ class EVMProcessor(BlockchainProcessor):
     def supports_tx_costs(self) -> bool:
         return True
     
-    async def fetch_latest_block(self, web3: AsyncWeb3, chain_name: str, calc_fees = False) -> Optional[Dict[str, Any]]:
+    async def fetch_latest_block(self, web3: AsyncWeb3, chain_name: str, calc_fees: bool) -> Optional[Dict[str, Any]]:
         """Fetch the latest block receipts and derive all info from them for EVM chains."""
         try:
             # Only fetch receipts if we need to calculate fees
@@ -198,7 +198,7 @@ class StarknetProcessor(BlockchainProcessor):
     def supports_tx_costs(self) -> bool:
         return False  # Starknet has different gas model, skip tx costs for now
     
-    async def fetch_latest_block(self, url: str, chain_name: str) -> Optional[Dict[str, Any]]:
+    async def fetch_latest_block(self, url: str, chain_name: str, calc_fees: bool) -> Optional[Dict[str, Any]]:
         """Fetch the latest block using Starknet JSON-RPC."""
         try:
             if not self.backend.http_session:
@@ -558,7 +558,7 @@ class RtBackend:
         except Exception as e:
             logger.error(f"Failed to publish to Redis stream for {chain_name}: {str(e)}")
 
-    async def fetch_latest_block(self, chain_name: str) -> Optional[Dict[str, Any]]:
+    async def fetch_latest_block(self, chain_name: str, calc_fees=False) -> Optional[Dict[str, Any]]:
         """Fetch the latest block for any blockchain type."""
         try:
             config = self.RPC_ENDPOINTS[chain_name]
@@ -574,7 +574,7 @@ class RtBackend:
                 logger.error(f"No client found for {chain_name}")
                 return None
             
-            return await processor.fetch_latest_block(client, chain_name)
+            return await processor.fetch_latest_block(client, chain_name, calc_fees)
             
         except Exception as e:
             logger.error(f"Exception fetching block from {chain_name}: {str(e)}")
@@ -757,10 +757,11 @@ class RtBackend:
         """Process a single chain continuously."""
         logger.info(f"Starting processing for chain: {chain_name}")
         sleeper = self.RPC_ENDPOINTS[chain_name].get("sleeper", 3)
+        calc_fees = self.chain_data[chain_name].get("calc_fees", False)
         
         while True:
             try:
-                block = await self.fetch_latest_block(chain_name)
+                block = await self.fetch_latest_block(chain_name, calc_fees)
                 
                 if block:
                     tps = self.calculate_tps(chain_name, block)
