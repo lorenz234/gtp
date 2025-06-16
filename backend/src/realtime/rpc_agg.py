@@ -75,7 +75,7 @@ class EVMProcessor(BlockchainProcessor):
             # Only fetch receipts if we need to calculate fees
             if calc_fees:
                 # Get all transaction receipts for the latest block
-                logger.info(f"Fetching latest block receipts for {chain_name}")
+                #logger.info(f"Fetching latest block receipts for {chain_name}")
                 receipts = await web3.eth.get_block_receipts('latest')
             else:
                 receipts = None
@@ -180,6 +180,8 @@ class EVMProcessor(BlockchainProcessor):
                     "estimated_base_fee_gwei": base_fee_gwei
                 }
             })
+
+            logger.info(self.backend.chain_data[chain_name])
             
             return block_dict
             
@@ -710,7 +712,7 @@ class RtBackend:
         
         while True:
             try:
-                logger.info(f"Fetching latest block for {chain_name} (calc_fees={calc_fees})")
+                #logger.info(f"Fetching latest block for {chain_name} (calc_fees={calc_fees})")
                 block = await self.fetch_latest_block(chain_name, calc_fees)
                 
                 if block:
