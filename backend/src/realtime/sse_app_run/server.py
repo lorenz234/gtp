@@ -102,12 +102,13 @@ class RedisSSEServer:
                 "timestamp": int(fields.get("timestamp", 0)),
                 #"tx_count": int(fields.get("tx_count", 0)),
                 "chain_type": fields.get("chain_type", "unknown"),
+                "calc_fees": fields.get("calc_fees", "false").lower() == "true",
                 #"errors": int(fields.get("errors", 0)),
                 "last_updated": datetime.fromtimestamp(int(fields.get("timestamp", 0)) / 1000).isoformat()
             }
             
-            # Add cost data for EVM chains
-            if fields.get("chain_type") == "evm":
+            # Add cost data if calc fees is enabled
+            if fields.get("calc_fees", "false").lower() == "true":
                 chain_data.update({
                     #"gas_used": int(fields.get("gas_used", 0)),
                     "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
@@ -152,12 +153,13 @@ class RedisSSEServer:
                     "timestamp": int(fields.get("timestamp", 0)),
                     #"tx_count": int(fields.get("tx_count", 0)),
                     "chain_type": fields.get("chain_type", "unknown"),
+                    "calc_fees": fields.get("calc_fees", "false").lower() == "true",
                     #"errors": int(fields.get("errors", 0)),
                     "last_updated": datetime.fromtimestamp(int(fields.get("timestamp", 0)) / 1000).isoformat()
                 }
                 
-                # Add cost data for EVM chains
-                if fields.get("chain_type") == "evm":
+                # Add cost data if calc fees is enabled
+                if fields.get("calc_fees", "false").lower() == "true":
                     chain_data.update({
                         #"gas_used": int(fields.get("gas_used", 0)),
                         "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
@@ -209,7 +211,7 @@ class RedisSSEServer:
                 data.get("tx_cost_erc20_transfer_usd", 0) 
                 for name, data in chain_data.items()
                 if (name != "ethereum" and 
-                    data.get("chain_type") == "evm" and 
+                    data.get("calc_fees", False) and
                     data.get("tps", 0) > 0 and 
                     data.get("tx_cost_erc20_transfer_usd", 0) > 0)
             ]
@@ -218,7 +220,7 @@ class RedisSSEServer:
                 data.get("tx_cost_erc20_transfer", 0) 
                 for name, data in chain_data.items()
                 if (name != "ethereum" and 
-                    data.get("chain_type") == "evm" and 
+                    data.get("calc_fees", False) and
                     data.get("tps", 0) > 0 and 
                     data.get("tx_cost_erc20_transfer", 0) > 0)
             ]
