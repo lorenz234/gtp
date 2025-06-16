@@ -125,7 +125,7 @@ class EVMProcessor(BlockchainProcessor):
                 if gas_used >= GAS_SWAP * 0.8 and gas_used <= GAS_SWAP * 1.2:
                     swaps.append(tx_data)
 
-            logger.info(f"Processed {len(receipts)} receipts for block {block_number} on {chain_name}. swaps: {len(swaps)}, native transfers: {len(native_transfers)}, erc20 transfers: {len(erc20_transfers)}")
+            #logger.info(f"Processed {len(receipts)} receipts for block {block_number} on {chain_name}. swaps: {len(swaps)}, native transfers: {len(native_transfers)}, erc20 transfers: {len(erc20_transfers)}")
             
             # Use minimum gas price as base fee estimate
             estimated_base_fee = min(gas_prices)
