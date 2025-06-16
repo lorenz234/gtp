@@ -143,7 +143,6 @@ class RedisSSEServer:
                     #"block_number": int(fields.get("block_number", 0)),
                     "timestamp": int(fields.get("timestamp", 0)),
                     #"tx_count": int(fields.get("tx_count", 0)),
-                    "chain_type": fields.get("chain_type", "unknown"),
                     #"errors": int(fields.get("errors", 0)),
                     "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
                     "tx_cost_erc20_transfer_usd": float(fields.get("tx_cost_erc20_transfer_usd", 0)),
@@ -195,7 +194,6 @@ class RedisSSEServer:
                 data.get("tx_cost_erc20_transfer_usd", 0) 
                 for name, data in chain_data.items()
                 if (name != "ethereum" and 
-                    data.get("calc_fees", False) and
                     data.get("tps", 0) > 0 and 
                     data.get("tx_cost_erc20_transfer_usd", 0) > 0)
             ]
@@ -204,7 +202,6 @@ class RedisSSEServer:
                 data.get("tx_cost_erc20_transfer", 0) 
                 for name, data in chain_data.items()
                 if (name != "ethereum" and 
-                    data.get("calc_fees", False) and
                     data.get("tps", 0) > 0 and 
                     data.get("tx_cost_erc20_transfer", 0) > 0)
             ]
@@ -213,15 +210,15 @@ class RedisSSEServer:
             avg_l2_tx_cost_eth = sum(l2_costs_eth) / len(l2_costs_eth) if l2_costs_eth else None
             
             # Count chains by type
-            chain_types = {}
+            #chain_types = {}
             active_chains = 0
             
             for data in chain_data.values():
-                if "error" not in data:
-                    chain_type = data.get("chain_type", "unknown")
-                    chain_types[chain_type] = chain_types.get(chain_type, 0) + 1
-                    if data.get("tps", 0) > 0:
-                        active_chains += 1
+            #     if "error" not in data:
+            #         chain_type = data.get("chain_type", "unknown")
+            #         chain_types[chain_type] = chain_types.get(chain_type, 0) + 1
+                if data.get("tps", 0) > 0:
+                    active_chains += 1
             
             return {
                 "total_tps": round(total_tps, 1), 
