@@ -102,6 +102,7 @@ class EVMProcessor(BlockchainProcessor):
             swaps = []
             gas_prices = []
             
+            ## TODO: fix gas calculation (need prep scripts for op-stack, etc)
             for receipt in receipts:
                 total_gas_used += receipt.gasUsed
                 gas_prices.append(receipt.effectiveGasPrice)
@@ -469,9 +470,6 @@ class RtBackend:
             
         try:
             stream_key = f"chain:{chain_name}"
-            
-            # Base data that all chains have
-            data["timestamp"] = str(int(time.time() * 1000))
 
             ## make sure all keys are strings
             data = {k: str(v) if v is not None else "N/A" for k, v in data.items()}
@@ -563,11 +561,11 @@ class RtBackend:
         chain_data = self.chain_data[chain_name]
         
         publish_data = {
+            "timestamp": str(int(time.time() * 1000)),
             "block_number": block_number,
             "tps": round(tps, 1),
             "tx_count": tx_count,
             "gas_used": gas_used,
-            "base_fee_gwei": chain_data.get("base_fee_gwei", 0),
             "tx_cost_native": chain_data.get("tx_cost_native", 0),
             "tx_cost_erc20_transfer": chain_data.get("tx_cost_erc20_transfer", 0),
             "tx_cost_native_usd": chain_data.get("tx_cost_native_usd", 0),
