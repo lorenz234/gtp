@@ -473,6 +473,9 @@ class RtBackend:
             # Base data that all chains have
             data["timestamp"] = str(int(time.time() * 1000))
 
+            ## make sure all keys are strings
+            data = {k: str(v) if v is not None else "N/A" for k, v in data.items()}
+
             await self.redis_client.xadd(
                 stream_key,
                 data,
