@@ -385,7 +385,7 @@ class RtBackend:
         """
         
         for chain_name, config in rpc_config.items():
-            url = self.db_connector.get_special_use_rpc(chain_name)
+            url = self.db_connector.get_special_use_rpc(chain_name, check_realtime=True)
 
             if not url or url == "None" or url == "":
                 logger.error(f"No RPC URL configured for {chain_name}, skipping initialization")

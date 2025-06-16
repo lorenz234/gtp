@@ -2274,9 +2274,31 @@ class DbConnector:
                 df = pd.read_sql(exec_string, self.engine.connect())
                 return df
         
-        def get_special_use_rpc(self, origin_key:str):
+        def get_special_use_rpc(self, origin_key:str, check_realtime:bool = False):
+                if check_realtime:
+                        query = f"""
+                                SELECT url
+                                FROM sys_rpc_config
+                                WHERE realtime_use = true
+                                and origin_key = '{origin_key}'
+
+                                UNION ALL
+
+                                SELECT url
+                                FROM sys_rpc_config
+                                WHERE special_use = true
+                                and origin_key = '{origin_key}'
+                                AND NOT EXISTS (
+                                SELECT 1
+                                FROM sys_rpc_config
+                                WHERE realtime_use = true
+                                )
+                                LIMIT 1;
+                        """
+                else:
+                         query = f"SELECT url FROM sys_rpc_config WHERE origin_key = '{origin_key}' and special_use = true LIMIT 1"
                 try:
-                        query = f"SELECT url FROM sys_rpc_config WHERE origin_key = '{origin_key}' and special_use = true LIMIT 1"
+                       
                         with self.engine.connect() as connection:
                                 result = connection.execute(query)
                                 rpc = result.scalar()
