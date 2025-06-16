@@ -173,7 +173,7 @@ class EVMProcessor(BlockchainProcessor):
 
             # logger.info(self.backend.chain_data[chain_name])
 
-            logger.info(block_dict)
+            # logger.info(block_dict)
             return block_dict
             
         except Exception as e:
