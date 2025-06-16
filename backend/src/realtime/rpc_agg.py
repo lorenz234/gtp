@@ -75,6 +75,7 @@ class EVMProcessor(BlockchainProcessor):
             # Only fetch receipts if we need to calculate fees
             if calc_fees:
                 # Get all transaction receipts for the latest block
+                logger.info(f"Fetching latest block receipts for {chain_name}")
                 receipts = await web3.eth.get_block_receipts('latest')
             else:
                 receipts = None
@@ -748,7 +749,7 @@ class RtBackend:
                     
                     if tps > 0 and current_block_number != last_logged_block:
                         chain_type = self.chain_data[chain_name]["prep_script"]
-                        logger.info(f"{chain_name} ({chain_type}): Block {current_block_number}, TPS: {tps:.2f}, Tx: {len(block['transactions'])}")
+                        #logger.info(f"{chain_name} ({chain_type}): Block {current_block_number}, TPS: {tps:.2f}, Tx: {len(block['transactions'])}")
                         self.chain_data[chain_name]["last_logged_block"] = current_block_number
                         
                 await asyncio.sleep(sleeper)
