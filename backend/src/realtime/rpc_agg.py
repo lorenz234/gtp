@@ -103,6 +103,7 @@ class EVMProcessor(BlockchainProcessor):
             gas_prices = []
             
             ## TODO: fix gas calculation (need prep scripts for op-stack, etc)
+            ## TODO: add gas price fallback in case no tx of gas range in current block (just previous block gas price)
             for receipt in receipts:
                 total_gas_used += receipt.gasUsed
                 gas_prices.append(receipt.effectiveGasPrice)
@@ -134,7 +135,7 @@ class EVMProcessor(BlockchainProcessor):
             def calc_avg_cost(transfers, fallback_gas):
                 if transfers:
                     return sum(tx['cost_wei'] for tx in transfers) / len(transfers) / 1e18
-                return fallback_gas * estimated_base_fee / 1e18
+                return 0
             
             avg_native_cost_eth = calc_avg_cost(native_transfers, GAS_NATIVE_TRANSFER)
             avg_erc20_cost_eth = calc_avg_cost(erc20_transfers, GAS_ERC20_TRANSFER)
@@ -144,9 +145,9 @@ class EVMProcessor(BlockchainProcessor):
             await self.backend.update_eth_price()
             eth_price = self.backend.eth_price_usd
             
-            avg_native_cost_usd = avg_native_cost_eth * eth_price if eth_price > 0 else None
-            avg_erc20_cost_usd = avg_erc20_cost_eth * eth_price if eth_price > 0 else None
-            avg_swap_cost_usd = avg_swap_cost_eth * eth_price if eth_price > 0 else None
+            avg_native_cost_usd = avg_native_cost_eth * eth_price if eth_price > 0 else 0
+            avg_erc20_cost_usd = avg_erc20_cost_eth * eth_price if eth_price > 0 else 0
+            avg_swap_cost_usd = avg_swap_cost_eth * eth_price if eth_price > 0 else 0
 
             # Build block dictionary using receipt data and current timestamp
             block_dict = {
@@ -426,10 +427,6 @@ class RtBackend:
                 "blocks_processed": 0,
                 "errors": 0,
                 "last_updated": None,
-                "tx_cost_native": None,
-                "tx_cost_erc20_transfer": None,
-                "tx_cost_native_usd": None,
-                "tx_cost_erc20_transfer_usd": None,
                 "block_history": [],
                 #"prep_script": config["prep_script"],
             }
