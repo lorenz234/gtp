@@ -14,7 +14,7 @@ from src.realtime.rpc_config import rpc_config
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
@@ -125,6 +125,7 @@ class EVMProcessor(BlockchainProcessor):
                 if gas_used >= GAS_SWAP * 0.8 and gas_used <= GAS_SWAP * 1.2:
                     swaps.append(tx_data)
 
+            logger.debug(f"Processed {len(receipts)} receipts for block {block_number} on {chain_name}. swaps: {len(swaps)}, native transfers: {len(native_transfers)}, erc20 transfers: {len(erc20_transfers)}")
             
             # Use minimum gas price as base fee estimate
             estimated_base_fee = min(gas_prices)
