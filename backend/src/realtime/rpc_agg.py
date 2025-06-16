@@ -161,27 +161,19 @@ class EVMProcessor(BlockchainProcessor):
                 "tx_cost_swap": avg_swap_cost_eth,
                 "tx_cost_swap_usd": avg_swap_cost_usd,
             }
-            
-            # self.backend.chain_data[chain_name].update({
-            #     "base_fee_gwei": base_fee_gwei,
-            #     "tx_cost_native": avg_native_cost_eth,
-            #     "tx_cost_erc20_transfer": avg_erc20_cost_eth,
-            #     "tx_cost_native_usd": avg_native_cost_usd,
-            #     "tx_cost_erc20_transfer_usd": avg_erc20_cost_usd,
-            #     "tx_cost_swap": avg_swap_cost_eth,
-            #     "tx_cost_swap_usd": avg_swap_cost_usd,
-            #     "receipt_stats": {
-            #         "total_transactions": len(receipts),
-            #         "native_transfers": len(native_transfers),
-            #         "erc20_transfers": len(erc20_transfers),
-            #         "swaps": len(swaps),
-            #         "avg_gas_price_gwei": sum(gas_prices) / len(gas_prices) / 1e9,
-            #         "estimated_base_fee_gwei": base_fee_gwei
-            #     }
-            # })
+
+            self.backend.chain_data[chain_name].update({
+                "tx_cost_native": avg_native_cost_eth,
+                "tx_cost_erc20_transfer": avg_erc20_cost_eth,
+                "tx_cost_native_usd": avg_native_cost_usd,
+                "tx_cost_erc20_transfer_usd": avg_erc20_cost_usd,
+                "tx_cost_swap": avg_swap_cost_eth,
+                "tx_cost_swap_usd": avg_swap_cost_usd,
+            })
 
             # logger.info(self.backend.chain_data[chain_name])
-            
+
+            logger.info(block_dict)
             return block_dict
             
         except Exception as e:
@@ -571,8 +563,7 @@ class RtBackend:
         tps = self._calculate_tps_from_history(chain["block_history"])
         
         # Update chain data
-        self._update_chain_data(chain_name, current_block_number, current_timestamp, 
-                                tx_count, tps, current_block)
+        self._update_chain_data(chain_name, current_block_number, current_timestamp, tx_count, tps)
         
         # Publish to Redis
         asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, tps))
@@ -659,7 +650,7 @@ class RtBackend:
             return total_tx / time_diff
         
     def _update_chain_data(self, chain_name: str, block_number: int, timestamp: int, 
-                          tx_count: int, tps: float, current_block: Dict[str, Any]) -> None:
+                          tx_count: int, tps: float) -> None:
         """Update chain data with new block information."""
         chain = self.chain_data[chain_name]
         chain["last_block_number"] = block_number
