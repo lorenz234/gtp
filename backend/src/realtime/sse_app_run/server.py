@@ -101,19 +101,10 @@ class RedisSSEServer:
                 #"block_number": int(fields.get("block_number", 0)),
                 "timestamp": int(fields.get("timestamp", 0)),
                 #"tx_count": int(fields.get("tx_count", 0)),
-                "chain_type": fields.get("chain_type", "unknown"),
-                "calc_fees": fields.get("calc_fees", "false").lower() == "true",
-                #"errors": int(fields.get("errors", 0)),
+                "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
+                "tx_cost_erc20_transfer_usd": float(fields.get("tx_cost_erc20_transfer_usd", 0)),
                 "last_updated": datetime.fromtimestamp(int(fields.get("timestamp", 0)) / 1000).isoformat()
             }
-            
-            # Add cost data if calc fees is enabled
-            if fields.get("calc_fees", "false").lower() == "true":
-                chain_data.update({
-                    #"gas_used": int(fields.get("gas_used", 0)),
-                    "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
-                    "tx_cost_erc20_transfer_usd": float(fields.get("tx_cost_erc20_transfer_usd", 0)),
-                })
             
             return chain_data
             
@@ -153,18 +144,11 @@ class RedisSSEServer:
                     "timestamp": int(fields.get("timestamp", 0)),
                     #"tx_count": int(fields.get("tx_count", 0)),
                     "chain_type": fields.get("chain_type", "unknown"),
-                    "calc_fees": fields.get("calc_fees", "false").lower() == "true",
                     #"errors": int(fields.get("errors", 0)),
+                    "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
+                    "tx_cost_erc20_transfer_usd": float(fields.get("tx_cost_erc20_transfer_usd", 0)),
                     "last_updated": datetime.fromtimestamp(int(fields.get("timestamp", 0)) / 1000).isoformat()
                 }
-                
-                # Add cost data if calc fees is enabled
-                if fields.get("calc_fees", "false").lower() == "true":
-                    chain_data.update({
-                        #"gas_used": int(fields.get("gas_used", 0)),
-                        "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
-                        "tx_cost_erc20_transfer_usd": float(fields.get("tx_cost_erc20_transfer_usd", 0)),
-                    })
                 
                 historical_data.append(chain_data)
             
