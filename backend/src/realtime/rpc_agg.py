@@ -128,16 +128,6 @@ class EVMProcessor(BlockchainProcessor):
             
             # Use minimum gas price as base fee estimate
             estimated_base_fee = min(gas_prices)
-            base_fee_gwei = estimated_base_fee / 1e9
-            
-            # Build block dictionary using receipt data and current timestamp
-            block_dict = {
-                "number": hex(block_number),
-                "transactions": [receipt.transactionHash.hex() for receipt in receipts],
-                "timestamp": hex(int(time.time())),
-                "gasUsed": hex(total_gas_used),
-                "gasLimit": None,  # Not available in receipts
-            }
             
             # Calculate average costs with fallbacks
             def calc_avg_cost(transfers, fallback_gas):
@@ -156,9 +146,21 @@ class EVMProcessor(BlockchainProcessor):
             avg_native_cost_usd = avg_native_cost_eth * eth_price if eth_price > 0 else None
             avg_erc20_cost_usd = avg_erc20_cost_eth * eth_price if eth_price > 0 else None
             avg_swap_cost_usd = avg_swap_cost_eth * eth_price if eth_price > 0 else None
-            
-            # Update chain data
-            base_fee_gwei = estimated_base_fee / 1e9
+
+            # Build block dictionary using receipt data and current timestamp
+            block_dict = {
+                "number": hex(block_number),
+                "transactions": [receipt.transactionHash.hex() for receipt in receipts],
+                "timestamp": hex(int(time.time())),
+                "gasUsed": hex(total_gas_used),
+                "gasLimit": None,  # Not available in receipts
+                "tx_cost_native": avg_native_cost_eth,
+                "tx_cost_native_usd": avg_native_cost_usd,
+                "tx_cost_erc20_transfer": avg_erc20_cost_eth,
+                "tx_cost_erc20_transfer_usd": avg_erc20_cost_usd,
+                "tx_cost_swap": avg_swap_cost_eth,
+                "tx_cost_swap_usd": avg_swap_cost_usd,
+            }
             
             # self.backend.chain_data[chain_name].update({
             #     "base_fee_gwei": base_fee_gwei,
