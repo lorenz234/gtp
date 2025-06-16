@@ -2289,9 +2289,10 @@ class DbConnector:
                                 WHERE special_use = true
                                 and origin_key = '{origin_key}'
                                 AND NOT EXISTS (
-                                SELECT 1
-                                FROM sys_rpc_config
-                                WHERE realtime_use = true
+                                        SELECT 1
+                                        FROM sys_rpc_config
+                                        WHERE realtime_use = true
+                                        and origin_key = '{origin_key}'
                                 )
                                 LIMIT 1;
                         """
