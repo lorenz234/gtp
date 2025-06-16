@@ -20,8 +20,10 @@ logging.basicConfig(
 logger = logging.getLogger("rt_backend")
 
 # Constants
-NATIVE_TRANSFER_GAS = 21000  # Standard gas for a native ETH transfer
-ERC20_TRANSFER_GAS = 65000  # Standard gas for an ERC20 transfer
+GAS_NATIVE_TRANSFER = 21000  # Standard gas for a native ETH transfer
+GAS_ERC20_TRANSFER = 65000  # Standard gas for an ERC20 transfer
+GAS_SWAP = 350000  # Gas for a swap operation (e.g., Uniswap)
+
 ETH_PRICE_UPDATE_INTERVAL = 300  # 5 minutes in seconds
 COINGECKO_API_URL = "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
 
@@ -66,49 +68,122 @@ class EVMProcessor(BlockchainProcessor):
     def supports_tx_costs(self) -> bool:
         return True
     
-    async def fetch_latest_block(self, web3: AsyncWeb3, chain_name: str) -> Optional[Dict[str, Any]]:
-        """Fetch the latest block using web3.py for EVM chains."""
+    async def fetch_latest_block(self, web3: AsyncWeb3, chain_name: str, calc_fees = False) -> Optional[Dict[str, Any]]:
+        """Fetch the latest block receipts and derive all info from them for EVM chains."""
         try:
-            block_number = await web3.eth.block_number
-            block = await web3.eth.get_block(block_number, full_transactions=False)
+            # Only fetch receipts if we need to calculate fees
+            if calc_fees:
+                # Get all transaction receipts for the latest block
+                receipts = await web3.eth.get_block_receipts('latest')
+            else:
+                receipts = None
+            
+            if not receipts or len(receipts) == 0:
+                # Handle empty blocks - we need to make one minimal call for basic info
+                block = await web3.eth.get_block('latest', full_transactions=False)
+                return {
+                    "number": hex(block.number),
+                    "transactions": [],
+                    "timestamp": hex(block.timestamp),
+                    "gasUsed": hex(block.gasUsed),
+                    "gasLimit": hex(block.gasLimit),
+                    "baseFeePerGas": hex(block.baseFeePerGas) if hasattr(block, 'baseFeePerGas') else None,
+                    "size": hex(block.size) if hasattr(block, 'size') else None,
+                }
+            
+            # Extract all block info from receipts
+            first_receipt = receipts[0]
+            block_number = first_receipt.blockNumber
+            
+            # Analyze receipts and calculate costs in one pass
+            total_gas_used = 0
+            native_transfers = []
+            erc20_transfers = []
+            swaps = []
+            gas_prices = []
+            
+            for receipt in receipts:
+                total_gas_used += receipt.gasUsed
+                gas_prices.append(receipt.effectiveGasPrice)
+                
+                gas_used = receipt.gasUsed
+                effective_gas_price = receipt.effectiveGasPrice
+                cost_wei = gas_used * effective_gas_price
+                
+                tx_data = {
+                    'gas_used': gas_used,
+                    'effective_gas_price': effective_gas_price,
+                    'cost_wei': cost_wei
+                }
+                
+                # Categorize based on gas usage patterns
+                if gas_used <= GAS_NATIVE_TRANSFER * 1.2:
+                    native_transfers.append(tx_data)
+                if gas_used >= GAS_ERC20_TRANSFER * 0.8 and gas_used <= GAS_ERC20_TRANSFER * 1.2:
+                    erc20_transfers.append(tx_data)
+                if gas_used >= GAS_SWAP * 0.8 and gas_used <= GAS_SWAP * 1.2:
+                    swaps.append(tx_data)
 
-            # Convert to dictionary
+            
+            # Use minimum gas price as base fee estimate
+            estimated_base_fee = min(gas_prices)
+            base_fee_gwei = estimated_base_fee / 1e9
+            
+            # Build block dictionary using receipt data and current timestamp
             block_dict = {
-                "number": hex(block.number),
-                "hash": block.hash.hex(),
-                "transactions": [tx.hex() if isinstance(tx, bytes) else tx for tx in block.transactions],
-                "timestamp": hex(block.timestamp),
-                "gasUsed": hex(block.gasUsed),
-                "gasLimit": hex(block.gasLimit),
-                "baseFeePerGas": hex(block.baseFeePerGas) if hasattr(block, 'baseFeePerGas') else None,
-                "size": hex(block.size) if hasattr(block, 'size') else None,
+                "number": hex(block_number),
+                "timestamp": hex(int(time.time())),
+                "gasUsed": hex(total_gas_used),
+                "gasLimit": None,  # Not available in receipts
+                "baseFeePerGas": hex(estimated_base_fee),
+                "size": None,  # Not available in receipts
             }
             
-            # Calculate transaction costs if base fee is available
-            if hasattr(block, 'baseFeePerGas') and block.baseFeePerGas:
-                base_fee_per_gas_gwei = block.baseFeePerGas / 1e9
-                tx_cost_native = base_fee_per_gas_gwei * NATIVE_TRANSFER_GAS / 1e9
-                tx_cost_erc20_transfer = base_fee_per_gas_gwei * ERC20_TRANSFER_GAS / 1e9
-                
-                await self.backend.update_eth_price()
-                
-                tx_cost_native_usd = tx_cost_native * self.backend.eth_price_usd if self.backend.eth_price_usd > 0 else None
-                tx_cost_erc20_transfer_usd = tx_cost_erc20_transfer * self.backend.eth_price_usd if self.backend.eth_price_usd > 0 else None
-                
-                # Update chain data with cost info
-                self.backend.chain_data[chain_name]["base_fee_gwei"] = base_fee_per_gas_gwei
-                self.backend.chain_data[chain_name]["tx_cost_native"] = tx_cost_native
-                self.backend.chain_data[chain_name]["tx_cost_erc20_transfer"] = tx_cost_erc20_transfer
-                self.backend.chain_data[chain_name]["tx_cost_native_usd"] = tx_cost_native_usd
-                self.backend.chain_data[chain_name]["tx_cost_erc20_transfer_usd"] = tx_cost_erc20_transfer_usd
+            # Calculate average costs with fallbacks
+            def calc_avg_cost(transfers, fallback_gas):
+                if transfers:
+                    return sum(tx['cost_wei'] for tx in transfers) / len(transfers) / 1e18
+                return fallback_gas * estimated_base_fee / 1e18
+            
+            avg_native_cost_eth = calc_avg_cost(native_transfers, GAS_NATIVE_TRANSFER)
+            avg_erc20_cost_eth = calc_avg_cost(erc20_transfers, GAS_ERC20_TRANSFER)
+            avg_swap_cost_eth = calc_avg_cost(swaps, GAS_SWAP)
+            
+            # Get ETH price and calculate USD costs
+            await self.backend.update_eth_price()
+            eth_price = self.backend.eth_price_usd
+            
+            avg_native_cost_usd = avg_native_cost_eth * eth_price if eth_price > 0 else None
+            avg_erc20_cost_usd = avg_erc20_cost_eth * eth_price if eth_price > 0 else None
+            avg_swap_cost_usd = avg_swap_cost_eth * eth_price if eth_price > 0 else None
+            
+            # Update chain data
+            base_fee_gwei = estimated_base_fee / 1e9
+            
+            self.backend.chain_data[chain_name].update({
+                "base_fee_gwei": base_fee_gwei,
+                "tx_cost_native": avg_native_cost_eth,
+                "tx_cost_erc20_transfer": avg_erc20_cost_eth,
+                "tx_cost_native_usd": avg_native_cost_usd,
+                "tx_cost_erc20_transfer_usd": avg_erc20_cost_usd,
+                "tx_cost_swap": avg_swap_cost_eth,
+                "tx_cost_swap_usd": avg_swap_cost_usd,
+                "receipt_stats": {
+                    "total_transactions": len(receipts),
+                    "native_transfers": len(native_transfers),
+                    "erc20_transfers": len(erc20_transfers),
+                    "swaps": len(swaps),
+                    "avg_gas_price_gwei": sum(gas_prices) / len(gas_prices) / 1e9,
+                    "estimated_base_fee_gwei": base_fee_gwei
+                }
+            })
             
             return block_dict
             
         except Exception as e:
-            logger.error(f"Exception fetching EVM block from {chain_name}: {str(e)}")
+            logger.error(f"Exception fetching EVM block receipts from {chain_name}: {str(e)}")
             self.backend.chain_data[chain_name]["errors"] += 1
             return None
-
 
 class StarknetProcessor(BlockchainProcessor):
     """Processor for Starknet blockchain."""
@@ -314,29 +389,29 @@ class RtBackend:
             Dictionary with RPC endpoint configurations.
         """
         rpc_config = {
-            "zksync_era": {"prep_script": "evm", "sleeper": 3},
-            "mode": {"prep_script": "evm", "sleeper": 3},
-            "base": {"prep_script": "evm", "sleeper": 2},
-            "linea": {"prep_script": "evm", "sleeper": 3},
-            "optimism": {"prep_script": "evm", "sleeper": 3},
-            "ethereum": {"prep_script": "evm", "sleeper": 6},
-            "blast": {"prep_script": "evm", "sleeper": 3},
-            "scroll": {"prep_script": "evm", "sleeper": 3},
-            "arbitrum": {"prep_script": "evm", "sleeper": 2},
-            "unichain": {"prep_script": "evm", "sleeper": 3},
-            "mantle": {"prep_script": "evm_custom_gas", "sleeper": 3},  # custom gas token
-            "taiko": {"prep_script": "evm", "sleeper": 6},
-            "manta": {"prep_script": "evm", "sleeper": 3},
-            "redstone": {"prep_script": "evm", "sleeper": 3},
-            "soneium": {"prep_script": "evm", "sleeper": 3},
-            "celo": {"prep_script": "evm_custom_gas", "sleeper": 2},  # custom gas token
-            "worldchain": {"prep_script": "evm", "sleeper": 3},
-            "arbitrum_nova": {"prep_script": "evm", "sleeper": 3},
-            "zircuit": {"prep_script": "evm", "sleeper": 3},
-            "swell": {"prep_script": "evm", "sleeper": 3},
-            "ink": {"prep_script": "evm", "sleeper": 3},
+            "zksync_era": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "mode": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "base": {"prep_script": "evm", "sleeper": 2, "calc_fees": False},
+            "linea": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "optimism": {"prep_script": "evm", "sleeper": 3, "calc_fees": True},
+            "ethereum": {"prep_script": "evm", "sleeper": 6, "calc_fees": True},
+            "blast": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "scroll": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "arbitrum": {"prep_script": "evm", "sleeper": 2, "calc_fees": False},
+            "unichain": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "mantle": {"prep_script": "evm_custom_gas", "sleeper": 3, "calc_fees": False},
+            "taiko": {"prep_script": "evm", "sleeper": 6, "calc_fees": False},
+            "manta": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "redstone": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "soneium": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "celo": {"prep_script": "evm_custom_gas", "sleeper": 2, "calc_fees": False},
+            "worldchain": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "arbitrum_nova": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "zircuit": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "swell": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
+            "ink": {"prep_script": "evm", "sleeper": 3, "calc_fees": False},
             # Non-EVM chains
-            "starknet": {"prep_script": "starknet", "sleeper": 5},
+            "starknet": {"prep_script": "starknet", "sleeper": 5, "calc_fees": False},
         }
 
         for chain_name, config in rpc_config.items():
