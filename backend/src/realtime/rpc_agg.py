@@ -281,7 +281,7 @@ class StarknetProcessor(BlockchainProcessor):
                     "size": None,
                 }
                 
-                logger.debug(f"Fetched Starknet block {block_number} with {len(transactions)} transactions")
+                #logger.debug(f"Fetched Starknet block {block_number} with {len(transactions)} transactions")
                 return block_dict
                 
         except asyncio.TimeoutError:
@@ -530,7 +530,7 @@ class RtBackend:
                 approximate=True
             )
             
-            logger.debug(f"Published {prep_script} data to Redis stream {stream_key}")
+            #logger.debug(f"Published {prep_script} data to Redis stream {stream_key}")
             
         except Exception as e:
             logger.error(f"Failed to publish to Redis stream for {chain_name}: {str(e)}")
@@ -569,7 +569,7 @@ class RtBackend:
         
         # Check if this is a new block (prevent duplicates)
         if chain["last_block_number"] is not None and current_block_number <= chain["last_block_number"]:
-            logger.debug(f"{chain_name}: Skipping duplicate/old block {current_block_number}")
+            #logger.debug(f"{chain_name}: Skipping duplicate/old block {current_block_number}")
             return chain["tps"]
         
         # Handle missed blocks with estimation
@@ -653,7 +653,7 @@ class RtBackend:
             }
             
             chain["block_history"].append(estimated_block)
-            logger.debug(f"{estimated_block['number']}: Estimated block with {estimated_block['tx_count']} tx")
+            #logger.debug(f"{estimated_block['number']}: Estimated block with {estimated_block['tx_count']} tx")
 
     def _calculate_tps_from_history(self, block_history: List[Dict[str, Any]]) -> float:
         """Calculate TPS based on block history (up to last 3 blocks)."""
@@ -681,9 +681,9 @@ class RtBackend:
                 
             total_tx = sum(block["tx_count"] for block in block_history)
             
-            estimated_blocks = sum(1 for block in block_history if block.get("is_estimated", False))
-            if estimated_blocks > 0:
-                logger.debug(f"TPS calculation using {estimated_blocks} estimated blocks out of {len(block_history)}")
+            # estimated_blocks = sum(1 for block in block_history if block.get("is_estimated", False))
+            # if estimated_blocks > 0:
+            #     logger.debug(f"TPS calculation using {estimated_blocks} estimated blocks out of {len(block_history)}")
             
             return total_tx / time_diff
         
