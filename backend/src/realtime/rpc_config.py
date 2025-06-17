@@ -21,7 +21,7 @@ rpc_config = {
         "processors": "evm",
         "cluster": "op_stack",
         "sleeper": 2,
-        "calc_fees": False,
+        "calc_fees": True,
     },
     "linea": {
         "processors": "evm",
