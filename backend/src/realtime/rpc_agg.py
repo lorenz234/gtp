@@ -105,7 +105,6 @@ class EVMProcessor(BlockchainProcessor):
             gas_prices = []
             
             ## TODO: add more gas calculations for different clusters
-            ## TODO: add gas price fallback in case no tx of gas range in current block (just previous block gas price)
             for receipt in receipts:
                 total_gas_used += receipt.gasUsed
                 gas_prices.append(receipt.effectiveGasPrice)
@@ -134,11 +133,11 @@ class EVMProcessor(BlockchainProcessor):
                     }
                 
                 # Categorize based on gas usage patterns
-                if gas_used <= GAS_NATIVE_TRANSFER * 1.2:
+                if gas_used <= GAS_NATIVE_TRANSFER * 1.3:
                     native_transfers.append(tx_data)
-                if gas_used >= GAS_ERC20_TRANSFER * 0.8 and gas_used <= GAS_ERC20_TRANSFER * 1.2:
+                if gas_used >= GAS_ERC20_TRANSFER * 0.7 and gas_used <= GAS_ERC20_TRANSFER * 1.3:
                     erc20_transfers.append(tx_data)
-                if gas_used >= GAS_SWAP * 0.8 and gas_used <= GAS_SWAP * 1.2:
+                if gas_used >= GAS_SWAP * 0.7 and gas_used <= GAS_SWAP * 1.3:
                     swaps.append(tx_data)
 
             #logger.info(f"Processed {len(receipts)} receipts for block {block_number} on {chain_name}. swaps: {len(swaps)}, native transfers: {len(native_transfers)}, erc20 transfers: {len(erc20_transfers)}")
