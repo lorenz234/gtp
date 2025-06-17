@@ -153,6 +153,25 @@ class EVMProcessor(BlockchainProcessor):
             avg_erc20_cost_eth = calc_avg_cost(erc20_transfers)
             avg_swap_cost_eth = calc_avg_cost(swaps)
             
+            ## if one of the costs is 0, use the weighted average (based on Gas Used) from others
+            if avg_native_cost_eth == 0 and (avg_erc20_cost_eth > 0 or avg_swap_cost_eth > 0):
+                if avg_erc20_cost_eth > 0:
+                    avg_native_cost_eth = avg_erc20_cost_eth * (GAS_NATIVE_TRANSFER / GAS_ERC20_TRANSFER)
+                else:
+                    avg_native_cost_eth = avg_swap_cost_eth * (GAS_NATIVE_TRANSFER / GAS_SWAP)
+                    
+            elif avg_erc20_cost_eth == 0 and (avg_native_cost_eth > 0 or avg_swap_cost_eth > 0):
+                if avg_native_cost_eth > 0:
+                    avg_erc20_cost_eth = avg_native_cost_eth * (GAS_ERC20_TRANSFER / GAS_NATIVE_TRANSFER)
+                else:
+                    avg_erc20_cost_eth = avg_swap_cost_eth * (GAS_ERC20_TRANSFER / GAS_SWAP)
+                    
+            elif avg_swap_cost_eth == 0 and (avg_native_cost_eth > 0 or avg_erc20_cost_eth > 0):
+                if avg_native_cost_eth > 0:
+                    avg_swap_cost_eth = avg_native_cost_eth * (GAS_SWAP / GAS_NATIVE_TRANSFER)
+                else:
+                    avg_swap_cost_eth = avg_erc20_cost_eth * (GAS_SWAP / GAS_ERC20_TRANSFER)
+
             # Get ETH price and calculate USD costs
             await self.backend.update_eth_price()
             eth_price = self.backend.eth_price_usd
