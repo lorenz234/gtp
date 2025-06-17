@@ -73,6 +73,7 @@ class EVMProcessor(BlockchainProcessor):
     async def fetch_latest_block(self, web3: AsyncWeb3, chain_name: str, calc_fees: bool) -> Optional[Dict[str, Any]]:
         """Fetch the latest block receipts and derive all info from them for EVM chains."""
         try:
+            cluster = rpc_config[chain_name].get("cluster", None)
             # Only fetch receipts if we need to calculate fees
             if calc_fees:
                 # Get all transaction receipts for the latest block
@@ -103,21 +104,34 @@ class EVMProcessor(BlockchainProcessor):
             swaps = []
             gas_prices = []
             
-            ## TODO: fix gas calculation (need prep scripts for op-stack, etc)
+            ## TODO: add more gas calculations for different clusters
             ## TODO: add gas price fallback in case no tx of gas range in current block (just previous block gas price)
             for receipt in receipts:
                 total_gas_used += receipt.gasUsed
                 gas_prices.append(receipt.effectiveGasPrice)
-                
                 gas_used = receipt.gasUsed
                 effective_gas_price = receipt.effectiveGasPrice
-                cost_wei = gas_used * effective_gas_price
-                
-                tx_data = {
-                    'gas_used': gas_used,
-                    'effective_gas_price': effective_gas_price,
-                    'cost_wei': cost_wei
-                }
+                    
+                if cluster and cluster in ["op_stack", "l1"]:
+                    # l1_fee may be hex string, convert to int if needed
+                    l1_fee = receipt.l1Fee if hasattr(receipt, 'l1Fee') else 0
+                    if isinstance(l1_fee, str):
+                        l1_fee = float(int(l1_fee, 16))
+                    else:
+                        l1_fee = float(l1_fee)
+                    cost_wei = (gas_used * effective_gas_price) + l1_fee
+                    
+                    tx_data = {
+                        'gas_used': gas_used,
+                        'effective_gas_price': effective_gas_price,
+                        'cost_wei': cost_wei
+                    }
+                else:
+                    tx_data = {
+                        'gas_used': gas_used,
+                        'effective_gas_price': effective_gas_price,
+                        'cost_wei': cost_wei
+                    }
                 
                 # Categorize based on gas usage patterns
                 if gas_used <= GAS_NATIVE_TRANSFER * 1.2:
@@ -130,14 +144,14 @@ class EVMProcessor(BlockchainProcessor):
             #logger.info(f"Processed {len(receipts)} receipts for block {block_number} on {chain_name}. swaps: {len(swaps)}, native transfers: {len(native_transfers)}, erc20 transfers: {len(erc20_transfers)}")
             
             # Calculate average costs with fallbacks
-            def calc_avg_cost(transfers, fallback_gas):
+            def calc_avg_cost(transfers):
                 if transfers:
                     return sum(tx['cost_wei'] for tx in transfers) / len(transfers) / 1e18
                 return 0
             
-            avg_native_cost_eth = calc_avg_cost(native_transfers, GAS_NATIVE_TRANSFER)
-            avg_erc20_cost_eth = calc_avg_cost(erc20_transfers, GAS_ERC20_TRANSFER)
-            avg_swap_cost_eth = calc_avg_cost(swaps, GAS_SWAP)
+            avg_native_cost_eth = calc_avg_cost(native_transfers)
+            avg_erc20_cost_eth = calc_avg_cost(erc20_transfers)
+            avg_swap_cost_eth = calc_avg_cost(swaps)
             
             # Get ETH price and calculate USD costs
             await self.backend.update_eth_price()
