@@ -21,6 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger("rt_backend")
 
 # Constants
+## TODO: specific to prep script, move to config
 GAS_NATIVE_TRANSFER = 21000  # Standard gas for a native ETH transfer
 GAS_ERC20_TRANSFER = 65000  # Standard gas for an ERC20 transfer
 GAS_SWAP = 350000  # Gas for a swap operation (e.g., Uniswap)
@@ -127,9 +128,6 @@ class EVMProcessor(BlockchainProcessor):
                     swaps.append(tx_data)
 
             #logger.info(f"Processed {len(receipts)} receipts for block {block_number} on {chain_name}. swaps: {len(swaps)}, native transfers: {len(native_transfers)}, erc20 transfers: {len(erc20_transfers)}")
-            
-            # Use minimum gas price as base fee estimate
-            estimated_base_fee = min(gas_prices)
             
             # Calculate average costs with fallbacks
             def calc_avg_cost(transfers, fallback_gas):
@@ -400,16 +398,16 @@ class RtBackend:
         """Initialize clients for all blockchain endpoints."""
         for chain_name, config in self.RPC_ENDPOINTS.items():
             try:
-                prep_script = config["prep_script"]
-                processor = self.processors.get(prep_script)
+                processor = config["processors"]
+                processor = self.processors.get(processor)
                 
                 if not processor:
-                    logger.error(f"No processor found for prep_script: {prep_script} (chain: {chain_name})")
+                    logger.error(f"No processor found for processors: {processor} (chain: {chain_name})")
                     continue
                 
                 client = await processor.initialize_client(config["url"])
                 self.blockchain_clients[chain_name] = client
-                logger.info(f"Initialized {prep_script} client for {chain_name}")
+                logger.info(f"Initialized {processor} client for {chain_name}")
                 
             except Exception as e:
                 logger.error(f"Failed to initialize client for {chain_name}: {str(e)}")
@@ -428,7 +426,6 @@ class RtBackend:
                 "errors": 0,
                 "last_updated": None,
                 "block_history": [],
-                #"prep_script": config["prep_script"],
             }
 
     async def update_eth_price(self) -> None:
@@ -485,11 +482,11 @@ class RtBackend:
         """Fetch the latest block for any blockchain type."""
         try:
             config = self.RPC_ENDPOINTS[chain_name]
-            prep_script = config["prep_script"]
+            processor = config["processors"]
             
-            processor = self.processors.get(prep_script)
+            processor = self.processors.get(processor)
             if not processor:
-                logger.error(f"No processor found for {prep_script}")
+                logger.error(f"No processor found for {processor}")
                 return None
             
             client = self.blockchain_clients.get(chain_name)
@@ -668,7 +665,6 @@ class RtBackend:
                     "stream_key": stream_key,
                     "length": stream_len,
                     "latest_entry": latest_entry,
-                    "chain_type": config["prep_script"]
                 }
                 
             except Exception as e:
