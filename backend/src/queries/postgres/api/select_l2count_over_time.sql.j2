@@ -1,8 +1,8 @@
 WITH date_series AS (
     SELECT generate_series(
-        date '2020-03-16', -- start with a Monday
+        date '2020-03-01', -- start with a Monday
         current_date,
-        interval '1 week'
+        interval '1 month'
     )::date AS date
 ),
 
@@ -20,7 +20,7 @@ SELECT
 	    'origin_key', s2.origin_key
 	  )) FILTER (WHERE s2.name IS NOT NULL) AS l2s_launched
 from date_series ds
-LEFT JOIN sys_l2beat s ON s.date_100k <= ds.date + interval '6 days'
-LEFT JOIN l2beat_origin_key s2 ON date_trunc('week', s2.date_100k) = ds.date
+LEFT JOIN sys_l2beat s ON s.date_100k <= ds.date + interval '31 days'
+LEFT JOIN l2beat_origin_key s2 ON date_trunc('month', s2.date_100k) = ds.date
 GROUP by 1
 ORDER by 1 asc
