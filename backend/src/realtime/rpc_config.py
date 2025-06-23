@@ -75,7 +75,7 @@ rpc_config = {
     "soneium": {
         "processors": "evm",
         "cluster": "op_stack",
-        "sleeper": 3,
+        "sleeper": 10, # Longer sleeper due to limited RPC access via Startale
         "calc_fees": True,
     },
     "worldchain": {
