@@ -649,7 +649,7 @@ def prep_dataframe_new(df, chain):
         'lisk', 'unichain'
     ]
     default_chains = ['manta', 'metis']
-    arbitrum_nitro_chains = ['arbitrum', 'gravity', 'real', 'arbitrum_nova']
+    arbitrum_nitro_chains = ['arbitrum', 'gravity', 'real', 'arbitrum_nova', 'plume']
     
     chain_lower = chain.lower()
 
