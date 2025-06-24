@@ -208,6 +208,7 @@ class RedisSSEServer:
             
             avg_l2_tx_cost_usd = sum(l2_costs_usd) / len(l2_costs_usd) if l2_costs_usd else None
             avg_l2_tx_cost_eth = sum(l2_costs_eth) / len(l2_costs_eth) if l2_costs_eth else None
+            highest_l2_cost_usd = max(l2_costs_usd) if l2_costs_usd else None
             
             # Count chains by type
             #chain_types = {}
@@ -223,6 +224,7 @@ class RedisSSEServer:
             return {
                 "total_tps": round(total_tps, 1), 
                 "highest_tps": round(highest_tps, 1),
+                "highest_l2_cost_usd": highest_l2_cost_usd,
                 "total_chains": len(chain_data),
                 "active_chains": active_chains,
                 "ethereum_tx_cost_usd": ethereum_tx_cost_usd,
