@@ -2,7 +2,7 @@ rpc_config = {
     ## L1
     "ethereum": {
         "processors": "evm",
-        "cluster": "l1",
+        "stack": "l1",
         "sleeper": 6,
         "calc_fees": True,
     },
@@ -10,68 +10,68 @@ rpc_config = {
     ## OP Stack chains
     "mode": {
         "processors": "evm",
-        "cluster": "op_stack",
+        "stack": "op_stack",
         "sleeper": 5,
         "calc_fees": True,
     },
     "base": {
         "processors": "evm",
-        "cluster": "op_stack",
+        "stack": "op_stack",
         "sleeper": 2,
         "calc_fees": True,
     },
     "optimism": {
         "processors": "evm",
-        "cluster": "op_stack",
+        "stack": "op_stack",
         "sleeper": 3,
         "calc_fees": True,
     },
     "blast": {
         "processors": "evm",
-        "cluster": "op_stack",
+        "stack": "op_stack",
         "sleeper": 5,
         "calc_fees": True,
     },
     "unichain": {
         "processors": "evm",
-        "cluster": "op_stack",
+        "stack": "op_stack",
         "sleeper": 3,
         "calc_fees": True,
     },
     "redstone": {
         "processors": "evm",
-        "cluster": "op_stack",
+        "stack": "op_stack",
         "sleeper": 5,
         "calc_fees": True,
     },
     "soneium": {
         "processors": "evm",
-        "cluster": "op_stack",
+        "stack": "op_stack",
         "sleeper": 10, # Longer sleeper due to limited RPC access via Startale
         "calc_fees": True,
     },
     "worldchain": {
         "processors": "evm",
-        "cluster": "op_stack",
+        "stack": "op_stack",
         "sleeper": 3,
         "calc_fees": True,
     },
     "ink": {
         "processors": "evm",
-        "cluster": "op_stack",
+        "stack": "op_stack",
         "sleeper": 3,
         "calc_fees": True,
     },
     "zora": {
         "processors": "evm",
-        "cluster": "op_stack",
+        "stack": "op_stack",
         "sleeper": 5,
         "calc_fees": True,
     },
     
     "zksync_era": {
         "processors": "evm",
-        "cluster": "elastic",
+        "stack": "elastic",
         "sleeper": 3,
         "calc_fees": False,
     },
@@ -115,7 +115,7 @@ rpc_config = {
     },
     "swell": {
         "processors": "evm",
-        "cluster": "op_stack",
+        "stack": "op_stack",
         "sleeper": 3,
         "calc_fees": False,
     },
