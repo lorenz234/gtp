@@ -99,6 +99,7 @@ class EVMProcessor(BlockchainProcessor):
             
             # Analyze receipts and calculate costs in one pass
             total_gas_used = 0
+            
             native_transfers = []
             erc20_transfers = []
             swaps = []
@@ -107,39 +108,42 @@ class EVMProcessor(BlockchainProcessor):
             
             ## TODO: add more gas calculations for different stacks
             for receipt in receipts:
-                total_gas_used += receipt.gasUsed
-                gas_prices.append(receipt.effectiveGasPrice)
                 gas_used = receipt.gasUsed
                 effective_gas_price = receipt.effectiveGasPrice
-                    
-                if stack and stack in ["op_stack", "l1"]:
-                    # l1_fee may be hex string, convert to int if needed
-                    l1_fee = receipt.l1Fee if hasattr(receipt, 'l1Fee') else 0
-                    if isinstance(l1_fee, str):
-                        l1_fee = float(int(l1_fee, 16))
-                    else:
-                        l1_fee = float(l1_fee)
-                    cost_wei = (gas_used * effective_gas_price) + l1_fee
-                    
-                    tx_data = {
-                        'gas_used': gas_used,
-                        'cost_wei': cost_wei
-                    }
-                else:
-                    tx_data = {
-                        'gas_used': gas_used,
-                        'cost_wei': cost_wei
-                    }
+                total_gas_used += gas_used
                 
-                # Categorize based on gas usage patterns
-                if gas_used <= GAS_NATIVE_TRANSFER * 1.3:
-                    native_transfers.append(tx_data)
-                if gas_used >= GAS_ERC20_TRANSFER * 0.7 and gas_used <= GAS_ERC20_TRANSFER * 1.3:
-                    erc20_transfers.append(tx_data)
-                if gas_used >= GAS_SWAP * 0.7 and gas_used <= GAS_SWAP * 1.3:
-                    swaps.append(tx_data)
+                if effective_gas_price > 0:
+                    gas_prices.append(effective_gas_price)    
+                        
+                    if stack and stack in ["op_stack", "l1"]:
+                        # l1_fee may be hex string, convert to int if needed
+                        l1_fee = receipt.l1Fee if hasattr(receipt, 'l1Fee') else 0
+                        
+                        if isinstance(l1_fee, str):
+                            l1_fee = float(int(l1_fee, 16))
+                        else:
+                            l1_fee = float(l1_fee)
+                            
+                        cost_wei = (gas_used * effective_gas_price) + l1_fee
+                        tx_data = {
+                            'gas_used': gas_used,
+                            'cost_wei': cost_wei
+                        }
+                    else:
+                        tx_data = {
+                            'gas_used': gas_used,
+                            'cost_wei': cost_wei
+                        }
                     
-                all_tx.append(tx_data)
+                    # Categorize based on gas usage patterns
+                    if gas_used <= GAS_NATIVE_TRANSFER * 1.2:
+                        native_transfers.append(tx_data)
+                    elif gas_used >= GAS_ERC20_TRANSFER * 0.8 and gas_used <= GAS_ERC20_TRANSFER * 1.2:
+                        erc20_transfers.append(tx_data)
+                    elif gas_used >= GAS_SWAP * 0.8 and gas_used <= GAS_SWAP * 1.2:
+                        swaps.append(tx_data)
+                        
+                    all_tx.append(tx_data)
 
             #logger.info(f"Processed {len(receipts)} receipts for block {block_number} on {chain_name}. swaps: {len(swaps)}, native transfers: {len(native_transfers)}, erc20 transfers: {len(erc20_transfers)}")
             
@@ -153,7 +157,6 @@ class EVMProcessor(BlockchainProcessor):
             avg_erc20_cost_eth = calc_avg_cost(erc20_transfers)
             avg_swap_cost_eth = calc_avg_cost(swaps)
             
-            total_gas_used = sum(tx['gas_used'] for tx in all_tx)
             total_costs_eth = sum(tx['cost_wei'] for tx in all_tx) / 1e18
             cost_per_gas_eth = total_costs_eth / total_gas_used if total_gas_used > 0 else 0
             
@@ -161,10 +164,10 @@ class EVMProcessor(BlockchainProcessor):
             if avg_native_cost_eth == 0 and cost_per_gas_eth > 0:
                 avg_native_cost_eth = cost_per_gas_eth * GAS_NATIVE_TRANSFER
                     
-            elif avg_erc20_cost_eth == 0 and cost_per_gas_eth > 0:
+            if avg_erc20_cost_eth == 0 and cost_per_gas_eth > 0:
                 avg_erc20_cost_eth = cost_per_gas_eth * GAS_ERC20_TRANSFER
                     
-            elif avg_swap_cost_eth == 0 and cost_per_gas_eth > 0:
+            if avg_swap_cost_eth == 0 and cost_per_gas_eth > 0:
                 avg_swap_cost_eth = cost_per_gas_eth * GAS_SWAP
 
             # Get ETH price and calculate USD costs
