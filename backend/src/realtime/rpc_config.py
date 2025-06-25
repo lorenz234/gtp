@@ -14,8 +14,8 @@ rpc_config = {
     "mode": {
         "processors": "evm",
         "cluster": "op_stack",
-        "sleeper": 3,
-        "calc_fees": False,
+        "sleeper": 5,
+        "calc_fees": True,
     },
     "base": {
         "processors": "evm",
@@ -37,8 +37,8 @@ rpc_config = {
     "blast": {
         "processors": "evm",
         "cluster": "op_stack",
-        "sleeper": 3,
-        "calc_fees": False,
+        "sleeper": 5,
+        "calc_fees": True,
     },
     "scroll": {
         "processors": "evm",
@@ -104,7 +104,7 @@ rpc_config = {
         "processors": "evm",
         "cluster": "op_stack",
         "sleeper": 3,
-        "calc_fees": False,
+        "calc_fees": True,
     },
 
     # Custom Gas EVM chains
