@@ -1,9 +1,9 @@
 import asyncio
 import json
 import logging
-import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Set
+from typing import Dict, List, Any, Set, Optional
+from dataclasses import dataclass
 
 import redis.asyncio as aioredis
 from aiohttp import web
@@ -17,33 +17,66 @@ logging.basicConfig(
 )
 logger = logging.getLogger("redis_sse_server")
 
-# Redis configuration
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
-REDIS_DB = int(os.getenv("REDIS_DB", "0"))
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
 
-# Server configuration
-SERVER_HOST = "0.0.0.0"
-SERVER_PORT = "8080"
-UPDATE_INTERVAL = 1 # seconds
+@dataclass
+class ServerConfig:
+    """Server configuration settings."""
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_db: int = 0
+    redis_password: Optional[str] = None
+    server_host: str = "0.0.0.0"
+    server_port: int = 8080
+    update_interval: int = 1
+    heartbeat_interval: int = 30
+    max_history_events: int = 20
+    cleanup_interval_ms: int = 60000  # 1 minute
 
-# Redis keys for storing global metrics
-REDIS_KEY_GLOBAL_TPS_ATH = "global:tps:ath"
-REDIS_KEY_GLOBAL_TPS_24H = "global:tps:24h_high"
-REDIS_KEY_TPS_HISTORY_24H = "global:tps:history_24h"
-REDIS_KEY_ATH_HISTORY = "global:tps:ath_history"
+    @classmethod
+    def from_env(cls) -> 'ServerConfig':
+        """Create config from environment variables."""
+        import os
+        return cls(
+            redis_host=os.getenv("REDIS_HOST", cls.redis_host),
+            redis_port=int(os.getenv("REDIS_PORT", cls.redis_port)),
+            redis_db=int(os.getenv("REDIS_DB", cls.redis_db)),
+            redis_password=os.getenv("REDIS_PASSWORD"),
+            server_port=int(os.getenv("SERVER_PORT", cls.server_port))
+        )
+
+@dataclass
+class TPSRecord:
+    """TPS record data structure."""
+    value: float
+    timestamp: str
+    timestamp_ms: int
+    chain_breakdown: Dict[str, float]
+    total_chains: int
+    active_chains: int
+    is_ath: bool = False
+
+class RedisKeys:
+    """Redis key constants."""
+    GLOBAL_TPS_ATH = "global:tps:ath"
+    GLOBAL_TPS_24H = "global:tps:24h_high"
+    TPS_HISTORY_24H = "global:tps:history_24h"
+    ATH_HISTORY = "global:tps:ath_history"
+    
+    @staticmethod
+    def chain_stream(chain_name: str) -> str:
+        return f"chain:{chain_name}"
 
 class RedisSSEServer:
     """SSE Server that reads blockchain data from Redis streams."""
     
-    def __init__(self):
-        self.redis_client = None
+    def __init__(self, config: ServerConfig):
+        self.config = config
+        self.redis_client: Optional[aioredis.Redis] = None
         self.connected_clients: Set[web.StreamResponse] = set()
         self.latest_data: Dict[str, Any] = {}
         self.global_metrics: Dict[str, Any] = {}
         
-        # Local tracking for TPS highs
+        # TPS tracking
         self.tps_ath: float = 0.0
         self.tps_ath_timestamp: str = ""
         self.tps_24h_high: float = 0.0
@@ -53,142 +86,114 @@ class RedisSSEServer:
         """Initialize Redis connection and load existing TPS records."""
         try:
             redis_params = {
-                "host": REDIS_HOST,
-                "port": REDIS_PORT,
-                "db": REDIS_DB,
+                "host": self.config.redis_host,
+                "port": self.config.redis_port,
+                "db": self.config.redis_db,
                 "decode_responses": True,
                 "socket_keepalive": True,
                 "retry_on_timeout": True,
                 "health_check_interval": 30,
             }
             
-            if REDIS_PASSWORD:
-                redis_params["password"] = REDIS_PASSWORD
+            if self.config.redis_password:
+                redis_params["password"] = self.config.redis_password
                 
             self.redis_client = aioredis.Redis(**redis_params)
             await self.redis_client.ping()
-            logger.info(f"✅ Connected to Redis at {REDIS_HOST}:{REDIS_PORT}")
+            logger.info(f"✅ Connected to Redis at {self.config.redis_host}:{self.config.redis_port}")
             
-            # Load existing TPS records from Redis
-            await self.load_tps_records()
+            await self._load_tps_records()
             
         except Exception as e:
             logger.error(f"❌ Failed to connect to Redis: {str(e)}")
             raise
     
-    async def load_tps_records(self):
+    async def _load_tps_records(self):
         """Load existing TPS ATH and 24hr high from Redis."""
         try:
             # Load ATH
-            ath_data = await self.redis_client.hgetall(REDIS_KEY_GLOBAL_TPS_ATH)
+            ath_data = await self.redis_client.hgetall(RedisKeys.GLOBAL_TPS_ATH)
             if ath_data:
                 self.tps_ath = float(ath_data.get("value", 0))
                 self.tps_ath_timestamp = ath_data.get("timestamp", "")
                 logger.info(f"📈 Loaded TPS ATH: {self.tps_ath} (set at {self.tps_ath_timestamp})")
             
             # Load 24hr high
-            h24_data = await self.redis_client.hgetall(REDIS_KEY_GLOBAL_TPS_24H)
+            h24_data = await self.redis_client.hgetall(RedisKeys.GLOBAL_TPS_24H)
             if h24_data:
                 self.tps_24h_high = float(h24_data.get("value", 0))
                 self.tps_24h_high_timestamp = h24_data.get("timestamp", "")
                 logger.info(f"📊 Loaded 24hr TPS High: {self.tps_24h_high} (set at {self.tps_24h_high_timestamp})")
             
-            # Clean up old 24hr history entries
-            await self.cleanup_24h_history()
+            await self._cleanup_24h_history()
             
         except Exception as e:
             logger.error(f"Error loading TPS records: {str(e)}")
     
-    async def cleanup_24h_history(self):
+    async def _cleanup_24h_history(self):
         """Remove TPS history entries older than 24 hours."""
         try:
-            # Calculate 24 hours ago timestamp
             cutoff_time = int((datetime.now() - timedelta(hours=24)).timestamp() * 1000)
-            
-            # Remove old entries from the sorted set
             removed = await self.redis_client.zremrangebyscore(
-                REDIS_KEY_TPS_HISTORY_24H, 
-                0, 
-                cutoff_time
+                RedisKeys.TPS_HISTORY_24H, 0, cutoff_time
             )
-            
             if removed > 0:
                 logger.debug(f"🧹 Cleaned up {removed} old TPS history entries")
-                
         except Exception as e:
             logger.error(f"Error cleaning up 24hr history: {str(e)}")
     
-    async def store_tps_history_entry(self, tps_value: float, timestamp: str, chain_breakdown: Dict[str, float], is_ath: bool = False):
-        """Store TPS history entry with full context (only for ATH or 24hr highs)."""
+    def _extract_chain_breakdown(self, chain_data: Dict[str, Any]) -> Dict[str, float]:
+        """Extract TPS values for each active chain."""
+        breakdown = {}
+        for chain_name, data in chain_data.items():
+            if isinstance(data, dict) and "tps" in data:
+                tps_value = data.get("tps", 0)
+                if tps_value > 0:
+                    breakdown[chain_name] = tps_value
+        return breakdown
+    
+    async def _store_tps_record(self, record: TPSRecord):
+        """Store TPS record in Redis."""
         try:
-            current_timestamp_ms = int(datetime.now().timestamp() * 1000)
-            
-            # Create unified history entry format
             history_entry = {
-                "tps": str(tps_value),
-                "timestamp": timestamp,
-                "timestamp_ms": str(current_timestamp_ms),
-                "chain_breakdown": json.dumps(chain_breakdown),
-                "total_chains": str(len(chain_breakdown)),
-                "active_chains": str(sum(1 for tps in chain_breakdown.values() if tps > 0)),
-                "is_ath": str(is_ath)
+                "tps": str(record.value),
+                "timestamp": record.timestamp,
+                "timestamp_ms": str(record.timestamp_ms),
+                "chain_breakdown": json.dumps(record.chain_breakdown),
+                "total_chains": str(record.total_chains),
+                "active_chains": str(record.active_chains),
+                "is_ath": str(record.is_ath)
             }
             
-            # Store in ATH history if it's an ATH
-            if is_ath:
+            if record.is_ath:
                 await self.redis_client.zadd(
-                    REDIS_KEY_ATH_HISTORY,
-                    {json.dumps(history_entry): current_timestamp_ms}
+                    RedisKeys.ATH_HISTORY,
+                    {json.dumps(history_entry): record.timestamp_ms}
                 )
             
-            # Always store in 24h history (whether ATH or just 24hr high)
             await self.redis_client.zadd(
-                REDIS_KEY_TPS_HISTORY_24H,
-                {json.dumps(history_entry): current_timestamp_ms}
+                RedisKeys.TPS_HISTORY_24H,
+                {json.dumps(history_entry): record.timestamp_ms}
             )
             
         except Exception as e:
-            logger.error(f"Error storing TPS history entry: {str(e)}")
+            logger.error(f"Error storing TPS record: {str(e)}")
     
-    async def get_chain_tps_breakdown(self, chain_data: Dict[str, Any]) -> Dict[str, float]:
-        """Return current chain TPS breakdown."""
-        try:
-            # Extract TPS values for each chain
-            breakdown = {}
-            for chain_name, data in chain_data.items():
-                if isinstance(data, dict) and "tps" in data:
-                    tps_value = data.get("tps", 0)
-                    if tps_value > 0:  # Only store active chains
-                        breakdown[chain_name] = tps_value
-                
-            return breakdown
-            
-        except Exception as e:
-            logger.error(f"Error getting chain TPS breakdown: {str(e)}")
-            return {}
-    
-    async def update_tps_records(self, current_tps: float, timestamp: str, chain_data: Dict[str, Any]):
+    async def _update_tps_records(self, current_tps: float, timestamp: str, chain_data: Dict[str, Any]):
         """Update TPS ATH and 24hr high records if new highs are reached."""
         try:
             current_timestamp_ms = int(datetime.now().timestamp() * 1000)
+            chain_breakdown = self._extract_chain_breakdown(chain_data)
             
-            # Get current chain breakdown
-            chain_breakdown = await self.get_chain_tps_breakdown(chain_data)
+            is_new_ath = current_tps > self.tps_ath
+            is_new_24h_high = not is_new_ath and current_tps > self.tps_24h_high
             
-            is_new_ath = False
-            is_new_24h_high = False
-            should_store = False
-            
-            # Check and update ATH
-            if current_tps > self.tps_ath:
+            if is_new_ath:
                 old_ath = self.tps_ath
                 self.tps_ath = current_tps
                 self.tps_ath_timestamp = timestamp
-                is_new_ath = True
-                should_store = True
                 
-                # Store in Redis
-                await self.redis_client.hset(REDIS_KEY_GLOBAL_TPS_ATH, mapping={
+                await self.redis_client.hset(RedisKeys.GLOBAL_TPS_ATH, mapping={
                     "value": str(current_tps),
                     "timestamp": timestamp,
                     "timestamp_ms": str(current_timestamp_ms)
@@ -196,16 +201,11 @@ class RedisSSEServer:
                 
                 logger.info(f"🚀 NEW TPS ALL-TIME HIGH: {current_tps} TPS! (Previous: {old_ath})")
             
-            # Check if it's a new 24hr high (only if not already ATH)
-            if not is_new_ath and current_tps > self.tps_24h_high:
-                is_new_24h_high = True
-                should_store = True
-                
+            elif is_new_24h_high:
                 self.tps_24h_high = current_tps
                 self.tps_24h_high_timestamp = timestamp
                 
-                # Store in Redis
-                await self.redis_client.hset(REDIS_KEY_GLOBAL_TPS_24H, mapping={
+                await self.redis_client.hset(RedisKeys.GLOBAL_TPS_24H, mapping={
                     "value": str(current_tps),
                     "timestamp": timestamp,
                     "timestamp_ms": str(current_timestamp_ms)
@@ -213,68 +213,35 @@ class RedisSSEServer:
                 
                 logger.info(f"📊 NEW 24HR TPS HIGH: {current_tps} TPS!")
             
-            # Only store in history if it's a new ATH or new 24hr high
-            if should_store:
-                await self.store_tps_history_entry(current_tps, timestamp, chain_breakdown, is_new_ath)
+            # Store record if it's significant
+            if is_new_ath or is_new_24h_high:
+                record = TPSRecord(
+                    value=current_tps,
+                    timestamp=timestamp,
+                    timestamp_ms=current_timestamp_ms,
+                    chain_breakdown=chain_breakdown,
+                    total_chains=len(chain_data),
+                    active_chains=len(chain_breakdown),
+                    is_ath=is_new_ath
+                )
+                await self._store_tps_record(record)
                 
-                if is_new_ath:
-                    logger.info(f"💾 Stored ATH history: {current_tps} TPS with {len(chain_breakdown)} chains")
-                elif is_new_24h_high:
-                    logger.info(f"💾 Stored 24hr high history: {current_tps} TPS with {len(chain_breakdown)} chains")
+                record_type = "ATH" if is_new_ath else "24hr high"
+                logger.info(f"💾 Stored {record_type} history: {current_tps} TPS with {len(chain_breakdown)} chains")
             
-            # Clean up old entries periodically
-            if current_timestamp_ms % 60000 == 0:  # Every minute
-                await self.cleanup_24h_history()
+            # Periodic cleanup
+            if current_timestamp_ms % self.config.cleanup_interval_ms == 0:
+                await self._cleanup_24h_history()
                 
         except Exception as e:
             logger.error(f"Error updating TPS records: {str(e)}")
-    
-    async def get_ath_history(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get ATH history from Redis."""
-        try:
-            # Get recent ATH entries
-            entries = await self.redis_client.zrevrange(
-                REDIS_KEY_ATH_HISTORY,
-                start=0,
-                end=limit-1,
-                withscores=True
-            )
-            
-            ath_history = []
-            for entry_str, timestamp_ms in entries:
-                try:
-                    entry_data = json.loads(entry_str)
-                    # Parse chain breakdown
-                    chain_breakdown = json.loads(entry_data.get("chain_breakdown", "{}"))
-                    
-                    ath_record = {
-                        "tps": float(entry_data.get("tps", 0)),
-                        "timestamp": entry_data.get("timestamp", ""),
-                        "timestamp_ms": int(entry_data.get("timestamp_ms", 0)),
-                        "chain_breakdown": chain_breakdown,
-                        "total_chains": int(entry_data.get("total_chains", 0)),
-                        "active_chains": int(entry_data.get("active_chains", 0)),
-                        "is_ath": entry_data.get("is_ath", "True") == "True"
-                    }
-                    
-                    ath_history.append(ath_record)
-                    
-                except json.JSONDecodeError:
-                    logger.warning(f"Failed to parse ATH history entry: {entry_str}")
-                    continue
-            
-            return ath_history
-            
-        except Exception as e:
-            logger.error(f"Error getting ATH history: {str(e)}")
-            return []
     
     async def close(self):
         """Close Redis connection."""
         if self.redis_client:
             await self.redis_client.close()
     
-    async def get_all_chains(self) -> List[str]:
+    async def _get_all_chains(self) -> List[str]:
         """Get all chain names from Redis."""
         try:
             keys = await self.redis_client.keys("chain:*")
@@ -283,12 +250,10 @@ class RedisSSEServer:
             logger.error(f"Error getting chain keys: {str(e)}")
             return []
     
-    async def get_latest_chain_data(self, chain_name: str) -> Dict[str, Any]:
+    async def _get_latest_chain_data(self, chain_name: str) -> Dict[str, Any]:
         """Get latest data for a specific chain from Redis stream."""
         try:
-            stream_key = f"chain:{chain_name}"
-            
-            # Get the latest entry from the stream
+            stream_key = RedisKeys.chain_stream(chain_name)
             entries = await self.redis_client.xrevrange(stream_key, count=1)
             
             if not entries:
@@ -298,22 +263,16 @@ class RedisSSEServer:
                     "error": "No data available"
                 }
             
-            # Parse the latest entry
             entry_id, fields = entries[0]
             
-            # Convert string values back to appropriate types
-            chain_data = {
+            return {
                 "chain_name": chain_name,
                 "tps": float(fields.get("tps", 0)),
-                #"block_number": int(fields.get("block_number", 0)),
                 "timestamp": int(fields.get("timestamp", 0)),
-                #"tx_count": int(fields.get("tx_count", 0)),
                 "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
                 "tx_cost_erc20_transfer_usd": float(fields.get("tx_cost_erc20_transfer_usd", 0)),
                 "last_updated": datetime.fromtimestamp(int(fields.get("timestamp", 0)) / 1000).isoformat()
             }
-            
-            return chain_data
             
         except Exception as e:
             logger.error(f"Error getting data for {chain_name}: {str(e)}")
@@ -323,135 +282,73 @@ class RedisSSEServer:
                 "error": str(e)
             }
     
-    async def get_historical_chain_data(self, chain_name: str, seconds: int = 20) -> List[Dict[str, Any]]:
-        """Get historical data for a specific chain from Redis stream."""
-        try:
-            stream_key = f"chain:{chain_name}"
-            
-            # Calculate timestamp range (last N seconds)
-            current_time_ms = int(datetime.now().timestamp() * 1000)
-            start_time_ms = current_time_ms - (seconds * 1000)
-            
-            # Get entries from the last N seconds
-            entries = await self.redis_client.xrevrange(
-                stream_key, 
-                max=current_time_ms,
-                min=start_time_ms,
-                count=100  # Limit to prevent too much data
-            )
-            
-            historical_data = []
-            
-            for entry_id, fields in entries:
-                # Convert string values back to appropriate types
-                chain_data = {
-                    "chain_name": chain_name,
-                    "tps": float(fields.get("tps", 0)),
-                    #"block_number": int(fields.get("block_number", 0)),
-                    "timestamp": int(fields.get("timestamp", 0)),
-                    #"tx_count": int(fields.get("tx_count", 0)),
-                    #"errors": int(fields.get("errors", 0)),
-                    "tx_cost_erc20_transfer": float(fields.get("tx_cost_erc20_transfer", 0)),
-                    "tx_cost_erc20_transfer_usd": float(fields.get("tx_cost_erc20_transfer_usd", 0)),
-                    "last_updated": datetime.fromtimestamp(int(fields.get("timestamp", 0)) / 1000).isoformat()
-                }
-                
-                historical_data.append(chain_data)
-            
-            # Return in chronological order (oldest first)
-            return list(reversed(historical_data))
-            
-        except Exception as e:
-            logger.error(f"Error getting historical data for {chain_name}: {str(e)}")
-            return []
-    
-    async def get_all_chain_data(self) -> Dict[str, Any]:
+    async def _get_all_chain_data(self) -> Dict[str, Any]:
         """Get latest data for all chains."""
-        chains = await self.get_all_chains()
+        chains = await self._get_all_chains()
         chain_data = {}
         
         for chain_name in chains:
-            chain_data[chain_name] = await self.get_latest_chain_data(chain_name)
+            chain_data[chain_name] = await self._get_latest_chain_data(chain_name)
         
         return chain_data
     
-    async def calculate_global_metrics(self, chain_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _calculate_l2_metrics(self, chain_data: Dict[str, Any]) -> Dict[str, Optional[float]]:
+        """Calculate Layer 2 transaction cost metrics."""
+        l2_data = [
+            (data.get("tx_cost_erc20_transfer_usd", 0), data.get("tx_cost_erc20_transfer", 0), data.get("tps", 0))
+            for name, data in chain_data.items()
+            if (name != "ethereum" and data.get("tps", 0) > 0 and data.get("tx_cost_erc20_transfer_usd", 0) > 0)
+        ]
+        
+        if not l2_data:
+            return {"avg_cost_usd": None, "avg_cost_eth": None, "highest_cost_usd": None}
+        
+        total_weighted_usd = sum(cost_usd * tps for cost_usd, _, tps in l2_data)
+        total_weighted_eth = sum(cost_eth * tps for _, cost_eth, tps in l2_data)
+        total_tps = sum(tps for _, _, tps in l2_data)
+        
+        return {
+            "avg_cost_usd": total_weighted_usd / total_tps if total_tps > 0 else None,
+            "avg_cost_eth": total_weighted_eth / total_tps if total_tps > 0 else None,
+            "highest_cost_usd": max(cost_usd for cost_usd, _, _ in l2_data)
+        }
+    
+    async def _calculate_global_metrics(self, chain_data: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate global metrics from chain data."""
         try:
-            # Calculate total TPS across all chains
-            total_tps = sum(
+            # Basic TPS metrics
+            tps_values = [
                 data.get("tps", 0) for data in chain_data.values() 
                 if isinstance(data.get("tps"), (int, float))
-            )
-
-            # Store highest recorded TPS value across all chains
-            highest_tps = max(
-                (data.get("tps", 0) for data in chain_data.values() if isinstance(data.get("tps"), (int, float))),
-                default=0
-            )
+            ]
             
-            # Get Ethereum data if available
+            total_tps = sum(tps_values)
+            highest_tps = max(tps_values, default=0)
+            active_chains = sum(1 for tps in tps_values if tps > 0)
+            
+            # Ethereum metrics
             eth_data = chain_data.get("ethereum", {})
-            ethereum_tx_cost_usd = eth_data.get("tx_cost_erc20_transfer_usd", None)
-            ethereum_tx_cost_eth = eth_data.get("tx_cost_erc20_transfer", None)
+            ethereum_tx_cost_usd = eth_data.get("tx_cost_erc20_transfer_usd")
+            ethereum_tx_cost_eth = eth_data.get("tx_cost_erc20_transfer")
             
-            l2_costs_usd = [
-                data.get("tx_cost_erc20_transfer_usd", 0)
-                for name, data in chain_data.items()
-                if (name != "ethereum" and 
-                    data.get("tps", 0) > 0 and 
-                    data.get("tx_cost_erc20_transfer_usd", 0) > 0)
-            ]
-            # Calculate weighted average L2 costs (excluding Ethereum)
-            l2_costs_weighted_usd = [
-                data.get("tx_cost_erc20_transfer_usd", 0) * data.get("tps", 0)
-                for name, data in chain_data.items()
-                if (name != "ethereum" and 
-                    data.get("tps", 0) > 0 and 
-                    data.get("tx_cost_erc20_transfer_usd", 0) > 0)
-            ]
-            l2_costs_weighted_eth = [
-                data.get("tx_cost_erc20_transfer", 0) * data.get("tps", 0)
-                for name, data in chain_data.items()
-                if (name != "ethereum" and 
-                    data.get("tps", 0) > 0 and 
-                    data.get("tx_cost_erc20_transfer", 0) > 0)
-            ]
-            l2_tps = [
-                data.get("tps", 0)
-                for name, data in chain_data.items()
-                if (name != "ethereum" and 
-                    data.get("tps", 0) > 0 and 
-                    data.get("tx_cost_erc20_transfer_usd", 0) > 0)
-            ]
+            # L2 metrics
+            l2_metrics = self._calculate_l2_metrics(chain_data)
             
-            avg_l2_tx_cost_usd = (sum(l2_costs_weighted_usd) / sum(l2_tps)) if l2_tps and sum(l2_tps) > 0 else None
-            avg_l2_tx_cost_eth = (sum(l2_costs_weighted_eth) / sum(l2_tps)) if l2_tps and sum(l2_tps) > 0 else None
-            highest_l2_cost_usd = max(l2_costs_usd) if l2_costs_usd else None
-            
-            # Count chains by type
-            active_chains = 0
-            
-            for data in chain_data.values():
-                if data.get("tps", 0) > 0:
-                    active_chains += 1
-            
-            # Update TPS records if we have a new high
+            # Update TPS records
             current_timestamp = datetime.now().isoformat()
             if total_tps > 0:
-                await self.update_tps_records(total_tps, current_timestamp, chain_data)
+                await self._update_tps_records(total_tps, current_timestamp, chain_data)
             
             return {
-                "total_tps": round(total_tps, 1), 
+                "total_tps": round(total_tps, 1),
                 "highest_tps": round(highest_tps, 1),
-                "highest_l2_cost_usd": highest_l2_cost_usd,
+                "highest_l2_cost_usd": l2_metrics["highest_cost_usd"],
                 "total_chains": len(chain_data),
                 "active_chains": active_chains,
                 "ethereum_tx_cost_usd": ethereum_tx_cost_usd,
                 "ethereum_tx_cost_eth": ethereum_tx_cost_eth,
-                "layer2s_tx_cost_usd": avg_l2_tx_cost_usd, 
-                "layer2s_tx_cost_eth": avg_l2_tx_cost_eth,
-                # Add TPS records to global metrics
+                "layer2s_tx_cost_usd": l2_metrics["avg_cost_usd"],
+                "layer2s_tx_cost_eth": l2_metrics["avg_cost_eth"],
                 "total_tps_ath": round(self.tps_ath, 1),
                 "total_tps_ath_timestamp": self.tps_ath_timestamp,
                 "total_tps_24h_high": round(self.tps_24h_high, 1),
@@ -472,16 +369,12 @@ class RedisSSEServer:
                 "error": str(e)
             }
     
-    async def update_data(self):
+    async def _update_data(self):
         """Fetch latest data from Redis and update internal state."""
         try:
-            # Get all chain data
-            chain_data = await self.get_all_chain_data()
+            chain_data = await self._get_all_chain_data()
+            global_metrics = await self._calculate_global_metrics(chain_data)
             
-            # Calculate global metrics
-            global_metrics = await self.calculate_global_metrics(chain_data)
-            
-            # Update internal state
             self.latest_data = chain_data
             self.global_metrics = global_metrics
             
@@ -490,13 +383,12 @@ class RedisSSEServer:
         except Exception as e:
             logger.error(f"Error updating data: {str(e)}")
     
-    async def broadcast_to_clients(self):
+    async def _broadcast_to_clients(self):
         """Broadcast updated data to all connected SSE clients."""
         if not self.connected_clients:
             return
         
         try:
-            # Prepare the message
             message = json.dumps({
                 "type": "update",
                 "data": self.latest_data,
@@ -504,10 +396,7 @@ class RedisSSEServer:
                 "timestamp": datetime.now().isoformat()
             })
             
-            # Format for SSE
             sse_message = f"data: {message}\n\n"
-            
-            # Send to all clients
             disconnected_clients = set()
             
             for client in self.connected_clients:
@@ -520,7 +409,6 @@ class RedisSSEServer:
                     logger.warning(f"Error sending to client: {str(e)}")
                     disconnected_clients.add(client)
             
-            # Remove disconnected clients
             if disconnected_clients:
                 self.connected_clients.difference_update(disconnected_clients)
                 logger.info(f"Removed {len(disconnected_clients)} disconnected clients. {len(self.connected_clients)} remaining.")
@@ -530,38 +418,32 @@ class RedisSSEServer:
     
     async def data_update_loop(self):
         """Background task that continuously updates data and broadcasts to clients."""
-        logger.info(f"Starting data update loop with {UPDATE_INTERVAL}s interval")
+        logger.info(f"Starting data update loop with {self.config.update_interval}s interval")
         
         while True:
             try:
-                # Update data from Redis
-                await self.update_data()
-                
-                # Broadcast to clients
-                await self.broadcast_to_clients()
-                
-                # Wait before next update
-                await asyncio.sleep(UPDATE_INTERVAL)
-                
+                await self._update_data()
+                await self._broadcast_to_clients()
+                await asyncio.sleep(self.config.update_interval)
             except Exception as e:
                 logger.error(f"Error in data update loop: {str(e)}")
-                await asyncio.sleep(5)  # Wait longer on error
+                await asyncio.sleep(5)
     
     async def sse_handler(self, request):
         """Handle SSE connection requests."""
         response = web.StreamResponse()
-        response.headers['Content-Type'] = 'text/event-stream'
-        response.headers['Cache-Control'] = 'no-cache'
-        response.headers['Connection'] = 'keep-alive'
-        response.headers['X-Accel-Buffering'] = 'no'
+        response.headers.update({
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        })
         
         client_ip = request.remote
         logger.info(f"New SSE client connected from {client_ip}")
         
         try:
             await response.prepare(request)
-            
-            # Add client to connected set
             self.connected_clients.add(response)
             logger.info(f"Client added. Total clients: {len(self.connected_clients)}")
             
@@ -577,7 +459,7 @@ class RedisSSEServer:
             
             # Keep connection alive with heartbeats
             while True:
-                await asyncio.sleep(30)  # Heartbeat every 30 seconds
+                await asyncio.sleep(self.config.heartbeat_interval)
                 try:
                     await response.write(b": heartbeat\n\n")
                     await response.drain()
@@ -594,112 +476,6 @@ class RedisSSEServer:
             logger.info(f"Client removed. Total clients: {len(self.connected_clients)}")
         
         return response
-    
-    async def history_handler(self, request):
-        """Handle requests for historical data formatted as SSE events."""
-        # Get query parameters
-        seconds = int(request.query.get('seconds', 60))  # Default 60 seconds
-        format_type = request.query.get('format', 'sse')  # 'sse' or 'json'
-        
-        try:
-            # Get current chains
-            chains = await self.get_all_chains()
-            
-            # Create timeline by getting historical data for each chain
-            timeline_events = []
-            
-            # Get historical data for each chain
-            for chain_name in chains:
-                chain_history = await self.get_historical_chain_data(chain_name, seconds)
-                
-                for historical_point in chain_history:
-                    timestamp_ms = historical_point["timestamp"]
-                    
-                    # Find or create timeline event for this timestamp (group by time)
-                    existing_event = None
-                    for event in timeline_events:
-                        if abs(event["timestamp_ms"] - timestamp_ms) < 2000:  # Within 2 seconds
-                            existing_event = event
-                            break
-                    
-                    if existing_event:
-                        # Add this chain's data to existing event
-                        existing_event["data"][chain_name] = historical_point
-                    else:
-                        # Create new timeline event
-                        timeline_events.append({
-                            "timestamp_ms": timestamp_ms,
-                            "data": {chain_name: historical_point},
-                            "iso_timestamp": datetime.fromtimestamp(timestamp_ms / 1000).isoformat()
-                        })
-            
-            # Sort by timestamp and calculate global metrics for each event
-            timeline_events.sort(key=lambda x: x["timestamp_ms"])
-            
-            # Calculate global metrics for each timeline event
-            formatted_events = []
-            for event in timeline_events:
-                global_metrics = await self.calculate_global_metrics(event["data"])
-                global_metrics["timestamp_ms"] = event["timestamp_ms"]
-                
-                formatted_event = {
-                    "type": "historical",
-                    "data": event["data"],
-                    "global_metrics": global_metrics,
-                    "timestamp": event["iso_timestamp"]
-                }
-                
-                formatted_events.append(formatted_event)
-            
-            # Limit to reasonable number of events (last 20 events)
-            formatted_events = formatted_events[-20:]
-            
-            if format_type == 'json':
-                return web.json_response({
-                    "events": formatted_events,
-                    "count": len(formatted_events),
-                    "timeframe_seconds": seconds,
-                    "chains_included": len(chains),
-                    "timestamp": datetime.now().isoformat()
-                })
-            
-            else:
-                # SSE format
-                response = web.StreamResponse()
-                response.headers['Content-Type'] = 'text/event-stream'
-                response.headers['Cache-Control'] = 'no-cache'
-                response.headers['Connection'] = 'keep-alive'
-                response.headers['X-Accel-Buffering'] = 'no'
-                
-                await response.prepare(request)
-                
-                # Send historical events with small delays
-                for i, event in enumerate(formatted_events):
-                    sse_message = f"data: {json.dumps(event)}\n\n"
-                    await response.write(sse_message.encode('utf-8'))
-                    
-                    # Small delay between events for smooth playback
-                    if i < len(formatted_events) - 1:
-                        await asyncio.sleep(0.1)  # 100ms between events
-                
-                # Send completion marker
-                completion_event = {
-                    "type": "history_complete",
-                    "message": f"Sent {len(formatted_events)} historical events from last {seconds}s",
-                    "count": len(formatted_events),
-                    "timestamp": datetime.now().isoformat()
-                }
-                
-                await response.write(f"data: {json.dumps(completion_event)}\n\n".encode('utf-8'))
-                
-                return response
-                
-        except Exception as e:
-            logger.error(f"Error in history handler: {str(e)}")
-            return web.json_response({
-                "error": str(e),
-                "timestamp": datetime.now().isoformat()
-            }, status=500)
     
     async def health_handler(self, request):
         """Health check endpoint."""
@@ -743,7 +519,6 @@ async def create_app(server: RedisSSEServer):
         web.get("/events", server.sse_handler),
         web.get("/health", server.health_handler),
         web.get("/api/data", server.api_data_handler),
-        web.get("/history", server.history_handler),
     ]
     
     for route in routes:
@@ -754,31 +529,27 @@ async def create_app(server: RedisSSEServer):
 
 async def main():
     """Main function to start the SSE server."""
-    server = RedisSSEServer()
+    config = ServerConfig.from_env()
+    server = RedisSSEServer(config)
     
     try:
-        # Initialize Redis connection
         await server.initialize()
-        
-        # Create the web application
         app = await create_app(server)
         
         # Start the data update loop
         update_task = asyncio.create_task(server.data_update_loop())
         
         # Start the web server
-        logger.info(f"🚀 Starting SSE server on {SERVER_HOST}:{SERVER_PORT}")
-        logger.info(f"📡 SSE endpoint: http://{SERVER_HOST}:{SERVER_PORT}/events")
-        logger.info(f"📊 History endpoint: http://{SERVER_HOST}:{SERVER_PORT}/history")
-        logger.info(f"🏥 Health check: http://{SERVER_HOST}:{SERVER_PORT}/health")
-        logger.info(f"📈 API endpoint: http://{SERVER_HOST}:{SERVER_PORT}/api/data")
+        logger.info(f"🚀 Starting SSE server on {config.server_host}:{config.server_port}")
+        logger.info(f"📡 SSE endpoint: http://{config.server_host}:{config.server_port}/events")
+        logger.info(f"🏥 Health check: http://{config.server_host}:{config.server_port}/health")
+        logger.info(f"📈 API endpoint: http://{config.server_host}:{config.server_port}/api/data")
         
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, SERVER_HOST, SERVER_PORT)
+        site = web.TCPSite(runner, config.server_host, config.server_port)
         await site.start()
         
-        # Keep server running
         try:
             await asyncio.Future()  # Run forever
         except KeyboardInterrupt:
