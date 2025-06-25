@@ -309,7 +309,6 @@ class RedisSSEServer:
             ethereum_tx_cost_usd = eth_data.get("tx_cost_erc20_transfer_usd", None)
             ethereum_tx_cost_eth = eth_data.get("tx_cost_erc20_transfer", None)
             
-            # Calculate weighted average L2 costs (excluding Ethereum)
             l2_costs_usd = [
                 data.get("tx_cost_erc20_transfer_usd", 0)
                 for name, data in chain_data.items()
@@ -317,8 +316,16 @@ class RedisSSEServer:
                     data.get("tps", 0) > 0 and 
                     data.get("tx_cost_erc20_transfer_usd", 0) > 0)
             ]
-            l2_costs_eth = [
-                data.get("tx_cost_erc20_transfer", 0) 
+            # Calculate weighted average L2 costs (excluding Ethereum)
+            l2_costs_weighted_usd = [
+                data.get("tx_cost_erc20_transfer_usd", 0) * data.get("tps", 0)
+                for name, data in chain_data.items()
+                if (name != "ethereum" and 
+                    data.get("tps", 0) > 0 and 
+                    data.get("tx_cost_erc20_transfer_usd", 0) > 0)
+            ]
+            l2_costs_weighted_eth = [
+                data.get("tx_cost_erc20_transfer", 0) * data.get("tps", 0)
                 for name, data in chain_data.items()
                 if (name != "ethereum" and 
                     data.get("tps", 0) > 0 and 
@@ -332,8 +339,8 @@ class RedisSSEServer:
                     data.get("tx_cost_erc20_transfer_usd", 0) > 0)
             ]
             
-            avg_l2_tx_cost_usd = (sum(l2_costs_usd) / sum(l2_tps)) if l2_tps and sum(l2_tps) > 0 else None
-            avg_l2_tx_cost_eth = (sum(l2_costs_eth) / sum(l2_tps)) if l2_tps and sum(l2_tps) > 0 else None
+            avg_l2_tx_cost_usd = (sum(l2_costs_weighted_usd) / sum(l2_tps)) if l2_tps and sum(l2_tps) > 0 else None
+            avg_l2_tx_cost_eth = (sum(l2_costs_weighted_eth) / sum(l2_tps)) if l2_tps and sum(l2_tps) > 0 else None
             highest_l2_cost_usd = max(l2_costs_usd) if l2_costs_usd else None
             
             # Count chains by type
