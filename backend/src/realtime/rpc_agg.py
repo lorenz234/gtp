@@ -129,10 +129,17 @@ class EVMProcessor(BlockchainProcessor):
                             'gas_used': gas_used,
                             'cost_wei': cost_wei
                         }
-                    else:
+                    elif stack and stack in ["nitro"]:
+                        cost_wei = (gas_used * effective_gas_price)
                         tx_data = {
                             'gas_used': gas_used,
                             'cost_wei': cost_wei
+                        }
+                        
+                    else:
+                        tx_data = {
+                            'gas_used': gas_used,
+                            'cost_wei': 0
                         }
                     
                     # Categorize based on gas usage patterns

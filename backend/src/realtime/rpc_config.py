@@ -69,6 +69,15 @@ rpc_config = {
         "calc_fees": True,
     },
     
+    ## Nitro/Arbitrum Orbit chains
+    "arbitrum": {
+        "processors": "evm",
+        "stack": "nitro",
+        "sleeper": 2,
+        "calc_fees": True,
+    },
+    
+    ## Others
     "zksync_era": {
         "processors": "evm",
         "stack": "elastic",
@@ -85,11 +94,6 @@ rpc_config = {
     "scroll": {
         "processors": "evm",
         "sleeper": 3,
-        "calc_fees": False,
-    },
-    "arbitrum": {
-        "processors": "evm",
-        "sleeper": 2,
         "calc_fees": False,
     },
     
