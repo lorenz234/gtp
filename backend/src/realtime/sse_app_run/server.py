@@ -32,7 +32,7 @@ UPDATE_INTERVAL = 1 # seconds
 REDIS_KEY_GLOBAL_TPS_ATH = "global:tps:ath"
 REDIS_KEY_GLOBAL_TPS_24H = "global:tps:24h_high"
 REDIS_KEY_TPS_HISTORY_24H = "global:tps:history_24h"
-
+REDIS_KEY_ATH_HISTORY = "global:tps:ath_history"
 
 class RedisSSEServer:
     """SSE Server that reads blockchain data from Redis streams."""
@@ -118,13 +118,61 @@ class RedisSSEServer:
         except Exception as e:
             logger.error(f"Error cleaning up 24hr history: {str(e)}")
     
-    async def update_tps_records(self, current_tps: float, timestamp: str):
+    async def store_ath_history(self, tps_value: float, timestamp: str, chain_breakdown: Dict[str, float]):
+        """Store ATH event in history with full context."""
+        try:
+            current_timestamp_ms = int(datetime.now().timestamp() * 1000)
+            
+            # Create ATH history entry
+            ath_entry = {
+                "tps": str(tps_value),
+                "timestamp": timestamp,
+                "timestamp_ms": str(current_timestamp_ms),
+                "chain_breakdown": json.dumps(chain_breakdown),
+                "total_chains": str(len(chain_breakdown)),
+                "active_chains": str(sum(1 for tps in chain_breakdown.values() if tps > 0))
+            }
+            
+            # Store in Redis sorted set (timestamp as score for chronological ordering)
+            await self.redis_client.zadd(
+                REDIS_KEY_ATH_HISTORY,
+                {json.dumps(ath_entry): current_timestamp_ms}
+            )
+            
+            logger.info(f"💾 Stored ATH history: {tps_value} TPS with {len(chain_breakdown)} chains")
+            
+        except Exception as e:
+            logger.error(f"Error storing ATH history: {str(e)}")
+    
+    async def get_chain_tps_breakdown(self, chain_data: Dict[str, Any]):
+        """return current chain TPS breakdown"""
+        try:
+            
+            # Extract TPS values for each chain
+            breakdown = {}
+            for chain_name, data in chain_data.items():
+                if isinstance(data, dict) and "tps" in data:
+                    tps_value = data.get("tps", 0)
+                    if tps_value > 0:  # Only store active chains
+                        breakdown[chain_name] = tps_value
+                
+            return breakdown
+            
+        except Exception as e:
+            logger.error(f"Error storing chain TPS breakdown: {str(e)}")
+            return {}
+    
+    async def update_tps_records(self, current_tps: float, timestamp: str, chain_data: Dict[str, Any]):
         """Update TPS ATH and 24hr high records if new highs are reached."""
         try:
             current_timestamp_ms = int(datetime.now().timestamp() * 1000)
             
             # Check and update ATH
             if current_tps > self.tps_ath:
+                # Get current chain breakdown
+                chain_breakdown = await self.get_chain_tps_breakdown(chain_data)
+            
+                old_ath = self.tps_ath
                 self.tps_ath = current_tps
                 self.tps_ath_timestamp = timestamp
                 
@@ -135,7 +183,10 @@ class RedisSSEServer:
                     "timestamp_ms": str(current_timestamp_ms)
                 })
                 
-                logger.info(f"🚀 NEW TPS ALL-TIME HIGH: {current_tps} TPS!")
+                # Store in ATH history
+                await self.store_ath_history(current_tps, timestamp, chain_breakdown)
+                
+                logger.info(f"🚀 NEW TPS ALL-TIME HIGH: {current_tps} TPS! (Previous: {old_ath})")
             
             # Add current TPS to 24hr history (sorted set with timestamp as score)
             await self.redis_client.zadd(
@@ -182,6 +233,45 @@ class RedisSSEServer:
                 
         except Exception as e:
             logger.error(f"Error updating TPS records: {str(e)}")
+    
+    async def get_ath_history(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get ATH history from Redis."""
+        try:
+            # Get recent ATH entries
+            entries = await self.redis_client.zrevrange(
+                REDIS_KEY_ATH_HISTORY,
+                start=0,
+                end=limit-1,
+                withscores=True
+            )
+            
+            ath_history = []
+            for entry_str, timestamp_ms in entries:
+                try:
+                    entry_data = json.loads(entry_str)
+                    # Parse chain breakdown
+                    chain_breakdown = json.loads(entry_data.get("chain_breakdown", "{}"))
+                    
+                    ath_record = {
+                        "tps": float(entry_data.get("tps", 0)),
+                        "timestamp": entry_data.get("timestamp", ""),
+                        "timestamp_ms": int(entry_data.get("timestamp_ms", 0)),
+                        "chain_breakdown": chain_breakdown,
+                        "total_chains": int(entry_data.get("total_chains", 0)),
+                        "active_chains": int(entry_data.get("active_chains", 0))
+                    }
+                    
+                    ath_history.append(ath_record)
+                    
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse ATH history entry: {entry_str}")
+                    continue
+            
+            return ath_history
+            
+        except Exception as e:
+            logger.error(f"Error getting ATH history: {str(e)}")
+            return []
     
     async def close(self):
         """Close Redis connection."""
@@ -353,7 +443,7 @@ class RedisSSEServer:
             # Update TPS records if we have a new high
             current_timestamp = datetime.now().isoformat()
             if total_tps > 0:
-                await self.update_tps_records(total_tps, current_timestamp)
+                await self.update_tps_records(total_tps, current_timestamp, chain_data)
             
             return {
                 "total_tps": round(total_tps, 1), 
@@ -657,7 +747,7 @@ async def create_app(server: RedisSSEServer):
         web.get("/events", server.sse_handler),
         web.get("/health", server.health_handler),
         web.get("/api/data", server.api_data_handler),
-        web.get("/history", server.history_handler),  # New history endpoint
+        web.get("/history", server.history_handler),
     ]
     
     for route in routes:
