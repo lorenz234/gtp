@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Any, Set
 
 import redis.asyncio as aioredis
@@ -28,6 +28,11 @@ SERVER_HOST = "0.0.0.0"
 SERVER_PORT = "8080"
 UPDATE_INTERVAL = 1 # seconds
 
+# Redis keys for storing global metrics
+REDIS_KEY_GLOBAL_TPS_ATH = "global:tps:ath"
+REDIS_KEY_GLOBAL_TPS_24H = "global:tps:24h_high"
+REDIS_KEY_TPS_HISTORY_24H = "global:tps:history_24h"
+
 
 class RedisSSEServer:
     """SSE Server that reads blockchain data from Redis streams."""
@@ -38,8 +43,14 @@ class RedisSSEServer:
         self.latest_data: Dict[str, Any] = {}
         self.global_metrics: Dict[str, Any] = {}
         
+        # Local tracking for TPS highs
+        self.tps_ath: float = 0.0
+        self.tps_ath_timestamp: str = ""
+        self.tps_24h_high: float = 0.0
+        self.tps_24h_high_timestamp: str = ""
+        
     async def initialize(self):
-        """Initialize Redis connection."""
+        """Initialize Redis connection and load existing TPS records."""
         try:
             redis_params = {
                 "host": REDIS_HOST,
@@ -58,9 +69,119 @@ class RedisSSEServer:
             await self.redis_client.ping()
             logger.info(f"✅ Connected to Redis at {REDIS_HOST}:{REDIS_PORT}")
             
+            # Load existing TPS records from Redis
+            await self.load_tps_records()
+            
         except Exception as e:
             logger.error(f"❌ Failed to connect to Redis: {str(e)}")
             raise
+    
+    async def load_tps_records(self):
+        """Load existing TPS ATH and 24hr high from Redis."""
+        try:
+            # Load ATH
+            ath_data = await self.redis_client.hgetall(REDIS_KEY_GLOBAL_TPS_ATH)
+            if ath_data:
+                self.tps_ath = float(ath_data.get("value", 0))
+                self.tps_ath_timestamp = ath_data.get("timestamp", "")
+                logger.info(f"📈 Loaded TPS ATH: {self.tps_ath} (set at {self.tps_ath_timestamp})")
+            
+            # Load 24hr high
+            h24_data = await self.redis_client.hgetall(REDIS_KEY_GLOBAL_TPS_24H)
+            if h24_data:
+                self.tps_24h_high = float(h24_data.get("value", 0))
+                self.tps_24h_high_timestamp = h24_data.get("timestamp", "")
+                logger.info(f"📊 Loaded 24hr TPS High: {self.tps_24h_high} (set at {self.tps_24h_high_timestamp})")
+            
+            # Clean up old 24hr history entries
+            await self.cleanup_24h_history()
+            
+        except Exception as e:
+            logger.error(f"Error loading TPS records: {str(e)}")
+    
+    async def cleanup_24h_history(self):
+        """Remove TPS history entries older than 24 hours."""
+        try:
+            # Calculate 24 hours ago timestamp
+            cutoff_time = int((datetime.now() - timedelta(hours=24)).timestamp() * 1000)
+            
+            # Remove old entries from the sorted set
+            removed = await self.redis_client.zremrangebyscore(
+                REDIS_KEY_TPS_HISTORY_24H, 
+                0, 
+                cutoff_time
+            )
+            
+            if removed > 0:
+                logger.debug(f"🧹 Cleaned up {removed} old TPS history entries")
+                
+        except Exception as e:
+            logger.error(f"Error cleaning up 24hr history: {str(e)}")
+    
+    async def update_tps_records(self, current_tps: float, timestamp: str):
+        """Update TPS ATH and 24hr high records if new highs are reached."""
+        try:
+            current_timestamp_ms = int(datetime.now().timestamp() * 1000)
+            
+            # Check and update ATH
+            if current_tps > self.tps_ath:
+                self.tps_ath = current_tps
+                self.tps_ath_timestamp = timestamp
+                
+                # Store in Redis
+                await self.redis_client.hset(REDIS_KEY_GLOBAL_TPS_ATH, mapping={
+                    "value": str(current_tps),
+                    "timestamp": timestamp,
+                    "timestamp_ms": str(current_timestamp_ms)
+                })
+                
+                logger.info(f"🚀 NEW TPS ALL-TIME HIGH: {current_tps} TPS!")
+            
+            # Add current TPS to 24hr history (sorted set with timestamp as score)
+            await self.redis_client.zadd(
+                REDIS_KEY_TPS_HISTORY_24H,
+                {str(current_tps): current_timestamp_ms}
+            )
+            
+            # Get 24hr high from sorted set (highest score in last 24hr)
+            cutoff_time = current_timestamp_ms - (24 * 60 * 60 * 1000)  # 24 hours ago
+            
+            # Get the highest TPS value from the last 24 hours
+            recent_entries = await self.redis_client.zrevrangebyscore(
+                REDIS_KEY_TPS_HISTORY_24H,
+                current_timestamp_ms,
+                cutoff_time,
+                start=0,
+                num=1,
+                withscores=True
+            )
+            
+            if recent_entries:
+                highest_24h_tps = float(recent_entries[0][0])
+                highest_24h_timestamp_ms = int(recent_entries[0][1])
+                
+                # Check if this is a new 24hr high
+                if highest_24h_tps > self.tps_24h_high:
+                    self.tps_24h_high = highest_24h_tps
+                    self.tps_24h_high_timestamp = datetime.fromtimestamp(
+                        highest_24h_timestamp_ms / 1000
+                    ).isoformat()
+                    
+                    # Store in Redis
+                    await self.redis_client.hset(REDIS_KEY_GLOBAL_TPS_24H, mapping={
+                        "value": str(highest_24h_tps),
+                        "timestamp": self.tps_24h_high_timestamp,
+                        "timestamp_ms": str(highest_24h_timestamp_ms)
+                    })
+                    
+                    logger.info(f"📊 NEW 24HR TPS HIGH: {highest_24h_tps} TPS!")
+            
+            # Clean up old entries periodically
+            if current_timestamp_ms % 60000 == 0:  # Every minute
+                await self.cleanup_24h_history()
+                
+        except Exception as e:
+            logger.error(f"Error updating TPS records: {str(e)}")
     
     async def close(self):
         """Close Redis connection."""
@@ -221,6 +342,11 @@ class RedisSSEServer:
                 if data.get("tps", 0) > 0:
                     active_chains += 1
             
+            # Update TPS records if we have a new high
+            current_timestamp = datetime.now().isoformat()
+            if total_tps > 0:
+                await self.update_tps_records(total_tps, current_timestamp)
+            
             return {
                 "total_tps": round(total_tps, 1), 
                 "highest_tps": round(highest_tps, 1),
@@ -231,7 +357,12 @@ class RedisSSEServer:
                 "ethereum_tx_cost_eth": ethereum_tx_cost_eth,
                 "layer2s_tx_cost_usd": avg_l2_tx_cost_usd, 
                 "layer2s_tx_cost_eth": avg_l2_tx_cost_eth,
-                "last_updated": datetime.now().isoformat()
+                # Add TPS records to global metrics
+                "total_tps_ath": round(self.tps_ath, 1),
+                "total_tps_ath_timestamp": self.tps_ath_timestamp,
+                "total_tps_24h_high": round(self.tps_24h_high, 1),
+                "total_tps_24h_high_timestamp": self.tps_24h_high_timestamp,
+                "last_updated": current_timestamp
             }
             
         except Exception as e:
@@ -240,6 +371,10 @@ class RedisSSEServer:
                 "total_tps": 0,
                 "total_chains": 0,
                 "active_chains": 0,
+                "total_tps_ath": round(self.tps_ath, 1),
+                "total_tps_ath_timestamp": self.tps_ath_timestamp,
+                "total_tps_24h_high": round(self.tps_24h_high, 1),
+                "total_tps_24h_high_timestamp": self.tps_24h_high_timestamp,
                 "error": str(e)
             }
     
@@ -480,6 +615,8 @@ class RedisSSEServer:
             "total_chains": len(self.latest_data),
             "active_chains": self.global_metrics.get("active_chains", 0),
             "total_tps": self.global_metrics.get("total_tps", 0),
+            "total_tps_ath": self.global_metrics.get("total_tps_ath", 0),
+            "total_tps_24h_high": self.global_metrics.get("total_tps_24h_high", 0),
             "redis_connected": self.redis_client is not None,
             "timestamp": datetime.now().isoformat()
         })
