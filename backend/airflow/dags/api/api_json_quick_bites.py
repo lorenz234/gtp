@@ -169,14 +169,18 @@ def json_creation():
                 "gross_volume_usdc" : {},
                 "total_unique_merchants": {},
                 "total_unique_payers": {},
+                "new_payers": {},
+                "returning_payers": {},
+                "new_merchants": {},
+                "returning_merchants": {},
             }    
         }    
 
-        for metric_key in ['gross_volume_usdc', 'total_unique_merchants', 'total_unique_payers']:
+        for metric_key in ['gross_volume_usdc', 'total_unique_merchants', 'total_unique_payers', 'new_payers', 'returning_payers', 'new_merchants', 'returning_merchants']:
             query_parameters = {
                 'origin_key': 'shopify_usdc',
                 'metric_key': metric_key,
-                'days': (datetime.now(timezone.utc) - datetime(2025, 6, 1, tzinfo=timezone.utc)).days ## days since '2025-04-10' to today
+                'days': (datetime.now(timezone.utc) - datetime(2025, 6, 1, tzinfo=timezone.utc)).days ## days since '2025-06-01' to today
             }
             df = execute_jinja_query(db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
             df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
@@ -185,7 +189,7 @@ def json_creation():
             df = df.drop(columns=['date'])
                 
             ## Get over time data for charts
-            if metric_key in ['gross_volume_usdc']:
+            if metric_key in ['gross_volume_usdc', 'new_payers', 'returning_payers', 'new_merchants', 'returning_merchants']:
                 data_dict["data"][metric_key]= {
                     "daily": {
                         "types": df.columns.tolist(),
