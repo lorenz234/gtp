@@ -1,16 +1,13 @@
 rpc_config = {
+    ## L1
     "ethereum": {
         "processors": "evm",
         "cluster": "l1",
         "sleeper": 6,
         "calc_fees": True,
     },
-    "zksync_era": {
-        "processors": "evm",
-        "cluster": "elastic",
-        "sleeper": 3,
-        "calc_fees": False,
-    },
+    
+    ## OP Stack chains
     "mode": {
         "processors": "evm",
         "cluster": "op_stack",
@@ -22,11 +19,6 @@ rpc_config = {
         "cluster": "op_stack",
         "sleeper": 2,
         "calc_fees": True,
-    },
-    "linea": {
-        "processors": "evm",
-        "sleeper": 3,
-        "calc_fees": False,
     },
     "optimism": {
         "processors": "evm",
@@ -40,37 +32,17 @@ rpc_config = {
         "sleeper": 5,
         "calc_fees": True,
     },
-    "scroll": {
-        "processors": "evm",
-        "sleeper": 3,
-        "calc_fees": False,
-    },
-    "arbitrum": {
-        "processors": "evm",
-        "sleeper": 2,
-        "calc_fees": False,
-    },
     "unichain": {
         "processors": "evm",
         "cluster": "op_stack",
         "sleeper": 3,
         "calc_fees": True,
     },
-    "taiko": {
-        "processors": "evm",
-        "sleeper": 6,
-        "calc_fees": False,
-    },
-    "manta": {
-        "processors": "evm",
-        "sleeper": 3,
-        "calc_fees": False,
-    },
     "redstone": {
         "processors": "evm",
         "cluster": "op_stack",
-        "sleeper": 3,
-        "calc_fees": False,
+        "sleeper": 5,
+        "calc_fees": True,
     },
     "soneium": {
         "processors": "evm",
@@ -83,6 +55,53 @@ rpc_config = {
         "cluster": "op_stack",
         "sleeper": 3,
         "calc_fees": True,
+    },
+    "ink": {
+        "processors": "evm",
+        "cluster": "op_stack",
+        "sleeper": 3,
+        "calc_fees": True,
+    },
+    "zora": {
+        "processors": "evm",
+        "cluster": "op_stack",
+        "sleeper": 5,
+        "calc_fees": True,
+    },
+    
+    "zksync_era": {
+        "processors": "evm",
+        "cluster": "elastic",
+        "sleeper": 3,
+        "calc_fees": False,
+    },
+    
+    "linea": {
+        "processors": "evm",
+        "sleeper": 3,
+        "calc_fees": False,
+    },
+    
+    "scroll": {
+        "processors": "evm",
+        "sleeper": 3,
+        "calc_fees": False,
+    },
+    "arbitrum": {
+        "processors": "evm",
+        "sleeper": 2,
+        "calc_fees": False,
+    },
+    
+    "taiko": {
+        "processors": "evm",
+        "sleeper": 6,
+        "calc_fees": False,
+    },
+    "manta": {
+        "processors": "evm",
+        "sleeper": 3,
+        "calc_fees": False,
     },
     "arbitrum_nova": {
         "processors": "evm",
@@ -99,12 +118,6 @@ rpc_config = {
         "cluster": "op_stack",
         "sleeper": 3,
         "calc_fees": False,
-    },
-    "ink": {
-        "processors": "evm",
-        "cluster": "op_stack",
-        "sleeper": 3,
-        "calc_fees": True,
     },
 
     # Custom Gas EVM chains
