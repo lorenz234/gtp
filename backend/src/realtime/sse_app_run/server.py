@@ -311,7 +311,7 @@ class RedisSSEServer:
             
             # Calculate weighted average L2 costs (excluding Ethereum)
             l2_costs_usd = [
-                data.get("tx_cost_erc20_transfer_usd", 0) * data.get("tps", 0)
+                data.get("tx_cost_erc20_transfer_usd", 0)
                 for name, data in chain_data.items()
                 if (name != "ethereum" and 
                     data.get("tps", 0) > 0 and 
