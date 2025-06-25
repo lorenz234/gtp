@@ -118,36 +118,41 @@ class RedisSSEServer:
         except Exception as e:
             logger.error(f"Error cleaning up 24hr history: {str(e)}")
     
-    async def store_ath_history(self, tps_value: float, timestamp: str, chain_breakdown: Dict[str, float]):
-        """Store ATH event in history with full context."""
+    async def store_tps_history_entry(self, tps_value: float, timestamp: str, chain_breakdown: Dict[str, float], is_ath: bool = False):
+        """Store TPS history entry with full context (only for ATH or 24hr highs)."""
         try:
             current_timestamp_ms = int(datetime.now().timestamp() * 1000)
             
-            # Create ATH history entry
-            ath_entry = {
+            # Create unified history entry format
+            history_entry = {
                 "tps": str(tps_value),
                 "timestamp": timestamp,
                 "timestamp_ms": str(current_timestamp_ms),
                 "chain_breakdown": json.dumps(chain_breakdown),
                 "total_chains": str(len(chain_breakdown)),
-                "active_chains": str(sum(1 for tps in chain_breakdown.values() if tps > 0))
+                "active_chains": str(sum(1 for tps in chain_breakdown.values() if tps > 0)),
+                "is_ath": str(is_ath)
             }
             
-            # Store in Redis sorted set (timestamp as score for chronological ordering)
+            # Store in ATH history if it's an ATH
+            if is_ath:
+                await self.redis_client.zadd(
+                    REDIS_KEY_ATH_HISTORY,
+                    {json.dumps(history_entry): current_timestamp_ms}
+                )
+            
+            # Always store in 24h history (whether ATH or just 24hr high)
             await self.redis_client.zadd(
-                REDIS_KEY_ATH_HISTORY,
-                {json.dumps(ath_entry): current_timestamp_ms}
+                REDIS_KEY_TPS_HISTORY_24H,
+                {json.dumps(history_entry): current_timestamp_ms}
             )
             
-            logger.info(f"💾 Stored ATH history: {tps_value} TPS with {len(chain_breakdown)} chains")
-            
         except Exception as e:
-            logger.error(f"Error storing ATH history: {str(e)}")
+            logger.error(f"Error storing TPS history entry: {str(e)}")
     
-    async def get_chain_tps_breakdown(self, chain_data: Dict[str, Any]):
-        """return current chain TPS breakdown"""
+    async def get_chain_tps_breakdown(self, chain_data: Dict[str, Any]) -> Dict[str, float]:
+        """Return current chain TPS breakdown."""
         try:
-            
             # Extract TPS values for each chain
             breakdown = {}
             for chain_name, data in chain_data.items():
@@ -159,7 +164,7 @@ class RedisSSEServer:
             return breakdown
             
         except Exception as e:
-            logger.error(f"Error storing chain TPS breakdown: {str(e)}")
+            logger.error(f"Error getting chain TPS breakdown: {str(e)}")
             return {}
     
     async def update_tps_records(self, current_tps: float, timestamp: str, chain_data: Dict[str, Any]):
@@ -167,14 +172,20 @@ class RedisSSEServer:
         try:
             current_timestamp_ms = int(datetime.now().timestamp() * 1000)
             
+            # Get current chain breakdown
+            chain_breakdown = await self.get_chain_tps_breakdown(chain_data)
+            
+            is_new_ath = False
+            is_new_24h_high = False
+            should_store = False
+            
             # Check and update ATH
             if current_tps > self.tps_ath:
-                # Get current chain breakdown
-                chain_breakdown = await self.get_chain_tps_breakdown(chain_data)
-            
                 old_ath = self.tps_ath
                 self.tps_ath = current_tps
                 self.tps_ath_timestamp = timestamp
+                is_new_ath = True
+                should_store = True
                 
                 # Store in Redis
                 await self.redis_client.hset(REDIS_KEY_GLOBAL_TPS_ATH, mapping={
@@ -183,49 +194,33 @@ class RedisSSEServer:
                     "timestamp_ms": str(current_timestamp_ms)
                 })
                 
-                # Store in ATH history
-                await self.store_ath_history(current_tps, timestamp, chain_breakdown)
-                
                 logger.info(f"🚀 NEW TPS ALL-TIME HIGH: {current_tps} TPS! (Previous: {old_ath})")
             
-            # Add current TPS to 24hr history (sorted set with timestamp as score)
-            await self.redis_client.zadd(
-                REDIS_KEY_TPS_HISTORY_24H,
-                {str(current_tps): current_timestamp_ms}
-            )
-            
-            # Get 24hr high from sorted set (highest score in last 24hr)
-            cutoff_time = current_timestamp_ms - (24 * 60 * 60 * 1000)  # 24 hours ago
-            
-            # Get the highest TPS value from the last 24 hours
-            recent_entries = await self.redis_client.zrevrangebyscore(
-                REDIS_KEY_TPS_HISTORY_24H,
-                current_timestamp_ms,
-                cutoff_time,
-                start=0,
-                num=1,
-                withscores=True
-            )
-            
-            if recent_entries:
-                highest_24h_tps = float(recent_entries[0][0])
-                highest_24h_timestamp_ms = int(recent_entries[0][1])
+            # Check if it's a new 24hr high (only if not already ATH)
+            if not is_new_ath and current_tps > self.tps_24h_high:
+                is_new_24h_high = True
+                should_store = True
                 
-                # Check if this is a new 24hr high
-                if highest_24h_tps > self.tps_24h_high:
-                    self.tps_24h_high = highest_24h_tps
-                    self.tps_24h_high_timestamp = datetime.fromtimestamp(
-                        highest_24h_timestamp_ms / 1000
-                    ).isoformat()
-                    
-                    # Store in Redis
-                    await self.redis_client.hset(REDIS_KEY_GLOBAL_TPS_24H, mapping={
-                        "value": str(highest_24h_tps),
-                        "timestamp": self.tps_24h_high_timestamp,
-                        "timestamp_ms": str(highest_24h_timestamp_ms)
-                    })
-                    
-                    logger.info(f"📊 NEW 24HR TPS HIGH: {highest_24h_tps} TPS!")
+                self.tps_24h_high = current_tps
+                self.tps_24h_high_timestamp = timestamp
+                
+                # Store in Redis
+                await self.redis_client.hset(REDIS_KEY_GLOBAL_TPS_24H, mapping={
+                    "value": str(current_tps),
+                    "timestamp": timestamp,
+                    "timestamp_ms": str(current_timestamp_ms)
+                })
+                
+                logger.info(f"📊 NEW 24HR TPS HIGH: {current_tps} TPS!")
+            
+            # Only store in history if it's a new ATH or new 24hr high
+            if should_store:
+                await self.store_tps_history_entry(current_tps, timestamp, chain_breakdown, is_new_ath)
+                
+                if is_new_ath:
+                    logger.info(f"💾 Stored ATH history: {current_tps} TPS with {len(chain_breakdown)} chains")
+                elif is_new_24h_high:
+                    logger.info(f"💾 Stored 24hr high history: {current_tps} TPS with {len(chain_breakdown)} chains")
             
             # Clean up old entries periodically
             if current_timestamp_ms % 60000 == 0:  # Every minute
@@ -258,7 +253,8 @@ class RedisSSEServer:
                         "timestamp_ms": int(entry_data.get("timestamp_ms", 0)),
                         "chain_breakdown": chain_breakdown,
                         "total_chains": int(entry_data.get("total_chains", 0)),
-                        "active_chains": int(entry_data.get("active_chains", 0))
+                        "active_chains": int(entry_data.get("active_chains", 0)),
+                        "is_ath": entry_data.get("is_ath", "True") == "True"
                     }
                     
                     ath_history.append(ath_record)
