@@ -6,9 +6,6 @@ from src.main_config import get_main_config
 from src.misc.helper_functions import api_get_call, return_projects_to_load, check_projects_to_load, get_df_kpis, upsert_to_kpis, get_missing_days_kpis, send_discord_message
 from src.misc.helper_functions import print_init, print_load, print_extract
 
-##ToDos: 
-# Add logs (query execution, execution fails, etc)
-
 class AdapterDefillama(AbstractAdapter):
     """
     adapter_params require the following fields
@@ -46,6 +43,9 @@ class AdapterDefillama(AbstractAdapter):
 
     ## ----------------- Helper functions --------------------
 
+    ## TODO: 
+    ## - Remove circle and tether fees partially (not all is on Ethereum). See notebook!
+    ## - Remove network fees (i.e. Arbitrum REV)
     def extract_app_fees(self, projects_to_load):
         df_main = pd.DataFrame()
         for chain in projects_to_load:
