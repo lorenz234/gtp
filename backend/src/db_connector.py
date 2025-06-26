@@ -1288,7 +1288,7 @@ class DbConnector:
                                 SELECT 
                                         cl.address,
                                         cl.origin_key,
-                                        bl.contract_name as contract_name,
+                                        UPPER(LEFT(bl.contract_name , 1)) || SUBSTRING(bl.contract_name FROM 2) as contract_name,
                                         oss.display_name as project_name,
                                         {sub_main_string}
                                         sum(gas_fees_eth) as gas_fees_eth,
@@ -1363,7 +1363,7 @@ class DbConnector:
                                 SELECT
                                         cl.address,
                                         cl.origin_key,
-                                        bl.contract_name as contract_name,
+                                        UPPER(LEFT(bl.contract_name , 1)) || SUBSTRING(bl.contract_name FROM 2) as contract_name,
                                         oss.display_name as project_name,
                                         bl.usage_category as sub_category_key,
                                         bcm.category_name as sub_category_name,
@@ -1468,7 +1468,7 @@ class DbConnector:
                                 SELECT 
                                         cl.address,
                                         cl.origin_key,
-                                        bl.contract_name as contract_name,
+                                        UPPER(LEFT(bl.contract_name , 1)) || SUBSTRING(bl.contract_name FROM 2) as contract_name,
                                         oss.display_name as project_name,
                                         {sub_main_string}
                                         sum(gas_fees_eth) as gas_fees_eth,
@@ -2053,7 +2053,7 @@ class DbConnector:
                                 cl.address, 
                                 cl.origin_key, 
                                 syc.caip2 as chain_id,
-                                lab.contract_name as name,
+                                UPPER(LEFT(lab.contract_name , 1)) || SUBSTRING(lab.contract_name FROM 2) as name,
                                 lab.owner_project,
                                 oss.display_name as owner_project_clear,
                                 lab.usage_category,
@@ -2094,7 +2094,7 @@ class DbConnector:
                                 cl.address, 
                                 cl.origin_key, 
                                 syc.caip2 as chain_id,
-                                lab.contract_name as name,
+                                UPPER(LEFT(lab.contract_name , 1)) || SUBSTRING(lab.contract_name FROM 2) as name,
                                 lab.owner_project,
                                 lab.usage_category,
                                 lab.deployment_tx,
