@@ -1,0 +1,21 @@
+{#
+    A query to get the top main categories from the blockspace_fact_category_level table by txcount.
+
+    Parameters:
+    - days: default = 30; The time interval (in days) to consider for data extraction.
+    - origin_key: The origin_key to filter the data.
+    - limit: The maximum number of categories to return (default is 2).
+#}
+
+{% set days = days | default(30) %}
+{% set limit = limit | default(2) %}
+
+SELECT main_category_id
+FROM public.blockspace_fact_category_level
+left join oli_categories using (category_id)
+where origin_key = '{{origin_key}}'
+    and date > current_date - interval '{{ days }} days'
+    and category_id not in ('total_usage', 'unlabeled', 'native_transfer')
+group by 1
+order by sum(txcount) desc
+limit {{ limit }}

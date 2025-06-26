@@ -1,0 +1,19 @@
+{#
+    A query to get the top apps by txcount
+
+    Parameters:
+    - days: default = 30; The time interval (in days) to consider for data extraction.
+    - origin_key: The origin_key to filter the data.
+    - limit: The maximum number of apps to return (default is 2).
+#}
+
+{% set days = days | default(30) %}
+{% set limit = limit | default(2) %}
+
+SELECT owner_project
+FROM public.vw_apps_contract_level_materialized
+where origin_key = '{{origin_key}}'
+    and date > current_date - interval '{{days}} days'
+group by 1
+order by sum(txcount) desc
+limit {{ limit }}
