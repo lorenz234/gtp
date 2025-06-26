@@ -2694,6 +2694,7 @@ class JSONCreation():
             
             query_parameters = {
                 "origin_key": l2,
+                "days": 7,
                 "limit": 5
             }
             top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", query_parameters, return_df=True)
