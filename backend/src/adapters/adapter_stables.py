@@ -98,7 +98,26 @@ class AdapterStablecoinSupply(AbstractAdapter):
         return df
     
     def load(self, df:pd.DataFrame):
-        """Load processed data into the database"""
+        """Load processed data into the database with validation to prevent corruption"""
+        
+        # CRITICAL VALIDATION: Check for mismatched metric_keys to prevent data corruption
+        if not df.empty:
+            if 'metric_key' in df.index.names:
+                metric_keys = df.index.get_level_values('metric_key').unique()
+            elif 'metric_key' in df.columns:
+                metric_keys = df['metric_key'].unique()
+            else:
+                metric_keys = []
+            
+            # Validate that block data doesn't go to fact_stables
+            if 'first_block_of_day' in metric_keys and self.load_type not in ['block_data', 'total_supply']:
+                raise ValueError(f"CRITICAL ERROR: Attempting to load first_block_of_day data with load_type='{self.load_type}'. This would corrupt fact_stables!")
+            
+            # Validate that stables data doesn't go to fact_kpis
+            stables_metrics = ['supply_bridged', 'supply_direct', 'locked_supply', 'supply_bridged_exceptions']
+            if any(metric in metric_keys for metric in stables_metrics) and self.load_type in ['block_data', 'total_supply']:
+                raise ValueError(f"CRITICAL ERROR: Attempting to load stables data with load_type='{self.load_type}'. This would corrupt fact_kpis!")
+        
         if self.load_type == 'block_data' or self.load_type == 'total_supply':
             tbl_name = 'fact_kpis'
         else:
@@ -438,7 +457,10 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     # If col index in df_main, drop it
                     if 'index' in df_chain.columns:
                         df_chain.drop(columns=['index'], inplace=True)
-                    self.load(df_chain)
+                    
+                    # CRITICAL FIX: Explicitly load block data to fact_kpis to prevent corruption
+                    upserted = self.db_connector.upsert_table('fact_kpis', df_chain)
+                    print_load(self.name, upserted, 'fact_kpis')
 
                 df_main = pd.concat([df_main, df_chain])
         

@@ -289,10 +289,10 @@ def verify_chain_config(chain_name):
 
 if __name__ == "__main__":
     # CONFIGURATION - Modify these settings as needed
-    chains_to_test = ['worldchain']  # Chains to test: ['metis', 'taiko', 'mantle'] or None for all
+    chains_to_test = ['scroll']  # Chains to test: ['metis', 'taiko', 'mantle'] or None for all
     
     # HISTORICAL DATA LOADING - Set start_date to load full history
-    start_date = "2024-10-12"  # Format: "YYYY-MM-DD" - Set to None for testing mode
+    start_date = "2023-10-10"  # Format: "YYYY-MM-DD" - Set to None for testing mode
     load_full_history = True   # Set to True to load historical data, False for testing
     
     print("🧪 Testing Stablecoin Configuration")
