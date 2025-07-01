@@ -207,6 +207,8 @@ class RedisSSEServer:
             if current_24h_history:
                 last_entry = json.loads(current_24h_history[0][0])
                 last_tps = float(last_entry.get("tps", 0))
+            else:                
+                last_tps = 0
             
             if last_tps > current_tps:
                 high_24h = last_tps
