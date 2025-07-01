@@ -297,10 +297,29 @@ class RedisSSEServer:
             await self.redis_client.close()
     
     async def _get_all_chains(self) -> List[str]:
-        """Get all chain names from Redis."""
+        """Get all chain names from Redis using SCAN."""
         try:
-            keys = await self.redis_client.keys("chain:*")
-            return [key.replace("chain:", "") for key in keys]
+            chains = []
+            cursor = 0
+            
+            while True:
+                cursor, keys = await self.redis_client.scan(
+                    cursor=cursor, 
+                    match="chain:*", 
+                    count=100
+                )
+                
+                for key in keys:
+                    if isinstance(key, bytes):
+                        key = key.decode('utf-8')
+                    chain_name = key.replace("chain:", "")
+                    chains.append(chain_name)
+                
+                if cursor == 0:
+                    break
+            
+            return chains
+            
         except Exception as e:
             logger.error(f"Error getting chain keys: {str(e)}")
             return []
