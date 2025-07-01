@@ -186,7 +186,6 @@ class RedisSSEServer:
             chain_breakdown = self._extract_chain_breakdown(chain_data)
             
             is_new_ath = current_tps > self.tps_ath
-            is_new_24h_high = not is_new_ath and current_tps > self.tps_24h_high
             
             if is_new_ath:
                 old_ath = self.tps_ath
@@ -201,33 +200,44 @@ class RedisSSEServer:
                 
                 logger.info(f"🚀 NEW TPS ALL-TIME HIGH: {current_tps} TPS! (Previous: {old_ath})")
             
-            elif is_new_24h_high:
-                self.tps_24h_high = current_tps
-                self.tps_24h_high_timestamp = timestamp
-                
-                await self.redis_client.hset(RedisKeys.GLOBAL_TPS_24H, mapping={
-                    "value": str(current_tps),
-                    "timestamp": timestamp,
-                    "timestamp_ms": str(current_timestamp_ms)
-                })
-                
-                logger.info(f"📊 NEW 24HR TPS HIGH: {current_tps} TPS!")
+            ## load current 24h high from Redis 24h history
+            current_24h_history = await self.redis_client.zrevrange(
+                RedisKeys.TPS_HISTORY_24H, 0, 0, withscores=True
+            )
+            if current_24h_history:
+                last_entry = json.loads(current_24h_history[0][0])
+                last_tps = float(last_entry.get("tps", 0))
             
-            # Store record if it's significant
-            if is_new_ath or is_new_24h_high:
-                record = TPSRecord(
-                    value=current_tps,
-                    timestamp=timestamp,
-                    timestamp_ms=current_timestamp_ms,
-                    chain_breakdown=chain_breakdown,
-                    total_chains=len(chain_data),
-                    active_chains=len(chain_breakdown),
-                    is_ath=is_new_ath
-                )
-                await self._store_tps_record(record)
+            if last_tps > current_tps:
+                high_24h = last_tps
+                timestamp_24h = last_entry.get("timestamp", timestamp)
+            else:
+                high_24h = current_tps
+                timestamp_24h = timestamp
+                logger.info(f"📊 NEW 24HR TPS HIGH: {current_tps} TPS!")
                 
-                record_type = "ATH" if is_new_ath else "24hr high"
-                logger.info(f"💾 Stored {record_type} history: {current_tps} TPS with {len(chain_breakdown)} chains")
+            self.tps_24h_high = high_24h
+            self.tps_24h_high_timestamp = timestamp_24h
+            
+            await self.redis_client.hset(RedisKeys.GLOBAL_TPS_24H, mapping={
+                "value": str(current_tps),
+                "timestamp": timestamp,
+                "timestamp_ms": str(current_timestamp_ms)
+            })
+            
+            record = TPSRecord(
+                value=current_tps,
+                timestamp=timestamp,
+                timestamp_ms=current_timestamp_ms,
+                chain_breakdown=chain_breakdown,
+                total_chains=len(chain_data),
+                active_chains=len(chain_breakdown),
+                is_ath=is_new_ath
+            )
+            await self._store_tps_record(record)
+            
+            record_type = "ATH" if is_new_ath else "New global TPS"
+            logger.info(f"💾 Stored {record_type} history: {current_tps} TPS with {len(chain_breakdown)} chains")
             
             # Periodic cleanup
             if current_timestamp_ms % self.config.cleanup_interval_ms == 0:
