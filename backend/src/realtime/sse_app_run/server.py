@@ -567,7 +567,6 @@ class RedisSSEServer:
             for client in self.connected_clients:
                 try:
                     await client.write(sse_message.encode('utf-8'))
-                    await client.drain()
                 except (ConnectionResetError, ConnectionAbortedError, OSError):  # OPTIMIZED: Added OSError
                     disconnected_clients.add(client)
                 except Exception as e:
@@ -633,7 +632,6 @@ class RedisSSEServer:
                 await asyncio.sleep(self.config.heartbeat_interval)
                 try:
                     await response.write(b": heartbeat\n\n")
-                    await response.drain()
                 except Exception:
                     logger.info(f"Client {client_ip} disconnected during heartbeat")
                     break
