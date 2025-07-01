@@ -894,7 +894,7 @@ class DbConnector:
         # it only aggregates transactions that are NOT native transfers, system transactionsm contract creations, or inscriptions. These are aggregated separately and output is stored directly in the fact_sub_category_level table
         def get_blockspace_contracts(self, chain, days):
                 ## Mantle and Metis store fees in own tokens: hence different logic for gas_fees_eth and gas_fees_usd
-                if chain in ['mantle', 'metis']:
+                if chain in ['mantle', 'metis', 'celo']:
                         additional_cte = f"""
                                 , token_price AS (
                                         SELECT "date", value
@@ -967,7 +967,7 @@ class DbConnector:
         # This function is used to get the native_transfer daily aggregate per chain. The data will be loaded into fact_sub_category_level table        
         def get_blockspace_native_transfers(self, chain, days):
                 ## Mantle and Metis store fees in own tokens: hence different logic for gas_fees_eth and gas_fees_usd
-                if chain in ['mantle', 'metis']:
+                if chain in ['mantle', 'metis', 'celo']:
                         additional_cte = f"""
                                 , token_price AS (
                                         SELECT "date", value
@@ -1016,7 +1016,7 @@ class DbConnector:
          # This function is used to get the inscriptions per chain. The data will be loaded into fact_sub_category_level table        
         def get_blockspace_inscriptions(self, chain, days):
                 ## Mantle and Metis stores fees in own token: hence different logic for gas_fees_eth and gas_fees_usd
-                if chain in ['mantle', 'metis']:
+                if chain in ['mantle', 'metis', 'celo']:
                         additional_cte = f"""
                                 , token_price AS (
                                         SELECT "date", value
@@ -1070,7 +1070,7 @@ class DbConnector:
         # This function is used to get the contract_deployment daily aggregate per chain. The data will be loaded into fact_sub_category_level table
         def get_blockspace_contract_deplyments(self, chain, days):
                 ## Mantle and Metis store fees in own token: hence different logic for gas_fees_eth and gas_fees_usd
-                if chain in ['mantle', 'metis']:
+                if chain in ['mantle', 'metis', 'celo']:
                         additional_cte = f"""
                                 , token_price AS (
                                         SELECT "date", value
@@ -1125,7 +1125,7 @@ class DbConnector:
         # This function is used to get the total blockspace fees per day for a specific chain. The data will be loaded into fact_sub_category_level table.
         def get_blockspace_total(self, chain, days):
                 ## Mantle and Metis store fees in own tokens: hence different logic for gas_fees_eth and gas_fees_usd
-                if chain in ['mantle', 'metis']:
+                if chain in ['mantle', 'metis', 'celo']:
                         additional_cte = f"""
                                 , token_price AS (
                                         SELECT "date", value
