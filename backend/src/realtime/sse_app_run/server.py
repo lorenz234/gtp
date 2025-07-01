@@ -201,14 +201,28 @@ class RedisSSEServer:
                 logger.info(f"🚀 NEW TPS ALL-TIME HIGH: {current_tps} TPS! (Previous: {old_ath})")
             
             ## load current 24h high from Redis 24h history
-            current_24h_history = await self.redis_client.zrevrange(
-                RedisKeys.TPS_HISTORY_24H, 0, 0, withscores=True
-            )
-            if current_24h_history:
-                last_entry = json.loads(current_24h_history[0][0])
-                last_tps = float(last_entry.get("tps", 0))
-            else:                
+            ## TODO: seems like a lot of overhead / unnecessary calls to Redis. Maybe we can optimize this
+            try:
+                current_24h_history = await self.redis_client.zrevrange(
+                    RedisKeys.TPS_HISTORY_24H, 0, 0, withscores=True
+                )
+                
+                if current_24h_history:
+                    entry_str = current_24h_history[0][0]
+                    last_entry = json.loads(entry_str)
+
+                    tps_str = last_entry.get("tps", "0")
+                    try:
+                        last_tps = float(tps_str)
+                    except ValueError:
+                        last_tps = 0
+                else:
+                    last_tps = 0
+
+            except Exception as e:
+                # Optional: log the error here
                 last_tps = 0
+            logger.info(f"Last 24h TPS: {last_tps} (from Redis history)")
             
             if last_tps > current_tps:
                 high_24h = last_tps
