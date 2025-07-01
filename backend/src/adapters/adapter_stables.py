@@ -964,8 +964,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         5. Also calculates a total across all stablecoins for each chain
         """
 
-        if days is not None:
-            self.days = 9999
+        days = days if days is not None else 9999
         
         # Get list of origin_keys that are present in stables_config
         configured_origin_keys = list(self.stables_mapping.keys())
