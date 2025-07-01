@@ -288,6 +288,17 @@ stables_metadata = {
             "ethereum": "0x7712c34205737192402172409a8F7ccef8aA2AEc", 
         }
     },
+    "usdb": {
+        "name": "USDB",
+        "symbol": "USDB",
+        "decimals": 18,
+        "coingecko_id": "usdb",
+        "fiat": "usd",
+        "logo": "https://assets.coingecko.com/coins/images/35595/large/65c67f0ebf2f6a1bd0feb13c_usdb-icon-yellow.png?1709255427",
+        "addresses": {
+            "blast": "0x4300000000000000000000000000000000000003",
+        }
+    }
 }
 
 
@@ -648,44 +659,44 @@ stables_mapping = {
             }
         }
     },
-    # "ink": {
-    #     "bridged": {
-    #         "ethereum": [
-    #             "0x88FF1e5b602916615391F55854588EFcBB7663f0",
-    #         ]
-    #     },
-    #     "direct": {
-    #         "usdt0": {
-    #             "token_address": "0x0200C29006150606B650577BBE7B6248F58470c1",
-    #             "method_name":   "totalSupply",
-    #         },
-    #     },
-    # },
-    # "blast": {
-    #     "bridged": {
-    #         "ethereum": [
-    #             # Main Blast L1StandardBridge escrow (holds the vast majority)
-    #             "0x697402166Fbf2F22E970df8a6486Ef171dbfc524",
-    #             # Legacy / ETH-specific escrow (still retains ETH + stETH)
-    #             "0x98078db053902644191f93988341E31289E1C8FE",
-    #             # Older stETH escrow (small residual balance but include for
-    #             # completeness so nothing slips through the cracks)
-    #             "0x5F6AE08B8AeB7078cf2F96AFb089D7c9f51DA47d",
-    #         ]
-    #     },
-    #     "direct": {
-    #         # Blast’s own yield-bearing stablecoin
-    #         "usdb": {
-    #             "token_address": "0x4300000000000000000000000000000000000003",
-    #             "method_name": "totalSupply",
-    #         },
-    #         # Ethena’s synthetic dollar (native deployment)
-    #         "ethena-usde": {
-    #             "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
-    #             "method_name": "totalSupply",
-    #         },
-    #     }
-    # },
+    "ink": {
+        "bridged": {
+            "ethereum": [
+                "0x88FF1e5b602916615391F55854588EFcBB7663f0",
+            ]
+        },
+        "direct": {
+            "tether": {
+                "token_address": "0x0200C29006150606B650577BBE7B6248F58470c1",
+                "method_name":   "totalSupply",
+            },
+        },
+    },
+    "blast": {
+        "bridged": {
+            "ethereum": [
+                # Main Blast L1StandardBridge escrow (holds the vast majority)
+                "0x697402166Fbf2F22E970df8a6486Ef171dbfc524",
+                # Legacy / ETH-specific escrow (still retains ETH + stETH)
+                "0x98078db053902644191f93988341E31289E1C8FE",
+                # Older stETH escrow (small residual balance but include for
+                # completeness so nothing slips through the cracks)
+                "0x5F6AE08B8AeB7078cf2F96AFb089D7c9f51DA47d",
+            ]
+        },
+        "direct": {
+            # Blast’s own yield-bearing stablecoin
+            "usdb": {
+                "token_address": "0x4300000000000000000000000000000000000003",
+                "method_name": "totalSupply",
+            },
+            # Ethena’s synthetic dollar (native deployment)
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply",
+            },
+        }
+    },
     "gravity": {
         "bridged": {
             "ethereum": [
@@ -701,7 +712,7 @@ stables_mapping = {
             ]
         },
         "direct": {
-            "bridged-usd-coin-linea": {
+            "usdc": {
                 "token_address": "0x176211869cA2b568f2A7D4EE941E073a821EE1ff",
                 "method_name":   "totalSupply",
             },
@@ -744,11 +755,7 @@ stables_mapping = {
             "ethena-usde": {
                 "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
                 "method_name": "totalSupply",
-            },
-            "ethena-staked-usde": {
-                "token_address": "0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2",
-                "method_name": "totalSupply",
-            },
+            }
         },
     },
     "scroll": {
@@ -774,3 +781,173 @@ stables_mapping = {
         }
     },
 }
+
+
+    # "real": {
+    #     "bridged": {
+    #         "ethereum": [
+    #             # Canonical L1StandardBridge escrow (holds USDC, USDT, WBTC, …)
+    #             "0xfC89B875970122E24C6C5ADd4Dea139443943ea7",
+    #         ]
+    #     },
+    #     "direct": {
+    #         "usdc": {   # Circle-bridged native USDC contract on Real
+    #             "token_address": "0xc518A88c67CECA8B3f24c4562CB71deeB2AF86B7",
+    #             "method_name": "totalSupply",
+    #         },
+    #     }
+    # },
+    # "optimism": {
+    #     "bridged": {
+    #         "ethereum": [
+    #             # Canonical Optimism L1StandardBridge escrow
+    #             "0x99C9fC46F92E8a1C0dEc1b1747d010903E884bE1",
+
+    #             # DAI / MakerDAO-specific L1 escrow
+    #             "0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65",
+    #         ]
+    #     },
+    #     "direct": {
+    #         "usdc": {
+    #             "token_address": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    #             "method_name": "totalSupply",
+    #         },
+    #         "tether": {
+    #             "token_address": "0x01bFF41798a0BcF287b996046Ca68b395DbC1071",
+    #             "method_name": "totalSupply",
+    #         },
+    #         "frax": {
+    #             "token_address": "0x2E3D870790dC77A83DD1d18184Acc7439A53f475",
+    #             "method_name": "totalSupply",
+    #         },
+    #         "ethena-usde": {
+    #             "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+    #             "method_name": "totalSupply",
+    #         },
+    #     },
+    #     "locked_supply": {
+    #         "usdc": {
+    #             "optimism": [
+    #                 "0xe0F9978b907853F354d79188A3dEfbD41978af62",
+    #                 "0x876664f0c9Ff24D1aa355Ce9f1680AE1A5bf36fB",
+    #             ]
+    #         }
+    #     }
+    # },
+
+    # "base": {
+    #     "bridged": {
+    #         "ethereum": [
+    #             # Official Base canonical bridge
+    #             "0x3154Cf16ccdb4C6d922629664174b904d80F2C35",
+    #             # Stable-only bridge used by sUSDS / USDS
+    #             "0x7F311a4D48377030bD810395f4CCfC03bdbe9Ef3",
+    #         ],
+    #     },
+    #     "direct": {
+    #         # Native USDC (Circle’s contract on Base)
+    #         "usdc": {
+    #             "token_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    #             "method_name":   "totalSupply",
+    #         },
+    #         # Euro-denominated stable
+    #         "eurc": {
+    #             "token_address": "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42",
+    #             "method_name":   "totalSupply",
+    #         },
+    #         # Ethena’s over-collateralised dollar
+    #         "usde": {
+    #             "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+    #             "method_name":   "totalSupply",
+    #         },
+    #         # Staked USDe wrapper
+    #         "susde": {
+    #             "token_address": "0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2",
+    #             "method_name":   "totalSupply",
+    #         },
+    #         # Resolv’s fully-backed on-chain dollar
+    #         "usr": {
+    #             "token_address": "0x35E5dB674D8e93a03d814FA0ADa70731efe8a4b9",
+    #             "method_name":   "totalSupply",
+    #         },
+    #     }
+    # },
+    # "zora": {
+    #     "bridged": {
+    #         "ethereum": [
+    #             "0x1a0ad011913A150f69f6A19DF447A0CfD9551054",
+    #             "0x3e2Ea9B92B7E48A52296fD261dc26fd995284631",
+    #         ],
+    #     }
+    # },
+    # "starknet": {
+    #     "bridged": {
+    #         "ethereum": [
+    #             "0x0437465dfb5B79726e35F08559B0cBea55bb585C",
+    #             "0xF3F62F23dF9C1D2C7C63D9ea6B90E8d24c7E3DF5",
+    #             "0xF6080D9fbEEbcd44D89aFfBFd42F098cbFf92816",
+    #             "0xbb3400F107804DFB482565FF1Ec8D8aE66747605",
+    #             "0x66ba83ba3D3AD296424a2258145d9910E9E40B7C",
+    #         ],
+    #     },
+    #     "direct": {
+    #         "starknet": [
+    #             # Spiko EU T-Bills MMF  (EUTBL)
+    #             "0x04f5e0de717daa6aa8de63b1bf2e8d7823ec5b21a88461b1519d9dbc956fb7f2",
+    #             # Spiko US T-Bills MMF  (USTBL)
+    #             "0x020ff2f6021ada9edbceaf31b96f9f67b746662a6e6b2bc9d30c0d3e290a71f6",
+    #         ],
+    #     }
+    # },
+    # "loopring": {
+    #     "bridged": {
+    #         "ethereum": [
+    #             # Primary Loopring bridge (covers most stables: DAI, USDC,
+    #             "0x674bdf20A0F284D710BC40872100128e2d66Bd3f",
+    #             "0x7D3D221A8D8AbDd868E8e88811fFaF033e68E108",
+    #             "0xD97D09f3bd931a14382ac60f156C1285a56Bb51B",
+    #         ],
+    #     },
+    # },
+    # "orderly": {
+    #     "bridged": {
+    #         "ethereum": [
+    #             # USDC (canonical, bridged into Orderly)
+    #             "0x816f722424B49Cf1275cc86DA9840Fbd5a6167e9",
+    #         ],
+    #         "arbitrum": [
+    #             "0x816f722424B49Cf1275cc86DA9840Fbd5a6167e9",
+    #         ],
+    #         "optimism": [
+    #             "0x816f722424B49Cf1275cc86DA9840Fbd5a6167e9",
+    #         ],
+    #         "base": [
+    #             "0x816f722424B49Cf1275cc86DA9840Fbd5a6167e9",
+    #         ],
+    #         "mantle": [
+    #             "0x816f722424B49Cf1275cc86DA9840Fbd5a6167e9",
+    #         ],
+    #     }
+    # },
+
+
+    #"imx": {},
+    #"rhino": {},
+    #"derive": {},
+    #https://raw.githubusercontent.com/l2beat/l2beat/refs/heads/main/packages/config/src/tvs/json/fraxtal.json
+
+# Immutable X (imx)
+# Polygon zkEVM (polygon_zkevm)
+# Base (base)
+# Zora (zora)
+# Gitcoin PGN (gitcoin_pgn)
+# Starknet (starknet)
+# rhino.fi (rhino)
+# Optimism (optimism)
+# Loopring (loopring)
+
+
+# Reload Ink
+# Check Linea
+
+#https://github.com/l2beat/l2beat/tree/main/packages/config/src/tvs/json
