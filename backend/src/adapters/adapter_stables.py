@@ -1,8 +1,10 @@
 import time
+import random
 import pandas as pd
 from web3 import Web3
 import datetime
 from web3.middleware import ExtraDataToPOAMiddleware
+from requests.exceptions import HTTPError
 
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.helper_functions import print_init, print_load, print_extract
@@ -67,6 +69,83 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 print(f"Failed to connect to {chain} using RPC URL {rpc_url}: {e}")
         
         print_init(self.name, self.adapter_params)
+
+    def retry_balance_call(self, func, *args, max_retries=8, initial_wait=1.0, **kwargs):
+        """
+        Retry a balance call with exponential backoff for handling rate limits and network issues.
+        
+        Args:
+            func: Function to call (e.g., token_contract.functions.balanceOf(...).call)
+            *args: Arguments to pass to the function
+            max_retries: Maximum number of retry attempts
+            initial_wait: Initial wait time in seconds
+            **kwargs: Keyword arguments to pass to the function
+            
+        Returns:
+            Result of the function call
+            
+        Raises:
+            Exception: If all retries are exhausted
+        """
+        retries = 0
+        wait_time = initial_wait
+        
+        while retries < max_retries:
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                error_str = str(e).lower()
+                
+                # Check if it's a rate limiting error (429)
+                is_rate_limit = (
+                    "429" in error_str or 
+                    "too many requests" in error_str or 
+                    "rate limit" in error_str
+                )
+                
+                # Check if it's a network/connection error
+                is_network_error = (
+                    "connection" in error_str or
+                    "timeout" in error_str or
+                    "network" in error_str
+                )
+                
+                # Check if it's a contract execution error (don't retry these)
+                is_contract_error = (
+                    "execution reverted" in error_str or
+                    "could not decode contract function call" in error_str
+                )
+                
+                # Don't retry contract execution errors
+                if is_contract_error:
+                    raise e
+                
+                # Retry for rate limits and network errors
+                if is_rate_limit or is_network_error:
+                    retries += 1
+                    
+                    # Extract Retry-After header if available (for HTTP 429 errors)
+                    retry_after = None
+                    if hasattr(e, 'response') and hasattr(e.response, 'headers'):
+                        retry_after = e.response.headers.get("Retry-After")
+                    
+                    if retry_after and retry_after.isdigit():
+                        wait_time = int(retry_after) + random.uniform(0, 1)
+                    else:
+                        # Exponential backoff with jitter
+                        wait_time = min((2 ** retries) * initial_wait + random.uniform(0, 1), 60)
+                    
+                    if retries < max_retries:
+                        print(f"Rate limit/network error detected. Retrying ({retries}/{max_retries}) in {wait_time:.2f} seconds...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"Max retries ({max_retries}) reached for rate limiting/network errors")
+                        raise e
+                else:
+                    # For other errors, don't retry
+                    raise e
+        
+        raise Exception(f"Failed after {max_retries} retries")
 
     def extract(self, load_params:dict, update=False):
         """
@@ -606,10 +685,13 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         # Sum balances across all bridge addresses
                         for bridge_address in bridge_addresses:
                             try:
-                                # Call balanceOf function
-                                balance = token_contract.functions.balanceOf(
-                                    Web3.to_checksum_address(bridge_address)
-                                ).call(block_identifier=int(block))
+                                # Call balanceOf function with retry logic
+                                balance = self.retry_balance_call(
+                                    token_contract.functions.balanceOf(
+                                        Web3.to_checksum_address(bridge_address)
+                                    ).call,
+                                    block_identifier=int(block)
+                                )
                                 
                                 # Convert to proper decimal representation
                                 adjusted_balance = balance / (10 ** decimals)
@@ -747,9 +829,12 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     print(f"...retrieving direct supply for {symbol} at block {block} ({date})")
                     
                     try:
-                        # Call totalSupply function (or custom method name)
+                        # Call totalSupply function (or custom method name) with retry logic
                         supply_func = getattr(token_contract.functions, method_name)
-                        total_supply = supply_func().call(block_identifier=int(block))
+                        total_supply = self.retry_balance_call(
+                            supply_func().call,
+                            block_identifier=int(block)
+                        )
                         
                         # Convert to proper decimal representation
                         adjusted_supply = total_supply / (10 ** decimals)
@@ -902,10 +987,13 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         # Check balances for defined stablecoin in locked contract
                         for address in locked_supply_config[stablecoin_id][source_chain]:
                             try:
-                                # Call balanceOf function
-                                balance = token_contract.functions.balanceOf(
-                                    Web3.to_checksum_address(address)
-                                ).call(block_identifier=int(block))
+                                # Call balanceOf function with retry logic
+                                balance = self.retry_balance_call(
+                                    token_contract.functions.balanceOf(
+                                        Web3.to_checksum_address(address)
+                                    ).call,
+                                    block_identifier=int(block)
+                                )
                                 
                                 # Convert to proper decimal representation
                                 adjusted_balance = balance / (10 ** decimals)

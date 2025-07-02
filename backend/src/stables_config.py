@@ -288,6 +288,17 @@ stables_metadata = {
             "ethereum": "0x7712c34205737192402172409a8F7ccef8aA2AEc", 
         }
     },
+    "usdb": {
+        "name": "USDB",
+        "symbol": "USDB",
+        "decimals": 18,
+        "coingecko_id": "usdb",
+        "fiat": "usd",
+        "logo": "https://assets.coingecko.com/coins/images/35595/large/65c67f0ebf2f6a1bd0feb13c_usdb-icon-yellow.png?1709255427",
+        "addresses": {
+            "blast": "0x4300000000000000000000000000000000000003",
+        }
+    }
 }
 
 
@@ -648,44 +659,44 @@ stables_mapping = {
             }
         }
     },
-    # "ink": {
-    #     "bridged": {
-    #         "ethereum": [
-    #             "0x88FF1e5b602916615391F55854588EFcBB7663f0",
-    #         ]
-    #     },
-    #     "direct": {
-    #         "usdt0": {
-    #             "token_address": "0x0200C29006150606B650577BBE7B6248F58470c1",
-    #             "method_name":   "totalSupply",
-    #         },
-    #     },
-    # },
-    # "blast": {
-    #     "bridged": {
-    #         "ethereum": [
-    #             # Main Blast L1StandardBridge escrow (holds the vast majority)
-    #             "0x697402166Fbf2F22E970df8a6486Ef171dbfc524",
-    #             # Legacy / ETH-specific escrow (still retains ETH + stETH)
-    #             "0x98078db053902644191f93988341E31289E1C8FE",
-    #             # Older stETH escrow (small residual balance but include for
-    #             # completeness so nothing slips through the cracks)
-    #             "0x5F6AE08B8AeB7078cf2F96AFb089D7c9f51DA47d",
-    #         ]
-    #     },
-    #     "direct": {
-    #         # Blast’s own yield-bearing stablecoin
-    #         "usdb": {
-    #             "token_address": "0x4300000000000000000000000000000000000003",
-    #             "method_name": "totalSupply",
-    #         },
-    #         # Ethena’s synthetic dollar (native deployment)
-    #         "ethena-usde": {
-    #             "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
-    #             "method_name": "totalSupply",
-    #         },
-    #     }
-    # },
+    "ink": {
+        "bridged": {
+            "ethereum": [
+                "0x88FF1e5b602916615391F55854588EFcBB7663f0",
+            ]
+        },
+        "direct": {
+            "tether": {
+                "token_address": "0x0200C29006150606B650577BBE7B6248F58470c1",
+                "method_name":   "totalSupply",
+            },
+        },
+    },
+    "blast": {
+        "bridged": {
+            "ethereum": [
+                # Main Blast L1StandardBridge escrow (holds the vast majority)
+                "0x697402166Fbf2F22E970df8a6486Ef171dbfc524",
+                # Legacy / ETH-specific escrow (still retains ETH + stETH)
+                "0x98078db053902644191f93988341E31289E1C8FE",
+                # Older stETH escrow (small residual balance but include for
+                # completeness so nothing slips through the cracks)
+                "0x5F6AE08B8AeB7078cf2F96AFb089D7c9f51DA47d",
+            ]
+        },
+        "direct": {
+            # Blast’s own yield-bearing stablecoin
+            "usdb": {
+                "token_address": "0x4300000000000000000000000000000000000003",
+                "method_name": "totalSupply",
+            },
+            # Ethena’s synthetic dollar (native deployment)
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply",
+            },
+        }
+    },
     "gravity": {
         "bridged": {
             "ethereum": [
@@ -701,7 +712,7 @@ stables_mapping = {
             ]
         },
         "direct": {
-            "bridged-usd-coin-linea": {
+            "usdc": {
                 "token_address": "0x176211869cA2b568f2A7D4EE941E073a821EE1ff",
                 "method_name":   "totalSupply",
             },
@@ -744,11 +755,7 @@ stables_mapping = {
             "ethena-usde": {
                 "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
                 "method_name": "totalSupply",
-            },
-            "ethena-staked-usde": {
-                "token_address": "0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2",
-                "method_name": "totalSupply",
-            },
+            }
         },
     },
     "scroll": {
