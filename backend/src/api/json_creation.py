@@ -2294,7 +2294,7 @@ class JSONCreation():
             with apps_mat as (
                 SELECT 
                     address,
-                    contract_name as name,
+                    UPPER(LEFT(contract_name , 1)) || SUBSTRING(contract_name FROM 2) as name,
                     main_category_key,
                     sub_category_key,
                     origin_key, 
