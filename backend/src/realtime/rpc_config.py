@@ -68,6 +68,12 @@ rpc_config = {
         "sleeper": 5,
         "calc_fees": True,
     },
+    "swell": {
+        "processors": "evm",
+        "stack": "op_stack",
+        "sleeper": 3,
+        "calc_fees": True,
+    },
     
     ## Nitro/Arbitrum Orbit chains
     "arbitrum": {
@@ -77,7 +83,14 @@ rpc_config = {
         "calc_fees": True,
     },
     
-    ## Others
+    "arbitrum_nova": {
+        "processors": "evm",
+        "stack": "nitro",
+        "sleeper": 3,
+        "calc_fees": True,
+    },
+    
+    ## Elastic chains
     "zksync_era": {
         "processors": "evm",
         "stack": "elastic",
@@ -85,41 +98,36 @@ rpc_config = {
         "calc_fees": False,
     },
     
+    ## Others
     "linea": {
         "processors": "evm",
-        "sleeper": 3,
-        "calc_fees": False,
+        "stack": "basic",
+        "sleeper": 5,
+        "calc_fees": True,
     },
     
     "scroll": {
         "processors": "evm",
-        "sleeper": 3,
-        "calc_fees": False,
+        "stack": "basic",
+        "sleeper": 5,
+        "calc_fees": True,
     },
     
     "taiko": {
         "processors": "evm",
+        "stack": "basic",
         "sleeper": 6,
-        "calc_fees": False,
+        "calc_fees": True,
     },
+    
     "manta": {
         "processors": "evm",
         "sleeper": 3,
         "calc_fees": False,
     },
-    "arbitrum_nova": {
-        "processors": "evm",
-        "sleeper": 3,
-        "calc_fees": False,
-    },
+    
     "zircuit": {
         "processors": "evm",
-        "sleeper": 3,
-        "calc_fees": False,
-    },
-    "swell": {
-        "processors": "evm",
-        "stack": "op_stack",
         "sleeper": 3,
         "calc_fees": False,
     },
