@@ -298,7 +298,7 @@ stables_metadata = {
         "addresses": {
             "blast": "0x4300000000000000000000000000000000000003",
         }
-    }
+    },
 }
 
 
@@ -778,6 +778,70 @@ stables_mapping = {
                 "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
                 "method_name": "totalSupply",
             },
+        }
+    },
+    "zora": {
+        "bridged": {
+            "ethereum": [
+                "0x3e2Ea9B92B7E48A52296fD261dc26fd995284631", # Zora's bridge escrow holding USDC
+            ],
+        }
+    },
+    "polygon_zkevm": {
+        "direct": {
+            "usdc": {
+                "token_address": "0xA8CE8aee21bC2A48a5EF670afCc9274C7bbbC035",
+                "method_name": "totalSupply"
+            },
+            "dai": {
+                "token_address": "0xC5015b9d9161Dca7e18e32f6f25C4aD850731Fd4",
+                "method_name": "totalSupply"
+            },
+            "liquity-usd": {
+                "token_address": "0x01E9A866c361eAd20Ab4e838287DD464dc67A50e",
+                "method_name": "totalSupply"
+            },
+            "pax-dollar": {
+                "token_address": "0x9F171f7d8445a2ab62747C3f3115362a1D51FC50",
+                "method_name": "totalSupply"
+            },
+            "frax": {
+                "token_address": "0xFf8544feD5379D9ffa8D47a74cE6b91e632AC44D",
+                "method_name": "totalSupply"
+            },
+            "tether": {
+                "token_address": "0x1E4a5963aBFD975d8c9021ce480b42188849D41d",
+                "method_name": "totalSupply"
+            }
+        },
+        "bridged": {
+            "ethereum": [
+                "0x4A27aC91c5cD3768F140ECabDe3FC2B2d92eDb98",  # DAI + sDAI
+                "0x70E70e58ed7B1Cec0D8ef7464072ED8A52d755eB"   # USDC
+            ]
+        }
+    },
+    "imx": {
+        "bridged": {
+            "ethereum": [
+                "0x5FDCCA53617f4d2b9134B29090C87D01058e27e9"  # ImmutableX Ethereum escrow contract
+            ]
+        },
+    },
+    "loopring": {
+        "bridged": {
+            "ethereum": [
+                "0x674bdf20A0F284D710BC40872100128e2d66Bd3f",  # Loopring L1 escrow contract for tokens
+                "0x7D3D221A8D8AbDd868E8e88811fFaF033e68E108",  # Old Loopring USDT escrow
+                "0xD97D09f3bd931a14382ac60f156C1285a56Bb51B"   # Old Loopring USDT escrow
+            ]
+        },
+    },
+    "gitcoin_pgn": {
+        "bridged": {
+            "ethereum": [
+                "0xD0204B9527C1bA7bD765Fa5CCD9355d38338272b"
+            ]
         }
     },
 }
