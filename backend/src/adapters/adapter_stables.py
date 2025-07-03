@@ -919,7 +919,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             # Get date of first block of this chain
             # Only needed for chains with direct tokens; bridged-only chains will query all historical data
             first_block_date = None
-            chain_has_direct_tokens = self.stables_mapping[chain].get("direct") is not None and len(self.stables_mapping[chain]["direct"]) > 0
+            chain_has_direct_tokens = self.stables_mapping[chain].get("locked_supply") is not None and len(self.stables_mapping[chain]["locked_supply"]) > 0
             
             if chain_has_direct_tokens:
                 # Chain has direct tokens, so we need its RPC connection for the first block date
