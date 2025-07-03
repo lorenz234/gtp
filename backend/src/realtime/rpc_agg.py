@@ -455,6 +455,7 @@ class RtBackend:
         """Initialize empty chain data structures for all endpoints."""
         for chain_name, config in self.RPC_ENDPOINTS.items():
             self.chain_data[chain_name] = {
+                "display_name": config["name"],
                 "last_block_number": None,
                 "last_block_timestamp": None,
                 "last_tx_count": 0,
@@ -594,6 +595,7 @@ class RtBackend:
         
         publish_data = {
             "timestamp": str(int(time.time() * 1000)),
+            "display_name": chain_data.get("display_name", chain_name),
             "block_number": block_number,
             "tps": round(tps, 1),
             "tx_count": tx_count,
