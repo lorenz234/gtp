@@ -121,7 +121,7 @@ rpc_config = {
         "calc_fees": True,
     },
     
-    ## Elastic chains
+    # ZK Stack chains
     "zksync_era": {
         "name": "ZKsync Era",
         "processors": "evm",
@@ -136,12 +136,13 @@ rpc_config = {
         "sleeper": 3,
         "calc_fees": True,
     },
+    #ZK StacK, Custom Gas
     "sophon": {
         "name": "Sophon",
         "processors": "evm",
         "stack": "zk_stack",
         "sleeper": 3,
-        "calc_fees": True,
+        "calc_fees": False,
     },
     
     ## Others
