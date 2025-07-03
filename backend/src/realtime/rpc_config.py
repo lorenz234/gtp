@@ -125,14 +125,21 @@ rpc_config = {
     "zksync_era": {
         "name": "ZKsync Era",
         "processors": "evm",
-        "stack": "elastic",
+        "stack": "zk_stack",
         "sleeper": 3,
         "calc_fees": True,
     },
     "abstract": {
         "name": "Abstract",
         "processors": "evm",
-        "stack": "elastic",
+        "stack": "zk_stack",
+        "sleeper": 3,
+        "calc_fees": True,
+    },
+    "sophon": {
+        "name": "Sophon",
+        "processors": "evm",
+        "stack": "zk_stack",
         "sleeper": 3,
         "calc_fees": True,
     },
