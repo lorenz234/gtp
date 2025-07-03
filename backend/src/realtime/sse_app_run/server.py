@@ -4,7 +4,6 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Set, Optional
 from dataclasses import dataclass
-from src.realtime.rpc_config import rpc_config
 
 import redis.asyncio as aioredis
 from aiohttp import web
@@ -409,7 +408,7 @@ class RedisSSEServer:
             if not entries:
                 return {
                     "chain_name": chain_name,
-                    "display_name": rpc_config.get(chain_name, {}).get("name", chain_name),
+                    "display_name": chain_name,
                     "tps": 0,
                     "error": "No data available"
                 }
@@ -421,7 +420,7 @@ class RedisSSEServer:
             
             return {
                 "chain_name": chain_name,
-                "display_name": rpc_config.get(chain_name, {}).get("name", chain_name),
+                "display_name": fields.get("display_name", chain_name),
                 "tps": self._safe_float(fields.get("tps", 0)),
                 "timestamp": timestamp,
                 "tx_cost_erc20_transfer": self._safe_float(fields.get("tx_cost_erc20_transfer", 0)),
@@ -433,7 +432,7 @@ class RedisSSEServer:
             logger.error(f"Error getting data for {chain_name}: {str(e)}")
             return {
                 "chain_name": chain_name,
-                "display_name": rpc_config.get(chain_name, {}).get("name", chain_name),
+                "display_name": chain_name,
                 "tps": 0,
                 "error": str(e)
             }
