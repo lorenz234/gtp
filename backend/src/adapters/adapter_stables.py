@@ -580,10 +580,20 @@ class AdapterStablecoinSupply(AbstractAdapter):
             bridge_config = self.stables_mapping[chain]['bridged']
 
             # Get date of first block of this chain
-            if chain not in self.connections:
-                raise ValueError(f"Chain {chain} not connected to RPC, please add RPC connection (assign special_use in sys_rpc_config)")
-            first_block_date = self.get_block_date(self.connections[chain], 1)
-            print(f"First block date for {chain}: {first_block_date}")
+            # Only needed for chains with direct tokens; bridged-only chains will query all historical data
+            first_block_date = None
+            chain_has_direct_tokens = self.stables_mapping[chain].get("direct") is not None and len(self.stables_mapping[chain]["direct"]) > 0
+            
+            if chain_has_direct_tokens:
+                # Chain has direct tokens, so we need its RPC connection for the first block date
+                if chain not in self.connections:
+                    raise ValueError(f"Chain {chain} not connected to RPC, please add RPC connection (assign special_use in sys_rpc_config)")
+                first_block_date = self.get_block_date(self.connections[chain], 1)
+                print(f"First block date for {chain}: {first_block_date}")
+            else:
+                # Chain only has bridged tokens, no need for first block date filtering
+                print(f"Chain {chain} only has bridged tokens, will query all historical data from Ethereum bridges")
+                first_block_date = None
 
             # Process each source chain (usually Ethereum)
             ## TODO: add support for other source chains
@@ -669,7 +679,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     contract_deployed = True
                     for i in range(len(df)-1, -1, -1):  # Go backwards in time
                         date = df['date'].iloc[i]
-                        if date < first_block_date:
+                        if first_block_date and date < first_block_date:
                             print(f"Reached first block date ({first_block_date}) for {chain}, stopping")
                             break  # Stop if we reach the first block date
 
@@ -907,10 +917,20 @@ class AdapterStablecoinSupply(AbstractAdapter):
             locked_supply_config = self.stables_mapping[chain]['locked_supply']
 
             # Get date of first block of this chain
-            if chain not in self.connections:
-                raise ValueError(f"Chain {chain} not connected to RPC, please add RPC connection (assign special_use in sys_rpc_config)")
-            first_block_date = self.get_block_date(self.connections[chain], 1)
-            print(f"First block date for {chain}: {first_block_date}")
+            # Only needed for chains with direct tokens; bridged-only chains will query all historical data
+            first_block_date = None
+            chain_has_direct_tokens = self.stables_mapping[chain].get("direct") is not None and len(self.stables_mapping[chain]["direct"]) > 0
+            
+            if chain_has_direct_tokens:
+                # Chain has direct tokens, so we need its RPC connection for the first block date
+                if chain not in self.connections:
+                    raise ValueError(f"Chain {chain} not connected to RPC, please add RPC connection (assign special_use in sys_rpc_config)")
+                first_block_date = self.get_block_date(self.connections[chain], 1)
+                print(f"First block date for {chain}: {first_block_date}")
+            else:
+                # Chain only has locked supply tokens, no need for first block date filtering
+                print(f"Chain {chain} doesn't have direct tokens, will query all historical data for locked supply")
+                first_block_date = None
 
             # Process each source chain
             for stablecoin_id in locked_supply_config:
@@ -975,7 +995,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     contract_deployed = True
                     for i in range(len(df)-1, -1, -1):  # Go backwards in time
                         date = df['date'].iloc[i]
-                        if date < first_block_date:
+                        if first_block_date and date < first_block_date:
                             print(f"Reached first block date ({first_block_date}) for {chain}, stopping")
                             break  # Stop if we reach the first block date
 
