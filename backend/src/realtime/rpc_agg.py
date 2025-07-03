@@ -106,7 +106,6 @@ class EVMProcessor(BlockchainProcessor):
             gas_prices = []
             all_tx = []
             
-            ## TODO: add more gas calculations for different stacks
             for receipt in receipts:
                 gas_used = receipt.gasUsed
                 effective_gas_price = receipt.effectiveGasPrice
@@ -115,7 +114,7 @@ class EVMProcessor(BlockchainProcessor):
                 if effective_gas_price > 0:
                     gas_prices.append(effective_gas_price)    
                         
-                    if stack and stack in ["op_stack", "l1"]:
+                    if stack and stack in ["op_stack", "l1", "basic", "zk_stack"]:
                         # l1_fee may be hex string, convert to int if needed
                         l1_fee = receipt.l1Fee if hasattr(receipt, 'l1Fee') else 0
                         
@@ -455,6 +454,7 @@ class RtBackend:
         """Initialize empty chain data structures for all endpoints."""
         for chain_name, config in self.RPC_ENDPOINTS.items():
             self.chain_data[chain_name] = {
+                "display_name": config["name"],
                 "last_block_number": None,
                 "last_block_timestamp": None,
                 "last_tx_count": 0,
@@ -594,6 +594,7 @@ class RtBackend:
         
         publish_data = {
             "timestamp": str(int(time.time() * 1000)),
+            "display_name": chain_data.get("display_name", chain_name),
             "block_number": block_number,
             "tps": round(tps, 1),
             "tx_count": tx_count,
