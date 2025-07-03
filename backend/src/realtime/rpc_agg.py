@@ -106,7 +106,6 @@ class EVMProcessor(BlockchainProcessor):
             gas_prices = []
             all_tx = []
             
-            ## TODO: add more gas calculations for different stacks
             for receipt in receipts:
                 gas_used = receipt.gasUsed
                 effective_gas_price = receipt.effectiveGasPrice
@@ -115,7 +114,7 @@ class EVMProcessor(BlockchainProcessor):
                 if effective_gas_price > 0:
                     gas_prices.append(effective_gas_price)    
                         
-                    if stack and stack in ["op_stack", "l1", "basic"]:
+                    if stack and stack in ["op_stack", "l1", "basic", "elastic"]:
                         # l1_fee may be hex string, convert to int if needed
                         l1_fee = receipt.l1Fee if hasattr(receipt, 'l1Fee') else 0
                         

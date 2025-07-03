@@ -127,14 +127,14 @@ rpc_config = {
         "processors": "evm",
         "stack": "elastic",
         "sleeper": 3,
-        "calc_fees": False,
+        "calc_fees": True,
     },
     "abstract": {
         "name": "Abstract",
         "processors": "evm",
         "stack": "elastic",
         "sleeper": 3,
-        "calc_fees": False,
+        "calc_fees": True,
     },
     
     ## Others
