@@ -129,6 +129,13 @@ rpc_config = {
         "sleeper": 3,
         "calc_fees": False,
     },
+    "abstract": {
+        "name": "Abstract",
+        "processors": "evm",
+        "stack": "elastic",
+        "sleeper": 3,
+        "calc_fees": False,
+    },
     
     ## Others
     "linea": {
