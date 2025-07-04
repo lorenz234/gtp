@@ -838,7 +838,7 @@ class JSONCreation():
                     "chain_name": chain.name,
                     "technology": chain.metadata_technology,
                     "purpose": chain.metadata_purpose,
-                    "company": chain.company,
+                    "company": chain.company if chain.company else "",
                     "users": self.get_aa_last7d(df, chain.origin_key),
                     "user_share": round(self.get_aa_last7d(df, chain.origin_key)/all_users,4),
                     "cross_chain_activity": self.get_cross_chain_activity(df, chain),
