@@ -788,3 +788,80 @@ class RedisSSEServer:
                 "error": "Internal server error",
                 "message": "Failed to retrieve history data"
             }, status=500)
+            
+async def create_app(server: RedisSSEServer):
+    """Create and configure the aiohttp application."""
+    app = web.Application()
+    
+    # Configure CORS
+    cors = aiohttp_cors.setup(app, defaults={
+        "*": aiohttp_cors.ResourceOptions(
+            allow_credentials=True,
+            expose_headers="*",
+            allow_headers="*",
+            allow_methods="*"
+        )
+    })
+    
+    # Add routes
+    routes = [
+        web.get("/events", server.sse_handler),
+        web.get("/health", server.health_handler),
+        web.get("/api/data", server.api_data_handler),
+    ]
+
+    for route in routes:
+        cors.add(app.router.add_route(route.method, route.path, route.handler))
+    
+    return app
+
+async def main():
+    """Main function to start the SSE server."""
+    config = ServerConfig.from_env()
+    server = RedisSSEServer(config)
+    
+    try:
+        await server.initialize()
+        app = await create_app(server)
+        
+        # Start background tasks
+        update_task = asyncio.create_task(server.data_update_loop())
+        maintenance_task = asyncio.create_task(server.periodic_maintenance_loop())  # Combined task
+        
+        # Start the web server
+        logger.info(f"🚀 Starting SSE server on {config.server_host}:{config.server_port}")
+        logger.info(f"📡 SSE endpoint: http://{config.server_host}:{config.server_port}/events")
+        logger.info(f"🏥 Health check: http://{config.server_host}:{config.server_port}/health")
+        logger.info(f"📈 API endpoint: http://{config.server_host}:{config.server_port}/api/data")
+        logger.info(f"🔒 Max connections: {config.max_connections}")
+        
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, config.server_host, config.server_port)
+        await site.start()
+
+        try:
+            await asyncio.Future()  # Run forever
+        except KeyboardInterrupt:
+            logger.info("🛑 Received shutdown signal")
+        finally:
+            logger.info("🧹 Cleaning up...")
+            update_task.cancel()
+            maintenance_task.cancel()
+            await server.close()
+            await runner.cleanup()
+            logger.info("✅ Shutdown complete")
+            
+    except Exception as e:
+        logger.error(f"❌ Fatal error: {str(e)}")
+        raise
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n👋 Server shutdown requested by user")
+    except Exception as e:
+        print(f"💥 Fatal error: {e}")
+        exit(1)
