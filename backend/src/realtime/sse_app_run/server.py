@@ -808,6 +808,7 @@ async def create_app(server: RedisSSEServer):
         web.get("/events", server.sse_handler),
         web.get("/health", server.health_handler),
         web.get("/api/data", server.api_data_handler),
+        web.get("/api/history", server.history_handler),
     ]
 
     for route in routes:
@@ -833,6 +834,7 @@ async def main():
         logger.info(f"📡 SSE endpoint: http://{config.server_host}:{config.server_port}/events")
         logger.info(f"🏥 Health check: http://{config.server_host}:{config.server_port}/health")
         logger.info(f"📈 API endpoint: http://{config.server_host}:{config.server_port}/api/data")
+        logger.info(f"📊 History endpoint: http://{config.server_host}:{config.server_port}/api/history")
         logger.info(f"🔒 Max connections: {config.max_connections}")
         
         runner = web.AppRunner(app)
