@@ -373,7 +373,7 @@ def etl():
             # keep track of ids
             ids = df['id'].tolist()
             # capitalize the first letter for contract_name
-            df['contract_name'] = df['contract_name'].str.capitalize()
+            df['contract_name'] = df['contract_name'].str[0].str.upper() + df['contract_name'].str[1:]
             # keep columns address, origin_key and unpivot the other columns
             df = df[['address', 'chain_id', 'contract_name', 'owner_project', 'usage_category']]
             df = df.melt(id_vars=['address', 'chain_id'], var_name='tag_id', value_name='value')
