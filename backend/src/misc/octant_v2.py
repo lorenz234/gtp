@@ -960,11 +960,17 @@ class OctantV2():
         """
         locked_changes = self.get_locked_changes()
         last_epoch = get_last_epoch()
+        project_allocations_df = self.load_from_db(
+            'project_allocations_and_matched_rewards')
+        
+        ## get total funding amount (sum column 'total' in project_allocations_df)
+        total_funding_amount = project_allocations_df['total'].sum()
 
         # initialize the epoch info list
         compiled_data = {
             'epochs': {},
-            'locked_changes': locked_changes
+            'locked_changes': locked_changes,
+            'total_funding_amount': total_funding_amount,
         }
 
         median_reward_amounts = {}
@@ -1002,6 +1008,8 @@ class OctantV2():
                 self.s3_bucket, f'{self.api_version}/trackers/octant/summary', compiled_data, self.cf_distribution_id, invalidate=False)
             logging.info(
                 "/trackers/octant/summary.json uploaded to S3")
+            
+        empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/trackers/octant/*')
 
     def load_epoch_data(self, epoch: int):
         """

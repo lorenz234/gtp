@@ -207,6 +207,22 @@ gtp_metrics = {
             'ranking_landing': True,
             'log_default': False
         }
+        ,'app_revenue': {
+            'name': 'App Revenue',
+            'fundamental': True,
+            'metric_keys': ['app_fees_usd', 'app_fees_eth'],
+            'units': {
+                'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}, 
+                'eth': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}
+            },
+            'avg': True,
+            'all_l2s_aggregate': 'sum',
+            'monthly_agg': 'sum',
+            'max_date_fill' : False,
+            'ranking_bubble': True,
+            'ranking_landing': True,
+            'log_default': False
+        }
 
         ## Non Fundamental Metrics
         ,'costs': {

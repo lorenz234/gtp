@@ -1,0 +1,26 @@
+{#
+    A query to get the data from the fact_kpis table with a rolling average.
+
+    Parameters:
+    - days: default = 30; The time interval (in days) to consider for data extraction.
+    - rolling: default = 7; The number of days for the rolling average.
+    - metric_key: The metric key to consider for data extraction.
+    - orgin_key: The origin key to consider for data extraction.
+#}
+
+{% set days = days | default(30) %}
+{% set rolling = rolling | default(7) %}
+
+
+SELECT 
+    fk."date",
+    AVG(fk.value) OVER (
+        ORDER BY fk."date" 
+        ROWS BETWEEN {{rolling}} PRECEDING AND CURRENT ROW
+    ) AS value
+FROM public.fact_kpis fk
+WHERE fk.metric_key = '{{ metric_key }}'
+    AND fk.origin_key = '{{ origin_key }}'
+    AND fk."date" >= current_date - INTERVAL '{{ days }} days' 
+    AND fk."date" < current_date
+ORDER BY fk."date" DESC

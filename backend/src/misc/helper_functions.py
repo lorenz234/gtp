@@ -62,6 +62,9 @@ def api_get_call(url, sleeper=1, retries=15, header=None, _remove_control_charac
                 return remove_control_characters(response.text)
         else:
             if as_json == True:
+                if response.text == '' or response.text == '[]':
+                    print(f"Empty response for {url}")
+                    return {}
                 return json.loads(response.text)
             else:
                 return response.text

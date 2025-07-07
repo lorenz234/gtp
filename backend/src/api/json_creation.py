@@ -257,7 +257,7 @@ class JSONCreation():
 
                     df_tmp = pd.concat([df_tmp, new_df], ignore_index=True)
 
-        ## trime leading zeros
+        ## trim leading zeros
         df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
         df_tmp = df_tmp.groupby('metric_key').apply(self.trim_leading_zeros).reset_index(drop=True)
 
@@ -312,9 +312,13 @@ class JSONCreation():
 
         ## drop column date
         df_tmp = df_tmp.drop(columns=['date'])
+
+        ## trim leading zeros
+        df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
+        df_tmp = df_tmp.groupby('metric_key').apply(self.trim_leading_zeros).reset_index(drop=True)
+
         ## metric_key to column
         df_tmp = df_tmp.pivot(index='unix', columns='metric_key', values='value').reset_index()
-        df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
 
         df_tmp = self.df_rename(df_tmp, metric_id, tmp_metrics_dict, col_name_removal=True)
 
@@ -466,7 +470,7 @@ class JSONCreation():
             FROM public.fact_kpis kpi
             where kpi.origin_key in ({chains_string})
                 and kpi.metric_key in ({metrics_string})
-                and kpi."date" >= '2021-06-01'
+                and kpi."date" >= '2020-01-01'
                 AND (
                     (kpi.metric_key not in ('market_cap_usd', 'market_cap_eth') AND kpi."date" < date_trunc('day', now()))
                     OR
@@ -834,6 +838,7 @@ class JSONCreation():
                     "chain_name": chain.name,
                     "technology": chain.metadata_technology,
                     "purpose": chain.metadata_purpose,
+                    "company": chain.company if chain.company else "",
                     "users": self.get_aa_last7d(df, chain.origin_key),
                     "user_share": round(self.get_aa_last7d(df, chain.origin_key)/all_users,4),
                     "cross_chain_activity": self.get_cross_chain_activity(df, chain),
@@ -1115,6 +1120,7 @@ class JSONCreation():
                 'evm_chain_id': chain.evm_chain_id,
                 'deployment': chain.api_deployment_flag,
                 'name_short': chain.name_short,
+                'company': chain.company,
                 'description': chain.metadata_description,
                 'da_layer': chain.metadata_da_layer,
                 'symbol': chain.metadata_symbol,
@@ -1249,12 +1255,12 @@ class JSONCreation():
 
         #start_date = datetime.now() - timedelta(days=731)
         #start_date = start_date.replace(tzinfo=timezone.utc) 
-        ## start date should be 2023-01-01
-        start_date = datetime(2023, 1, 1, tzinfo=timezone.utc)
+        ## start date should be 2021-06-01
+        start_date = datetime(2021, 6, 1, tzinfo=timezone.utc)
         ## calculate the days between start_date and today
         days = (datetime.now(timezone.utc) - start_date).days
 
-        for metric_id in ['throughput', 'txcount', 'stables_mcap', 'fees', 'rent_paid', 'market_cap']:
+        for metric_id in ['throughput', 'txcount', 'stables_mcap', 'rent_paid', 'market_cap']:
             landing_dict['data']['all_l2s']['metrics'][metric_id] = self.generate_all_l2s_metric_dict(df, metric_id, rolling_avg=True, days=days)
 
             if metric_id != 'rent_paid':
@@ -2290,7 +2296,7 @@ class JSONCreation():
             with apps_mat as (
                 SELECT 
                     address,
-                    contract_name as name,
+                    UPPER(LEFT(contract_name , 1)) || SUBSTRING(contract_name FROM 2) as name,
                     main_category_key,
                     sub_category_key,
                     origin_key, 
@@ -2476,10 +2482,11 @@ class JSONCreation():
                     "layer_2s" : {},
                     "ethereum_mainnet" : {}
                 },
-                "gdp" : {
+                "app_fees" : {
                     "layer_2s" : {},
                     "ethereum_mainnet" : {}
-                }
+                },
+                "meet_l2s" : {}
             }
         }
 
@@ -2500,10 +2507,11 @@ class JSONCreation():
         ## txcount layer 2s
         query_parameters = {
             "days": 9999,
+            "rolling": 7,
             "metric_key": 'txcount',
         }
 
-        df = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s.sql.j2", query_parameters, return_df=True)
+        df = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s_rolling.sql.j2", query_parameters, return_df=True)
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
@@ -2523,9 +2531,10 @@ class JSONCreation():
         query_parameters = {
             "days": 9999,
             "metric_key": 'txcount',
-            "origin_key": 'ethereum'
+            "origin_key": 'ethereum',
+            "rolling": 7
         }
-        df = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df = execute_jinja_query(self.db_connector, "api/select_fact_kpis_rolling.sql.j2", query_parameters, return_df=True)
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
@@ -2595,17 +2604,19 @@ class JSONCreation():
             }
         }        
 
-        ## gdp layers 2s
+        ## App Fees layers 2s
         query_parameters = {
             "days": 9999,
-            "metric_key": 'fees_paid_usd',
+            "rolling": 7,
+            "metric_key": 'app_fees_usd',
         }
-        df_usd = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s.sql.j2", query_parameters, return_df=True)
+        df_usd = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s_rolling.sql.j2", query_parameters, return_df=True)
+        
         query_parameters = {
             "days": 9999,
-            "metric_key": 'fees_paid_eth',
+            "metric_key": 'app_fees_eth',
         }
-        df_eth = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s.sql.j2", query_parameters, return_df=True)
+        df_eth = execute_jinja_query(self.db_connector, "api/select_sum_metric_l2s_rolling.sql.j2", query_parameters, return_df=True)
         df = pd.merge(df_usd, df_eth, on=['date'], how='left', suffixes=('_usd', '_eth'))
 
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
@@ -2614,26 +2625,28 @@ class JSONCreation():
         df = df.drop(columns=['date'])
         df.rename(columns={'value_usd': 'usd', 'value_eth': 'eth'}, inplace=True)
 
-        traction_dict["data"]["gdp"]["layer_2s"]= {
+        traction_dict["data"]["app_fees"]["layer_2s"]= {
             "daily": {
                 "types": df.columns.tolist(),
                 "values": df.values.tolist()
             }
         }        
 
-        ## gdp ethereum mainnet
+        ## App fees ethereum mainnet
         query_parameters = {
             "days": 9999,
-            "metric_key": 'fees_paid_usd',
-            "origin_key": 'ethereum'
+            "metric_key": 'app_fees_usd',
+            "origin_key": 'ethereum',
+            "rolling": 7
         }
-        df_usd = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df_usd = execute_jinja_query(self.db_connector, "api/select_fact_kpis_rolling.sql.j2", query_parameters, return_df=True)
         query_parameters = {
             "days": 9999,
-            "metric_key": 'fees_paid_eth',
-            "origin_key": 'ethereum'
+            "metric_key": 'app_fees_eth',
+            "origin_key": 'ethereum',
+            "rolling": 7
         }
-        df_eth = execute_jinja_query(self.db_connector, "api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df_eth = execute_jinja_query(self.db_connector, "api/select_fact_kpis_rolling.sql.j2", query_parameters, return_df=True)
         df = pd.merge(df_usd, df_eth, on=['date'], how='left', suffixes=('_usd', '_eth'))
 
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
@@ -2642,12 +2655,63 @@ class JSONCreation():
         df = df.drop(columns=['date'])
         df.rename(columns={'value_usd': 'usd', 'value_eth': 'eth'}, inplace=True)
 
-        traction_dict["data"]["gdp"]["ethereum_mainnet"]= {
+        traction_dict["data"]["app_fees"]["ethereum_mainnet"]= {
             "daily": {
                 "types": df.columns.tolist(),
                 "values": df.values.tolist()
             }
         }        
+
+        ## meet layer 2s
+        l2s_to_meet = ['optimism', 'arbitrum', 'base', 'soneium', 'celo']
+        for l2 in l2s_to_meet:
+            query_parameters = {
+                "origin_key": l2
+            }
+            aa_total = execute_jinja_query(self.db_connector, "api/select_total_aa.sql.j2", query_parameters, return_df=True).iloc[0, 0]
+
+            query_parameters = {
+                "origin_key": l2,
+                "metric_key": 'daa',
+            }
+            aa_yesterday = execute_jinja_query(self.db_connector, "api/select_fact_kpis_latest.sql.j2", query_parameters, return_df=True).iloc[0, 1]
+
+            query_parameters = {
+                "origin_key": l2,
+                "metric_key": 'stables_mcap',
+            }
+            stables_mcap_usd = execute_jinja_query(self.db_connector, "api/select_fact_kpis_latest.sql.j2", query_parameters, return_df=True).iloc[0, 1]
+
+            query_parameters = {
+                "origin_key": l2,
+                "metric_key": 'stables_mcap_eth',
+            }
+            stables_mcap_eth = execute_jinja_query(self.db_connector, "api/select_fact_kpis_latest.sql.j2", query_parameters, return_df=True).iloc[0, 1]
+
+            query_parameters = {
+                "origin_key": l2,
+                "metric_key": 'txcount',
+            }
+            tps = execute_jinja_query(self.db_connector, "api/select_fact_kpis_latest.sql.j2", query_parameters, return_df=True).iloc[0, 1] / (24*60*60)  # convert to TPS
+            
+            query_parameters = {
+                "origin_key": l2,
+                "days": 7,
+                "limit": 5
+            }
+            top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", query_parameters, return_df=True)
+            top_apps_list = top_apps['owner_project'].tolist()
+            
+            l2_dict = {
+                "total_aa": int(aa_total),
+                "yesterday_aa": int(aa_yesterday),
+                "stables_mcap_usd": float(stables_mcap_usd),
+                "stables_mcap_eth": float(stables_mcap_eth),
+                "tps": float(tps),
+                "top_apps": top_apps_list,
+            }
+
+            traction_dict["data"]["meet_l2s"][l2] = l2_dict
 
         traction_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         traction_dict = fix_dict_nan(traction_dict, 'ecosystem_overview')

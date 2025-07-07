@@ -288,6 +288,17 @@ stables_metadata = {
             "ethereum": "0x7712c34205737192402172409a8F7ccef8aA2AEc", 
         }
     },
+    "usdb": {
+        "name": "USDB",
+        "symbol": "USDB",
+        "decimals": 18,
+        "coingecko_id": "usdb",
+        "fiat": "usd",
+        "logo": "https://assets.coingecko.com/coins/images/35595/large/65c67f0ebf2f6a1bd0feb13c_usdb-icon-yellow.png?1709255427",
+        "addresses": {
+            "blast": "0x4300000000000000000000000000000000000003",
+        }
+    },
 }
 
 
@@ -436,7 +447,6 @@ stables_mapping = {
             ],
         },
     },
-    "base": {},
     "arbitrum": {
         "bridged": {
             "ethereum": [
@@ -482,12 +492,6 @@ stables_mapping = {
             ], 
         },
     },
-    "optimism": {},
-
-    "taiko": {},
-    "linea": {},
-    "mantle": {},
-    "ink": {},
     "zksync_era": {
         "bridged": {
             "ethereum": [
@@ -508,13 +512,6 @@ stables_mapping = {
         }
 
     },
-    "worldchain": {},
-    "manta": {},
-    "scroll": {},
-    "blast": {},
-    "mode": {},
-    "real": {},
-    "redstone": {},
     "unichain": {
         "bridged": {
             "ethereum": [
@@ -565,17 +562,286 @@ stables_mapping = {
             }
         }
     },
-    #"gravity": {},
-    #"mint": {},
-    #"metis": {},
-    #"zora": {},
-    #"starknet": {},
-    #"imx": {},
-    #"polygon_zkevm": {},
-    #"fraxtal": {},
-    #"loopring": {},
-    #"orderly": {},
-    #"rhino": {},
-    #"derive": {},
-}
+    "mantle": {
+        "bridged": {
+            "ethereum": [
+                "0x95fC37A27a2f68e3A647CDc081F0A89bb47c3012"  # Canonical L1StandardBridge escrow
+            ]
+        },
 
+        "direct": {
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply"
+            }
+        }
+    },
+    "metis": {
+        "bridged": {
+            "ethereum": [
+                "0x3980c9ed79d2c191A89E02Fa3529C60eD6e9c04b"   # Metis Canonical L1StandardBridge escrow
+            ]
+        }
+    },
+    "mode": {
+        "bridged": {
+            "ethereum": [
+                "0x735aDBbE72226BD52e818E7181953f42E3b0FF21",  # Mode Canonical L1StandardBridge
+                "0x8B34b14c7c7123459Cf3076b8Cb929BE097d0C07"   # (also holds ETH & may custody stables)
+            ]
+        },
+
+        "direct": {
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply"
+            },
+            "savings-dai": {
+                "token_address": "0x3f51c6c5927B88CDEc4b61e2787F9BD0f5249138",
+                "method_name": "totalSupply"
+            }
+        }
+    },
+    "taiko": {
+        "bridged": {
+            "ethereum": [
+                
+                "0x996282cA11E5DEb6B5D122CC3B9A1FcAAD4415Ab", # Main canonical bridge (ERC-20 & ETH)
+                "0xd60247c6848B7Ca29eDdF63AA924E53dB6Ddd8EC"
+            ]
+        },
+        "direct": {
+            # Circle‐bridged USDC.e (Stargate).  
+            "usdc": {
+                "token_address": "0x19e26B0638bf63aa9fa4d14c6baF8D52eBE86C5C",  # USDC.e
+                "method_name": "totalSupply"
+            },
+
+            # Native USDT contract deployed May 2024.  
+            "tether": {
+                "token_address": "0x9c2dc7377717603eB92b2655c5f2E7997a4945BD",  # USDT
+                "method_name": "totalSupply"
+            }
+        }
+    },
+    "redstone": {
+        "bridged": {
+            "ethereum": [
+                # Canonical rollup bridge escrows
+                "0xc473ca7E02af24c129c2eEf51F2aDf0411c1Df69",
+                "0xC7bCb0e8839a28A1cFadd1CF716de9016CdA51ae"
+            ]
+        }
+    },
+    "mint": {
+        "bridged": {
+            "ethereum": [
+                # Primary L1→Mint bridge escrow (holds USDC, USDT, WBTC, etc.)
+                "0x2b3F201543adF73160bA42E1a5b7750024F30420",
+
+                # Auxiliary genesis escrow (mostly ETH but include for completeness)
+                "0x59625d1FE0Eeb8114a4d13c863978F39b3471781"
+            ]
+        }
+    },
+    "worldchain": {
+        "bridged": {
+            "ethereum": [
+                "0x470458C91978D2d929704489Ad730DC3E3001113",  # Main L1StandardBridge escrow
+                "0xd5ec14a83B7d95BE1E2Ac12523e2dEE12Cbeea6C"   # Early/aux escrow still holding ETH & some stables
+            ]
+        },
+        "direct": {
+            # Circle-bridged USDC (contract lives on World Chain, track via totalSupply)
+            "usdc": {
+                "token_address": "0x79A02482A880bCE3F13e09Da970dC34db4CD24d1",
+                "method_name": "totalSupply"
+            }
+        }
+    },
+    "ink": {
+        "bridged": {
+            "ethereum": [
+                "0x88FF1e5b602916615391F55854588EFcBB7663f0",
+            ]
+        },
+        "direct": {
+            "tether": {
+                "token_address": "0x0200C29006150606B650577BBE7B6248F58470c1",
+                "method_name":   "totalSupply",
+            },
+        },
+    },
+    "blast": {
+        "bridged": {
+            "ethereum": [
+                # Main Blast L1StandardBridge escrow (holds the vast majority)
+                "0x697402166Fbf2F22E970df8a6486Ef171dbfc524",
+                # Legacy / ETH-specific escrow (still retains ETH + stETH)
+                "0x98078db053902644191f93988341E31289E1C8FE",
+                # Older stETH escrow (small residual balance but include for
+                # completeness so nothing slips through the cracks)
+                "0x5F6AE08B8AeB7078cf2F96AFb089D7c9f51DA47d",
+            ]
+        },
+        "direct": {
+            # Blast’s own yield-bearing stablecoin
+            "usdb": {
+                "token_address": "0x4300000000000000000000000000000000000003",
+                "method_name": "totalSupply",
+            },
+            # Ethena’s synthetic dollar (native deployment)
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply",
+            },
+        }
+    },
+    "gravity": {
+        "bridged": {
+            "ethereum": [
+                "0xa4108aA1Ec4967F8b52220a4f7e94A8201F2D906",   # canonical Gravity bridge
+            ],
+        }
+    },
+    "linea": {
+        "bridged": {
+            "ethereum": [
+                # Linea L1StandardBridge ERC-20 escrow
+                "0x051F1D88f0aF5763fB888eC4378b4D8B29ea3319",
+            ]
+        },
+        "direct": {
+            "usdc": {
+                "token_address": "0x176211869cA2b568f2A7D4EE941E073a821EE1ff",
+                "method_name":   "totalSupply",
+            },
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name":   "totalSupply",
+            },
+        }
+    },
+    "manta": {
+        "bridged": {
+            "ethereum": [
+                # Main Manta Pacific L1StandardBridge escrow
+                "0x3B95bC951EE0f553ba487327278cAc44f29715E5",
+
+                # Early/auxiliary escrow (still holds ETH & some stables)
+                "0x9168765EE952de7C6f8fC6FaD5Ec209B960b7622",
+            ]
+        },
+        "direct": {
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply",
+            },
+            "manta-musd": {
+                "token_address": "0x649d4524897cE85A864DC2a2D5A11Adb3044f44a",
+                "method_name": "totalSupply",
+            },
+        }
+    },
+    "fraxtal": {
+        "bridged": {
+            "ethereum": [
+                # Generic Fraxtal bridge escrow
+                "0x34C0bD5877A5Ee7099D0f5688D65F4bB9158BDE2",
+                "0x4c9EDD5852cd905f086C759E8383e09bff1E68B3",
+            ],
+        },
+        "direct": {
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply",
+            }
+        },
+    },
+    "scroll": {
+        "bridged": {
+            "ethereum": [
+                # Canonical L1StandardBridge escrow (majority of bridged value)
+                "0xD8A791fE2bE73eb6E6cF1eb0cb3F36adC9B3F8f9",
+                # Additional Scroll escrows that hold USDC / DAI / wstETH / pufETH, etc.
+                "0xb2b10a289A229415a124EFDeF310C10cb004B6ff",
+                "0x67260A8B73C5B77B55c1805218A42A7A6F98F515",
+                "0x6774Bcbd5ceCeF1336b5300fb5186a12DDD8b367",
+                "0xA033Ff09f2da45f0e9ae495f525363722Df42b2a",
+                "0xf1AF3b23DE0A5Ca3CAb7261cb0061C0D779A5c7B",
+                "0x6625C6332c9F91F2D27c304E729B86db87A3f504"
+            ]
+        },
+        "direct": {
+            # Ethena USDe (fully-backed synthetic dollar)
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply",
+            },
+        }
+    },
+    "zora": {
+        "bridged": {
+            "ethereum": [
+                "0x3e2Ea9B92B7E48A52296fD261dc26fd995284631", # Zora's bridge escrow holding USDC
+            ],
+        }
+    },
+    "polygon_zkevm": {
+        "direct": {
+            "usdc": {
+                "token_address": "0xA8CE8aee21bC2A48a5EF670afCc9274C7bbbC035",
+                "method_name": "totalSupply"
+            },
+            "dai": {
+                "token_address": "0xC5015b9d9161Dca7e18e32f6f25C4aD850731Fd4",
+                "method_name": "totalSupply"
+            },
+            "liquity-usd": {
+                "token_address": "0x01E9A866c361eAd20Ab4e838287DD464dc67A50e",
+                "method_name": "totalSupply"
+            },
+            "pax-dollar": {
+                "token_address": "0x9F171f7d8445a2ab62747C3f3115362a1D51FC50",
+                "method_name": "totalSupply"
+            },
+            "frax": {
+                "token_address": "0xFf8544feD5379D9ffa8D47a74cE6b91e632AC44D",
+                "method_name": "totalSupply"
+            },
+            "tether": {
+                "token_address": "0x1E4a5963aBFD975d8c9021ce480b42188849D41d",
+                "method_name": "totalSupply"
+            }
+        },
+        "bridged": {
+            "ethereum": [
+                "0x4A27aC91c5cD3768F140ECabDe3FC2B2d92eDb98",  # DAI + sDAI
+                "0x70E70e58ed7B1Cec0D8ef7464072ED8A52d755eB"   # USDC
+            ]
+        }
+    },
+    "imx": {
+        "bridged": {
+            "ethereum": [
+                "0x5FDCCA53617f4d2b9134B29090C87D01058e27e9"  # ImmutableX Ethereum escrow contract
+            ]
+        },
+    },
+    "loopring": {
+        "bridged": {
+            "ethereum": [
+                "0x674bdf20A0F284D710BC40872100128e2d66Bd3f",  # Loopring L1 escrow contract for tokens
+                "0x7D3D221A8D8AbDd868E8e88811fFaF033e68E108",  # Old Loopring USDT escrow
+                "0xD97D09f3bd931a14382ac60f156C1285a56Bb51B"   # Old Loopring USDT escrow
+            ]
+        },
+    },
+    "gitcoin_pgn": {
+        "bridged": {
+            "ethereum": [
+                "0xD0204B9527C1bA7bD765Fa5CCD9355d38338272b"
+            ]
+        }
+    },
+}

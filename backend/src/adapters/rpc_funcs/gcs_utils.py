@@ -6,6 +6,7 @@ from google.cloud import storage
 from google.oauth2 import service_account
 import io
 import numpy as np
+from datetime import datetime
 
 def connect_to_gcs():
     """
@@ -80,10 +81,21 @@ def save_data_for_range(df, block_start, block_end, chain, bucket_name):
     
     # Determine which timestamp column to use
     timestamp_col = None
+    
+    # List of potential timestamp column names (in order of preference)
+    timestamp_candidates = [
+        'block_timestamp',
+        'block_time', 
+        'timestamp',
+    ]
+    
     # Check for timestamp column (case-insensitive)
-    for col in df.columns:
-        if col.lower() == 'block_timestamp':
-            timestamp_col = col
+    for candidate in timestamp_candidates:
+        for col in df.columns:
+            if col.lower() == candidate.lower():
+                timestamp_col = col
+                break
+        if timestamp_col:
             break
     
     # Get date_str based on available timestamp column
@@ -96,41 +108,43 @@ def save_data_for_range(df, block_start, block_end, chain, bucket_name):
             # Handle different timestamp formats
             if isinstance(block_timestamp, (int, float, np.int64, np.float64)):
                 # Unix timestamp (seconds since epoch)
-                from datetime import datetime
                 timestamp_value = float(block_timestamp)
                 date_str = datetime.fromtimestamp(timestamp_value).strftime("%Y-%m-%d")
             else:
                 # String timestamp or datetime object
-                from datetime import datetime
                 if isinstance(block_timestamp, str):
                     # Try to parse the string timestamp
                     try:
                         date_str = datetime.strptime(block_timestamp, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d")
                     except ValueError:
-                        # Try ISO format - normalize fractional seconds to microseconds
-                        timestamp_str = block_timestamp.replace('Z', '+00:00')
-                        
-                        # Handle fractional seconds of varying precision
-                        # Pattern: YYYY-MM-DDTHH:MM:SS.fractional+TZ
-                        fractional_pattern = r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)(\+\d{2}:\d{2})'
-                        match = re.match(fractional_pattern, timestamp_str)
-                        
-                        if match:
-                            date_part = match.group(1)
-                            fractional_part = match.group(2)
-                            timezone_part = match.group(3)
+                        try:
+                            # Try format with microseconds and UTC: '2023-05-23 12:06:15.000000 UTC'
+                            date_str = datetime.strptime(block_timestamp, "%Y-%m-%d %H:%M:%S.%f UTC").strftime("%Y-%m-%d")
+                        except ValueError:
+                            # Try ISO format - normalize fractional seconds to microseconds
+                            timestamp_str = block_timestamp.replace('Z', '+00:00')
                             
-                            # Normalize fractional seconds to exactly 6 digits (microseconds)
-                            if len(fractional_part) > 6:
-                                # Truncate to 6 digits (nanoseconds -> microseconds)
-                                fractional_part = fractional_part[:6]
-                            elif len(fractional_part) < 6:
-                                # Pad with zeros to reach 6 digits
-                                fractional_part = fractional_part.ljust(6, '0')
+                            # Handle fractional seconds of varying precision
+                            # Pattern: YYYY-MM-DDTHH:MM:SS.fractional+TZ
+                            fractional_pattern = r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})\.(\d+)(\+\d{2}:\d{2})'
+                            match = re.match(fractional_pattern, timestamp_str)
                             
-                            timestamp_str = f"{date_part}.{fractional_part}{timezone_part}"
-                        
-                        date_str = datetime.fromisoformat(timestamp_str).strftime("%Y-%m-%d")
+                            if match:
+                                date_part = match.group(1)
+                                fractional_part = match.group(2)
+                                timezone_part = match.group(3)
+                                
+                                # Normalize fractional seconds to exactly 6 digits (microseconds)
+                                if len(fractional_part) > 6:
+                                    # Truncate to 6 digits (nanoseconds -> microseconds)
+                                    fractional_part = fractional_part[:6]
+                                elif len(fractional_part) < 6:
+                                    # Pad with zeros to reach 6 digits
+                                    fractional_part = fractional_part.ljust(6, '0')
+                                
+                                timestamp_str = f"{date_part}.{fractional_part}{timezone_part}"
+                            
+                            date_str = datetime.fromisoformat(timestamp_str).strftime("%Y-%m-%d")
                 else:
                     # Assume it's already a datetime object
                     date_str = block_timestamp.strftime("%Y-%m-%d")
@@ -139,8 +153,8 @@ def save_data_for_range(df, block_start, block_end, chain, bucket_name):
             print(f"Error parsing block timestamp, falling back to current date: {str(e)}")
             date_str = time.strftime("%Y-%m-%d")
     else:
-        print("No suitable timestamp column found in DataFrame")
-        print(df.columns)
+        print(f"No suitable timestamp column found in DataFrame. Available columns: {list(df.columns)}")
+        print(f"Searched for timestamp columns: {timestamp_candidates}")
         raise ValueError("No suitable timestamp column found in DataFrame")
     
     # Create GCS file path

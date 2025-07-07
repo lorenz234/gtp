@@ -894,7 +894,7 @@ class DbConnector:
         # it only aggregates transactions that are NOT native transfers, system transactionsm contract creations, or inscriptions. These are aggregated separately and output is stored directly in the fact_sub_category_level table
         def get_blockspace_contracts(self, chain, days):
                 ## Mantle and Metis store fees in own tokens: hence different logic for gas_fees_eth and gas_fees_usd
-                if chain in ['mantle', 'metis']:
+                if chain in ['mantle', 'metis', 'celo']:
                         additional_cte = f"""
                                 , token_price AS (
                                         SELECT "date", value
@@ -967,7 +967,7 @@ class DbConnector:
         # This function is used to get the native_transfer daily aggregate per chain. The data will be loaded into fact_sub_category_level table        
         def get_blockspace_native_transfers(self, chain, days):
                 ## Mantle and Metis store fees in own tokens: hence different logic for gas_fees_eth and gas_fees_usd
-                if chain in ['mantle', 'metis']:
+                if chain in ['mantle', 'metis', 'celo']:
                         additional_cte = f"""
                                 , token_price AS (
                                         SELECT "date", value
@@ -1016,7 +1016,7 @@ class DbConnector:
          # This function is used to get the inscriptions per chain. The data will be loaded into fact_sub_category_level table        
         def get_blockspace_inscriptions(self, chain, days):
                 ## Mantle and Metis stores fees in own token: hence different logic for gas_fees_eth and gas_fees_usd
-                if chain in ['mantle', 'metis']:
+                if chain in ['mantle', 'metis', 'celo']:
                         additional_cte = f"""
                                 , token_price AS (
                                         SELECT "date", value
@@ -1070,7 +1070,7 @@ class DbConnector:
         # This function is used to get the contract_deployment daily aggregate per chain. The data will be loaded into fact_sub_category_level table
         def get_blockspace_contract_deplyments(self, chain, days):
                 ## Mantle and Metis store fees in own token: hence different logic for gas_fees_eth and gas_fees_usd
-                if chain in ['mantle', 'metis']:
+                if chain in ['mantle', 'metis', 'celo']:
                         additional_cte = f"""
                                 , token_price AS (
                                         SELECT "date", value
@@ -1125,7 +1125,7 @@ class DbConnector:
         # This function is used to get the total blockspace fees per day for a specific chain. The data will be loaded into fact_sub_category_level table.
         def get_blockspace_total(self, chain, days):
                 ## Mantle and Metis store fees in own tokens: hence different logic for gas_fees_eth and gas_fees_usd
-                if chain in ['mantle', 'metis']:
+                if chain in ['mantle', 'metis', 'celo']:
                         additional_cte = f"""
                                 , token_price AS (
                                         SELECT "date", value
@@ -1288,7 +1288,7 @@ class DbConnector:
                                 SELECT 
                                         cl.address,
                                         cl.origin_key,
-                                        bl.contract_name as contract_name,
+                                        UPPER(LEFT(bl.contract_name , 1)) || SUBSTRING(bl.contract_name FROM 2) as contract_name,
                                         oss.display_name as project_name,
                                         {sub_main_string}
                                         sum(gas_fees_eth) as gas_fees_eth,
@@ -1363,7 +1363,7 @@ class DbConnector:
                                 SELECT
                                         cl.address,
                                         cl.origin_key,
-                                        bl.contract_name as contract_name,
+                                        UPPER(LEFT(bl.contract_name , 1)) || SUBSTRING(bl.contract_name FROM 2) as contract_name,
                                         oss.display_name as project_name,
                                         bl.usage_category as sub_category_key,
                                         bcm.category_name as sub_category_name,
@@ -1468,7 +1468,7 @@ class DbConnector:
                                 SELECT 
                                         cl.address,
                                         cl.origin_key,
-                                        bl.contract_name as contract_name,
+                                        UPPER(LEFT(bl.contract_name , 1)) || SUBSTRING(bl.contract_name FROM 2) as contract_name,
                                         oss.display_name as project_name,
                                         {sub_main_string}
                                         sum(gas_fees_eth) as gas_fees_eth,
@@ -2053,7 +2053,7 @@ class DbConnector:
                                 cl.address, 
                                 cl.origin_key, 
                                 syc.caip2 as chain_id,
-                                lab.contract_name as name,
+                                UPPER(LEFT(lab.contract_name , 1)) || SUBSTRING(lab.contract_name FROM 2) as name,
                                 lab.owner_project,
                                 oss.display_name as owner_project_clear,
                                 lab.usage_category,
@@ -2094,7 +2094,7 @@ class DbConnector:
                                 cl.address, 
                                 cl.origin_key, 
                                 syc.caip2 as chain_id,
-                                lab.contract_name as name,
+                                UPPER(LEFT(lab.contract_name , 1)) || SUBSTRING(lab.contract_name FROM 2) as name,
                                 lab.owner_project,
                                 lab.usage_category,
                                 lab.deployment_tx,
@@ -2274,9 +2274,32 @@ class DbConnector:
                 df = pd.read_sql(exec_string, self.engine.connect())
                 return df
         
-        def get_special_use_rpc(self, origin_key:str):
+        def get_special_use_rpc(self, origin_key:str, check_realtime:bool = False):
+                if check_realtime:
+                        query = f"""
+                                SELECT url
+                                FROM sys_rpc_config
+                                WHERE realtime_use = true
+                                and origin_key = '{origin_key}'
+
+                                UNION ALL
+
+                                SELECT url
+                                FROM sys_rpc_config
+                                WHERE special_use = true
+                                and origin_key = '{origin_key}'
+                                AND NOT EXISTS (
+                                        SELECT 1
+                                        FROM sys_rpc_config
+                                        WHERE realtime_use = true
+                                        and origin_key = '{origin_key}'
+                                )
+                                LIMIT 1;
+                        """
+                else:
+                         query = f"SELECT url FROM sys_rpc_config WHERE origin_key = '{origin_key}' and special_use = true LIMIT 1"
                 try:
-                        query = f"SELECT url FROM sys_rpc_config WHERE origin_key = '{origin_key}' and special_use = true LIMIT 1"
+                       
                         with self.engine.connect() as connection:
                                 result = connection.execute(query)
                                 rpc = result.scalar()

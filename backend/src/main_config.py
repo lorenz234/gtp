@@ -16,6 +16,7 @@ class MainConfig(BaseModel):
     evm_chain_id: Optional[int] = None
     name: str
     name_short: str
+    company: Optional[str] = None
     bucket: str
     block_explorers: Optional[dict] = None
     colors: dict

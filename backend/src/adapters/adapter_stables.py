@@ -1,8 +1,10 @@
 import time
+import random
 import pandas as pd
 from web3 import Web3
 import datetime
 from web3.middleware import ExtraDataToPOAMiddleware
+from requests.exceptions import HTTPError
 
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.helper_functions import print_init, print_load, print_extract
@@ -68,6 +70,83 @@ class AdapterStablecoinSupply(AbstractAdapter):
         
         print_init(self.name, self.adapter_params)
 
+    def retry_balance_call(self, func, *args, max_retries=8, initial_wait=1.0, **kwargs):
+        """
+        Retry a balance call with exponential backoff for handling rate limits and network issues.
+        
+        Args:
+            func: Function to call (e.g., token_contract.functions.balanceOf(...).call)
+            *args: Arguments to pass to the function
+            max_retries: Maximum number of retry attempts
+            initial_wait: Initial wait time in seconds
+            **kwargs: Keyword arguments to pass to the function
+            
+        Returns:
+            Result of the function call
+            
+        Raises:
+            Exception: If all retries are exhausted
+        """
+        retries = 0
+        wait_time = initial_wait
+        
+        while retries < max_retries:
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                error_str = str(e).lower()
+                
+                # Check if it's a rate limiting error (429)
+                is_rate_limit = (
+                    "429" in error_str or 
+                    "too many requests" in error_str or 
+                    "rate limit" in error_str
+                )
+                
+                # Check if it's a network/connection error
+                is_network_error = (
+                    "connection" in error_str or
+                    "timeout" in error_str or
+                    "network" in error_str
+                )
+                
+                # Check if it's a contract execution error (don't retry these)
+                is_contract_error = (
+                    "execution reverted" in error_str or
+                    "could not decode contract function call" in error_str
+                )
+                
+                # Don't retry contract execution errors
+                if is_contract_error:
+                    raise e
+                
+                # Retry for rate limits and network errors
+                if is_rate_limit or is_network_error:
+                    retries += 1
+                    
+                    # Extract Retry-After header if available (for HTTP 429 errors)
+                    retry_after = None
+                    if hasattr(e, 'response') and hasattr(e.response, 'headers'):
+                        retry_after = e.response.headers.get("Retry-After")
+                    
+                    if retry_after and retry_after.isdigit():
+                        wait_time = int(retry_after) + random.uniform(0, 1)
+                    else:
+                        # Exponential backoff with jitter
+                        wait_time = min((2 ** retries) * initial_wait + random.uniform(0, 1), 60)
+                    
+                    if retries < max_retries:
+                        print(f"Rate limit/network error detected. Retrying ({retries}/{max_retries}) in {wait_time:.2f} seconds...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"Max retries ({max_retries}) reached for rate limiting/network errors")
+                        raise e
+                else:
+                    # For other errors, don't retry
+                    raise e
+        
+        raise Exception(f"Failed after {max_retries} retries")
+
     def extract(self, load_params:dict, update=False):
         """
         Extract stablecoin data based on load parameters.
@@ -98,7 +177,26 @@ class AdapterStablecoinSupply(AbstractAdapter):
         return df
     
     def load(self, df:pd.DataFrame):
-        """Load processed data into the database"""
+        """Load processed data into the database with validation to prevent corruption"""
+        
+        # CRITICAL VALIDATION: Check for mismatched metric_keys to prevent data corruption
+        if not df.empty:
+            if 'metric_key' in df.index.names:
+                metric_keys = df.index.get_level_values('metric_key').unique()
+            elif 'metric_key' in df.columns:
+                metric_keys = df['metric_key'].unique()
+            else:
+                metric_keys = []
+            
+            # Validate that block data doesn't go to fact_stables
+            if 'first_block_of_day' in metric_keys and self.load_type not in ['block_data', 'total_supply']:
+                raise ValueError(f"CRITICAL ERROR: Attempting to load first_block_of_day data with load_type='{self.load_type}'. This would corrupt fact_stables!")
+            
+            # Validate that stables data doesn't go to fact_kpis
+            stables_metrics = ['supply_bridged', 'supply_direct', 'locked_supply', 'supply_bridged_exceptions']
+            if any(metric in metric_keys for metric in stables_metrics) and self.load_type in ['block_data', 'total_supply']:
+                raise ValueError(f"CRITICAL ERROR: Attempting to load stables data with load_type='{self.load_type}'. This would corrupt fact_kpis!")
+        
         if self.load_type == 'block_data' or self.load_type == 'total_supply':
             tbl_name = 'fact_kpis'
         else:
@@ -438,7 +536,10 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     # If col index in df_main, drop it
                     if 'index' in df_chain.columns:
                         df_chain.drop(columns=['index'], inplace=True)
-                    self.load(df_chain)
+                    
+                    # CRITICAL FIX: Explicitly load block data to fact_kpis to prevent corruption
+                    upserted = self.db_connector.upsert_table('fact_kpis', df_chain)
+                    print_load(self.name, upserted, 'fact_kpis')
 
                 df_main = pd.concat([df_main, df_chain])
         
@@ -479,10 +580,20 @@ class AdapterStablecoinSupply(AbstractAdapter):
             bridge_config = self.stables_mapping[chain]['bridged']
 
             # Get date of first block of this chain
-            if chain not in self.connections:
-                raise ValueError(f"Chain {chain} not connected to RPC, please add RPC connection (assign special_use in sys_rpc_config)")
-            first_block_date = self.get_block_date(self.connections[chain], 1)
-            print(f"First block date for {chain}: {first_block_date}")
+            # Only needed for chains with direct tokens; bridged-only chains will query all historical data
+            first_block_date = None
+            chain_has_direct_tokens = self.stables_mapping[chain].get("direct") is not None and len(self.stables_mapping[chain]["direct"]) > 0
+            
+            if chain_has_direct_tokens:
+                # Chain has direct tokens, so we need its RPC connection for the first block date
+                if chain not in self.connections:
+                    raise ValueError(f"Chain {chain} not connected to RPC, please add RPC connection (assign special_use in sys_rpc_config)")
+                first_block_date = self.get_block_date(self.connections[chain], 1)
+                print(f"First block date for {chain}: {first_block_date}")
+            else:
+                # Chain only has bridged tokens, no need for first block date filtering
+                print(f"Chain {chain} only has bridged tokens, will query all historical data from Ethereum bridges")
+                first_block_date = None
 
             # Process each source chain (usually Ethereum)
             ## TODO: add support for other source chains
@@ -568,7 +679,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     contract_deployed = True
                     for i in range(len(df)-1, -1, -1):  # Go backwards in time
                         date = df['date'].iloc[i]
-                        if date < first_block_date:
+                        if first_block_date and date < first_block_date:
                             print(f"Reached first block date ({first_block_date}) for {chain}, stopping")
                             break  # Stop if we reach the first block date
 
@@ -584,10 +695,13 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         # Sum balances across all bridge addresses
                         for bridge_address in bridge_addresses:
                             try:
-                                # Call balanceOf function
-                                balance = token_contract.functions.balanceOf(
-                                    Web3.to_checksum_address(bridge_address)
-                                ).call(block_identifier=int(block))
+                                # Call balanceOf function with retry logic
+                                balance = self.retry_balance_call(
+                                    token_contract.functions.balanceOf(
+                                        Web3.to_checksum_address(bridge_address)
+                                    ).call,
+                                    block_identifier=int(block)
+                                )
                                 
                                 # Convert to proper decimal representation
                                 adjusted_balance = balance / (10 ** decimals)
@@ -624,10 +738,14 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         self.load(df)                    
         
         # Clean up data
-        df_main = df_main[df_main['value'] != 0]
-        df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
-        df_main = df_main.dropna()
-        df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+        if not df_main.empty:
+            df_main = df_main[df_main['value'] != 0]
+            df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+            df_main = df_main.dropna()
+            df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+        else:
+            # Return empty dataframe with correct structure
+            df_main = pd.DataFrame(columns=['metric_key', 'origin_key', 'date', 'token_key', 'value']).set_index(['metric_key', 'origin_key', 'date', 'token_key'])
         return df_main
     
     def get_direct_supply(self, update=False):
@@ -721,9 +839,12 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     print(f"...retrieving direct supply for {symbol} at block {block} ({date})")
                     
                     try:
-                        # Call totalSupply function (or custom method name)
+                        # Call totalSupply function (or custom method name) with retry logic
                         supply_func = getattr(token_contract.functions, method_name)
-                        total_supply = supply_func().call(block_identifier=int(block))
+                        total_supply = self.retry_balance_call(
+                            supply_func().call,
+                            block_identifier=int(block)
+                        )
                         
                         # Convert to proper decimal representation
                         adjusted_supply = total_supply / (10 ** decimals)
@@ -758,13 +879,17 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     self.load(df)
 
                 
-        
+                        
 
         # Clean up data
-        df_main = df_main[df_main['value'] != 0]
-        df_main = df_main.dropna()
-        df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
-        df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+        if not df_main.empty:
+            df_main = df_main[df_main['value'] != 0]
+            df_main = df_main.dropna()
+            df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+            df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+        else:
+            # Return empty dataframe with correct structure
+            df_main = pd.DataFrame(columns=['metric_key', 'origin_key', 'date', 'token_key', 'value']).set_index(['metric_key', 'origin_key', 'date', 'token_key'])
         return df_main
     
 
@@ -792,10 +917,20 @@ class AdapterStablecoinSupply(AbstractAdapter):
             locked_supply_config = self.stables_mapping[chain]['locked_supply']
 
             # Get date of first block of this chain
-            if chain not in self.connections:
-                raise ValueError(f"Chain {chain} not connected to RPC, please add RPC connection (assign special_use in sys_rpc_config)")
-            first_block_date = self.get_block_date(self.connections[chain], 1)
-            print(f"First block date for {chain}: {first_block_date}")
+            # Only needed for chains with direct tokens; bridged-only chains will query all historical data
+            first_block_date = None
+            chain_has_direct_tokens = self.stables_mapping[chain].get("locked_supply") is not None and len(self.stables_mapping[chain]["locked_supply"]) > 0
+            
+            if chain_has_direct_tokens:
+                # Chain has direct tokens, so we need its RPC connection for the first block date
+                if chain not in self.connections:
+                    raise ValueError(f"Chain {chain} not connected to RPC, please add RPC connection (assign special_use in sys_rpc_config)")
+                first_block_date = self.get_block_date(self.connections[chain], 1)
+                print(f"First block date for {chain}: {first_block_date}")
+            else:
+                # Chain only has locked supply tokens, no need for first block date filtering
+                print(f"Chain {chain} doesn't have direct tokens, will query all historical data for locked supply")
+                first_block_date = None
 
             # Process each source chain
             for stablecoin_id in locked_supply_config:
@@ -860,7 +995,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     contract_deployed = True
                     for i in range(len(df)-1, -1, -1):  # Go backwards in time
                         date = df['date'].iloc[i]
-                        if date < first_block_date:
+                        if first_block_date and date < first_block_date:
                             print(f"Reached first block date ({first_block_date}) for {chain}, stopping")
                             break  # Stop if we reach the first block date
 
@@ -872,10 +1007,13 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         # Check balances for defined stablecoin in locked contract
                         for address in locked_supply_config[stablecoin_id][source_chain]:
                             try:
-                                # Call balanceOf function
-                                balance = token_contract.functions.balanceOf(
-                                    Web3.to_checksum_address(address)
-                                ).call(block_identifier=int(block))
+                                # Call balanceOf function with retry logic
+                                balance = self.retry_balance_call(
+                                    token_contract.functions.balanceOf(
+                                        Web3.to_checksum_address(address)
+                                    ).call,
+                                    block_identifier=int(block)
+                                )
                                 
                                 # Convert to proper decimal representation
                                 adjusted_balance = balance / (10 ** decimals)
@@ -912,13 +1050,17 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         self.load(df)                    
         
         # Clean up data
-        df_main = df_main[df_main['value'] != 0]
-        df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
-        df_main = df_main.dropna()
-        df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+        if not df_main.empty:
+            df_main = df_main[df_main['value'] != 0]
+            df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+            df_main = df_main.dropna()
+            df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+        else:
+            # Return empty dataframe with correct structure
+            df_main = pd.DataFrame(columns=['metric_key', 'origin_key', 'date', 'token_key', 'value']).set_index(['metric_key', 'origin_key', 'date', 'token_key'])
         return df_main
     
-    def get_total_supply(self):
+    def get_total_supply(self, days=None):
         """
         Calculate the total stablecoin supply (bridged + direct - locked) per chain
         
@@ -929,31 +1071,42 @@ class AdapterStablecoinSupply(AbstractAdapter):
         4. Combines them to get total stablecoin supply by chain and stablecoin
         5. Also calculates a total across all stablecoins for each chain
         """
+
+        days = days if days is not None else 9999
+        
+        # Get list of origin_keys that are present in stables_config
+        configured_origin_keys = list(self.stables_mapping.keys())
+        print(f"Filtering data for origin_keys present in stables_config: {configured_origin_keys}")
+
         # Check if we have existing data in the database
         df_bridged = self.db_connector.get_data_from_table("fact_stables",
                     filters={
-                        "metric_key": "supply_bridged"
+                        "metric_key": "supply_bridged",
+                        "origin_key": configured_origin_keys
                     },
-                    days=self.days
+                    days=days
                 )
         df_direct = self.db_connector.get_data_from_table("fact_stables",
                     filters={
-                        "metric_key": "supply_direct"
+                        "metric_key": "supply_direct",
+                        "origin_key": configured_origin_keys
                     },
-                    days=self.days
+                    days=days
                 )
         df_locked = self.db_connector.get_data_from_table("fact_stables",
                     filters={
-                        "metric_key": "locked_supply"
+                        "metric_key": "locked_supply",
+                        "origin_key": configured_origin_keys
                     },
-                    days=self.days
+                    days=days
                 )
         
         df_bridged_exceptions = self.db_connector.get_data_from_table("fact_stables",
                     filters={
-                        "metric_key": "supply_bridged_exceptions"
+                        "metric_key": "supply_bridged_exceptions",
+                        "origin_key": configured_origin_keys
                     },
-                    days=self.days
+                    days=days
                 )
         
         # Reset index to work with the dataframes
