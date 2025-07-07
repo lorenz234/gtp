@@ -103,6 +103,13 @@ rpc_config = {
         "sleeper": 3,
         "calc_fees": True,
     },
+    "lisk": {
+        "name": "Lisk",
+        "processors": "evm",
+        "stack": "op_stack",
+        "sleeper": 3,
+        "calc_fees": True,
+    },
     
     ## Nitro/Arbitrum Orbit chains
     "arbitrum": {
