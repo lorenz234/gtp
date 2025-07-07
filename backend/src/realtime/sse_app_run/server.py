@@ -672,82 +672,119 @@ class RedisSSEServer:
             "global_metrics": self.global_metrics,
             "timestamp": datetime.now().isoformat()
         })
-
-
-async def create_app(server: RedisSSEServer):
-    """Create and configure the aiohttp application."""
-    app = web.Application()
     
-    # Configure CORS
-    cors = aiohttp_cors.setup(app, defaults={
-        "*": aiohttp_cors.ResourceOptions(
-            allow_credentials=True,
-            expose_headers="*",
-            allow_headers="*",
-            allow_methods="*"
-        )
-    })
-    
-    # Add routes
-    routes = [
-        web.get("/events", server.sse_handler),
-        web.get("/health", server.health_handler),
-        web.get("/api/data", server.api_data_handler),
-    ]
-    
-    for route in routes:
-        cors.add(app.router.add_route(route.method, route.path, route.handler))
-    
-    return app
-
-
-async def main():
-    """Main function to start the SSE server."""
-    config = ServerConfig.from_env()
-    server = RedisSSEServer(config)
-    
-    try:
-        await server.initialize()
-        app = await create_app(server)
-        
-        # Start background tasks
-        update_task = asyncio.create_task(server.data_update_loop())
-        maintenance_task = asyncio.create_task(server.periodic_maintenance_loop())  # Combined task
-        
-        # Start the web server
-        logger.info(f"🚀 Starting SSE server on {config.server_host}:{config.server_port}")
-        logger.info(f"📡 SSE endpoint: http://{config.server_host}:{config.server_port}/events")
-        logger.info(f"🏥 Health check: http://{config.server_host}:{config.server_port}/health")
-        logger.info(f"📈 API endpoint: http://{config.server_host}:{config.server_port}/api/data")
-        logger.info(f"🔒 Max connections: {config.max_connections}")
-        
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, config.server_host, config.server_port)
-        await site.start()
-        
+    async def history_handler(self, request):
+        """REST API endpoint to get TPS history for charts."""
         try:
-            await asyncio.Future()  # Run forever
-        except KeyboardInterrupt:
-            logger.info("🛑 Received shutdown signal")
-        finally:
-            logger.info("🧹 Cleaning up...")
-            update_task.cancel()
-            maintenance_task.cancel()
-            await server.close()
-            await runner.cleanup()
-            logger.info("✅ Shutdown complete")
+            # Get query parameters
+            limit = int(request.query.get('limit', 40))  # Default to 40 events
+            hours = int(request.query.get('hours', 24))   # Default to last 24 hours
             
-    except Exception as e:
-        logger.error(f"❌ Fatal error: {str(e)}")
-        raise
-
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\n👋 Server shutdown requested by user")
-    except Exception as e:
-        print(f"💥 Fatal error: {e}")
-        exit(1)
+            # Calculate time range
+            now_ms = int(datetime.now().timestamp() * 1000)
+            min_ts = now_ms - (hours * 60 * 60 * 1000)
+            
+            # Get TPS history from Redis (sorted by timestamp, most recent first)
+            raw_entries = await self.redis_client.zrevrangebyscore(
+                RedisKeys.TPS_HISTORY_24H, 
+                now_ms, 
+                min_ts, 
+                start=0, 
+                num=limit
+            )
+            
+            # Parse and format the history data
+            history = []
+            for raw_entry in raw_entries:
+                try:
+                    data = json.loads(raw_entry)
+                    
+                    # Parse chain breakdown if available
+                    chain_breakdown = {}
+                    if "chain_breakdown" in data:
+                        try:
+                            chain_breakdown = json.loads(data["chain_breakdown"])
+                        except (json.JSONDecodeError, TypeError):
+                            chain_breakdown = {}
+                    
+                    # Format the history entry
+                    entry = {
+                        "tps": self._safe_float(data.get("tps", 0)),
+                        "timestamp": data.get("timestamp", ""),
+                        "timestamp_ms": self._safe_int(data.get("timestamp_ms", 0)),
+                        "total_chains": self._safe_int(data.get("total_chains", 0)),
+                        "active_chains": self._safe_int(data.get("active_chains", 0)),
+                        "is_ath": data.get("is_ath", "false").lower() == "true",
+                        "chain_breakdown": chain_breakdown
+                    }
+                    
+                    history.append(entry)
+                    
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.warning(f"Failed to parse history entry: {e}")
+                    continue
+            
+            # Also get ATH history for reference
+            ath_entries = await self.redis_client.zrevrangebyscore(
+                RedisKeys.ATH_HISTORY,
+                now_ms,
+                0,  # All time
+                start=0,
+                num=10  # Last 10 ATH records
+            )
+            
+            ath_history = []
+            for raw_entry in ath_entries:
+                try:
+                    data = json.loads(raw_entry)
+                    ath_entry = {
+                        "tps": self._safe_float(data.get("tps", 0)),
+                        "timestamp": data.get("timestamp", ""),
+                        "timestamp_ms": self._safe_int(data.get("timestamp_ms", 0)),
+                        "total_chains": self._safe_int(data.get("total_chains", 0)),
+                        "active_chains": self._safe_int(data.get("active_chains", 0))
+                    }
+                    ath_history.append(ath_entry)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            
+            # Calculate some summary statistics
+            if history:
+                tps_values = [entry["tps"] for entry in history]
+                avg_tps = sum(tps_values) / len(tps_values)
+                max_tps = max(tps_values)
+                min_tps = min(tps_values)
+            else:
+                avg_tps = max_tps = min_tps = 0
+            
+            response_data = {
+                "history": history,
+                "ath_history": ath_history,
+                "summary": {
+                    "total_events": len(history),
+                    "time_range_hours": hours,
+                    "avg_tps": round(avg_tps, 2),
+                    "max_tps": round(max_tps, 2),
+                    "min_tps": round(min_tps, 2),
+                    "current_ath": round(self.tps_ath, 1),
+                    "current_24h_high": round(self.tps_24h_high, 1)
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            logger.debug(f"Served history: {len(history)} events, {len(ath_history)} ATH records")
+            return web.json_response(response_data)
+            
+        except ValueError as e:
+            logger.warning(f"Invalid query parameters in history request: {e}")
+            return web.json_response({
+                "error": "Invalid query parameters",
+                "message": str(e)
+            }, status=400)
+            
+        except Exception as e:
+            logger.error(f"Error in history handler: {str(e)}")
+            return web.json_response({
+                "error": "Internal server error",
+                "message": "Failed to retrieve history data"
+            }, status=500)
