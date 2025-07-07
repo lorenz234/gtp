@@ -699,43 +699,43 @@ class RedisSSEServer:
                 try:
                     data = json.loads(raw_entry)
                     
-                    # Get historical chain data for this timestamp to extract tx costs
-                    entry_timestamp_ms = self._safe_int(data.get("timestamp_ms", 0))
-                    eth_tx_cost_usd = None
-                    eth_tx_cost_eth = None
-                    l2_avg_cost_usd = None
-                    l2_avg_cost_eth = None
-                    l2_highest_cost_usd = None
+                    # # Get historical chain data for this timestamp to extract tx costs
+                    # entry_timestamp_ms = self._safe_int(data.get("timestamp_ms", 0))
+                    # eth_tx_cost_usd = None
+                    # eth_tx_cost_eth = None
+                    # l2_avg_cost_usd = None
+                    # l2_avg_cost_eth = None
+                    # l2_highest_cost_usd = None
                     
-                    # Fetch chain data around this timestamp to get tx costs
-                    if entry_timestamp_ms > 0:
-                        historical_chain_data = await self._get_historical_chain_data_at_timestamp(entry_timestamp_ms)
+                    # # Fetch chain data around this timestamp to get tx costs
+                    # if entry_timestamp_ms > 0:
+                    #     historical_chain_data = await self._get_historical_chain_data_at_timestamp(entry_timestamp_ms)
                         
-                        # Extract Ethereum costs
-                        eth_data = historical_chain_data.get("ethereum", {})
-                        if eth_data:
-                            eth_tx_cost_usd = self._safe_float(eth_data.get("tx_cost_erc20_transfer_usd"))
-                            eth_tx_cost_eth = self._safe_float(eth_data.get("tx_cost_erc20_transfer"))
+                    #     # Extract Ethereum costs
+                    #     eth_data = historical_chain_data.get("ethereum", {})
+                    #     if eth_data:
+                    #         eth_tx_cost_usd = self._safe_float(eth_data.get("tx_cost_erc20_transfer_usd"))
+                    #         eth_tx_cost_eth = self._safe_float(eth_data.get("tx_cost_erc20_transfer"))
                         
-                        # Calculate L2 costs
-                        l2_metrics = self._calculate_l2_metrics(historical_chain_data)
-                        l2_avg_cost_usd = l2_metrics.get("avg_cost_usd")
-                        l2_avg_cost_eth = l2_metrics.get("avg_cost_eth")
-                        l2_highest_cost_usd = l2_metrics.get("highest_cost_usd")
+                    #     # Calculate L2 costs
+                    #     l2_metrics = self._calculate_l2_metrics(historical_chain_data)
+                    #     l2_avg_cost_usd = l2_metrics.get("avg_cost_usd")
+                    #     l2_avg_cost_eth = l2_metrics.get("avg_cost_eth")
+                    #     l2_highest_cost_usd = l2_metrics.get("highest_cost_usd")
                     
                     # Format the history entry
                     entry = {
                         "tps": self._safe_float(data.get("tps", 0)),
                         "timestamp": data.get("timestamp", ""),
-                        "timestamp_ms": entry_timestamp_ms,
+                        #"timestamp_ms": entry_timestamp_ms,
                         "total_chains": self._safe_int(data.get("total_chains", 0)),
                         "active_chains": self._safe_int(data.get("active_chains", 0)),
                         "is_ath": data.get("is_ath", "false").lower() == "true",
-                        "ethereum_tx_cost_usd": eth_tx_cost_usd,
-                        "ethereum_tx_cost_eth": eth_tx_cost_eth,
-                        "layer2s_avg_cost_usd": l2_avg_cost_usd,
-                        "layer2s_avg_cost_eth": l2_avg_cost_eth,
-                        "layer2s_highest_cost_usd": l2_highest_cost_usd
+                        #"ethereum_tx_cost_usd": eth_tx_cost_usd,
+                        #"ethereum_tx_cost_eth": eth_tx_cost_eth,
+                        #"layer2s_avg_cost_usd": l2_avg_cost_usd,
+                        #"layer2s_avg_cost_eth": l2_avg_cost_eth,
+                        #"layer2s_highest_cost_usd": l2_highest_cost_usd
                     }
                     
                     history.append(entry)
