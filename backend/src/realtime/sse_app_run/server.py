@@ -699,23 +699,43 @@ class RedisSSEServer:
                 try:
                     data = json.loads(raw_entry)
                     
-                    # Parse chain breakdown if available
-                    chain_breakdown = {}
-                    if "chain_breakdown" in data:
-                        try:
-                            chain_breakdown = json.loads(data["chain_breakdown"])
-                        except (json.JSONDecodeError, TypeError):
-                            chain_breakdown = {}
+                    # Get historical chain data for this timestamp to extract tx costs
+                    entry_timestamp_ms = self._safe_int(data.get("timestamp_ms", 0))
+                    eth_tx_cost_usd = None
+                    eth_tx_cost_eth = None
+                    l2_avg_cost_usd = None
+                    l2_avg_cost_eth = None
+                    l2_highest_cost_usd = None
+                    
+                    # Fetch chain data around this timestamp to get tx costs
+                    if entry_timestamp_ms > 0:
+                        historical_chain_data = await self._get_historical_chain_data_at_timestamp(entry_timestamp_ms)
+                        
+                        # Extract Ethereum costs
+                        eth_data = historical_chain_data.get("ethereum", {})
+                        if eth_data:
+                            eth_tx_cost_usd = self._safe_float(eth_data.get("tx_cost_erc20_transfer_usd"))
+                            eth_tx_cost_eth = self._safe_float(eth_data.get("tx_cost_erc20_transfer"))
+                        
+                        # Calculate L2 costs
+                        l2_metrics = self._calculate_l2_metrics(historical_chain_data)
+                        l2_avg_cost_usd = l2_metrics.get("avg_cost_usd")
+                        l2_avg_cost_eth = l2_metrics.get("avg_cost_eth")
+                        l2_highest_cost_usd = l2_metrics.get("highest_cost_usd")
                     
                     # Format the history entry
                     entry = {
                         "tps": self._safe_float(data.get("tps", 0)),
                         "timestamp": data.get("timestamp", ""),
-                        "timestamp_ms": self._safe_int(data.get("timestamp_ms", 0)),
+                        "timestamp_ms": entry_timestamp_ms,
                         "total_chains": self._safe_int(data.get("total_chains", 0)),
                         "active_chains": self._safe_int(data.get("active_chains", 0)),
                         "is_ath": data.get("is_ath", "false").lower() == "true",
-                        "chain_breakdown": chain_breakdown
+                        "ethereum_tx_cost_usd": eth_tx_cost_usd,
+                        "ethereum_tx_cost_eth": eth_tx_cost_eth,
+                        "layer2s_avg_cost_usd": l2_avg_cost_usd,
+                        "layer2s_avg_cost_eth": l2_avg_cost_eth,
+                        "layer2s_highest_cost_usd": l2_highest_cost_usd
                     }
                     
                     history.append(entry)
@@ -724,42 +744,31 @@ class RedisSSEServer:
                     logger.warning(f"Failed to parse history entry: {e}")
                     continue
             
-            # Also get ATH history for reference
-            ath_entries = await self.redis_client.zrevrangebyscore(
-                RedisKeys.ATH_HISTORY,
-                now_ms,
-                0,  # All time
-                start=0,
-                num=10  # Last 10 ATH records
-            )
-            
-            ath_history = []
-            for raw_entry in ath_entries:
-                try:
-                    data = json.loads(raw_entry)
-                    ath_entry = {
-                        "tps": self._safe_float(data.get("tps", 0)),
-                        "timestamp": data.get("timestamp", ""),
-                        "timestamp_ms": self._safe_int(data.get("timestamp_ms", 0)),
-                        "total_chains": self._safe_int(data.get("total_chains", 0)),
-                        "active_chains": self._safe_int(data.get("active_chains", 0))
-                    }
-                    ath_history.append(ath_entry)
-                except (json.JSONDecodeError, TypeError):
-                    continue
-            
             # Calculate some summary statistics
             if history:
                 tps_values = [entry["tps"] for entry in history]
+                eth_cost_usd_values = [entry["ethereum_tx_cost_usd"] for entry in history if entry["ethereum_tx_cost_usd"] is not None]
+                l2_cost_usd_values = [entry["layer2s_avg_cost_usd"] for entry in history if entry["layer2s_avg_cost_usd"] is not None]
+                
                 avg_tps = sum(tps_values) / len(tps_values)
                 max_tps = max(tps_values)
                 min_tps = min(tps_values)
+                
+                # Transaction cost statistics
+                avg_eth_cost_usd = sum(eth_cost_usd_values) / len(eth_cost_usd_values) if eth_cost_usd_values else None
+                max_eth_cost_usd = max(eth_cost_usd_values) if eth_cost_usd_values else None
+                min_eth_cost_usd = min(eth_cost_usd_values) if eth_cost_usd_values else None
+                
+                avg_l2_cost_usd = sum(l2_cost_usd_values) / len(l2_cost_usd_values) if l2_cost_usd_values else None
+                max_l2_cost_usd = max(l2_cost_usd_values) if l2_cost_usd_values else None
+                min_l2_cost_usd = min(l2_cost_usd_values) if l2_cost_usd_values else None
             else:
                 avg_tps = max_tps = min_tps = 0
+                avg_eth_cost_usd = max_eth_cost_usd = min_eth_cost_usd = None
+                avg_l2_cost_usd = max_l2_cost_usd = min_l2_cost_usd = None
             
             response_data = {
                 "history": history,
-                "ath_history": ath_history,
                 "summary": {
                     "total_events": len(history),
                     "time_range_hours": hours,
@@ -767,12 +776,22 @@ class RedisSSEServer:
                     "max_tps": round(max_tps, 2),
                     "min_tps": round(min_tps, 2),
                     "current_ath": round(self.tps_ath, 1),
-                    "current_24h_high": round(self.tps_24h_high, 1)
+                    "current_24h_high": round(self.tps_24h_high, 1),
+                    "ethereum_tx_costs": {
+                        "avg_usd": round(avg_eth_cost_usd, 4) if avg_eth_cost_usd else None,
+                        "max_usd": round(max_eth_cost_usd, 4) if max_eth_cost_usd else None,
+                        "min_usd": round(min_eth_cost_usd, 4) if min_eth_cost_usd else None
+                    },
+                    "layer2s_tx_costs": {
+                        "avg_usd": round(avg_l2_cost_usd, 4) if avg_l2_cost_usd else None,
+                        "max_usd": round(max_l2_cost_usd, 4) if max_l2_cost_usd else None,
+                        "min_usd": round(min_l2_cost_usd, 4) if min_l2_cost_usd else None
+                    }
                 },
                 "timestamp": datetime.now().isoformat()
             }
             
-            logger.debug(f"Served history: {len(history)} events, {len(ath_history)} ATH records")
+            logger.debug(f"Served history: {len(history)} events")
             return web.json_response(response_data)
             
         except ValueError as e:
@@ -788,7 +807,62 @@ class RedisSSEServer:
                 "error": "Internal server error",
                 "message": "Failed to retrieve history data"
             }, status=500)
+    
+    async def _get_historical_chain_data_at_timestamp(self, timestamp_ms: int) -> Dict[str, Any]:
+        """Get chain data closest to a specific timestamp from Redis streams."""
+        try:
+            chains = await self._get_all_chains()
+            chain_data = {}
             
+            # For each chain, get data closest to the target timestamp
+            for chain_name in chains:
+                try:
+                    stream_key = RedisKeys.chain_stream(chain_name)
+                    
+                    # Get entries around the target timestamp (within 5 minutes)
+                    time_window = 5 * 60 * 1000  # 5 minutes in ms
+                    min_time = timestamp_ms - time_window
+                    max_time = timestamp_ms + time_window
+                    
+                    # Convert to Redis stream timestamp format (milliseconds-0)
+                    min_stream_id = f"{min_time}-0"
+                    max_stream_id = f"{max_time}-0"
+                    
+                    entries = await self.redis_client.xrange(stream_key, min_stream_id, max_stream_id, count=10)
+                    
+                    if entries:
+                        # Find the entry closest to target timestamp
+                        closest_entry = None
+                        closest_diff = float('inf')
+                        
+                        for entry_id, fields in entries:
+                            entry_timestamp = self._safe_int(fields.get("timestamp", 0))
+                            time_diff = abs(entry_timestamp - timestamp_ms)
+                            
+                            if time_diff < closest_diff:
+                                closest_diff = time_diff
+                                closest_entry = fields
+                        
+                        if closest_entry:
+                            chain_data[chain_name] = {
+                                "chain_name": chain_name,
+                                "display_name": closest_entry.get("display_name", chain_name),
+                                "tps": self._safe_float(closest_entry.get("tps", 0)),
+                                "tx_cost_erc20_transfer": self._safe_float(closest_entry.get("tx_cost_erc20_transfer", 0)),
+                                "tx_cost_erc20_transfer_usd": self._safe_float(closest_entry.get("tx_cost_erc20_transfer_usd", 0)),
+                                "timestamp": self._safe_int(closest_entry.get("timestamp", 0))
+                            }
+                    
+                except Exception as e:
+                    logger.debug(f"Error getting historical data for {chain_name}: {e}")
+                    continue
+            
+            return chain_data
+            
+        except Exception as e:
+            logger.error(f"Error getting historical chain data: {e}")
+            return {}
+        
 async def create_app(server: RedisSSEServer):
     """Create and configure the aiohttp application."""
     app = web.Application()
