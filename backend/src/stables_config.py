@@ -844,4 +844,14 @@ stables_mapping = {
             ]
         }
     },
+    "starknet": {
+        "bridged": {
+            "ethereum": [
+                "0x0437465dfb5B79726e35F08559B0cBea55bb585C",  # DAI
+                "0xF3F62F23dF9C1D2C7C63D9ea6B90E8d24c7E3DF5",  # LUSD
+                "0xF6080D9fbEEbcd44D89aFfBFd42F098cbFf92816",  # USDC
+                "0xbb3400F107804DFB482565FF1Ec8D8aE66747605"   # USDT
+            ]
+        }
+    },
 }
