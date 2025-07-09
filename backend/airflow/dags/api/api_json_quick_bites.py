@@ -49,6 +49,7 @@ def json_creation():
                     "optimism": {},
                     "base": {},
                     "unichain": {},
+                    "arbitrum": {}
                 }
             }    
         }
@@ -78,7 +79,7 @@ def json_creation():
         }    
 
         ##type4 tx count
-        for origin_key in ['ethereum', 'optimism', 'base', 'unichain']:
+        for origin_key in ['ethereum', 'optimism', 'base', 'unichain', 'arbitrum']:
             query_parameters = {
                 'origin_key': origin_key,
                 'metric_key': 'txcount_type4',
