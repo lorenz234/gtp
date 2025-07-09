@@ -240,6 +240,9 @@ class AdapterL2Beat(AbstractAdapter):
 
         ## filter to type = 'layer2'
         df = df[df['type'] == 'layer2']
+        
+        ## create a new column 'provider' that extracts the first element of the 'providers' list
+        df['provider'] = df['providers'].apply(lambda x: x[0] if isinstance(x, list) and len(x) > 0 else None)
 
         ## keep only columns index, name, slug, type, hostChain, category, provider, isArchived, isUpcoming, isUnderReview, stage, VM, DA, Stack, Infra
         df = df[['index', 'name', 'slug', 'type', 'hostChain', 'category', 'provider', 'isArchived', 'isUpcoming', 'isUnderReview', 'stage', 'vm', 'da', 'stack', 'infra']] 
