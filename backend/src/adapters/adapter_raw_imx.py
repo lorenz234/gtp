@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from src.adapters.abstract_adapters import AbstractAdapterRaw
 from src.misc.helper_functions import api_get_call
-from src.misc.helper_functions import print_init, print_extract_raw, dataframe_to_s3
+from src.misc.helper_functions import print_init, print_extract_raw, dataframe_to_gcs
 
 ##disable pandas warnings
 pd.options.mode.chained_assignment = None
@@ -92,7 +92,9 @@ class AdapterRawImx(AbstractAdapterRaw):
                 file_name = f"{main_props['tbl_name']}_{df.order_id.min()}-{df.order_id.max()}"
             else:
                 file_name = f"{main_props['tbl_name']}_{df.transaction_id.min()}-{df.transaction_id.max()}"
-            dataframe_to_s3(f'imx/{load_type}/{file_name}', df)
+            
+            # Store to GCS under imx/ without load_type subfolder
+            dataframe_to_gcs(f'imx/{file_name}', df)
 
             if load_type == 'orders_filled':
                 dfFees = df[['order_id', 'user', 'updated_timestamp', 'fees']]

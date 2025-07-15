@@ -2663,7 +2663,7 @@ class JSONCreation():
         }        
 
         ## meet layer 2s
-        l2s_to_meet = ['optimism', 'arbitrum', 'base', 'soneium', 'celo']
+        l2s_to_meet = ['optimism', 'arbitrum', 'base' , 'celo' , 'soneium']
         for l2 in l2s_to_meet:
             query_parameters = {
                 "origin_key": l2
@@ -2694,13 +2694,16 @@ class JSONCreation():
             }
             tps = execute_jinja_query(self.db_connector, "api/select_fact_kpis_latest.sql.j2", query_parameters, return_df=True).iloc[0, 1] / (24*60*60)  # convert to TPS
             
-            query_parameters = {
-                "origin_key": l2,
-                "days": 7,
-                "limit": 5
-            }
-            top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", query_parameters, return_df=True)
-            top_apps_list = top_apps['owner_project'].tolist()
+            if l2 == 'celo':
+                top_apps_list = ['tetherto', 'circlefin', 'velodrome', 'uniswap', 'mento-protocol']
+            else:
+                query_parameters = {
+                    "origin_key": l2,
+                    "days": 7,
+                    "limit": 5
+                }
+                top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", query_parameters, return_df=True)
+                top_apps_list = top_apps['owner_project'].tolist()
             
             l2_dict = {
                 "total_aa": int(aa_total),

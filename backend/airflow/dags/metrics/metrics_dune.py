@@ -35,11 +35,11 @@ def etl():
         }
         load_params = {
             'queries': [
-                {
-                    'name': 'stables_mcap',
-                    'query_id': 2608415,
-                    'params': {'days': 5}
-                },
+                # {
+                #     'name': 'stables_mcap',
+                #     'query_id': 2608415,
+                #     'params': {'days': 5}
+                # },
                 {
                     'name': 'economics_da',
                     'query_id': 4046209,
