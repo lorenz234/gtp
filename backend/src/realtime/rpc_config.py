@@ -133,7 +133,7 @@ rpc_config = {
         "processors": "evm",
         "stack": "nitro",
         "sleeper": 3,
-        "calc_fees": True,
+        "calc_fees": False, ##custom gas?
     },
     
     # ZK Stack chains
