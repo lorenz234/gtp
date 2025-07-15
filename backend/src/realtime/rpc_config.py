@@ -128,6 +128,14 @@ rpc_config = {
         "calc_fees": True,
     },
     
+    "plume": {
+        "name": "Plume",
+        "processors": "evm",
+        "stack": "nitro",
+        "sleeper": 3,
+        "calc_fees": True,
+    },
+    
     # ZK Stack chains
     "zksync_era": {
         "name": "ZKsync Era",
