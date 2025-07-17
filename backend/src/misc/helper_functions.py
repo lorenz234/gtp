@@ -573,6 +573,27 @@ def dataframe_to_s3(path_name, df):
 
     print(f'...uploaded to S3 longterm in {path_name}')
 
+## This function uploads a dataframe to GCS bucket as parquet file
+def dataframe_to_gcs(path_name, df):
+    import io
+    from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs
+    
+    # Connect to GCS
+    gcs, bucket_name = connect_to_gcs()
+    bucket = gcs.bucket(bucket_name)
+    
+    # Convert DataFrame to parquet and upload to GCS
+    parquet_buffer = io.BytesIO()
+    df.to_parquet(parquet_buffer, index=False)
+    parquet_buffer.seek(0)
+    
+    # Upload to GCS
+    file_key = f"{path_name}.parquet"
+    blob = bucket.blob(file_key)
+    blob.upload_from_file(parquet_buffer, content_type='application/octet-stream')
+    
+    print(f'...uploaded to GCS in {path_name}')
+
 # prompt chatgpt, requires openai library
 def prompt_chatgpt(prompt, api_key, model="gpt-3.5-turbo"):
     client = OpenAI(api_key=api_key)

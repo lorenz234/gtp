@@ -103,6 +103,13 @@ rpc_config = {
         "sleeper": 3,
         "calc_fees": True,
     },
+    "lisk": {
+        "name": "Lisk",
+        "processors": "evm",
+        "stack": "op_stack",
+        "sleeper": 3,
+        "calc_fees": True,
+    },
     
     ## Nitro/Arbitrum Orbit chains
     "arbitrum": {
@@ -119,6 +126,14 @@ rpc_config = {
         "stack": "nitro",
         "sleeper": 3,
         "calc_fees": True,
+    },
+    
+    "plume": {
+        "name": "Plume",
+        "processors": "evm",
+        "stack": "nitro",
+        "sleeper": 3,
+        "calc_fees": False, ##custom gas?
     },
     
     # ZK Stack chains

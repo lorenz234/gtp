@@ -299,6 +299,28 @@ stables_metadata = {
             "blast": "0x4300000000000000000000000000000000000003",
         }
     },
+    "openusdt": {                            # oUSDT
+        "name": "OpenUSDT",
+        "symbol": "oUSDT",
+        "decimals": 6,
+        "coingecko_id": "openusdt",
+        "fiat": "usd",
+        "logo": "https://coin-images.coingecko.com/coins/images/54815/large/ousdt.jpg?1741848258",
+        "addresses": {
+            "base": "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189"
+        }
+    },
+    "resolv-usr": {                          # USR
+        "name": "Resolv USD",
+        "symbol": "USR",
+        "decimals": 18,
+        "coingecko_id": "resolv-usr",
+        "fiat": "usd",
+        "logo": "https://coin-images.coingecko.com/coins/images/40008/large/USR_LOGO.png?1725222638",
+        "addresses": {
+            "base": "0x35E5dB674D8e93a03d814FA0ADa70731efe8a4b9"
+        }
+    },
 }
 
 
@@ -844,4 +866,82 @@ stables_mapping = {
             ]
         }
     },
+    "starknet": {
+        "bridged": {
+            "ethereum": [
+                "0x0437465dfb5B79726e35F08559B0cBea55bb585C",  # DAI
+                "0xF3F62F23dF9C1D2C7C63D9ea6B90E8d24c7E3DF5",  # LUSD
+                "0xF6080D9fbEEbcd44D89aFfBFd42F098cbFf92816",  # USDC
+                "0xbb3400F107804DFB482565FF1Ec8D8aE66747605"   # USDT
+            ]
+        }
+    },
+    "optimism": {
+        "direct": {
+            "usdc": {
+                "token_address": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+                "method_name": "totalSupply"
+            },
+            "tether": {
+                "token_address": "0x3e7ef4eebe34441227df5e8bcb86d04564d45f3e",
+                "method_name": "totalSupply"
+            },
+            "frax": {
+                "token_address": "0x2e3D870790dC77A83DD1d18184Acc7439A53f475",
+                "method_name": "totalSupply"
+            },
+            "liquity-usd": {
+                "token_address": "0x93b346b6bc2548da6a1e7d98e9a421b42541425b",
+                "method_name": "totalSupply"
+            },
+            "curve-usd": {
+                "token_address": "0x3ab04f007ca9c72dca2d298b9e9c38426794d47d",
+                "method_name": "totalSupply"
+            },
+            "true_usd": {
+                "token_address": "0xE7F58A92476056627f9F2dD71a2d38F164A6eF0D",
+                "method_name": "totalSupply"
+            }
+        },
+        "bridged": {
+            "ethereum": [
+                "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1", # Optimism L1 StandardBridge USDC vault
+                "0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65" # Optimism L1 StandardBridge DAI vault
+            ]
+        }
+    },
+    "base": {
+    # ────────────────────── bridge escrows on Ethereum (locked value) ──────────────────────
+    "bridged": {
+        "ethereum": [
+            "0x49048044D57e1C92A77f79988d21Fa8fAF74E97e",  # Base: L1StandardBridge (ETH + ERC-20)
+            "0x3154Cf16ccdb4C6d922629664174b904d80F2C35",  # Base: L1 ERC-20 bridge vault
+        ]
+    },
+
+    # ────────────────────── tokens natively minted on Base ──────────────────────
+    "direct": {
+        "usdc": {                    # USDC
+            "token_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "method_name":  "totalSupply",
+        },
+        "ethena-usde": {            # USDe
+            "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+            "method_name":  "totalSupply",
+        },
+        "euro-coin": {              # EURC
+            "token_address": "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42",
+            "method_name":  "totalSupply",
+        },
+        "openusdt": {               # oUSDT
+            "token_address": "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+            "method_name":  "totalSupply",
+        },
+        "resolv-usr": {             # USR
+            "token_address": "0x35E5dB674D8e93a03d814FA0ADa70731efe8a4b9",
+            "method_name":  "totalSupply",
+        },
+    },
+
+},
 }

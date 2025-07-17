@@ -78,6 +78,7 @@ sql_queries = [
         ,SQLQuery(metric_key = "fees_paid_base_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_fees_paid.sql.j2')
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_fees_paid_combined.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcosts_median.sql.j2')
+        ,SQLQuery(metric_key = "txcount_type4", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
         
         ## Real
         # ,SQLQuery(metric_key = "txcount_raw", origin_key = "real", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
