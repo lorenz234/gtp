@@ -1344,7 +1344,7 @@ class JSONCreation():
                 }
 
                 if self.metrics[metric]['ranking_bubble']:
-                    ranking_dict[metric] = self.get_ranking(df_tmp, metric, origin_key)
+                    ranking_dict[metric] = self.get_ranking(df_tmp, metric, origin_key, incl_value=False, filter_ethereum=False)
             
             ## Hottest Contract
             if chain.runs_aggregate_blockspace and 'blockspace' not in chain.api_exclude_metrics:
