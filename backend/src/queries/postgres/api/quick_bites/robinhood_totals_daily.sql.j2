@@ -1,0 +1,81 @@
+WITH date_range AS (
+  SELECT generate_series(
+    (SELECT MIN(date) FROM public.robinhood_daily),
+    (SELECT MAX(date) FROM public.robinhood_daily),
+    '1 day'::interval
+  )::date as date
+),
+all_stocks AS (
+  SELECT DISTINCT contract_address 
+  FROM public.robinhood_daily
+  WHERE contract_address IN (
+    SELECT contract_address 
+    FROM public.robinhood_stock_list 
+    WHERE ticker NOT ILIKE '%demo token%'
+  )
+),
+complete_date_stock_grid AS (
+  SELECT 
+    s.contract_address,
+    d.date
+  FROM all_stocks s
+  CROSS JOIN date_range d
+),
+daily_metrics AS (
+  SELECT 
+    contract_address,
+    date,
+    SUM(CASE WHEN metric_key = 'total_minted' THEN value ELSE 0 END) -
+    SUM(CASE WHEN metric_key = 'total_burned' THEN value ELSE 0 END) as net_change,
+    MAX(CASE WHEN metric_key = 'Close' THEN value END) as close_price
+  FROM public.robinhood_daily
+  WHERE metric_key IN ('total_minted', 'total_burned', 'Close')
+  GROUP BY contract_address, date
+),
+complete_data AS (
+  SELECT 
+    g.contract_address,
+    g.date,
+    COALESCE(dm.net_change, 0) as net_change,
+    dm.close_price
+  FROM complete_date_stock_grid g
+  LEFT JOIN daily_metrics dm ON g.contract_address = dm.contract_address AND g.date = dm.date
+),
+prices_with_fill AS (
+  SELECT 
+    contract_address,
+    date,
+    net_change,
+    COALESCE(
+      close_price,
+      LAG(close_price) OVER (PARTITION BY contract_address ORDER BY date),
+      LAG(close_price, 2) OVER (PARTITION BY contract_address ORDER BY date),
+      LAG(close_price, 3) OVER (PARTITION BY contract_address ORDER BY date)
+    ) as filled_close_price
+  FROM complete_data
+),
+cumulative_supply AS (
+  SELECT 
+    contract_address,
+    date,
+    filled_close_price,
+    SUM(net_change) OVER (
+      PARTITION BY contract_address 
+      ORDER BY date 
+      ROWS UNBOUNDED PRECEDING
+    ) as total_supply
+  FROM prices_with_fill
+),
+daily_market_values AS (
+  SELECT 
+    date,
+    total_supply * filled_close_price as total_market_value
+  FROM cumulative_supply
+  WHERE filled_close_price IS NOT NULL
+)
+SELECT 
+  date,
+  SUM(total_market_value) as total_market_value_sum
+FROM daily_market_values
+GROUP BY date
+ORDER BY date;

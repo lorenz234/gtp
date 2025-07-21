@@ -109,3 +109,14 @@ class AdapterDune(AbstractAdapter):
         # set primary keys as index
         df = df.set_index(['address', 'date'])
         return df
+    
+    def prepare_robinhood_list(self, df):
+        # set index to contract_address
+        df = df.set_index(['contract_address'])
+        return df
+    
+    def prepare_robinhood_daily(self, df):
+        # unpivot df to match the format of robinhood_daily table
+        df = df.melt(id_vars=['date', 'contract_address'], var_name='metric_key', value_name='value')
+        df = df.set_index(['contract_address', 'date', 'metric_key'])
+        return df
