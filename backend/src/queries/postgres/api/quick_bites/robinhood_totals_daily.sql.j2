@@ -11,7 +11,7 @@ all_stocks AS (
   WHERE contract_address IN (
     SELECT contract_address 
     FROM public.robinhood_stock_list 
-    WHERE ticker NOT ILIKE '%demo token%'
+    WHERE ticker NOT ILIKE '%%demo token%%'
   )
 ),
 complete_date_stock_grid AS (

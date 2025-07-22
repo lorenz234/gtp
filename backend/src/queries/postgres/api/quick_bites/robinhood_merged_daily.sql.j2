@@ -11,7 +11,7 @@ all_stocks AS (
   WHERE contract_address IN (
     SELECT contract_address 
     FROM public.robinhood_stock_list 
-    WHERE ticker NOT ILIKE '%demo token%'
+    WHERE ticker NOT ILIKE '%%demo token%%'
   )
 ),
 complete_date_stock_grid AS (
@@ -87,5 +87,5 @@ SELECT
 FROM cumulative_supply cs
 LEFT JOIN public.robinhood_stock_list rsl 
   ON cs.contract_address = rsl.contract_address
-  AND rsl.ticker NOT ILIKE '%demo token%'
+  AND rsl.ticker NOT ILIKE '%%demo token%%'
 ORDER BY cs.contract_address, cs.date;
