@@ -441,7 +441,11 @@ def fix_dict_nan(test_dict, dict_name, send_notification=True):
 
 ## S3 functions
 def empty_cloudfront_cache(distribution_id, path):
-        cf = boto3.client('cloudfront')
+        cf = boto3.client(
+            "cloudfront",
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
+        )
         print("Creating invalidation for path: " + path)
         time.sleep(random.randint(1, 3))
         res = cf.create_invalidation(
@@ -462,7 +466,11 @@ def empty_cloudfront_cache(distribution_id, path):
 
 def upload_file_to_cf_s3(bucket, path_name, local_path, cf_distribution_id):
     # Initialize S3 client
-    s3 = boto3.client("s3")
+    s3 = boto3.client(
+        "s3",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
+    )
     # Upload the file to S3
     s3.upload_file(local_path, bucket, path_name)
 
@@ -475,7 +483,11 @@ def upload_json_to_cf_s3(bucket, path_name, details_dict, cf_distribution_id, in
     details_json = json.dumps(details_dict)
 
     # Upload JSON String to an S3 Object
-    s3 = boto3.client('s3')
+    s3 = boto3.client(
+        "s3",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
+    )
     s3.put_object(
         Bucket=bucket, 
         Key=f'{path_name}.json',
@@ -534,7 +546,11 @@ def upload_image_to_cf_s3(bucket, s3_path, local_path, cf_distribution_id, file_
     print(f'...uploading {file_type} from {local_path} to {s3_key} in bucket {bucket}')
     
     # Upload file to S3
-    s3 = boto3.client('s3')
+    s3 = boto3.client(
+        "s3",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
+    )
     with open(local_path, 'rb') as image:
         s3.put_object(
             Bucket=bucket, 
@@ -559,7 +575,11 @@ def upload_parquet_to_cf_s3(bucket, path_name, df, cf_distribution_id):
 def upload_polars_df_to_s3(df, file_name, bucket, key):
     df.write_parquet(file_name)
 
-    s3 = boto3.client('s3')
+    s3 = boto3.client(
+        "s3",
+        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
+    )
     try:
         s3.upload_file(file_name, bucket, key)
         os.remove(file_name)
