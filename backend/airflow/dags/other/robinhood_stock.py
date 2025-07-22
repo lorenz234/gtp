@@ -206,7 +206,7 @@ def run_dag():
         data_dict3 = fix_dict_nan(data_dict3, 'robinhood_stocks')
 
         # Upload to S3
-        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood-daily', data_dict, cf_distribution_id)
+        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood_daily', data_dict, cf_distribution_id)
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood_totals', data_dict2, cf_distribution_id)
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood_stock_table', data_dict3, cf_distribution_id)
 
