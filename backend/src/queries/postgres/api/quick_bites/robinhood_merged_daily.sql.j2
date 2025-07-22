@@ -1,0 +1,91 @@
+WITH date_range AS (
+  SELECT generate_series(
+    (SELECT MIN(date) FROM public.robinhood_daily),
+    (SELECT MAX(date) FROM public.robinhood_daily),
+    '1 day'::interval
+  )::date as date
+),
+all_stocks AS (
+  SELECT DISTINCT contract_address 
+  FROM public.robinhood_daily
+  WHERE contract_address IN (
+    SELECT contract_address 
+    FROM public.robinhood_stock_list 
+    WHERE ticker NOT ILIKE '%%demo token%%'
+  )
+),
+complete_date_stock_grid AS (
+  SELECT 
+    s.contract_address,
+    d.date
+  FROM all_stocks s
+  CROSS JOIN date_range d
+),
+daily_metrics AS (
+  SELECT 
+    contract_address,
+    date,
+    SUM(CASE WHEN metric_key = 'total_minted' THEN value ELSE 0 END) as minted,
+    SUM(CASE WHEN metric_key = 'total_burned' THEN value ELSE 0 END) as burned,
+    MAX(CASE WHEN metric_key = 'Close' THEN value END) as close_price
+  FROM public.robinhood_daily
+  WHERE metric_key IN ('total_minted', 'total_burned', 'Close')
+  GROUP BY contract_address, date
+),
+complete_data AS (
+  SELECT 
+    g.contract_address,
+    g.date,
+    COALESCE(dm.minted, 0) as minted,
+    COALESCE(dm.burned, 0) as burned,
+    dm.close_price
+  FROM complete_date_stock_grid g
+  LEFT JOIN daily_metrics dm ON g.contract_address = dm.contract_address AND g.date = dm.date
+),
+prices_with_fill AS (
+  SELECT 
+    contract_address,
+    date,
+    minted,
+    burned,
+    close_price,
+    -- Use COALESCE with LAG to forward fill prices (max 3 days)
+    COALESCE(
+      close_price,
+      LAG(close_price) OVER (PARTITION BY contract_address ORDER BY date),
+      LAG(close_price, 2) OVER (PARTITION BY contract_address ORDER BY date),
+      LAG(close_price, 3) OVER (PARTITION BY contract_address ORDER BY date)
+    ) as filled_close_price
+  FROM complete_data
+),
+cumulative_supply AS (
+  SELECT 
+    contract_address,
+    date,
+    minted,
+    burned,
+    close_price,
+    filled_close_price,
+    SUM(minted - burned) OVER (
+      PARTITION BY contract_address 
+      ORDER BY date 
+      ROWS UNBOUNDED PRECEDING
+    ) as total_supply
+  FROM prices_with_fill
+)
+SELECT 
+  cs.contract_address,
+  rsl.ticker,
+  rsl.name,
+  cs.date,
+  cs.minted,
+  cs.burned,
+  cs.total_supply,
+  cs.close_price as original_close_price,
+  cs.filled_close_price as close_price_used,
+  cs.total_supply * cs.filled_close_price as total_market_value
+FROM cumulative_supply cs
+LEFT JOIN public.robinhood_stock_list rsl 
+  ON cs.contract_address = rsl.contract_address
+  AND rsl.ticker NOT ILIKE '%%demo token%%'
+ORDER BY cs.contract_address, cs.date;
