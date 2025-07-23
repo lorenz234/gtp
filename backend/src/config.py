@@ -81,7 +81,7 @@ gtp_metrics = {
             'log_default': False
         }
         ,'stables_mcap': {
-            'name': 'Stablecoin Market Cap',
+            'name': 'Stablecoin Supply',
             'fundamental': True,
             'metric_keys': ['stables_mcap', 'stables_mcap_eth'],
             'units': {
