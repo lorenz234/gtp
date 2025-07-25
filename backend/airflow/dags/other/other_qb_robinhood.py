@@ -308,9 +308,12 @@ def run_dag():
         ### empty_cloudfront_cache
         from src.misc.helper_functions import empty_cloudfront_cache
         empty_cloudfront_cache(cf_distribution_id, '/v1/quick-bites/robinhood/*')
-
-
-    pull_data_from_dune()
-    pull_data_from_yfinance()
-    create_json_file()
+    
+    # all tasks
+    pull_dune = pull_data_from_dune()  ## read in contracts from airtable and attest
+    pull_yfinance = pull_data_from_yfinance() ## read in approved labels from airtable and attest 
+    create_jsons = create_json_file() ## read in remap owner project from airtable and attest
+    
+    # Define execution order
+    pull_dune >> pull_yfinance >> create_jsons
 run_dag()
