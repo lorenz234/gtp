@@ -213,12 +213,7 @@ def run_dag():
                             filtered_df2['unix_timestamp'].tolist()
                         )]
                     }
-                },
-                "total_market_value_sum_usd": total_market_value_sum_usd,
-                "perc_change_market_value_usd_1d": perc_change_market_value_usd_1d,
-                "perc_change_market_value_usd_7d": perc_change_market_value_usd_7d,
-                "perc_change_market_value_usd_30d": perc_change_market_value_usd_30d,
-                "perc_change_market_value_usd_365d": perc_change_market_value_usd_365d
+                }
             }
         }
 
@@ -267,16 +262,35 @@ def run_dag():
                 "stocks": {
                     "columnKeys": {col["key"]: col for col in column_configs},
                     "rowData": rows_data
-                },
-                "stockCount": len(rows_data)
+                }
             }
         }
+
+        stockCount = len(rows_data)
 
         # Fix NaN values in the data_dict3
         data_dict3 = fix_dict_nan(data_dict3, 'robinhood_stocks')
 
         # Upload to S3
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood/stock_table', data_dict3, cf_distribution_id, invalidate=False)
+
+
+        ### KPI json
+
+        data_dict4 = {
+            "data": {
+                "total_market_value_sum_usd": total_market_value_sum_usd,
+                "perc_change_market_value_usd_1d": perc_change_market_value_usd_1d,
+                "perc_change_market_value_usd_7d": perc_change_market_value_usd_7d,
+                "perc_change_market_value_usd_30d": perc_change_market_value_usd_30d,
+                "perc_change_market_value_usd_365d": perc_change_market_value_usd_365d,
+                "stockCount": stockCount
+            }
+        }
+
+        # fix NaN and upload to S3
+        data_dict4 = fix_dict_nan(data_dict4, 'robinhood_kpi')
+        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood/kpi', data_dict4, cf_distribution_id, invalidate=False)
 
 
         ### empty_cloudfront_cache
