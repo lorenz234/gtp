@@ -17,7 +17,7 @@ from src.misc.airflow_utils import alert_via_webhook
         'retry_delay' : timedelta(minutes=2),
         'on_failure_callback': alert_via_webhook
     },
-    dag_id='robinhood_stock_QB',
+    dag_id='other_qb_robinhood',
     description='Data for Robinhood stock tracker.',
     tags=['other'],
     start_date=datetime(2025,7,22),
@@ -274,6 +274,19 @@ def run_dag():
         # Upload to S3
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood/stock_table', data_dict3, cf_distribution_id, invalidate=False)
 
+        ## Create json for dropdown
+        ## create a list of dictionaries for each row in df3 with the ticker and the name
+        df3['name_extended'] = df3['ticker'] + ' | ' + df3['name']
+        ticker_name_list = df3[['ticker', 'name_extended']].to_dict(orient='records')
+        
+        dict_dropdown = {
+            "dropdown_values": ticker_name_list,
+        }
+
+        # Fix NaN values in the dict_dropdown
+        dict_dropdown = fix_dict_nan(dict_dropdown, 'robinhood_dropdown')
+        # Upload to S3
+        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood/dropdown', dict_dropdown, cf_distribution_id, invalidate=False)
 
         ### KPI json
 
