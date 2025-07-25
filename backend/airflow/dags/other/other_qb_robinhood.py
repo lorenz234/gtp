@@ -199,7 +199,7 @@ def run_dag():
         perc_change_market_value_usd_1d = filtered_df2['total_market_value_sum'].pct_change().iloc[-1] * 100 if not filtered_df2.empty else None
         perc_change_market_value_usd_7d = filtered_df2['total_market_value_sum'].pct_change(periods=7).iloc[-1] * 100 if not filtered_df2.empty else None
         perc_change_market_value_usd_30d = filtered_df2['total_market_value_sum'].pct_change(periods=30).iloc[-1] * 100 if not filtered_df2.empty else None
-        perc_change_market_value_usd_365d = filtered_df2['total_market_value_sum'].pct_change(periods=365).iloc[-1] * 100 if not filtered_df2.empty else None
+        #perc_change_market_value_usd_365d = filtered_df2['total_market_value_sum'].pct_change(periods=365).iloc[-1] * 100 if not filtered_df2.empty else None
 
         # Create data_dict2 for the totals data
         data_dict2 = {
@@ -295,7 +295,7 @@ def run_dag():
                 "perc_change_market_value_usd_1d": perc_change_market_value_usd_1d,
                 "perc_change_market_value_usd_7d": perc_change_market_value_usd_7d,
                 "perc_change_market_value_usd_30d": perc_change_market_value_usd_30d,
-                "perc_change_market_value_usd_365d": perc_change_market_value_usd_365d,
+                #"perc_change_market_value_usd_365d": perc_change_market_value_usd_365d,
                 "stockCount": stockCount
             }
         }
