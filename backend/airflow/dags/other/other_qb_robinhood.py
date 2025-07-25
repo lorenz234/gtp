@@ -1,7 +1,6 @@
 import sys
 import getpass
 
-from backend.src.misc.helper_functions import empty_cloudfront_cache
 sys_user = getpass.getuser()
 sys.path.append(f"/home/{sys_user}/gtp/backend/")
 
