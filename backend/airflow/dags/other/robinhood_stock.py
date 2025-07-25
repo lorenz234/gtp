@@ -21,7 +21,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Data for Robinhood stock tracker.',
     tags=['other'],
     start_date=datetime(2025,7,22),
-    schedule='12 3 * * *'
+    schedule='12 1 * * 2-6'
 )
 
 def run_dag():
