@@ -175,7 +175,7 @@ def run_dag():
             data_dict = fix_dict_nan(data_dict, f'robinhood_daily_{ticker}')
 
             # Upload to S3
-            upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/robinhood/{ticker}', data_dict, cf_distribution_id, invalidate=False)
+            upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/robinhood/stocks/{ticker}', data_dict, cf_distribution_id, invalidate=False)
 
 
         ### Load the second dataset for totals
