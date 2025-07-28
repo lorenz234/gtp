@@ -102,10 +102,10 @@ class AdapterTotalSupply(AbstractAdapter):
                     dfMain = pd.concat([dfMain,df])
                     continue
                 else:
-                    df2 = self.db_connector.get_total_supply_blocks(coin.origin_key, days)
+                    df2 = self.db_connector.get_total_supply_blocks(coin.cs_deployment_origin_key, days)
                     df2['date'] = pd.to_datetime(df2['date'])
                     df = df.merge(df2, on='date', how='left')
-                    rpc = self.db_connector.get_special_use_rpc(coin.origin_key)
+                    rpc = self.db_connector.get_special_use_rpc(coin.cs_deployment_origin_key)
 
                 # Defined a basic ABI for totalSupply and decimals
                 token_abi = [
