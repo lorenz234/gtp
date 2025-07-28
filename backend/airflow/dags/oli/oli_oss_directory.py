@@ -19,7 +19,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Loads project data from the OSS Directory API',
     tags=['oli', 'daily'],
     start_date=datetime(2025,7,25),
-    schedule='*/2 * * * *'  # Run every 2 minutes
+    schedule='*/2 * * * *'  # Run every 2 minutes, make sure to also change line 46!
 )
 
 def etl():
@@ -42,8 +42,8 @@ def etl():
         delta = now - commit_time
 
 
-        ### If the latest commit was within the last 5 minutes (300s), proceed with the update
-        if delta.total_seconds() < 301:  
+        ### If the latest commit was within the last 1 minutes (120s), proceed with the update
+        if delta.total_seconds() < 121:  
 
             import os
             from src.adapters.adapter_oso import AdapterOSO
