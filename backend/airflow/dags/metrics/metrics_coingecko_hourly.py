@@ -135,7 +135,8 @@ def etl():
     daily_vals = run_market_chart_daily()
     fdv = run_fdv()  
     conversion = run_usd_to_eth() 
+    jsons = create_new_jsons()
 
     # Define execution order
-    daily_vals >> fdv >> conversion
+    daily_vals >> fdv >> conversion >> jsons
 etl()
