@@ -876,12 +876,13 @@ class DbConnector:
                
 
         def get_total_supply_blocks(self, origin_key, days):
+                ## changed to Min instead of Max on July 29th, 2025 (to run it earlier in the day)
                 exec_string = f'''
                         SELECT 
                                 block_date AS date,
-                                MAX(block_number) AS block_number
+                                MIN(block_number) AS block_number
                         FROM public.{origin_key}_tx
-                        WHERE block_date BETWEEN (CURRENT_DATE - INTERVAL '{days+1} days') AND (CURRENT_DATE)
+                        WHERE block_date > (CURRENT_DATE - INTERVAL '{days+1} days')
                         GROUP BY 1;
                 '''
                 df = pd.read_sql(exec_string, self.engine.connect())
