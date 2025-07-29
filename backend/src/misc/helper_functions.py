@@ -147,9 +147,12 @@ def get_df_kpis():
     return pd.DataFrame(columns=['date', 'metric_key', 'origin_key', 'value'])
 
 ## this function returns a dataframe for the fact_kpis table with date column filled out
-def get_df_kpis_with_dates(days):
+def get_df_kpis_with_dates(days, end='yesterday'):
     df = pd.DataFrame(columns=['date', 'metric_key', 'origin_key', 'value'])
-    df['date'] = pd.date_range(end=datetime.today().date()-timedelta(days=1), periods=days).tolist()
+    if end == 'yesterday':
+        df['date'] = pd.date_range(end=datetime.today().date()-timedelta(days=1), periods=days).tolist()
+    else:
+        df['date'] = pd.date_range(end=datetime.today().date(), periods=days).tolist()
     return df
 
 ## this function upserts a dataframe to the fact_kpis and returns the number of upserted rows
