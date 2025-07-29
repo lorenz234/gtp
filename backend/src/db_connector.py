@@ -438,7 +438,6 @@ class DbConnector:
                                 WHERE metric_key = 'price_usd' or metric_key = 'total_supply'
                                         {ok_string}
                                         AND date >= date_trunc('day',now()) - interval '{days} days'
-                                        AND date < date_trunc('day', now())
                                 GROUP BY 1,2
                         )
 
@@ -488,7 +487,6 @@ class DbConnector:
                         LEFT JOIN eth_price p on tkd."date" = p."date"
                         WHERE tkd.metric_key in ({mk_string})
                                 {ok_string}
-                                AND tkd.date < date_trunc('day', NOW()) 
                                 AND tkd.date >= date_trunc('day',now()) - interval '{days} days'
                 '''
                 df = pd.read_sql(exec_string, self.engine.connect())
