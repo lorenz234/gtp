@@ -23,8 +23,6 @@ from src.misc.airflow_utils import alert_via_webhook
     schedule='12 1 * * 2-6'
 )
 
-# go back to old table json 
-
 def run_dag():
 
     @task()
