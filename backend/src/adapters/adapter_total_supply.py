@@ -69,7 +69,7 @@ class AdapterTotalSupply(AbstractAdapter):
                     days = max_days
 
                 # build the dataframe with block heights
-                df = get_df_kpis_with_dates(days)
+                df = get_df_kpis_with_dates(days, end='today')
                 df['origin_key'] = coin.origin_key
                 df['metric_key'] = 'total_supply'
                 if coin.cs_deployment_origin_key == 'ethereum':
@@ -102,10 +102,11 @@ class AdapterTotalSupply(AbstractAdapter):
                     dfMain = pd.concat([dfMain,df])
                     continue
                 else:
-                    df2 = self.db_connector.get_total_supply_blocks(coin.origin_key, days)
+                    df2 = self.db_connector.get_total_supply_blocks(coin.cs_deployment_origin_key, days)
                     df2['date'] = pd.to_datetime(df2['date'])
                     df = df.merge(df2, on='date', how='left')
-                    rpc = self.db_connector.get_special_use_rpc(coin.origin_key)
+                    #print(df.to_markdown())
+                    rpc = self.db_connector.get_special_use_rpc(coin.cs_deployment_origin_key)
 
                 # Defined a basic ABI for totalSupply and decimals
                 token_abi = [

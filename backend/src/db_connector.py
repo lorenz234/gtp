@@ -438,7 +438,6 @@ class DbConnector:
                                 WHERE metric_key = 'price_usd' or metric_key = 'total_supply'
                                         {ok_string}
                                         AND date >= date_trunc('day',now()) - interval '{days} days'
-                                        AND date < date_trunc('day', now())
                                 GROUP BY 1,2
                         )
 
@@ -488,7 +487,6 @@ class DbConnector:
                         LEFT JOIN eth_price p on tkd."date" = p."date"
                         WHERE tkd.metric_key in ({mk_string})
                                 {ok_string}
-                                AND tkd.date < date_trunc('day', NOW()) 
                                 AND tkd.date >= date_trunc('day',now()) - interval '{days} days'
                 '''
                 df = pd.read_sql(exec_string, self.engine.connect())
@@ -878,12 +876,13 @@ class DbConnector:
                
 
         def get_total_supply_blocks(self, origin_key, days):
+                ## changed to Min instead of Max on July 29th, 2025 (to run it earlier in the day)
                 exec_string = f'''
                         SELECT 
-                                DATE(block_timestamp) AS date,
-                                MAX(block_number) AS block_number
+                                block_date AS date,
+                                MIN(block_number) AS block_number
                         FROM public.{origin_key}_tx
-                        WHERE block_timestamp BETWEEN (CURRENT_DATE - INTERVAL '{days+1} days') AND (CURRENT_DATE)
+                        WHERE block_date > (CURRENT_DATE - INTERVAL '{days+1} days')
                         GROUP BY 1;
                 '''
                 df = pd.read_sql(exec_string, self.engine.connect())
