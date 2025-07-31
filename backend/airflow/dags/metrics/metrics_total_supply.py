@@ -19,7 +19,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Get KPI totalSupply for tokens of L2 chains',
     tags=['metrics', 'daily'],
     start_date=datetime(2024,2,20),
-    schedule='20 02 * * *'
+    schedule='10 02 * * *'
 )
 
 def etl():

@@ -472,9 +472,9 @@ class JSONCreation():
                 and kpi.metric_key in ({metrics_string})
                 and kpi."date" >= '2020-01-01'
                 AND (
-                    (kpi.metric_key not in ('market_cap_usd', 'market_cap_eth') AND kpi."date" < date_trunc('day', now()))
+                    (kpi.metric_key not in ('market_cap_usd', 'market_cap_eth', 'fdv_usd', 'fdv_eth') AND kpi."date" < date_trunc('day', now()))
                     OR
-                    (kpi.metric_key in ('market_cap_usd', 'market_cap_eth'))
+                    (kpi.metric_key in ('market_cap_usd', 'market_cap_eth', 'fdv_usd', 'fdv_eth'))
                 )
         """
 

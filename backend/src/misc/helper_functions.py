@@ -147,9 +147,12 @@ def get_df_kpis():
     return pd.DataFrame(columns=['date', 'metric_key', 'origin_key', 'value'])
 
 ## this function returns a dataframe for the fact_kpis table with date column filled out
-def get_df_kpis_with_dates(days):
+def get_df_kpis_with_dates(days, end='yesterday'):
     df = pd.DataFrame(columns=['date', 'metric_key', 'origin_key', 'value'])
-    df['date'] = pd.date_range(end=datetime.today().date()-timedelta(days=1), periods=days).tolist()
+    if end == 'yesterday':
+        df['date'] = pd.date_range(end=datetime.today().date()-timedelta(days=1), periods=days).tolist()
+    else:
+        df['date'] = pd.date_range(end=datetime.today().date(), periods=days).tolist()
     return df
 
 ## this function upserts a dataframe to the fact_kpis and returns the number of upserted rows
@@ -166,7 +169,7 @@ def get_missing_days_kpis(db_connector, metric_key, origin_key):
         print(f"...no entry detected in tbl_kpis_daily for metric_key: {metric_key} and origin_key: {origin_key}. Set days to {days}.")
     else:
         delta = datetime.today().date() - last_date
-        days = delta.days + 10 #add 5 just for precaution (in case some data was missing etc.)
+        days = delta.days + 5 #add 5 just for precaution (in case some data was missing etc.)
         print(f"...last entry in tbl_kpis_daily detected for metric_key: {metric_key} and origin_key: {origin_key} is on {last_date}. Set days to {days}.")
     return (days) 
 
