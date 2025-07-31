@@ -164,11 +164,13 @@ def run_dag():
             ]
             
             # Create the data_dict for the current ticker
-            data_dict["data"][ticker] = {
+            data_dict["data"] = {
                 "daily": {
                     "types": ["unix", "close_price", "stock_outstanding"],
                     "values": values
-                }
+                },
+                "ticker": ticker,
+                "name": filtered_data['name'].iloc[0]
             }
 
             # Fix any NaN values in the data_dict
@@ -226,41 +228,40 @@ def run_dag():
         ### Load the stock table
         df3 = execute_jinja_query(db_connector, "api/quick_bites/robinhood_stock_table.sql.j2", query_parameters={}, return_df=True)
 
-        # Define table column configuration
-        column_configs = [
-            {"key": "contract_address", "label": "Contract Address", "type": "string", "sortByValue": False},
-            {"key": "ticker", "label": "Ticker", "type": "string", "sortByValue": True},
-            {"key": "name", "label": "Name", "type": "string", "sortByValue": True},
-            {"key": "usd_outstanding", "label": "USD Outstanding", "type": "number", "sortByValue": True},
-            {"key": "stocks_tokenized", "label": "Stocks Tokenized", "type": "number", "sortByValue": True},
-            {"key": "usd_stock_price", "label": "USD Stock Price", "type": "number", "sortByValue": True}
+        # Define columns and types
+        columns = [
+            "contract_address",
+            "ticker", 
+            "name",
+            "usd_outstanding",
+            "stocks_tokenized",
+            "usd_stock_price"
         ]
 
-        # Convert DataFrame rows to the new object format
+        types = [
+            "string",
+            "string", 
+            "string",
+            "number",
+            "number",
+            "number"
+        ]
+
+        # Convert DataFrame rows to list of lists
         rows_data = []
         for _, row in df3.iterrows():
-            row_obj = {}
-            for col_config in column_configs:
-                key = col_config["key"]
-                value = row[key]
-                
-                # Create the cell object
-                cell = {"value": value}
-                
-                # Add link for contract_address
-                if key == "contract_address" and value:
-                    cell["link"] = f"https://arbiscan.io/address/{value}"
-                
-                row_obj[key] = cell
-            
-            rows_data.append(row_obj)
+            row_list = []
+            for col in columns:
+                row_list.append(row[col])
+            rows_data.append(row_list)
 
         # Create the new data structure
         data_dict3 = {
             "data": {
                 "stocks": {
-                    "columnKeys": {col["key"]: col for col in column_configs},
-                    "rowData": rows_data
+                    "columns": columns,
+                    "types": types,
+                    "rows": rows_data
                 }
             }
         }
