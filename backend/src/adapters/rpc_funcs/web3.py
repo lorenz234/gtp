@@ -84,7 +84,7 @@ class ResponseNormalizerMiddleware(Web3Middleware):
     def response_processor(self, method, response):
         if response is None:
             return response
-        if 'result' in response and 'uncles' in response['result'] and response['result']['uncles'] is None:
+        if 'result' in response and response['result'] is not None and 'uncles' in response['result'] and response['result']['uncles'] is None:
             response['result']['uncles'] = []
         return response
     

@@ -384,6 +384,55 @@ class NodeAdapter(AbstractAdapterRaw):
         block = w3.eth.get_block(block_num, full_transactions=False)
         return len(block['transactions'])
 
+    def check_range_has_transactions(self, start, end):
+        """
+        Efficiently checks if a block range contains any transactions.
+        For single blocks, checks directly. For ranges, samples blocks to determine if likely empty.
+
+        Args:
+            start (int): Starting block number.
+            end (int): Ending block number.
+
+        Returns:
+            bool: True if the range likely contains transactions, False if likely empty.
+        """
+        if start == end:
+            # Single block - check directly
+            transaction_count = self.fetch_block_transaction_count(self.w3, start)
+            return transaction_count > 0
+        else:
+            # Multi-block range - sample blocks to check
+            range_size = end - start + 1
+            if range_size <= 5:
+                # Small range - check all blocks
+                for block_num in range(start, end + 1):
+                    if self.fetch_block_transaction_count(self.w3, block_num) > 0:
+                        return True
+                return False
+            else:
+                # Large range - sample up to 5 blocks strategically
+                sample_blocks = [
+                    start,                           # First block
+                    start + range_size // 4,         # 25% through
+                    start + range_size // 2,         # Middle
+                    start + 3 * range_size // 4,     # 75% through
+                    end                              # Last block
+                ]
+                
+                # Remove duplicates and ensure all are within range
+                sample_blocks = list(set([b for b in sample_blocks if start <= b <= end]))
+                
+                for block_num in sample_blocks:
+                    try:
+                        if self.fetch_block_transaction_count(self.w3, block_num) > 0:
+                            return True
+                    except Exception as e:
+                        print(f"Warning: Could not check block {block_num}: {e}")
+                        # If we can't check, assume it has transactions to be safe
+                        return True
+                
+                return False
+
     def backfill_missing_blocks(self, start_block, end_block, batch_size):
         """
         Identifies and backfills missing blocks by processing the appropriate block ranges.
@@ -402,24 +451,24 @@ class NodeAdapter(AbstractAdapterRaw):
         print(f"Found {len(missing_block_ranges)} missing block ranges.")
         print("Filtering out ranges with 0 transactions...")
         filtered_ranges = []
+        
         for start, end in missing_block_ranges:
-            if start == end:
-                transaction_count = self.fetch_block_transaction_count(self.w3, start)
-                if transaction_count > 0:
-                    filtered_ranges.append((start, end))
-            else:
+            has_transactions = self.check_range_has_transactions(start, end)
+            if has_transactions:
                 filtered_ranges.append((start, end))
+            else:
+                print(f"...skipping empty range {start}-{end}")
 
         if len(filtered_ranges) == 0:
-            print("No missing block ranges found.")
+            print("No missing block ranges with transactions found.")
             return
         
-        else:
-            print("Backfilling missing blocks")
-            print("Missing block ranges:")
-            for start, end in filtered_ranges:
-                print(f"{start}-{end}")
-            self.process_missing_blocks(filtered_ranges, batch_size)
+        print(f"After filtering: {len(filtered_ranges)} ranges with transactions to process.")
+        print("Backfilling missing blocks")
+        print("Missing block ranges:")
+        for start, end in filtered_ranges:
+            print(f"{start}-{end}")
+        self.process_missing_blocks(filtered_ranges, batch_size)
             
     def backfill_date_range(self, start_date, end_date, batch_size):
         """
