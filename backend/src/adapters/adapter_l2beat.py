@@ -243,9 +243,13 @@ class AdapterL2Beat(AbstractAdapter):
         
         ## create a new column 'provider' that extracts the first element of the 'providers' list
         df['provider'] = df['providers'].apply(lambda x: x[0] if isinstance(x, list) and len(x) > 0 else None)
+        
+        ## get tvs total and stable value
+        df['tvs_total'] = df['tvs'].apply(lambda x: x['breakdown']['total'] if isinstance(x, dict) and 'breakdown' in x and 'total' in x['breakdown'] else None)
+        df['tvs_stables'] = df['tvs'].apply(lambda x: x['breakdown']['stablecoin'] if isinstance(x, dict) and 'breakdown' in x and 'stablecoin' in x['breakdown'] else None)
 
         ## keep only columns index, name, slug, type, hostChain, category, provider, isArchived, isUpcoming, isUnderReview, stage, VM, DA, Stack, Infra
-        df = df[['index', 'name', 'slug', 'type', 'hostChain', 'category', 'provider', 'isArchived', 'isUpcoming', 'isUnderReview', 'stage', 'vm', 'da', 'stack', 'infra']] 
+        df = df[['index', 'name', 'slug', 'type', 'hostChain', 'category', 'provider', 'isArchived', 'isUpcoming', 'isUnderReview', 'stage', 'vm', 'da', 'stack', 'infra', 'tvs_total', 'tvs_stables']] 
 
         ## add underscore infront of each capital letter in column names
         df.columns = df.columns.str.replace(r'([A-Z])', r'_\1', regex=True).str.lower() 
