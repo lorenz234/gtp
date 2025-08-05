@@ -223,8 +223,8 @@ class AdapterCelestia(AbstractAdapterRaw):
             else:
                 row['tx_hash'] = '\\x' + trx['hash']  # Prepend '\\x' directly if there's no '0x'
             
-            row['gas_wanted'] = int(trx['tx_result']['gas_wanted'])
-            row['gas_used'] = int(trx['tx_result']['gas_used'])
+            row['gas_wanted'] = safe_int_conversion(trx['tx_result']['gas_wanted'])
+            row['gas_used'] = safe_int_conversion(trx['tx_result']['gas_used'])
             attributes = [i['attributes'] for i in decoded_trx['tx_result']['events']]
             for a in attributes:
                 for attr in a:
@@ -240,7 +240,7 @@ class AdapterCelestia(AbstractAdapterRaw):
                             row[key] = value
                     elif key == 'fee':
                         if value is not None:
-                            row[key] = int(value.replace('utia', ''))
+                            row[key] = safe_fee_conversion(value)
                             row['fee_payer'] = a[1]['value']
                         else:
                             print(f"Warning: 'value' is None for key 'fee' in attributes {attributes}")
@@ -250,7 +250,7 @@ class AdapterCelestia(AbstractAdapterRaw):
                     elif key == 'signature':
                         row[key] = value
                     elif key == 'blob_sizes':
-                        row[key] = [int(i) for i in value[1:-1].split(',')]
+                        row[key] = safe_list_conversion(value)
                         row['namespaces'] = [i[1:-1] for i in a[1]['value'][1:-1].split(',')]
                         row['signer'] = a[2]['value'][1:-1]
 
@@ -314,6 +314,71 @@ class AdapterCelestia(AbstractAdapterRaw):
         missing_block_ranges = check_and_record_missing_block_ranges(self.db_connector, self.table_name, start_block, end_block)
         self.process_missing_blocks(missing_block_ranges, batch_size)
         
+def safe_int_conversion(value_str, default=0):
+    """Safely convert a string to integer, handling Unicode characters"""
+    if not isinstance(value_str, str):
+        return default
+    
+    # Check if string contains only ASCII digits (and optionally negative sign)
+    if value_str.lstrip('-').isdigit():
+        try:
+            return int(value_str)
+        except ValueError:
+            return default
+    
+    # If string contains non-ASCII characters, log and return default
+    try:
+        # Check if string is ASCII
+        value_str.encode('ascii')
+        # If it's ASCII but still not convertible, try int conversion
+        return int(value_str)
+    except (UnicodeEncodeError, ValueError) as e:
+        print(f"Warning: Cannot convert '{repr(value_str)}' to integer, contains non-ASCII characters or invalid format. Using default value {default}. Error: {e}")
+        return default
+
+def safe_fee_conversion(value_str, default=0):
+    """Safely convert a fee string (removing 'utia') to integer"""
+    if not isinstance(value_str, str):
+        return default
+    
+    try:
+        cleaned_value = value_str.replace('utia', '')
+        return safe_int_conversion(cleaned_value, default)
+    except Exception as e:
+        print(f"Warning: Cannot process fee value '{repr(value_str)}'. Using default value {default}. Error: {e}")
+        return default
+
+def safe_list_conversion(value_str, default=None):
+    """Safely convert a string like '[1,2,3]' to list of integers"""
+    if default is None:
+        default = []
+    
+    if not isinstance(value_str, str):
+        return default
+    
+    try:
+        if value_str.startswith('[') and value_str.endswith(']'):
+            inner_value = value_str[1:-1].strip()
+            if not inner_value:  # Empty list
+                return []
+            
+            result = []
+            for item in inner_value.split(','):
+                item = item.strip()
+                if item:
+                    converted = safe_int_conversion(item, None)
+                    if converted is not None:
+                        result.append(converted)
+                    else:
+                        print(f"Warning: Cannot convert list item '{repr(item)}' to integer, skipping")
+            return result
+        else:
+            print(f"Warning: List format not recognized for '{repr(value_str)}', expected '[...]' format")
+            return default
+    except Exception as e:
+        print(f"Warning: Cannot process list value '{repr(value_str)}'. Using default value {default}. Error: {e}")
+        return default
+
 def decode_base64(element):
     if isinstance(element, dict):
         new_element = {}
