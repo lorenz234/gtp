@@ -181,6 +181,13 @@ class SocialMediaAutomation:
         self.chart_generator = ChartImageGenerator()
         self.webhook_url = os.getenv("GTP_ANALYST_WEBHOOK_URL_LOCAL")
         self.chain_social_handles = {}  # Cache for social handles
+        
+        # Configuration constants (non-secret)
+        self.data_url = "https://api.growthepie.xyz/v1/fundamentals_full.json"
+        self.master_url = "https://api.growthepie.xyz/v1/master.json" 
+        self.local_filename = "fundamentals_full.json"
+        self.master_filename = "master.json"
+        
         print(f"🔧 Loaded webhook URL from env: {self.webhook_url[:50]}...{self.webhook_url[-10:] if self.webhook_url else 'None'}")
     
     def fetch_master_data(self, master_url, local_filename="master.json"):
@@ -744,27 +751,24 @@ Key Details:
         print("=" * 60)
         
         try:
-            # Load from environment variables (same as test_gtp_analyst.py)
-            print("Loading environment variables...")
-            url = os.getenv("GTP_URL")
-            local_filename = os.getenv("GTP_ANALYST_LOCAL_FILENAME")
-            webhook_url = os.getenv("GTP_ANALYST_WEBHOOK_URL_LOCAL")
-            master_url = os.getenv("GTP_MASTER_URL")  # New: URL for master.json
+            # Use instance configuration (URLs and filenames are not secrets)
+            print("Loading configuration...")
+            url = self.data_url
+            local_filename = self.local_filename
+            master_url = self.master_url
+            webhook_url = self.webhook_url
+            
+            if not webhook_url:
+                raise ValueError("Environment variable GTP_ANALYST_WEBHOOK_URL_LOCAL is not set.")
+            print("Configuration loaded successfully!")
 
-            if not url or not local_filename or not webhook_url:
-                raise ValueError("Environment variables for URL, local filename, or webhook URL are not set.")
-            print("Environment variables loaded successfully!")
-
-            # Fetch master.json for social handles (new feature)
-            if master_url:
-                print(f"Fetching master data from: {master_url}")
-                if self.fetch_master_data(master_url, "master.json"):
-                    self.chain_social_handles = self.extract_social_handles("master.json")
-                    print("✅ Social handles loaded successfully!")
-                else:
-                    print("⚠️ Failed to fetch master data, continuing without social handles")
+            # Fetch master.json for social handles
+            print(f"Fetching master data from: {master_url}")
+            if self.fetch_master_data(master_url, self.master_filename):
+                self.chain_social_handles = self.extract_social_handles(self.master_filename)
+                print("✅ Social handles loaded successfully!")
             else:
-                print("⚠️ GTP_MASTER_URL not set, continuing without social handles")
+                print("⚠️ Failed to fetch master data, continuing without social handles")
 
             analytics = self.gtp_analyst
 
