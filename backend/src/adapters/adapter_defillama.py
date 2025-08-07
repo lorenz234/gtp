@@ -49,8 +49,6 @@ class AdapterDefillama(AbstractAdapter):
 
     ## ----------------- Helper functions --------------------
 
-    ## TODO: 
-    ## - Remove network fees (i.e. Arbitrum REV)
     def extract_app_fees(self, projects_to_load):
         df_main = pd.DataFrame()
         for chain in projects_to_load:
