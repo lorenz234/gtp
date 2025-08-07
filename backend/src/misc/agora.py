@@ -29,9 +29,6 @@ class AgoraAPI:
                 'limit': limit,
                 'offset': offset
             }
-            
-            # Print the URL for debugging purposes
-            print(f"Fetching: {url + endpoint}")
 
             # Make the GET request
             response = requests.get(
