@@ -513,6 +513,7 @@ class DbConnector:
                                         WHEN 'rent_paid_eth' THEN 'rent_paid_usd'
                                         WHEN 'ethereum_blobs_eth' THEN 'ethereum_blobs_usd'
                                         WHEN 'celestia_blobs_eth' THEN 'celestia_blobs_usd'
+                                        WHEN 'eigenda_blobs_eth' THEN 'eigenda_blobs_usd'
                                         WHEN 'costs_blobs_eth' THEN 'costs_blobs_usd'
                                         WHEN 'cost_l1_raw_eth' THEN 'cost_l1_raw_usd'
                                         WHEN 'costs_l1_eth' THEN 'costs_l1_usd'

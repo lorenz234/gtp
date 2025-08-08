@@ -14,6 +14,7 @@ Real-time blockchain TPS monitoring API that reads from Redis streams and provid
 - `REDIS_PASSWORD` - Redis auth string (if enabled)
 - `SERVER_PORT` - Server port (default: 8080)
 - `UPDATE_INTERVAL` - Update frequency in seconds (default: 3)
+- `DISCORD_COMMS`- Discord Webhook
 
 ## Deployment
 
