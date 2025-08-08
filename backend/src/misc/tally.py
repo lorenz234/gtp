@@ -112,7 +112,7 @@ class TallyAPI:
                 }
             }
         }
-
+        
         data = self._handle_request(self.proposals_query, variables)
         
         # Convert to DataFrame
