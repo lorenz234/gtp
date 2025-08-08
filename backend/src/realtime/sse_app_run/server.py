@@ -339,7 +339,7 @@ class RedisSSEServer:
                 logger.info(f"📊 NEW 24HR TPS HIGH: {current_tps} TPS!")
                 
                 ath_message = f"""
-                🚀 NEW TPS ALL-TIME HIGH: {current_tps} TPS! (Previous: {old_ath})
+                🚀 NEW TPS 24hr HIGH: {current_tps} TPS! (Previous: {self.tps_24h_high})
                 \nTimestamp: {timestamp}\nActive Chains: {len(chain_breakdown)}\nChain Breakdown: {json.dumps(chain_breakdown, indent=2)}
                 """
                 send_discord_message(ath_message)
@@ -363,7 +363,7 @@ class RedisSSEServer:
             await self._store_tps_record(record)
 
             record_type = "ATH" if is_new_ath else "New global TPS"
-            logger.info(f"💾 Stored {record_type} history: {current_tps} TPS with {len(chain_breakdown)} chains")
+            #logger.info(f"💾 Stored {record_type} history: {current_tps} TPS with {len(chain_breakdown)} chains")
 
             # Periodic cleanup (reduced frequency since we have dedicated maintenance loop)
             if current_timestamp_ms % (self.config.cleanup_interval_ms * 5) == 0:  # Every 5 minutes instead of 1
