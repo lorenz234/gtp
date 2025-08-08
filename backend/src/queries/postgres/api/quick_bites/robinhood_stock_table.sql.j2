@@ -72,28 +72,58 @@ cumulative_supply AS (
         ) as total_supply
     FROM prices_with_fill
 ),
-latest_data AS (
+daily_supply_data AS (
     SELECT
         contract_address,
         date,
         total_supply,
         close_price as original_close_price,
         filled_close_price as close_price_used,
-        total_supply * filled_close_price as total_market_value,
-        ROW_NUMBER() OVER (PARTITION BY contract_address ORDER BY date DESC) as rn
+        total_supply * filled_close_price as usd_outstanding
     FROM cumulative_supply
     WHERE filled_close_price IS NOT NULL
+),
+latest_data AS (
+    SELECT
+        contract_address,
+        date,
+        total_supply,
+        original_close_price,
+        close_price_used,
+        usd_outstanding,
+        ROW_NUMBER() OVER (PARTITION BY contract_address ORDER BY date DESC) as rn
+    FROM daily_supply_data
+),
+seven_days_ago_data AS (
+    SELECT
+        contract_address,
+        date,
+        total_supply as total_supply_7d_ago,
+        ROW_NUMBER() OVER (PARTITION BY contract_address ORDER BY date DESC) as rn_7d
+    FROM daily_supply_data
+    WHERE date <= (SELECT MAX(date) - INTERVAL '7 days' FROM daily_supply_data)
 )
 SELECT
     ld.contract_address,
     rsl.ticker,
     rsl.name,
-    ld.total_market_value AS usd_outstanding,
+    ld.usd_outstanding,
     ld.total_supply AS stocks_tokenized,
-    ld.close_price_used AS usd_stock_price
+    ld.close_price_used AS usd_stock_price,
+    CASE 
+        WHEN sda.total_supply_7d_ago IS NOT NULL AND sda.total_supply_7d_ago > 0 
+        THEN ROUND(
+            ((ld.total_supply - sda.total_supply_7d_ago) / sda.total_supply_7d_ago * 100)::numeric, 
+            2
+        )
+        ELSE NULL 
+    END AS stocks_tokenized_7d_change_pct
 FROM latest_data ld
 LEFT JOIN public.robinhood_stock_list rsl
     ON ld.contract_address = rsl.contract_address
     AND rsl.ticker NOT ILIKE '%%demo token%%'
+LEFT JOIN seven_days_ago_data sda
+    ON ld.contract_address = sda.contract_address
+    AND sda.rn_7d = 1
 WHERE ld.rn = 1
-ORDER BY ld.total_market_value DESC;
+ORDER BY ld.usd_outstanding DESC;
