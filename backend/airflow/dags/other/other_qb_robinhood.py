@@ -228,6 +228,9 @@ def run_dag():
         ### Load the stock table
         df3 = execute_jinja_query(db_connector, "api/quick_bites/robinhood_stock_table.sql.j2", query_parameters={}, return_df=True)
 
+        # replace NaN with 0
+        df3 = df3.fillna(0)
+
         # Define columns and types
         columns = [
             "contract_address",
@@ -235,6 +238,7 @@ def run_dag():
             "name",
             "usd_outstanding",
             "stocks_tokenized",
+            "stocks_tokenized_7d_change_pct",
             "usd_stock_price"
         ]
 
@@ -242,6 +246,7 @@ def run_dag():
             "string",
             "string", 
             "string",
+            "number",
             "number",
             "number",
             "number"
