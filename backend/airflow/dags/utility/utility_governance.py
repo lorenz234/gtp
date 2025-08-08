@@ -34,13 +34,17 @@ def etl():
         from src.misc.tally import TallyAPI
         from src.misc.agora import AgoraAPI
 
+        # check against yesterday's date
+        yesterday_date = (datetime.now() - timedelta(days=1)).isoformat().split('T')[0]
+        print(f"Checking for new proposals against yesterday's date: {yesterday_date}")
+
         # checking Arbitrum and Zksync
         t = TallyAPI(os.getenv("Tally_API_KEY"))
         for governance in t.organisation_id:
+            print(f"Checking proposals for {governance}...")
             proposals = t.get_proposals(t.organisation_id[governance])
-
             for i, proposal in proposals.iterrows():
-                if proposal['startTime'].split('T')[0] == datetime.now().isoformat().split('T')[0]:
+                if proposal['startTime'].split('T')[0] == yesterday_date:
                     url = f"https://www.tally.xyz/gov/{governance}/proposal/{proposal['onchainId']}"
                     message = f"""
                     📢 **New Proposal for {governance}** <@{898167530202464278}> <@{874921624720257037}>
@@ -52,13 +56,14 @@ def etl():
                     """
                     message = message.replace("                    ", "")
                     send_discord_message(message, os.getenv('DISCORD_GOV'))
-        
+
         # checking Optimism and Scroll
         a = AgoraAPI(os.getenv("Agora_API_KEY"))
         for governance in a.base_url:
+            print(f"Checking proposals for {governance}...")
             proposals = a.get_proposals(a.base_url[governance])
             for i, proposal in proposals.iterrows():
-                if proposal['startTime'].split('T')[0] == datetime.now().isoformat().split('T')[0]: # only post about proposals that are starting voting today
+                if proposal['startTime'].split('T')[0] == yesterday_date: # only post about proposals that are starting voting today
                     proposal_url = a.base_url[governance].replace("api/v1/", "") + "proposals/" + proposal['id']
                     message = f"""
                     📢 **New Proposal for {governance}** <@{898167530202464278}> <@{874921624720257037}>
