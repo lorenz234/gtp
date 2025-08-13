@@ -179,7 +179,7 @@ class SocialMediaAutomation:
         self.gtp_analyst = GTPAnalyst()
         self.twitter_generator = TwitterPostGenerator()
         self.chart_generator = ChartImageGenerator()
-        self.webhook_url = os.getenv("GTP_ANALYST_WEBHOOK_URL_LOCAL")
+        self.webhook_url = os.getenv("GTP_AI_WEBHOOK_URL")
         self.chain_social_handles = {}  # Cache for social handles
         
         # Configuration constants (non-secret)
@@ -188,7 +188,7 @@ class SocialMediaAutomation:
         self.local_filename = "fundamentals_full.json"
         self.master_filename = "master.json"
         
-        print(f"🔧 Loaded webhook URL from env: {self.webhook_url[:50]}...{self.webhook_url[-10:] if self.webhook_url else 'None'}")
+        print(f"🔧 Loaded webhook URL from env: {self.webhook_url[:50] + '...' + self.webhook_url[-10:] if self.webhook_url else 'None'}")
     
     def fetch_master_data(self, master_url, local_filename="master.json"):
         """Fetch master.json data containing chain social handles"""
@@ -759,7 +759,7 @@ Key Details:
             webhook_url = self.webhook_url
             
             if not webhook_url:
-                raise ValueError("Environment variable GTP_ANALYST_WEBHOOK_URL_LOCAL is not set.")
+                raise ValueError("Environment variable GTP_AI_WEBHOOK_URL is not set.")
             print("Configuration loaded successfully!")
 
             # Fetch master.json for social handles
