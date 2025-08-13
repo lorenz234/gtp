@@ -35,7 +35,7 @@ def gtp_analyst():
         Run social media automation pipeline with AI-generated tweets and chart images
         
         Required environment variables:
-        - GTP_ANALYST_WEBHOOK_URL_LOCAL: Discord webhook URL for posting results
+        - GTP_AI_WEBHOOK_URL: Discord webhook URL for posting results
         - OPENAI_API_KEY: OpenAI API key for tweet generation
         """
         from dotenv import load_dotenv
