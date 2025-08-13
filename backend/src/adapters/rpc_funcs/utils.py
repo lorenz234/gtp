@@ -12,6 +12,9 @@ from sqlalchemy import text
 from src.main_config import get_main_config 
 from src.adapters.rpc_funcs.chain_configs import chain_configs
 from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs, check_gcs_connection, save_data_for_range
+from eth_account import Account
+from eth_utils import keccak, to_checksum_address
+import rlp
 
 # ---------------- Utility Functions ---------------------
 def safe_float_conversion(x):
@@ -772,6 +775,123 @@ def check_db_connection(db_connector):
     return db_connector is not None
 
 # ---------------- Data Interaction --------------------
+def extract_authorization_list(transaction_details, block_timestamp, block_date, block_number):
+    """
+    Extracts authorization list data from type 4 transactions and returns it as a DataFrame.
+    
+    Args:
+        transaction_details (list): List of transaction dictionaries
+        block_timestamp (datetime): Block timestamp
+        block_date (date): Block date
+        block_number (int): Block number
+        
+    Returns:
+        pd.DataFrame: DataFrame containing authorization list data for type 4 transactions
+    """
+    auth_list_data = []
+    
+    for tx in transaction_details:
+        # Check if transaction has type 4 and authorizationList
+        if tx.get('type') == 4 and 'authorizationList' in tx and tx['authorizationList']:
+            tx_hash = tx['hash']
+            
+            for index, auth in enumerate(tx['authorizationList']):
+                try:
+                    # Convert auth to dict if it's not already
+                    auth_dict = dict(auth) if hasattr(auth, 'items') else auth
+                    
+                    # Calculate the authority (EOA) from r,s,v values
+                    sender = to_checksum_address(auth_dict['address'])
+                    chain_id = int(auth_dict['chainId'], 16) if isinstance(auth_dict['chainId'], str) else auth_dict['chainId']
+                    nonce = int(auth_dict['nonce'], 16) if isinstance(auth_dict['nonce'], str) else auth_dict['nonce']
+                    v = 27 + int(auth_dict['yParity'], 16) if isinstance(auth_dict['yParity'], str) else 27 + auth_dict['yParity']
+                    r = int(auth_dict['r'], 16) if isinstance(auth_dict['r'], str) else auth_dict['r']
+                    s = int(auth_dict['s'], 16) if isinstance(auth_dict['s'], str) else auth_dict['s']
+                    
+                    # Hash message per EIP-7702
+                    # The message is: MAGIC || rlp([chain_id, address, nonce])
+                    magic = b'\x05'  # EIP-7702 magic constant
+                    auth_tuple = [chain_id, bytes.fromhex(sender[2:]), nonce]
+                    rlp_encoded = rlp.encode(auth_tuple)
+                    message_hash = keccak(magic + rlp_encoded)
+                    
+                    # Recover signer address
+                    eoa_address = Account._recover_hash(message_hash, vrs=(v, r, s))
+                    
+                    # Create authorization list record matching table schema
+                    auth_record = {
+                        'tx_hash': tx_hash,
+                        'tx_index': index,
+                        'eoa_address': eoa_address,
+                        'contract_address': sender,
+                        'origin_key': None,  # Will be set to actual chain name in processing
+                        'chain_ids': [chain_id],
+                        'block_number': block_number,
+                        'block_timestamp': block_timestamp,
+                        'block_date': block_date
+                    }
+                    
+                    auth_list_data.append(auth_record)
+                    
+                except Exception as e:
+                    print(f"Error processing authorization list for tx {tx_hash}, index {index}: {e}")
+                    continue
+    
+    return pd.DataFrame(auth_list_data) if auth_list_data else pd.DataFrame()
+
+def process_authorization_list_data(auth_df, chain):
+    """
+    Processes authorization list DataFrame for database insertion.
+    
+    Args:
+        auth_df (pd.DataFrame): The raw authorization list DataFrame
+        chain (str): The blockchain chain name
+        
+    Returns:
+        pd.DataFrame: Processed DataFrame ready for database insertion
+    """
+    if auth_df.empty:
+        return auth_df
+    
+    # Set origin_key to the actual chain name
+    auth_df['origin_key'] = chain.lower()
+    
+    # Handle bytea columns (tx_hash, eoa_address, contract_address)
+    bytea_columns = ['tx_hash', 'eoa_address', 'contract_address']
+    for col in bytea_columns:
+        if col in auth_df.columns:
+            auth_df[col] = auth_df[col].apply(lambda x: process_bytea_value(x) if pd.notnull(x) else None)
+    
+    # Ensure block_timestamp is datetime
+    if 'block_timestamp' in auth_df.columns:
+        auth_df['block_timestamp'] = pd.to_datetime(auth_df['block_timestamp'], unit='s')
+    
+    # Ensure block_date is a proper date object
+    if 'block_date' in auth_df.columns:
+        auth_df['block_date'] = pd.to_datetime(auth_df['block_date'], unit='s').dt.date
+    
+    # Ensure proper integer types to match table schema
+    if 'tx_index' in auth_df.columns:
+        auth_df['tx_index'] = auth_df['tx_index'].astype('int32')  # matches int4 in PostgreSQL
+    
+    if 'block_number' in auth_df.columns:
+        auth_df['block_number'] = auth_df['block_number'].astype('int64')  # matches int8 in PostgreSQL
+    
+    # Handle chain_ids array column - ensure it's properly formatted for PostgreSQL _int4 array
+    if 'chain_ids' in auth_df.columns:
+        # Ensure chain_ids is a list of integers for PostgreSQL _int4 array
+        def process_chain_ids(x):
+            if isinstance(x, list):
+                return [int(item) for item in x]
+            else:
+                return [int(x)]
+        
+        auth_df['chain_ids'] = auth_df['chain_ids'].apply(process_chain_ids)
+        # Keep as object dtype to preserve list structure
+        auth_df['chain_ids'] = auth_df['chain_ids'].astype('object')
+    
+    return auth_df
+
 def get_latest_block(w3):
     """
     Retrieves the latest block number from the connected Ethereum node.
@@ -922,6 +1042,7 @@ def fetch_block_transaction_details(w3, block):
 def fetch_data_for_range(w3, block_start, block_end):
     """
     Fetches transaction data for a range of blocks and returns it as a DataFrame.
+    Also extracts authorization list data from type 4 transactions.
     
     Args:
         w3: The Web3 instance for interacting with the blockchain.
@@ -929,9 +1050,11 @@ def fetch_data_for_range(w3, block_start, block_end):
         block_end (int): The ending block number.
 
     Returns:
-        pd.DataFrame: A DataFrame containing the transaction data for the specified block range.
+        tuple: (transaction_df, auth_list_df) - DataFrames containing transaction data and authorization list data
     """
     all_transaction_details = []
+    all_auth_list_data = []
+    
     try:
         # Loop through each block in the range
         for block_num in range(block_start, block_end + 1):
@@ -939,18 +1062,29 @@ def fetch_data_for_range(w3, block_start, block_end):
             
             # Fetch transaction details for the block using the new function
             transaction_details = fetch_block_transaction_details(w3, block)
-            
             all_transaction_details.extend(transaction_details)
+            
+            # Extract authorization list data from type 4 transactions
+            if transaction_details:
+                block_timestamp = block.get('timestamp', 0)
+                block_date = pd.to_datetime(block_timestamp, unit='s').date() if block_timestamp else None
+                
+                auth_list_df = extract_authorization_list(transaction_details, block_timestamp, block_date)
+                if not auth_list_df.empty:
+                    all_auth_list_data.append(auth_list_df)
 
         # Convert list of dictionaries to DataFrame
         df = pd.DataFrame(all_transaction_details)
         
+        # Combine all authorization list data
+        auth_df = pd.concat(all_auth_list_data, ignore_index=True) if all_auth_list_data else pd.DataFrame()
+        
         # if df doesn't have any records, then handle it gracefully
         if df.empty:
             print(f"...no transactions found for blocks {block_start} to {block_end}.")
-            return None  # Or return an empty df as: return pd.DataFrame()
+            return None, auth_df  # Return None for transactions, but still return auth data if any
         else:
-            return df
+            return df, auth_df
 
     except Exception as e:
         raise e
@@ -958,6 +1092,7 @@ def fetch_data_for_range(w3, block_start, block_end):
 def fetch_and_process_range(current_start, current_end, chain, w3, table_name, bucket_name, db_connector, rpc_url):
     """
     Fetches and processes transaction data for a range of blocks, saves it to GCS, and inserts it into the database.
+    Also processes authorization list data from type 4 transactions.
     Retries the operation on failure with exponential backoff.
 
     Args:
@@ -979,11 +1114,22 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
         try:
             elapsed_time = time.time() - start_time
 
-            df = fetch_data_for_range(w3, current_start, current_end)
+            df, auth_df = fetch_data_for_range(w3, current_start, current_end)
 
             # Check if df is None or empty, and if so, return early without further processing.
             if df is None or df.empty:
                 print(f"...skipping blocks {current_start} to {current_end} due to no data.")
+                # Still process authorization list data if present
+                if not auth_df.empty:
+                    try:
+                        auth_df_prep = process_authorization_list_data(auth_df, chain)
+                        auth_df_prep.drop_duplicates(subset=['tx_hash', 'tx_index'], inplace=True)
+                        auth_df_prep.set_index(['tx_hash', 'tx_index'], inplace=True)
+                        
+                        db_connector.upsert_table('authorizations_7702', auth_df_prep, if_exists='update')
+                        print(f"...authorization list data inserted for blocks {current_start} to {current_end}: {auth_df_prep.shape[0]} records")
+                    except Exception as e:
+                        print(f"ERROR: {rpc_url} - inserting authorization list data for blocks {current_start} to {current_end}: {e}")
                 return
 
             save_data_for_range(df, current_start, current_end, chain, bucket_name)
@@ -998,6 +1144,20 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
                 db_connector.upsert_table(table_name, df_prep, if_exists='update')  # Use DbConnector for upserting data
                 rows_uploaded = df_prep.shape[0]
                 print(f"...data inserted for blocks {current_start} to {current_end} successfully. Uploaded rows: {df_prep.shape[0]}. RPC: {w3.get_rpc_url()}")
+                
+                # Process and insert authorization list data if present
+                if not auth_df.empty:
+                    try:
+                        auth_df_prep = process_authorization_list_data(auth_df, chain)
+                        auth_df_prep.drop_duplicates(subset=['tx_hash', 'tx_index'], inplace=True)
+                        auth_df_prep.set_index(['tx_hash', 'tx_index'], inplace=True)
+                        
+                        db_connector.upsert_table('authorizations_7702', auth_df_prep, if_exists='update')
+                        print(f"...authorization list data inserted for blocks {current_start} to {current_end}: {auth_df_prep.shape[0]} records")
+                    except Exception as e:
+                        print(f"ERROR: {rpc_url} - inserting authorization list data for blocks {current_start} to {current_end}: {e}")
+                        # Don't fail the whole operation if auth list insertion fails
+                
                 return rows_uploaded  # Return the number of rows uploaded
             except Exception as e:
                 print(f"ERROR: {rpc_url} - inserting data for blocks {current_start} to {current_end}: {e}")
