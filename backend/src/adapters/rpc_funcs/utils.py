@@ -881,18 +881,19 @@ def process_authorization_list_data(auth_df, chain):
     if 'block_number' in auth_df.columns:
         auth_df['block_number'] = auth_df['block_number'].astype('int64')  # matches int8 in PostgreSQL
     
-    # Handle chain_ids array column - ensure it's properly formatted for PostgreSQL _int4 array
+    # Handle chain_ids array column - format as PostgreSQL array string for pangres compatibility
     if 'chain_ids' in auth_df.columns:
-        # Ensure chain_ids is a list of integers for PostgreSQL _int4 array
-        def process_chain_ids(x):
+        def format_pg_array(x):
+            """Convert Python list to PostgreSQL array format string"""
             if isinstance(x, list):
-                return [int(item) for item in x]
+                # Convert list to PostgreSQL array format: {1,2,3}
+                int_list = [int(item) for item in x]
+                return '{' + ','.join(map(str, int_list)) + '}'
             else:
-                return [int(x)]
+                # Single value as array: {1}
+                return '{' + str(int(x)) + '}'
         
-        auth_df['chain_ids'] = auth_df['chain_ids'].apply(process_chain_ids)
-        # Keep as object dtype to preserve list structure
-        auth_df['chain_ids'] = auth_df['chain_ids'].astype('object')
+        auth_df['chain_ids'] = auth_df['chain_ids'].apply(format_pg_array)
     
     return auth_df
 
