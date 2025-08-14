@@ -1069,7 +1069,7 @@ def fetch_data_for_range(w3, block_start, block_end):
                 block_timestamp = block.get('timestamp', 0)
                 block_date = pd.to_datetime(block_timestamp, unit='s').date() if block_timestamp else None
                 
-                auth_list_df = extract_authorization_list(transaction_details, block_timestamp, block_date)
+                auth_list_df = extract_authorization_list(transaction_details, block_timestamp, block_date, block_num)
                 if not auth_list_df.empty:
                     all_auth_list_data.append(auth_list_df)
 
