@@ -1,5 +1,5 @@
 import ast
-from datetime import datetime
+from datetime import datetime, date
 import numpy as np
 import boto3
 import botocore
@@ -868,7 +868,11 @@ def process_authorization_list_data(auth_df, chain):
     
     # Ensure block_date is a proper date object
     if 'block_date' in auth_df.columns:
-        auth_df['block_date'] = pd.to_datetime(auth_df['block_date'], unit='s').dt.date
+        # Check if block_date is already a date object, if not convert it
+        if not auth_df['block_date'].apply(lambda x: isinstance(x, date) if pd.notnull(x) else True).all():
+            # If it's a timestamp, convert it
+            auth_df['block_date'] = pd.to_datetime(auth_df['block_date'], unit='s').dt.date
+        # If it's already a date object, leave it as is
     
     # Ensure proper integer types to match table schema
     if 'tx_index' in auth_df.columns:
