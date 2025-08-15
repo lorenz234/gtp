@@ -20,7 +20,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load raw tx data from Scroll',
     tags=['raw', 'near-real-time', 'rpc'],
     start_date=datetime(2023, 9, 1),
-    schedule_interval='*/15 * * * *'
+    schedule_interval='7/10 * * * *'
 )
 
 def adapter_rpc():

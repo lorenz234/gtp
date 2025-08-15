@@ -19,7 +19,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load raw tx data from Gravity',
     tags=['raw', 'near-real-time', 'rpc'],
     start_date=datetime(2024, 10, 15),
-    schedule_interval='*/15 * * * *'
+    schedule_interval='2/10 * * * *'
 )
 
 def adapter_rpc():
