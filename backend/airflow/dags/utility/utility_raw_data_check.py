@@ -38,6 +38,11 @@ def check():
             if chain.api_deployment_flag != 'PROD' or chain.origin_key in ['imx']:
                 continue
             
+            if chain.origin_key == 'loopring':
+                test_time = 720  # 12 hours in minutes
+            else:
+                test_time = 60
+            
             print(f"Processing chain: {chain.origin_key}")
             max_val = db_connector.get_max_value(f'{chain.origin_key}_tx', 'block_timestamp')
             
@@ -52,7 +57,7 @@ def check():
             time_diff = round(time_diff,2)
             
             print(f"- Time difference to current UTC: {time_diff} minutes")
-            if time_diff > 60:
+            if time_diff > test_time:
                 print(f"ISSSUE: {chain.origin_key} is {time_diff} minutes behind")
                 send_discord_message(f"RAW DATA SYNC ISSUE: {chain.origin_key} is {time_diff} minutes behind.")
     
