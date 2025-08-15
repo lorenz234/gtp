@@ -2109,7 +2109,6 @@ class JSONCreation():
             WHERE fact."date" >= current_date - interval '{timeframe*2} days'
                 AND fact.origin_key IN ({chains_str})
             GROUP BY 1,2
-            HAVING SUM(txcount) > 30
             )
             select 
                 fact.*,
