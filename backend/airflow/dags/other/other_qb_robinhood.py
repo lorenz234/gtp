@@ -30,7 +30,7 @@ def run_dag():
 
     def decide_branch(**context):
         """Decide which branch to execute based on the day of the week"""
-        execution_date = context['execution_date']
+        execution_date = context.get('execution_date') or context['logical_date']
         day_of_week = execution_date.weekday()  # Monday is 0, Sunday is 6
         
         print(f"Today is day {day_of_week} (0=Monday, 6=Sunday)")
@@ -38,10 +38,10 @@ def run_dag():
         # Sunday = 6, Monday = 0, Tuesday = 1, Wednesday = 2, Thursday = 3, Friday = 4, Saturday = 5
         if day_of_week in [6, 0]:  # Sunday or Monday
             print("Choosing json_only_branch")
-            return ['json_only_branch', 'create_jsons']
+            return ['json_only_branch', 'create_json_file']
         else:  # Tuesday through Saturday
             print("Choosing full_pipeline_branch")
-            return ['full_pipeline_branch', 'pull_dune', 'pull_yfinance', 'create_jsons', 'alert_system']
+            return ['full_pipeline_branch', 'pull_data_from_dune', 'pull_data_from_yfinance', 'create_json_file', 'notification_in_case_of_transfer']
 
     # Branch decision operator
     branch_task = BranchPythonOperator(
