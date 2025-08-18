@@ -31,17 +31,16 @@ def run_dag():
     def decide_branch(**context):
         """Decide which branch to execute based on the day of the week"""
         execution_date = context.get('execution_date') or context['logical_date']
-        day_of_week = execution_date.weekday()  # Monday is 0, Sunday is 6
+        day_of_week = execution_date.weekday()
         
         print(f"Today is day {day_of_week} (0=Monday, 6=Sunday)")
         
-        # Sunday = 6, Monday = 0, Tuesday = 1, Wednesday = 2, Thursday = 3, Friday = 4, Saturday = 5
         if day_of_week in [6, 0]:  # Sunday or Monday
             print("Choosing json_only_branch")
-            return ['json_only_branch', 'create_json_file']
+            return 'json_only_branch'  # Return single task ID
         else:  # Tuesday through Saturday
             print("Choosing full_pipeline_branch")
-            return ['full_pipeline_branch', 'pull_data_from_dune', 'pull_data_from_yfinance', 'create_json_file', 'notification_in_case_of_transfer']
+            return 'full_pipeline_branch'  # Return single task ID
 
     # Branch decision operator
     branch_task = BranchPythonOperator(
@@ -373,11 +372,11 @@ def run_dag():
             import os
             send_discord_message("Robinhood transfers detected (Phase 2 launched?) <@790276642660548619>", webhook_url=os.getenv("DISCORD_ALERTS"))
 
-    # all tasks
-    pull_dune = pull_data_from_dune()  ## read in contracts from airtable and attest
-    pull_yfinance = pull_data_from_yfinance() ## read in approved labels from airtable and attest 
-    create_jsons = create_json_file() ## read in remap owner project from airtable and attest
-    alert_system = notification_in_case_of_transfer() ## temporary alert system for token transfers which would mean phase 2 has started
+    # Create task instances
+    pull_dune = pull_data_from_dune()
+    pull_yfinance = pull_data_from_yfinance() 
+    create_jsons = create_json_file()
+    alert_system = notification_in_case_of_transfer()
 
     # Define execution order with branching
     branch_task >> [json_only_branch, full_pipeline_branch]
@@ -385,7 +384,8 @@ def run_dag():
     # Full pipeline branch (Tuesday-Saturday)
     full_pipeline_branch >> pull_dune >> pull_yfinance >> create_jsons >> alert_system
 
-    # JSON only branch (Sunday-Monday) - connects to create_jsons
-    json_only_branch >> create_jsons
+    # JSON only branch (Sunday-Monday)
+    # Use none_failed_min_one_success trigger rule for create_jsons since it has multiple upstream paths
+    json_only_branch >> create_jsons.override(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS)
 
 run_dag()
