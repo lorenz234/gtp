@@ -128,8 +128,8 @@ def run_dag():
         df = yfi.extract(load_params)
         yfi.load(df)
 
-    @task()
-    def create_json_file(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS):
+    @task(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS)
+    def create_json_file():
         import pandas as pd
         import os
         from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
@@ -338,7 +338,7 @@ def run_dag():
         empty_cloudfront_cache(cf_distribution_id, '/v1/quick-bites/robinhood/*')
     
     # temporary to be removed once Phase 2 launches
-    @task(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS)
+    @task()
     def notification_in_case_of_transfer():
         from src.db_connector import DbConnector
         db_connector = DbConnector()
@@ -376,10 +376,11 @@ def run_dag():
     # Define execution order with branching
     branch_task >> [json_only_branch, full_pipeline_branch]
     
-    # Full pipeline branch (Tuesday-Saturday)
-    full_pipeline_branch >> pull_dune >> pull_yfinance >> create_jsons >> alert_system
-
-    # JSON only branch (Sunday-Monday) 
+    # Both branches lead to create_json_file
     json_only_branch >> create_jsons
+    full_pipeline_branch >> pull_dune >> pull_yfinance >> create_jsons
+    
+    # Only the full pipeline continues to notification
+    create_jsons >> alert_system
 
 run_dag()
