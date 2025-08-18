@@ -9,6 +9,7 @@ from airflow.decorators import dag, task
 from src.misc.airflow_utils import alert_via_webhook
 from airflow.operators.python import BranchPythonOperator
 from airflow.operators.empty import EmptyOperator
+from airflow.utils.trigger_rule import TriggerRule
 
 @dag(
     default_args={
@@ -22,7 +23,7 @@ from airflow.operators.empty import EmptyOperator
     description='Data for Robinhood stock tracker.',
     tags=['other'],
     start_date=datetime(2025,7,22),
-    schedule='12 1 * * 2-6' # Every Tuesday to Saturday at 01:12
+    schedule='12 1 * * 0-6' # Every day at 01:12
 )
 
 def run_dag():
@@ -33,10 +34,14 @@ def run_dag():
         execution_date = context['execution_date']
         day_of_week = execution_date.weekday()  # Monday is 0, Sunday is 6
         
+        print(f"Today is day {day_of_week} (0=Monday, 6=Sunday)")
+        
         # Sunday = 6, Monday = 0, Tuesday = 1, Wednesday = 2, Thursday = 3, Friday = 4, Saturday = 5
         if day_of_week in [6, 0]:  # Sunday or Monday
+            print("Choosing json_only_branch")
             return 'json_only_branch'
         else:  # Tuesday through Saturday
+            print("Choosing full_pipeline_branch")
             return 'full_pipeline_branch'
 
     # Branch decision operator
@@ -132,7 +137,7 @@ def run_dag():
         yfi.load(df)
 
     @task()
-    def create_json_file():
+    def create_json_file(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS):
         import pandas as pd
         import os
         from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
