@@ -39,8 +39,8 @@ def run_dag():
             print("Choosing json_only_branch")
             return 'json_only_branch'
         else:  # Tuesday through Saturday
-            print("Choosing full_pipeline_branch")
-            return 'full_pipeline_branch'
+            print("Choosing pull_data_from_dune")
+            return 'pull_data_from_dune'
 
     # Branch decision operator
     branch_task = BranchPythonOperator(
@@ -49,9 +49,10 @@ def run_dag():
         provide_context=True
     )
 
-    # Empty operators for branching
-    json_only_branch = EmptyOperator(task_id='json_only_branch')
-    full_pipeline_branch = EmptyOperator(task_id='full_pipeline_branch')
+    # Empty operator for JSON-only branch
+    json_only_branch = EmptyOperator(
+        task_id='json_only_branch'
+    )
 
     @task()
     def pull_data_from_dune():      
@@ -379,12 +380,13 @@ def run_dag():
     alert_system = notification_in_case_of_transfer()
 
     # Define execution order with branching
-    branch_task >> [json_only_branch, full_pipeline_branch]
+    # Branch decision points to either json_only_branch OR pull_data_from_dune
+    branch_task >> [json_only_branch, pull_dune]
     
     # Full pipeline branch (Tuesday-Saturday)
-    full_pipeline_branch >> pull_dune >> pull_yfinance >> create_jsons >> alert_system
+    pull_dune >> pull_yfinance >> create_jsons >> alert_system
 
-    # JSON only branch (Sunday-Monday)
+    # JSON only branch (Sunday-Monday) - goes directly to create_jsons
     json_only_branch >> create_jsons
 
 run_dag()
