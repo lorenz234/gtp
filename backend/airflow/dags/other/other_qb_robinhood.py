@@ -7,6 +7,8 @@ sys.path.append(f"/home/{sys_user}/gtp/backend/")
 from datetime import datetime,timedelta
 from airflow.decorators import dag, task 
 from src.misc.airflow_utils import alert_via_webhook
+from airflow.operators.python import BranchPythonOperator
+from airflow.operators.empty import EmptyOperator
 
 @dag(
     default_args={
@@ -24,6 +26,29 @@ from src.misc.airflow_utils import alert_via_webhook
 )
 
 def run_dag():
+
+    # decides which branch to run depending on which day of the week
+    def decide_branch(**context):
+        """Decide which branch to execute based on the day of the week"""
+        execution_date = context['execution_date']
+        day_of_week = execution_date.weekday()  # Monday is 0, Sunday is 6
+        
+        # Sunday = 6, Monday = 0, Tuesday = 1, Wednesday = 2, Thursday = 3, Friday = 4, Saturday = 5
+        if day_of_week in [6, 0]:  # Sunday or Monday
+            return 'json_only_branch'
+        else:  # Tuesday through Saturday
+            return 'full_pipeline_branch'
+
+    # Branch decision operator
+    branch_task = BranchPythonOperator(
+        task_id='decide_branch',
+        python_callable=decide_branch,
+        provide_context=True
+    )
+
+    # Empty operators for branching
+    json_only_branch = EmptyOperator(task_id='json_only_branch')
+    full_pipeline_branch = EmptyOperator(task_id='full_pipeline_branch')
 
     @task()
     def pull_data_from_dune():      
@@ -350,6 +375,13 @@ def run_dag():
     create_jsons = create_json_file() ## read in remap owner project from airtable and attest
     alert_system = notification_in_case_of_transfer() ## temporary alert system for token transfers which would mean phase 2 has started
 
-    # Define execution order
-    pull_dune >> pull_yfinance >> create_jsons >> alert_system
+    # Define execution order with branching
+    branch_task >> [json_only_branch, full_pipeline_branch]
+    
+    # Full pipeline branch (Tuesday-Saturday)
+    full_pipeline_branch >> pull_dune >> pull_yfinance >> create_jsons >> alert_system
+    
+    # JSON only branch (Sunday-Monday)
+    json_only_branch >> create_jsons
+
 run_dag()
