@@ -136,7 +136,7 @@ def run_dag():
         yfi.load(df)
 
     @task()
-    def create_json_file(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS):
+    def create_json_file():
         import pandas as pd
         import os
         from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
