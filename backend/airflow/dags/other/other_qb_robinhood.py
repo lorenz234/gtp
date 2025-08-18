@@ -20,7 +20,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Data for Robinhood stock tracker.',
     tags=['other'],
     start_date=datetime(2025,7,22),
-    schedule='12 1 * * 2-6'
+    schedule='12 1 * * 2-6' # Every Tuesday to Saturday at 01:12
 )
 
 def run_dag():
@@ -315,11 +315,41 @@ def run_dag():
         from src.misc.helper_functions import empty_cloudfront_cache
         empty_cloudfront_cache(cf_distribution_id, '/v1/quick-bites/robinhood/*')
     
+    # temporary to be removed once Phase 2 launches
+    @task()
+    def notification_in_case_of_transfer():
+        from src.db_connector import DbConnector
+        db_connector = DbConnector()
+        # Implement notification logic here
+        df = db_connector.execute_query(
+        """
+        WITH latest_date AS (
+            SELECT MAX(date) as max_date
+            FROM public.robinhood_daily
+            WHERE metric_key = 'total_transferred'
+        )
+        SELECT 
+            contract_address, 
+            "date", 
+            metric_key, 
+            value
+        FROM public.robinhood_daily rd
+        JOIN latest_date ld ON rd.date = ld.max_date
+        WHERE metric_key = 'total_transferred'
+            AND value != 0
+        ORDER BY value DESC;
+        """, load_df=True)
+        if df.empty == False:
+            from src.misc.helper_functions import send_discord_message
+            import os
+            send_discord_message("Robinhood transfers detected (Phase 2 launched?) <@790276642660548619>", webhook_url=os.getenv("DISCORD_ALERTS"))
+
     # all tasks
     pull_dune = pull_data_from_dune()  ## read in contracts from airtable and attest
     pull_yfinance = pull_data_from_yfinance() ## read in approved labels from airtable and attest 
     create_jsons = create_json_file() ## read in remap owner project from airtable and attest
-    
+    alert_system = notification_in_case_of_transfer() ## temporary alert system for token transfers which would mean phase 2 has started
+
     # Define execution order
-    pull_dune >> pull_yfinance >> create_jsons
+    pull_dune >> pull_yfinance >> create_jsons >> alert_system
 run_dag()
