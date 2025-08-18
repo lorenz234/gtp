@@ -23,12 +23,11 @@ from airflow.utils.trigger_rule import TriggerRule
     description='Data for Robinhood stock tracker.',
     tags=['other'],
     start_date=datetime(2025,7,22),
-    schedule='12 1 * * 0-6' # Every day at 01:12
+    schedule='12 1 * * *' # Every day at 01:12
 )
 
 def run_dag():
 
-    # decides which branch to run depending on which day of the week
     def decide_branch(**context):
         """Decide which branch to execute based on the day of the week"""
         execution_date = context['execution_date']
@@ -39,10 +38,10 @@ def run_dag():
         # Sunday = 6, Monday = 0, Tuesday = 1, Wednesday = 2, Thursday = 3, Friday = 4, Saturday = 5
         if day_of_week in [6, 0]:  # Sunday or Monday
             print("Choosing json_only_branch")
-            return 'json_only_branch'
+            return ['json_only_branch', 'create_jsons']
         else:  # Tuesday through Saturday
             print("Choosing full_pipeline_branch")
-            return 'full_pipeline_branch'
+            return ['full_pipeline_branch', 'pull_dune', 'pull_yfinance', 'create_jsons', 'alert_system']
 
     # Branch decision operator
     branch_task = BranchPythonOperator(
@@ -385,8 +384,8 @@ def run_dag():
     
     # Full pipeline branch (Tuesday-Saturday)
     full_pipeline_branch >> pull_dune >> pull_yfinance >> create_jsons >> alert_system
-    
-    # JSON only branch (Sunday-Monday)
+
+    # JSON only branch (Sunday-Monday) - connects to create_jsons
     json_only_branch >> create_jsons
 
 run_dag()
