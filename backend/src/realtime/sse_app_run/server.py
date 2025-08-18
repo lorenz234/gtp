@@ -4,6 +4,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Set, Optional
 from dataclasses import dataclass
+import requests
+import os
 
 import redis.asyncio as aioredis
 from aiohttp import web
@@ -17,6 +19,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger("redis_sse_server")
 
+def send_discord_message(message, webhook_url=None):
+    data = {"content": message}
+    if webhook_url is None:
+        webhook_url = os.getenv('DISCORD_COMMS')
+    response = requests.post(webhook_url, json=data)
+
+    # Check the response status code
+    if response.status_code == 204:
+        print("Message sent successfully")
+    else:
+        print(f"Error sending message: {response.text}")
 
 @dataclass
 class ServerConfig:
@@ -36,7 +49,6 @@ class ServerConfig:
     @classmethod
     def from_env(cls) -> 'ServerConfig':
         """Create config from environment variables."""
-        import os
         return cls(
             redis_host=os.getenv("REDIS_HOST", cls.redis_host),
             redis_port=int(os.getenv("REDIS_PORT", cls.redis_port)),
@@ -297,6 +309,14 @@ class RedisSSEServer:
                 redis_operations.append("ATH update")
 
                 logger.info(f"🚀 NEW TPS ALL-TIME HIGH: {current_tps} TPS! (Previous: {old_ath})")
+                
+                ## send msg to Discord with ATH info
+                ath_message = f"""
+                🚀 NEW TPS ALL-TIME HIGH: {current_tps} TPS! (Previous: {old_ath})
+                \nTimestamp: {timestamp}\nActive Chains: {len(chain_breakdown)}\nChain Breakdown: {json.dumps(chain_breakdown, indent=2)}
+                """
+                send_discord_message(ath_message)
+                
 
             # Check if current TPS is the new 24h high or if cached 24h high is expired
             cached_24h_data = await self.redis_client.hgetall(RedisKeys.GLOBAL_TPS_24H)
@@ -317,6 +337,12 @@ class RedisSSEServer:
                 })
                 redis_operations.append("24h high update")
                 logger.info(f"📊 NEW 24HR TPS HIGH: {current_tps} TPS!")
+                
+                ath_message = f"""
+                🚀 NEW TPS 24hr HIGH: {current_tps} TPS! (Previous: {self.tps_24h_high})
+                \nTimestamp: {timestamp}\nActive Chains: {len(chain_breakdown)}\nChain Breakdown: {json.dumps(chain_breakdown, indent=2)}
+                """
+                send_discord_message(ath_message)
             else:
                 self.tps_24h_high = last_tps
                 self.tps_24h_high_timestamp = cached_24h_data.get("timestamp", timestamp)
@@ -337,7 +363,7 @@ class RedisSSEServer:
             await self._store_tps_record(record)
 
             record_type = "ATH" if is_new_ath else "New global TPS"
-            logger.info(f"💾 Stored {record_type} history: {current_tps} TPS with {len(chain_breakdown)} chains")
+            #logger.info(f"💾 Stored {record_type} history: {current_tps} TPS with {len(chain_breakdown)} chains")
 
             # Periodic cleanup (reduced frequency since we have dedicated maintenance loop)
             if current_timestamp_ms % (self.config.cleanup_interval_ms * 5) == 0:  # Every 5 minutes instead of 1
