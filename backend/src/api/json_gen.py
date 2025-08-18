@@ -1,9 +1,9 @@
 from src.main_config import get_main_config, get_multi_config
 from src.da_config import get_da_config
 from src.misc.helper_functions import upload_json_to_cf_s3, upload_parquet_to_cf_s3, db_addresses_to_checksummed_addresses, string_addresses_to_checksummed_addresses, fix_dict_nan, empty_cloudfront_cache, remove_file_from_s3, get_files_df_from_s3
-from src.misc.glo_prep import Glo
+import pandas as pd
 from src.db_connector import DbConnector
-
+from src.config import gtp_units, gtp_metrics
 
 class JsonGen():
     def __init__(self, s3_bucket, cf_distribution_id, db_connector:DbConnector, api_version='v1'):
@@ -12,54 +12,116 @@ class JsonGen():
         self.s3_bucket = s3_bucket
         self.cf_distribution_id = cf_distribution_id
         self.db_connector = db_connector
+        self.units = gtp_units
+        self.metrics = gtp_metrics
         
+    ## HELPER functions
     
-    ## helper functions
-    def generate_daily_list(self, df, metric_id, origin_key, start_date = None, metric_type='default', rolling_avg = False):
-        tmp_metrics_dict = self.get_metric_dict(metric_type)            
+    def df_rename(self, df, units, col_name_removal=False):
+        if col_name_removal:
+            df.columns.name = None
 
-        mks = tmp_metrics_dict[metric_id]['metric_keys']
-        df_tmp = df.loc[(df.origin_key==origin_key) & (df.metric_key.isin(mks)), ["unix", "value", "metric_key", "date"]]
+        if 'usd' in units or 'eth' in units:
+            for col in df.columns.to_list():
+                if col == 'unix':
+                    continue
+                elif col.endswith('_eth'):
+                    df.rename(columns={col: 'eth'}, inplace=True)
+                else:
+                    df.rename(columns={col: 'usd'}, inplace=True)
 
-        ## if start_date is not None, filter df_tmp date to only values after start date
+            if 'unix' in df.columns.to_list():
+                df = df[['unix', 'usd', 'eth']]
+            else:
+                df = df[['usd', 'eth']]
+        else:
+            for col in df.columns.to_list():
+                if col == 'unix':
+                    continue
+                else:
+                    df.rename(columns={col: 'value'}, inplace=True)
+        return df
+    
+    def create_7d_rolling_avg(self, list_of_lists):
+        avg_list = []
+        if len(list_of_lists[0]) == 2: ## all non USD metrics e.g. txcount
+            for i in range(len(list_of_lists)):
+                if i < 7:
+                    avg_list.append([list_of_lists[i][0], list_of_lists[i][1]])
+                else:
+                    avg = (list_of_lists[i][1] + list_of_lists[i-1][1] + list_of_lists[i-2][1] + list_of_lists[i-3][1] + list_of_lists[i-4][1] + list_of_lists[i-5][1] + list_of_lists[i-6][1]) / 7
+                    ## round to 2 decimals
+                    avg = round(avg, 2)
+                    avg_list.append([list_of_lists[i][0], avg])
+        else: ## all USD metrics e.g. fees that have USD and ETH values
+            for i in range(len(list_of_lists)):
+                if i < 7:
+                    avg_list.append([list_of_lists[i][0], list_of_lists[i][1], list_of_lists[i][2]] )
+                else:
+                    avg_1 = (list_of_lists[i][1] + list_of_lists[i-1][1] + list_of_lists[i-2][1] + list_of_lists[i-3][1] + list_of_lists[i-4][1] + list_of_lists[i-5][1] + list_of_lists[i-6][1]) / 7
+                    avg_2 = (list_of_lists[i][2] + list_of_lists[i-1][2] + list_of_lists[i-2][2] + list_of_lists[i-3][2] + list_of_lists[i-4][2] + list_of_lists[i-5][2] + list_of_lists[i-6][2]) / 7
+    
+                    avg_list.append([list_of_lists[i][0], avg_1, avg_2])
+        
+        return avg_list
+
+    # Function to get fact kpis from the database
+    def get_raw_data_metric(self, origin_key:str, metric_key:str, days:int=None):
+        """
+        Get fact kpis from the database.
+        """
+        query_parameters = {
+            'origin_key': origin_key,
+            'metric_key': metric_key,
+            'days': days
+        }
+        df = self.db_connector.execute_jinja_query("api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+        df.sort_values(by=['date'], inplace=True, ascending=True)
+        df['metric_key'] = metric_key
+        return df
+    
+    # This function prepares the metric data by trimming leading zeros and filling missing dates (it takes a DataFrame with 1 metric_key as input)
+    def prepare_metric_key_data(df:pd.DataFrame, max_date_fill:bool=True):
+        # trim leading zeros from the dataframe
+        df = df[df["value"].cumsum() > 0]
+
+        if max_date_fill:
+            # if max_date_fill is True, fill missing rows until yesterday with 0
+            df_all_dates = pd.DataFrame({'date': pd.date_range(start=df['date'].min(), end=pd.to_datetime('yesterday'), freq='D')})
+            df = pd.merge(df_all_dates, df, on='date', how='left')
+            df['value'] = df['value'].fillna(0)
+        return df
+
+    def create_metric_json(self, origin_key:str, metric_id:str, level:str='chain_level', start_date=None, rolling_avg=False):
+        print(f'..processing: Metric details for {metric_id} at {level}')
+        metric_dict = self.metrics[level][metric_id]
+        
         if start_date is not None:
-            df_tmp = df_tmp.loc[(df_tmp.date >= start_date), ["unix", "value", "metric_key", "date"]]
+            days = (pd.to_datetime('today') - pd.to_datetime(start_date)).days
+        else:
+            days = (pd.to_datetime('today') - pd.to_datetime('2020-01-01')).days
         
-        max_date = df_tmp['date'].max()
-        max_date = pd.to_datetime(max_date).replace(tzinfo=None)
-        yesterday = datetime.now() - timedelta(days=1)
-        yesterday = yesterday.date()
+        df = pd.DataFrame()
+        for mk in metric_dict['metric_keys']:
+            df_tmp = self.get_fact_kpi_df(origin_key, mk, days)
+            df_tmp = self.prepare_metric_data(df_tmp, max_date_fill=metric_dict['max_date_fill'])
+            df = pd.concat([df, df_tmp], ignore_index=True)
 
-        ## if max_date_fill is True, fill missing rows until yesterday with 0
-        if tmp_metrics_dict[metric_id]['max_date_fill']:
-            #check if max_date is yesterday
-            if max_date.date() != yesterday:
-                print(f"max_date in df for {mks} is {max_date}. Will fill missing rows until {yesterday} with None.")
-
-                date_range = pd.date_range(start=max_date + timedelta(days=1), end=yesterday, freq='D')
-
-                for mkey in mks:
-                    new_data = {'date': date_range, 'value': [0] * len(date_range), 'metric_key': mkey}
-                    new_df = pd.DataFrame(new_data)
-                    new_df['unix'] = new_df['date'].apply(lambda x: x.timestamp() * 1000)
-
-                    df_tmp = pd.concat([df_tmp, new_df], ignore_index=True)
-
-        ## trim leading zeros
-        df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
-        df_tmp = df_tmp.groupby('metric_key').apply(self.trim_leading_zeros).reset_index(drop=True)
-
-        df_tmp.drop(columns=['date'], inplace=True)
-        df_tmp = df_tmp.pivot(index='unix', columns='metric_key', values='value').reset_index()
-        df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
+        df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
+        df.sort_values(by=['unix'], inplace=True, ascending=True)
+        df = df.drop(columns=['date'])
         
-        df_tmp = self.df_rename(df_tmp, metric_id, tmp_metrics_dict, col_name_removal=True)
-
-        mk_list = df_tmp.values.tolist() ## creates a list of lists
-
-        if len(tmp_metrics_dict[metric_id]['units']) == 1:
+        df = df.pivot(index='unix', columns='metric_key', values='value').reset_index()
+        df.sort_values(by=['unix'], inplace=True, ascending=True)
+        
+        df = self.df_rename(df, metric_dict['units'], col_name_removal=True)
+        
+        mk_list = df.values.tolist() ## creates a list of lists
+        
+        if len(metric_dict['units']) == 1:
             mk_list_int = [[int(i[0]),i[1]] for i in mk_list] ## convert the first element of each list to int (unix timestamp)
-        elif len(tmp_metrics_dict[metric_id]['units']) == 2:
+        elif len(metric_dict['units']) == 2:
             mk_list_int = [[int(i[0]),i[1], i[2]] for i in mk_list] ## convert the first element of each list to int (unix timestamp)
         else:
             raise NotImplementedError("Only 1 or 2 units are supported")
