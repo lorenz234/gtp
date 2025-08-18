@@ -28,6 +28,7 @@ from airflow.utils.trigger_rule import TriggerRule
 
 def run_dag():
 
+    @task.branch(task_id="decide_branch")
     def decide_branch(**context):
         """Decide which branch to execute based on the day of the week"""
         execution_date = context.get('execution_date') or context['logical_date']
@@ -39,20 +40,12 @@ def run_dag():
             print("Choosing json_only_branch")
             return 'json_only_branch'
         else:  # Tuesday through Saturday
-            print("Choosing pull_data_from_dune")
-            return 'pull_data_from_dune'
+            print("Choosing full_pipeline_branch")
+            return 'full_pipeline_branch'
 
-    # Branch decision operator
-    branch_task = BranchPythonOperator(
-        task_id='decide_branch',
-        python_callable=decide_branch,
-        provide_context=True
-    )
-
-    # Empty operator for JSON-only branch
-    json_only_branch = EmptyOperator(
-        task_id='json_only_branch'
-    )
+    # Empty operators for branching
+    json_only_branch = EmptyOperator(task_id='json_only_branch')
+    full_pipeline_branch = EmptyOperator(task_id='full_pipeline_branch')
 
     @task()
     def pull_data_from_dune():      
@@ -345,7 +338,7 @@ def run_dag():
         empty_cloudfront_cache(cf_distribution_id, '/v1/quick-bites/robinhood/*')
     
     # temporary to be removed once Phase 2 launches
-    @task()
+    @task(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS)
     def notification_in_case_of_transfer():
         from src.db_connector import DbConnector
         db_connector = DbConnector()
@@ -374,19 +367,19 @@ def run_dag():
             send_discord_message("Robinhood transfers detected (Phase 2 launched?) <@790276642660548619>", webhook_url=os.getenv("DISCORD_ALERTS"))
 
     # Create task instances
+    branch_task = decide_branch()
     pull_dune = pull_data_from_dune()
     pull_yfinance = pull_data_from_yfinance() 
     create_jsons = create_json_file()
     alert_system = notification_in_case_of_transfer()
 
     # Define execution order with branching
-    # Branch decision points to either json_only_branch OR pull_data_from_dune
-    branch_task >> [json_only_branch, pull_dune]
+    branch_task >> [json_only_branch, full_pipeline_branch]
     
     # Full pipeline branch (Tuesday-Saturday)
-    pull_dune >> pull_yfinance >> create_jsons >> alert_system
+    full_pipeline_branch >> pull_dune >> pull_yfinance >> create_jsons >> alert_system
 
-    # JSON only branch (Sunday-Monday) - goes directly to create_jsons
+    # JSON only branch (Sunday-Monday) 
     json_only_branch >> create_jsons
 
 run_dag()
