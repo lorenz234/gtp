@@ -378,9 +378,6 @@ def run_dag():
     
     # Both branches lead to create_json_file
     json_only_branch >> create_jsons
-    full_pipeline_branch >> pull_dune >> pull_yfinance >> create_jsons
-    
-    # Only the full pipeline continues to notification
-    create_jsons >> alert_system
+    full_pipeline_branch >> pull_dune >> pull_yfinance >> alert_system >> create_jsons
 
 run_dag()
