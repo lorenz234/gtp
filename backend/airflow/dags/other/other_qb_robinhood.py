@@ -37,10 +37,10 @@ def run_dag():
         
         if day_of_week in [6, 0]:  # Sunday or Monday
             print("Choosing json_only_branch")
-            return 'json_only_branch'  # Return single task ID
+            return 'json_only_branch'
         else:  # Tuesday through Saturday
             print("Choosing full_pipeline_branch")
-            return 'full_pipeline_branch'  # Return single task ID
+            return 'full_pipeline_branch'
 
     # Branch decision operator
     branch_task = BranchPythonOperator(
