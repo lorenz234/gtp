@@ -135,7 +135,7 @@ def run_dag():
         yfi.load(df)
 
     @task()
-    def create_json_file():
+    def create_json_file(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS):
         import pandas as pd
         import os
         from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
@@ -385,7 +385,6 @@ def run_dag():
     full_pipeline_branch >> pull_dune >> pull_yfinance >> create_jsons >> alert_system
 
     # JSON only branch (Sunday-Monday)
-    # Use none_failed_min_one_success trigger rule for create_jsons since it has multiple upstream paths
-    json_only_branch >> create_jsons.override(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS)
+    json_only_branch >> create_jsons
 
 run_dag()
