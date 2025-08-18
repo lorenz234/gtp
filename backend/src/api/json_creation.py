@@ -1118,6 +1118,7 @@ class JSONCreation():
                 'chain_type': chain.chain_type,
                 'caip2': self.db_connector.get_chain_info(origin_key, 'caip2'),
                 'evm_chain_id': chain.evm_chain_id,
+                'active_tabs': chain.api_active_tabs,
                 'deployment': chain.api_deployment_flag,
                 'name_short': chain.name_short,
                 'company': chain.company,
@@ -2108,7 +2109,6 @@ class JSONCreation():
             WHERE fact."date" >= current_date - interval '{timeframe*2} days'
                 AND fact.origin_key IN ({chains_str})
             GROUP BY 1,2
-            HAVING SUM(txcount) > 30
             )
             select 
                 fact.*,

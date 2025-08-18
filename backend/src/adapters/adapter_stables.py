@@ -1074,29 +1074,27 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
         days = days if days is not None else 9999
         
-        # Get list of origin_keys that are present in stables_config
-        configured_origin_keys = list(self.stables_mapping.keys())
-        print(f"Filtering data for origin_keys present in stables_config: {configured_origin_keys}")
+        print(f"Filtering data for origin_keys present in stables_config: {self.chains}")
 
         # Check if we have existing data in the database
         df_bridged = self.db_connector.get_data_from_table("fact_stables",
                     filters={
                         "metric_key": "supply_bridged",
-                        "origin_key": configured_origin_keys
+                        "origin_key": self.chains
                     },
                     days=days
                 )
         df_direct = self.db_connector.get_data_from_table("fact_stables",
                     filters={
                         "metric_key": "supply_direct",
-                        "origin_key": configured_origin_keys
+                        "origin_key": self.chains
                     },
                     days=days
                 )
         df_locked = self.db_connector.get_data_from_table("fact_stables",
                     filters={
                         "metric_key": "locked_supply",
-                        "origin_key": configured_origin_keys
+                        "origin_key": self.chains
                     },
                     days=days
                 )
@@ -1104,7 +1102,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         df_bridged_exceptions = self.db_connector.get_data_from_table("fact_stables",
                     filters={
                         "metric_key": "supply_bridged_exceptions",
-                        "origin_key": configured_origin_keys
+                        "origin_key": self.chains
                     },
                     days=days
                 )

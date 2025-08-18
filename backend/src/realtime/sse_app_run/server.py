@@ -338,11 +338,11 @@ class RedisSSEServer:
                 redis_operations.append("24h high update")
                 logger.info(f"📊 NEW 24HR TPS HIGH: {current_tps} TPS!")
                 
-                ath_message = f"""
-                🚀 NEW TPS 24hr HIGH: {current_tps} TPS! (Previous: {self.tps_24h_high})
-                \nTimestamp: {timestamp}\nActive Chains: {len(chain_breakdown)}\nChain Breakdown: {json.dumps(chain_breakdown, indent=2)}
-                """
-                send_discord_message(ath_message)
+                # ath_message = f"""
+                # 🚀 NEW TPS 24hr HIGH: {current_tps} TPS! (Previous: {self.tps_24h_high})
+                # \nTimestamp: {timestamp}\nActive Chains: {len(chain_breakdown)}\nChain Breakdown: {json.dumps(chain_breakdown, indent=2)}
+                # """
+                # send_discord_message(ath_message)
             else:
                 self.tps_24h_high = last_tps
                 self.tps_24h_high_timestamp = cached_24h_data.get("timestamp", timestamp)
@@ -362,7 +362,7 @@ class RedisSSEServer:
             )
             await self._store_tps_record(record)
 
-            record_type = "ATH" if is_new_ath else "New global TPS"
+            # record_type = "ATH" if is_new_ath else "New global TPS"
             #logger.info(f"💾 Stored {record_type} history: {current_tps} TPS with {len(chain_breakdown)} chains")
 
             # Periodic cleanup (reduced frequency since we have dedicated maintenance loop)
