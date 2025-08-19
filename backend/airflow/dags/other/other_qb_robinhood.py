@@ -4,10 +4,9 @@ import getpass
 sys_user = getpass.getuser()
 sys.path.append(f"/home/{sys_user}/gtp/backend/")
 
-from datetime import datetime,timedelta
+from datetime import datetime,timedelta,timezone
 from airflow.decorators import dag, task 
 from src.misc.airflow_utils import alert_via_webhook
-from airflow.operators.python import BranchPythonOperator
 from airflow.operators.empty import EmptyOperator
 from airflow.utils.trigger_rule import TriggerRule
 
@@ -28,26 +27,21 @@ from airflow.utils.trigger_rule import TriggerRule
 
 def run_dag():
 
-    def decide_branch(**context):
+    @task.branch(task_id="decide_branch")
+    def decide_branch():
         """Decide which branch to execute based on the day of the week"""
-        execution_date = context.get('execution_date') or context['logical_date']
-        day_of_week = execution_date.weekday()
+        # Use current UTC time
+        current_utc = datetime.now(timezone.utc)
+        day_of_week = current_utc.weekday()
         
-        print(f"Today is day {day_of_week} (0=Monday, 6=Sunday)")
+        print(f"Current UTC time: {current_utc}")
         
         if day_of_week in [6, 0]:  # Sunday or Monday
             print("Choosing json_only_branch")
-            return 'json_only_branch'  # Return single task ID
+            return 'json_only_branch'
         else:  # Tuesday through Saturday
             print("Choosing full_pipeline_branch")
-            return 'full_pipeline_branch'  # Return single task ID
-
-    # Branch decision operator
-    branch_task = BranchPythonOperator(
-        task_id='decide_branch',
-        python_callable=decide_branch,
-        provide_context=True
-    )
+            return 'full_pipeline_branch'
 
     # Empty operators for branching
     json_only_branch = EmptyOperator(task_id='json_only_branch')
@@ -134,7 +128,7 @@ def run_dag():
         df = yfi.extract(load_params)
         yfi.load(df)
 
-    @task()
+    @task(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS)
     def create_json_file():
         import pandas as pd
         import os
@@ -373,6 +367,7 @@ def run_dag():
             send_discord_message("Robinhood transfers detected (Phase 2 launched?) <@790276642660548619>", webhook_url=os.getenv("DISCORD_ALERTS"))
 
     # Create task instances
+    branch_task = decide_branch()
     pull_dune = pull_data_from_dune()
     pull_yfinance = pull_data_from_yfinance() 
     create_jsons = create_json_file()
@@ -381,11 +376,8 @@ def run_dag():
     # Define execution order with branching
     branch_task >> [json_only_branch, full_pipeline_branch]
     
-    # Full pipeline branch (Tuesday-Saturday)
-    full_pipeline_branch >> pull_dune >> pull_yfinance >> create_jsons >> alert_system
-
-    # JSON only branch (Sunday-Monday)
-    # Use none_failed_min_one_success trigger rule for create_jsons since it has multiple upstream paths
-    json_only_branch >> create_jsons.override(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS)
+    # Both branches lead to create_json_file
+    json_only_branch >> create_jsons
+    full_pipeline_branch >> pull_dune >> pull_yfinance >> alert_system >> create_jsons
 
 run_dag()
