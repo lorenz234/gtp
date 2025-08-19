@@ -93,7 +93,7 @@ class JsonGen():
             df['value'] = df['value'].fillna(0)
         return df
 
-    def create_metric_json(self, origin_key:str, metric_id:str, level:str='chain_level', start_date=None, rolling_avg=False):
+    def process_metric(self, origin_key:str, metric_id:str, aggregation:str='daily', level:str='chain_level', start_date=None):
         print(f'..processing: Metric details for {metric_id} at {level}')
         metric_dict = self.metrics[level][metric_id]
         
@@ -126,9 +126,6 @@ class JsonGen():
         else:
             raise NotImplementedError("Only 1 or 2 units are supported")
         
-        if rolling_avg == True:
-            mk_list_int = self.create_7d_rolling_avg(mk_list_int)
-        
         return mk_list_int, df_tmp.columns.to_list()
 
 
@@ -137,56 +134,58 @@ class JsonGen():
         """
         Create a JSON file for a metric and a chain.
         """
-        
-        print(f'..processing: Metric details for {origin_key} - {metric_id}')
+        chains_dict = {}
+        metric_dict = self.metrics['chain_level'][metric_id]
+        print(f'..generating json: Metric details for {origin_key} - {metric_id}')
 
-        mk_list = self.generate_daily_list(df, metric, origin_key)
+        ## Daily
+        mk_list = self.process_metric(origin_key, metric_id, aggregation='daily', level='chain_level')
         mk_list_int = mk_list[0]
         mk_list_columns = mk_list[1]
 
-        mk_list_monthly = self.generate_monthly_list(df, metric, origin_key)
+        ## Weekly
+        mk_list_weekly = self.process_metric(origin_key, metric_id, aggregation='weekly', level='chain_level', rolling_avg=True)
+        mk_list_int_weekly = mk_list_weekly[0]
+        mk_list_columns_weekly = mk_list_weekly[1]
+
+        
+        ## Monthly
+        mk_list_monthly = self.process_metric(origin_key, metric_id, aggregation='monthly', level='chain_level', rolling_avg=True)
         mk_list_int_monthly = mk_list_monthly[0]
         mk_list_columns_monthly = mk_list_monthly[1]
 
         chains_dict[origin_key] = {
-            'chain_name': chain.name,
-            'changes': self.create_changes_dict(df, metric, origin_key),
-            'changes_monthly': self.create_changes_dict_monthly(df, metric, origin_key),
             'daily': {
                 'types' : mk_list_columns,
                 'data' : mk_list_int
             },
-            'last_30d': self.value_last_30d(df, metric, origin_key),
+            'weekly': {
+                'types' : mk_list_columns_weekly,
+                'data' : mk_list_int_weekly
+            },
             'monthly': {
                 'types' : mk_list_columns_monthly,
                 'data' : mk_list_int_monthly
-            }
+            },
+            ## TODO: will add later though
+            #'last_30d': self.value_last_30d(df, metric, origin_key),
+            #'changes': self.create_changes_dict(df, metric, origin_key),
+            #'changes_monthly': self.create_changes_dict_monthly(df, metric, origin_key),
         }
 
         ## check if metric should be averagd and add 7d rolling avg field
-        if self.metrics[metric]['avg'] == True:
+        if metric_dict['avg'] == True:
             mk_list_int_7d = self.create_7d_rolling_avg(mk_list_int)
             chains_dict[origin_key]['daily_7d_rolling'] = {
                 'types' : mk_list_columns,
                 'data' : mk_list_int_7d
             }
 
-    details_dict = {
-        'data': {
-            'metric_id': metric,
-            'metric_name': self.metrics[metric]['name'],
-            'source': self.db_connector.get_metric_sources(metric, []),
-            'avg': self.metrics[metric]['avg'],
-            'monthly_agg': 'distinct' if self.metrics[metric]['monthly_agg'] in ['maa'] else self.metrics[metric]['monthly_agg'],
-            'chains': chains_dict
+        details_dict = {
+            'data': {
+                'metric_id': metric_id,
+                'metric_name': metric_dict['name'],
+                ##'source': self.db_connector.get_metric_sources(metric, []),
+                ##'monthly_agg': 'distinct' if self.metrics[metric]['monthly_agg'] in ['maa'] else self.metrics[metric]['monthly_agg'],
+            }
         }
-    }
-
-    details_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-    details_dict = fix_dict_nan(details_dict, f'metrics/{metric}')
-
-    if self.s3_bucket == None:
-        self.save_to_json(details_dict, f'metrics/{metric}')
-    else:
-        upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/metrics/{metric}', details_dict, self.cf_distribution_id, invalidate=False)
-    print(f'DONE -- Metric details export for {metric}')
