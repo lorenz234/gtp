@@ -28,13 +28,13 @@ from airflow.utils.trigger_rule import TriggerRule
 def run_dag():
 
     @task.branch(task_id="decide_branch")
-    def decide_branch(**context):
+    def decide_branch():
         """Decide which branch to execute based on the day of the week"""
-        execution_date = context.get('execution_date') or context['logical_date']
-        execution_date = execution_date.astimezone(timezone.utc)
-        day_of_week = execution_date.weekday()
+        # Use current UTC time
+        current_utc = datetime.now(timezone.utc)
+        day_of_week = current_utc.weekday()
         
-        print(f"Today is: {execution_date}")
+        print(f"Current UTC time: {current_utc}")
         
         if day_of_week in [6, 0]:  # Sunday or Monday
             print("Choosing json_only_branch")
