@@ -4,10 +4,9 @@ import getpass
 sys_user = getpass.getuser()
 sys.path.append(f"/home/{sys_user}/gtp/backend/")
 
-from datetime import datetime,timedelta
+from datetime import datetime,timedelta,timezone
 from airflow.decorators import dag, task 
 from src.misc.airflow_utils import alert_via_webhook
-from airflow.operators.python import BranchPythonOperator
 from airflow.operators.empty import EmptyOperator
 from airflow.utils.trigger_rule import TriggerRule
 
@@ -32,9 +31,10 @@ def run_dag():
     def decide_branch(**context):
         """Decide which branch to execute based on the day of the week"""
         execution_date = context.get('execution_date') or context['logical_date']
+        execution_date = execution_date.astimezone(timezone.utc)
         day_of_week = execution_date.weekday()
         
-        print(f"Today is day {day_of_week} (0=Monday, 6=Sunday)")
+        print(f"Today is: {execution_date}")
         
         if day_of_week in [6, 0]:  # Sunday or Monday
             print("Choosing json_only_branch")
