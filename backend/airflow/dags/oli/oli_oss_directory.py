@@ -41,9 +41,11 @@ def etl():
         now = datetime.now(timezone.utc)
         delta = now - commit_time
 
+        print(f"Time since last commit: {delta.total_seconds()} seconds")
 
-        ### If the latest commit was within the last 1 minutes (120s), proceed with the update
-        if delta.total_seconds() < 61:  
+        ### If the latest commit was within the last 2 minutes (120s), proceed with the update
+        if delta.total_seconds() < 121:  
+            print("New commit detected in the last 2 minutes. Proceeding with data update...")
 
             import os
             from src.adapters.adapter_oso import AdapterOSO
