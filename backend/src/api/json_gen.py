@@ -226,8 +226,8 @@ class JsonGen():
         monthly_periods = {'30d': 30, '90d': 90, '180d': 180, '365d': 365}
 
         daily_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, daily_periods, agg_window=1, agg_method='last')
-        weekly_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, weekly_periods, agg_window=7, agg_method=agg_method_for_changes)
-        monthly_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, monthly_periods, agg_window=30, agg_method=agg_method_for_changes)
+        weekly_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, weekly_periods, agg_window=7, agg_method=agg_method)
+        monthly_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, monthly_periods, agg_window=30, agg_method=agg_method)
 
         timeseries_data = {
             'daily': {'types': daily_cols, 'data': daily_list},
