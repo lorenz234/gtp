@@ -183,6 +183,26 @@ class JsonGen():
         if 'eth' in reverse_rename_map: final_types_ordered.append('eth')
         if 'value' in reverse_rename_map: final_types_ordered.append('value')
         return reverse_rename_map, final_types_ordered
+    
+    def _create_summary_values_dict(self, df: pd.DataFrame, metric_id: str, level: str, agg_window: int, agg_method: str) -> Dict:
+        """
+        Calculates a single aggregated value for the most recent period (e.g., last 30 days).
+        """
+        metric_dict = self.metrics[level][metric_id]
+        units = metric_dict.get('units', [])
+        reverse_rename_map, final_types_ordered = self._get_column_type_mapping(df.columns.tolist(), units)
+
+        if df.empty or len(df) < agg_window:
+            return {'types': final_types_ordered, 'data': [None] * len(final_types_ordered)}
+
+        if agg_method == 'last':
+            aggregated_series = df.iloc[-1]
+        else:
+            aggregated_series = df.iloc[-agg_window:].agg(agg_method)
+        
+        data_list = [aggregated_series.get(reverse_rename_map.get(t)) for t in final_types_ordered]
+        
+        return {'types': final_types_ordered, 'data': data_list}
 
     def create_metric_per_chain_json(self, origin_key: str, metric_id: str, level: str = 'chain_level', start_date: Optional[str] = None) -> Optional[Dict]:
         """Creates a dictionary for a metric/chain with daily, weekly, and monthly aggregations."""
@@ -219,6 +239,14 @@ class JsonGen():
         daily_list, daily_cols = self._format_df_for_json(daily_df, metric_dict['units'])
         weekly_list, weekly_cols = self._format_df_for_json(weekly_df, metric_dict['units'])
         monthly_list, monthly_cols = self._format_df_for_json(monthly_df, metric_dict['units'])
+        
+        timeseries_data = {
+            'daily': {'types': daily_cols, 'data': daily_list},
+            'weekly': {'types': weekly_cols, 'data': weekly_list},
+            'monthly': {'types': monthly_cols, 'data': monthly_list},
+        }
+        if daily_7d_list is not None:
+            timeseries_data['daily_7d_rolling'] = {'types': daily_cols, 'data': daily_7d_list}
 
         # --- CHANGES CALCULATION ---
         daily_periods = {'1d': 1, '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
@@ -228,12 +256,6 @@ class JsonGen():
         daily_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, daily_periods, agg_window=1, agg_method='last')
         weekly_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, weekly_periods, agg_window=7, agg_method=agg_method)
         monthly_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, monthly_periods, agg_window=30, agg_method=agg_method)
-
-        timeseries_data = {
-            'daily': {'types': daily_cols, 'data': daily_list},
-            'weekly': {'types': weekly_cols, 'data': weekly_list},
-            'monthly': {'types': monthly_cols, 'data': monthly_list},
-        }
         
         changes_data = {
             'daily': daily_changes,
@@ -241,15 +263,20 @@ class JsonGen():
             'monthly': monthly_changes,
         }
 
-        if daily_7d_list is not None:
-            timeseries_data['daily_7d_rolling'] = {'types': daily_cols, 'data': daily_7d_list}
+        # --- SUMMARY VALUES CALCULATION ---
+        summary_data = {
+            '7d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=7, agg_method=agg_method),
+            '30d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=30, agg_method=agg_method),
+        }
 
+        # --- FINAL OUTPUT DICT ---
         output = {
             'details': {
                 'metric_id': metric_id,
                 'metric_name': metric_dict['name'],
                 'timeseries': timeseries_data,
-                'changes': changes_data
+                'changes': changes_data,
+                'summary': summary_data
             },
         }
         
