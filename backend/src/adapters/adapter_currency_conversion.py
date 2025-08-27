@@ -16,6 +16,7 @@ from src.currency_config import (
     calculate_forex_rate_from_alternative,
     get_primary_exchange_rate_url,
     get_backup_exchange_rate_url,
+    get_backup_historical_exchange_rate_url,
     RATE_FETCH_CONFIG
 )
 from src.misc.helper_functions import api_get_call, print_init, print_load, print_extract
@@ -64,6 +65,8 @@ class AdapterCurrencyConversion(AbstractAdapter):
         if load_type == 'current_rates':
             df = self._fetch_current_rates(currencies)
         elif load_type == 'historical_rates':
+            if not target_date:
+                raise ValueError("historical_rates requires 'date' in YYYY-MM-DD format")
             df = self._fetch_historical_rates(currencies, target_date)
         else:
             raise ValueError(f"Unsupported load_type: {load_type}")
@@ -191,6 +194,65 @@ class AdapterCurrencyConversion(AbstractAdapter):
         except Exception as e:
             print(f"Alternative API error for {base_currency}/{target_currency}: {e}")
             return None
+
+    def _fetch_historical_rates(self, currencies: List[str], target_date: str) -> pd.DataFrame:
+        """
+        Fetch historical exchange rates for a specific date using backup historical API.
+
+        The backup provider returns USD-based rates. For base->USD, we invert the value.
+        """
+        try:
+            url = get_backup_historical_exchange_rate_url(target_date)
+            response_data = api_get_call(
+                url,
+                sleeper=1,
+                retries=RATE_FETCH_CONFIG['max_retries']
+            )
+        except Exception as e:
+            print(f"Historical API error for date {target_date}: {e}")
+            response_data = None
+
+        rates_data: List[Dict] = []
+
+        for currency in currencies:
+            if currency == 'usd':
+                continue
+            rate_value: Optional[float] = None
+            if response_data:
+                try:
+                    rates = response_data.get('rates', {}) or {}
+                    # normalize keys to upper
+                    rates_upper = {str(k).upper(): v for k, v in rates.items()}
+                    api_base = str(response_data.get('base', 'EUR')).upper()
+
+                    base_rate = rates_upper.get(currency.upper())
+
+                    if api_base == 'USD':
+                        # USD-based: EUR/USD = 1 / rates['EUR']
+                        if base_rate:
+                            rate_value = 1.0 / base_rate
+                    else:
+                        # EUR-based (or other): base/USD = (EUR->USD) / (EUR->base)
+                        usd_rate = rates_upper.get('USD')
+                        if usd_rate and base_rate:
+                            rate_value = usd_rate / base_rate
+                except Exception:
+                    rate_value = None
+
+            if rate_value is not None:
+                rates_data.append({
+                    'date': pd.to_datetime(target_date).date(),
+                    'metric_key': 'price_usd',
+                    'origin_key': f'fiat_{currency}',
+                    'value': rate_value
+                })
+            else:
+                print(f"No historical rate for {currency.upper()} on {target_date} (base={response_data.get('base') if response_data else 'N/A'})")
+
+        df = pd.DataFrame(rates_data)
+        if not df.empty:
+            df = df.set_index(['metric_key', 'origin_key', 'date'])
+        return df
     
     def get_exchange_rate(self, base_currency: str, target_currency: str = 'usd') -> Optional[float]:
         """

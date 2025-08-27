@@ -45,6 +45,13 @@ EXCHANGE_RATE_APIS = {
         "method": "GET",
         "timeout": 10,
         "description": "ExchangeRate-API (USD-based rates)"
+    },
+    # Historical: Frankfurter API (ECB-backed)
+    "frankfurter": {
+        "url_template": "https://api.frankfurter.app/{date}?from=USD",
+        "method": "GET",
+        "timeout": 10,
+        "description": "Frankfurter historical USD-based rates"
     }
 }
 
@@ -148,6 +155,13 @@ def get_backup_exchange_rate_url() -> str:
         str: Alternative exchange rate API URL
     """
     return EXCHANGE_RATE_APIS["exchangerate_api"]["url"]
+
+def get_backup_historical_exchange_rate_url(date_str: str) -> str:
+    """
+    Get historical exchange rate API URL for a specific date (YYYY-MM-DD).
+    Uses Frankfurter with USD base.
+    """
+    return EXCHANGE_RATE_APIS["frankfurter"]["url_template"].format(date=date_str)
 
 def calculate_forex_rate_from_coingecko(base_currency: str, target_currency: str, rates_data: dict) -> Optional[float]:
     """
