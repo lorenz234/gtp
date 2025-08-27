@@ -182,46 +182,12 @@ def calculate_forex_rate_from_coingecko(base_currency: str, target_currency: str
     except (KeyError, ZeroDivisionError, TypeError):
         return None
 
-# Exchange rate validation rules
-RATE_VALIDATION_RULES = {
-    "eur": {
-        "min_rate": 0.80,   # EUR/USD minimum reasonable rate
-        "max_rate": 1.30,   # EUR/USD maximum reasonable rate
-    },
-    "brl": {
-        "min_rate": 0.15,   # BRL/USD minimum reasonable rate  
-        "max_rate": 0.30,   # BRL/USD maximum reasonable rate
-    }
-}
-
-def validate_exchange_rate(currency_code: str, rate: float) -> bool:
-    """
-    Validate if an exchange rate is within reasonable bounds.
-    
-    Args:
-        currency_code (str): Currency code (e.g., 'eur', 'brl')
-        rate (float): Exchange rate to validate
-        
-    Returns:
-        bool: True if rate is valid, False otherwise
-    """
-    if currency_code.lower() == "usd":
-        return rate == 1.0
-        
-    rules = RATE_VALIDATION_RULES.get(currency_code.lower())
-    if not rules:
-        return True  # No validation rules defined, assume valid
-        
-    return rules["min_rate"] <= rate <= rules["max_rate"]
-
 # Error handling configuration
 RATE_FETCH_CONFIG = {
     "max_retries": 3,
     "retry_delay": 1.0,  # seconds
     "timeout": 10.0,     # seconds
-    "use_backup_api_on_failure": True,
-    "cache_duration": 3600,  # Cache rates for 1 hour
-    "min_cache_duration": 300  # Minimum 5 minutes between API calls
+    "use_backup_api_on_failure": True
 }
 
 

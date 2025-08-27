@@ -12,7 +12,6 @@ from typing import Dict, Optional, Tuple, List
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.currency_config import (
     get_supported_currencies,
-    validate_exchange_rate,
     calculate_forex_rate_from_coingecko,
     calculate_forex_rate_from_alternative,
     get_primary_exchange_rate_url,
@@ -34,8 +33,6 @@ class AdapterCurrencyConversion(AbstractAdapter):
     
     adapter_params can include:
         currencies: list - Specific currencies to fetch (default: all supported)
-        cache_duration: int - Cache duration in seconds (default: 3600)
-        force_refresh: bool - Force refresh rates regardless of cache (default: False)
     """
     
     def __init__(self, adapter_params: dict, db_connector):
@@ -43,17 +40,12 @@ class AdapterCurrencyConversion(AbstractAdapter):
         
         # Configuration
         self.currencies = adapter_params.get('currencies', get_supported_currencies())
-        self.cache_duration = adapter_params.get('cache_duration', RATE_FETCH_CONFIG['cache_duration'])
         self.force_refresh = adapter_params.get('force_refresh', False)
         
         # Remove 'usd' from currencies list since USD/USD = 1.0
         if 'usd' in self.currencies:
             self.currencies.remove('usd')
             
-        # Rate cache
-        self.rate_cache = {}
-        self.last_fetch_time = {}
-        
         print_init(self.name, self.adapter_params)
         
     def extract(self, load_params: dict) -> pd.DataFrame:
@@ -109,31 +101,11 @@ class AdapterCurrencyConversion(AbstractAdapter):
         for currency in currencies:
             if currency == 'usd':
                 continue  # Skip USD
-                
-            # Check cache first
-            if not self.force_refresh and self._is_rate_cached(currency):
-                cached_rate = self.rate_cache[currency]
-                
-                rates_data.append({
-                    'date': current_time.date(),
-                    'metric_key': 'price_usd',
-                    'origin_key': f'fiat_{currency}',
-                    'value': cached_rate['rate']
-                })
-                continue
             
             # Fetch fresh rate
             rate, source = self._fetch_single_rate(currency, 'usd')
             
             if rate is not None:
-                # Cache the rate
-                self.rate_cache[currency] = {
-                    'rate': rate,
-                    'source': source,
-                    'fetched_at': current_time
-                }
-                self.last_fetch_time[currency] = current_time
-                
                 rates_data.append({
                     'date': current_time.date(),
                     'metric_key': 'price_usd',
@@ -191,11 +163,7 @@ class AdapterCurrencyConversion(AbstractAdapter):
                 return None
                 
             rate = calculate_forex_rate_from_coingecko(base_currency, target_currency, response_data)
-            
-            if rate is not None and validate_exchange_rate(base_currency, rate):
-                return rate
-            else:
-                return None
+            return rate
                 
         except Exception as e:
             print(f"CoinGecko API error for {base_currency}/{target_currency}: {e}")
@@ -218,25 +186,11 @@ class AdapterCurrencyConversion(AbstractAdapter):
                 return None
                 
             rate = calculate_forex_rate_from_alternative(base_currency, target_currency, response_data)
-            
-            if rate is not None and validate_exchange_rate(base_currency, rate):
-                return rate
-            else:
-                return None
+            return rate
                 
         except Exception as e:
             print(f"Alternative API error for {base_currency}/{target_currency}: {e}")
             return None
-    
-    def _is_rate_cached(self, currency: str) -> bool:
-        """
-        Check if rate is cached and still valid.
-        """
-        if currency not in self.rate_cache or currency not in self.last_fetch_time:
-            return False
-            
-        time_since_fetch = datetime.now() - self.last_fetch_time[currency]
-        return time_since_fetch.total_seconds() < self.cache_duration
     
     def get_exchange_rate(self, base_currency: str, target_currency: str = 'usd') -> Optional[float]:
         """
@@ -251,73 +205,43 @@ class AdapterCurrencyConversion(AbstractAdapter):
         """
         if base_currency == target_currency:
             return 1.0
-            
-        # Check cache first
-        if self._is_rate_cached(base_currency):
-            return self.rate_cache[base_currency]['rate']
-            
-        # Fetch fresh rate
-        rate, source = self._fetch_single_rate(base_currency, target_currency)
         
+        # 1) Try database for today's rate first
+        origin_key = f"fiat_{base_currency.lower()}"
+        try:
+            df = self.db_connector.get_data_from_table(
+                'fact_kpis',
+                filters={
+                    'metric_key': 'price_usd',
+                    'origin_key': origin_key,
+                },
+                days=1
+            )
+            if not df.empty:
+                # Ensure date column exists and is today
+                if 'date' in df.columns:
+                    df_today = df[df['date'].dt.date == datetime.now().date()]
+                    if not df_today.empty and 'value' in df_today.columns:
+                        latest_val = df_today.sort_values('date', ascending=False)['value'].iloc[0]
+                        return float(latest_val)
+        except Exception as e:
+            print(f"Warning: DB lookup for {origin_key} failed: {e}")
+        
+        # 2) If missing/stale, fetch from APIs and upsert into DB
+        rate, source = self._fetch_single_rate(base_currency, target_currency)
         if rate is not None:
-            # Update cache
-            self.rate_cache[base_currency] = {
-                'rate': rate,
-                'source': source,
-                'fetched_at': datetime.now()
-            }
-            self.last_fetch_time[base_currency] = datetime.now()
-            
+            try:
+                df_upsert = pd.DataFrame([
+                    {
+                        'date': datetime.now().date(),
+                        'metric_key': 'price_usd',
+                        'origin_key': origin_key,
+                        'value': rate
+                    }
+                ]).set_index(['metric_key', 'origin_key', 'date'])
+                self.db_connector.upsert_table('fact_kpis', df_upsert)
+            except Exception as e:
+                print(f"Warning: failed to upsert {origin_key} rate to DB: {e}")
         return rate
     
-    def get_cached_rates(self) -> Dict[str, Dict]:
-        """
-        Get all cached exchange rates.
-        
-        Returns:
-            Dict[str, Dict]: Cached rates with metadata
-        """
-        return self.rate_cache.copy()
-    
-    def clear_cache(self):
-        """
-        Clear the exchange rate cache.
-        """
-        self.rate_cache.clear()
-        self.last_fetch_time.clear()
-        print("Exchange rate cache cleared")
-    
-    def get_cache_status(self) -> Dict[str, Dict]:
-        """
-        Get cache status for all currencies.
-        
-        Returns:
-            Dict[str, Dict]: Cache status information
-        """
-        status = {}
-        current_time = datetime.now()
-        
-        for currency in self.currencies:
-            if currency in self.rate_cache:
-                time_since_fetch = current_time - self.last_fetch_time.get(currency, current_time)
-                is_fresh = time_since_fetch.total_seconds() < self.cache_duration
-                
-                status[currency] = {
-                    'cached': True,
-                    'rate': self.rate_cache[currency]['rate'],
-                    'source': self.rate_cache[currency]['source'],
-                    'age_seconds': time_since_fetch.total_seconds(),
-                    'is_fresh': is_fresh,
-                    'fetched_at': self.last_fetch_time[currency].isoformat()
-                }
-            else:
-                status[currency] = {
-                    'cached': False,
-                    'rate': None,
-                    'source': None,
-                    'age_seconds': None,
-                    'is_fresh': False,
-                    'fetched_at': None
-                }
-                
-        return status
+    # Cache-related helpers removed: DB is now source of truth for rates

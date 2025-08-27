@@ -20,9 +20,6 @@ def test_currency_adapter():
     class MockDbConnector:
         def upsert_table(self, table_name, df):
             print(f"   📊 Mock DB: Would upsert {len(df)} rows to {table_name}")
-            print(f"   📋 Data preview:")
-            for _, row in df.head(3).iterrows():
-                print(f"      {row['currency'].upper()}/USD: {row['rate']:.6f} (from {row['source']})")
     
     db_connector = MockDbConnector()
     
@@ -30,7 +27,6 @@ def test_currency_adapter():
     print("1️⃣ Testing adapter initialization...")
     adapter_params = {
         'currencies': ['eur', 'brl'],
-        'cache_duration': 300,  # 5 minutes for testing
         'force_refresh': True
     }
     
@@ -49,9 +45,12 @@ def test_currency_adapter():
         print(f"   ✅ Extracted {len(df)} exchange rates")
         
         if not df.empty:
-            print("   📊 Rate details:")
-            for _, row in df.iterrows():
-                print(f"      {row['currency'].upper()}/USD: {row['rate']:.6f} (source: {row['source']})")
+            print("   📊 Rate details (from extraction):")
+            preview = df.reset_index().head(3)
+            for _, row in preview.iterrows():
+                origin = row['origin_key']
+                val = row['value']
+                print(f"      {origin}/price_usd: {val:.6f}")
         
     except Exception as e:
         print(f"   ❌ Extraction failed: {e}")
@@ -70,20 +69,7 @@ def test_currency_adapter():
         print(f"   ❌ Individual rate fetching failed: {e}")
         return False
     
-    # Test cache functionality
-    print("\n4️⃣ Testing cache functionality...")
-    try:
-        cache_status = adapter.get_cache_status()
-        print("   📋 Cache status:")
-        for currency, status in cache_status.items():
-            if status['cached']:
-                print(f"      {currency.upper()}: {status['rate']:.6f} (age: {status['age_seconds']:.0f}s)")
-            else:
-                print(f"      {currency.upper()}: Not cached")
-                
-    except Exception as e:
-        print(f"   ❌ Cache testing failed: {e}")
-        return False
+    # Cache functionality removed in favor of DB-backed lookup; skipping
     
     # Test data loading (mock)
     print("\n5️⃣ Testing data loading...")
