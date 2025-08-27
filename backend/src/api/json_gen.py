@@ -21,7 +21,7 @@ class JsonGen():
     def _get_raw_data_metric(self, origin_key: str, metric_key: str, days: Optional[int] = None) -> pd.DataFrame:
         """Get fact kpis from the database for a specific metric key."""
         query_parameters = {'origin_key': origin_key, 'metric_key': metric_key, 'days': days}
-        df = self.db_connector.execute_jinja_query("api/select_fact_kpis.sql.j2", query_parameters, return_df=True)
+        df = self.db_connector.execute_jinja("api/select_fact_kpis.sql.j2", query_parameters, load_into_df=True)
         
         if df.empty:
             return pd.DataFrame()
@@ -111,7 +111,15 @@ class JsonGen():
         
         final_df = df_formatted[column_order]
         
-        return final_df.values.tolist(), final_df.columns.to_list()
+        values_list = final_df.values.tolist()
+        columns_list = final_df.columns.to_list()
+        
+        ## make sure unix value no decimals
+        for row in values_list:
+            row[0] = int(row[0])
+        
+        return values_list, columns_list
+
 
     def create_metric_per_chain_json(self, origin_key: str, metric_id: str, level: str = 'chain_level', start_date: Optional[str] = None) -> Optional[Dict]:
         """
@@ -125,18 +133,29 @@ class JsonGen():
             logging.warning(f"No data found for {origin_key} - {metric_id}. Skipping.")
             return None
 
-        ## TODO: double check!
+        ## TODO: add AA aggregation method
         # Determine aggregation method
-        agg_config = metric_dict.get('monthly_agg', 'sum')
-        agg_method = 'mean' if agg_config in ['avg', 'maa'] else 'sum'
-        
+        agg_config = metric_dict.get('monthly_agg')
+        if agg_config == 'avg':
+            agg_method = 'mean'
+        elif agg_config == 'sum':
+            agg_method = 'sum'
+        elif agg_config == 'maa':
+            ## implement monthly active addresses aggregation (and weekly)
+            pass
+        else:
+            raise ValueError(f"Unknown aggregation method: {agg_config}")
+
         # Perform aggregations
-        weekly_df = daily_df.resample('W-SUN').agg(agg_method)
-        monthly_df = daily_df.resample('M').agg(agg_method)
+        ## TODO: check if the dates are same as currently
+        weekly_df = daily_df.resample('W-MON').agg(agg_method)
+        monthly_df = daily_df.resample('MS').agg(agg_method)
 
         # Rolling average calculation
         if metric_dict.get('avg', False):
             rolling_avg_df = daily_df.rolling(window=7).mean()
+            # Remove leading NaN values
+            rolling_avg_df = rolling_avg_df[rolling_avg_df.notna().any(axis=1)]
             # Convert to list format
             daily_7d_list, _ = self._format_df_for_json(rolling_avg_df, metric_dict['units'])
         else:
@@ -148,22 +167,28 @@ class JsonGen():
         monthly_list, monthly_cols = self._format_df_for_json(monthly_df, metric_dict['units'])
 
         # Build the final dictionary
-        result_data = {
+        timeseries_data = {
             'daily': {'types': daily_cols, 'data': daily_list},
             'weekly': {'types': weekly_cols, 'data': weekly_list},
             'monthly': {'types': monthly_cols, 'data': monthly_list},
         }
+        
+        changes_data = {
+            'daily': None,
+            'weekly': None,
+            'monthly': None,
+        }
 
         if daily_7d_list is not None:
-            result_data['daily_7d_rolling'] = {'types': daily_cols, 'data': daily_7d_list}
+            timeseries_data['daily_7d_rolling'] = {'types': daily_cols, 'data': daily_7d_list}
 
         output = {
-            origin_key: result_data,
             'details': {
                 'metric_id': metric_id,
                 'metric_name': metric_dict['name'],
-                'aggregation_method': agg_method,
-            }
+                'timeseries': timeseries_data,
+                'changes': changes_data
+            },
         }
         
         logging.info(f"Successfully generated data for {origin_key} - {metric_id}")
