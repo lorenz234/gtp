@@ -2,7 +2,6 @@ import pandas as pd
 import logging
 from typing import Dict, List, Optional, Tuple
 
-# Assume these imports exist and are correct
 from src.db_connector import DbConnector
 from src.config import gtp_units, gtp_metrics
 
@@ -120,53 +119,111 @@ class JsonGen():
         
         return values_list, columns_list
 
+    def _create_rolling_changes_dict(self, df: pd.DataFrame, metric_id: str, level: str, periods: Dict[str, int], agg_window: int, agg_method: str) -> Dict:
+        """
+        Calculates percentage change based on rolling aggregate windows over daily data.
+        
+        Args:
+            df (pd.DataFrame): Input DataFrame with daily data, DatetimeIndex, and value columns.
+            metric_id (str): The ID of the metric for config lookup.
+            level (str): The level of the data (e.g., 'chain_level').
+            periods (Dict[str, int]): Maps change key (e.g., '30d') to lookback period in days (e.g., 30).
+            agg_window (int): The size of the aggregation window in days (e.g., 30 for monthly).
+            agg_method (str): The aggregation method ('sum', 'mean', or 'last' for pre-aggregated values like MAA).
+        """
+        if df.empty:
+            return {**{key: [] for key in periods}, 'types': []}
+
+        metric_dict = self.metrics[level][metric_id]
+        units = metric_dict.get('units', [])
+        
+        # Determine the final column types ('usd', 'eth', 'value') and their order
+        reverse_rename_map, final_types_ordered = self._get_column_type_mapping(df.columns.tolist(), units)
+
+        changes_dict = {
+            'types': final_types_ordered
+        }
+        changes_dict.update({key: [] for key in periods.keys()})
+
+        for final_type in final_types_ordered:
+            original_col = reverse_rename_map.get(final_type)
+            series = df[original_col]
+
+            for key, period in periods.items():
+                change_val = None
+                # Ensure there is enough data for both current and previous windows
+                if len(series) >= period + agg_window:
+                    if agg_method == 'last': # For point-to-point or pre-aggregated metrics
+                        cur_val = series.iloc[-1]
+                        prev_val = series.iloc[-(1 + period)]
+                    else: # For rolling sum or mean
+                        cur_val = series.iloc[-agg_window:].agg(agg_method)
+                        prev_val = series.iloc[-(agg_window + period) : -period].agg(agg_method)
+
+                    # Calculate percentage change with safety checks
+                    if pd.notna(cur_val) and pd.notna(prev_val) and prev_val > 0 and cur_val >= 0:
+                        change = (cur_val - prev_val) / prev_val
+                        change_val = round(change, 4)
+                        if change_val > 100: change_val = 99.99
+                
+                changes_dict[key].append(change_val)
+        return changes_dict
+
+    def _get_column_type_mapping(self, df_columns: List[str], units: List[str]) -> Tuple[Dict[str, str], List[str]]:
+        """Helper to map dataframe columns to final JSON types ('usd', 'eth', 'value')."""
+        reverse_rename_map = {}
+        if 'usd' in units or 'eth' in units:
+            for col in df_columns:
+                reverse_rename_map['eth' if col.endswith('_eth') else 'usd'] = col
+        elif df_columns:
+            reverse_rename_map['value'] = df_columns[0]
+            
+        final_types_ordered = []
+        if 'usd' in reverse_rename_map: final_types_ordered.append('usd')
+        if 'eth' in reverse_rename_map: final_types_ordered.append('eth')
+        if 'value' in reverse_rename_map: final_types_ordered.append('value')
+        return reverse_rename_map, final_types_ordered
 
     def create_metric_per_chain_json(self, origin_key: str, metric_id: str, level: str = 'chain_level', start_date: Optional[str] = None) -> Optional[Dict]:
-        """
-        Creates a dictionary for a metric/chain with daily, weekly, and monthly aggregations.
-        """
+        """Creates a dictionary for a metric/chain with daily, weekly, and monthly aggregations."""
         logging.info(f"Generating aggregations for {origin_key} - {metric_id}")
-
         daily_df, metric_dict = self._get_prepared_daily_df(origin_key, metric_id, level, start_date)
 
         if daily_df.empty:
             logging.warning(f"No data found for {origin_key} - {metric_id}. Skipping.")
             return None
 
-        ## TODO: add AA aggregation method
-        # Determine aggregation method
         agg_config = metric_dict.get('monthly_agg')
-        if agg_config == 'avg':
-            agg_method = 'mean'
-        elif agg_config == 'sum':
-            agg_method = 'sum'
-        elif agg_config == 'maa':
-            ## implement monthly active addresses aggregation (and weekly)
-            pass
+        agg_method = 'sum' if agg_config == 'sum' else 'mean'
+        if agg_config == 'maa':
+            agg_method_for_changes = 'last'
         else:
-            raise ValueError(f"Unknown aggregation method: {agg_config}")
-
-        # Perform aggregations
-        ## TODO: check if the dates are same as currently
+            agg_method_for_changes = agg_method
+            
+        
+        # --- AGGREGATIONS ---
         weekly_df = daily_df.resample('W-MON').agg(agg_method)
         monthly_df = daily_df.resample('MS').agg(agg_method)
 
-        # Rolling average calculation
+        daily_7d_list = None
         if metric_dict.get('avg', False):
-            rolling_avg_df = daily_df.rolling(window=7).mean()
-            # Remove leading NaN values
-            rolling_avg_df = rolling_avg_df[rolling_avg_df.notna().any(axis=1)]
-            # Convert to list format
+            rolling_avg_df = daily_df.rolling(window=7).mean().dropna(how='all')
             daily_7d_list, _ = self._format_df_for_json(rolling_avg_df, metric_dict['units'])
-        else:
-            daily_7d_list = None
-            
-        # Format all dataframes into the required list structure
+        
+        # --- FORMATTING TIMESERIES FOR JSON ---
         daily_list, daily_cols = self._format_df_for_json(daily_df, metric_dict['units'])
         weekly_list, weekly_cols = self._format_df_for_json(weekly_df, metric_dict['units'])
         monthly_list, monthly_cols = self._format_df_for_json(monthly_df, metric_dict['units'])
 
-        # Build the final dictionary
+        # --- CHANGES CALCULATION ---
+        daily_periods = {'1d': 1, '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
+        weekly_periods = {'7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
+        monthly_periods = {'30d': 30, '90d': 90, '180d': 180, '365d': 365}
+
+        daily_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, daily_periods, agg_window=1, agg_method='last')
+        weekly_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, weekly_periods, agg_window=7, agg_method=agg_method_for_changes)
+        monthly_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, monthly_periods, agg_window=30, agg_method=agg_method_for_changes)
+
         timeseries_data = {
             'daily': {'types': daily_cols, 'data': daily_list},
             'weekly': {'types': weekly_cols, 'data': weekly_list},
@@ -174,9 +231,9 @@ class JsonGen():
         }
         
         changes_data = {
-            'daily': None,
-            'weekly': None,
-            'monthly': None,
+            'daily': daily_changes,
+            'weekly': weekly_changes,
+            'monthly': monthly_changes,
         }
 
         if daily_7d_list is not None:
