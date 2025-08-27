@@ -254,56 +254,72 @@ class AdapterCurrencyConversion(AbstractAdapter):
             df = df.set_index(['metric_key', 'origin_key', 'date'])
         return df
     
-    def get_exchange_rate(self, base_currency: str, target_currency: str = 'usd') -> Optional[float]:
+
+    def get_exchange_rates_dataframe(self, base_currency: str, target_currency: str = 'usd', days: int = 30) -> pd.DataFrame:
         """
-        Get exchange rate for currency pair (public method for other adapters).
+        Get exchange rates as a date-indexed DataFrame for historical analysis.
         
         Args:
             base_currency (str): Base currency code (e.g., 'eur', 'brl')
             target_currency (str): Target currency code (default: 'usd')
+            days (int): Number of days of historical data to retrieve (default: 30)
             
         Returns:
-            Optional[float]: Exchange rate or None if not available
+            pd.DataFrame: Date-indexed DataFrame with exchange rates
+                         Columns: ['exchange_rate']
+                         Index: date
         """
         if base_currency == target_currency:
-            return 1.0
+            # Return DataFrame with rate of 1.0 for all requested days
+            from datetime import timedelta
+            dates = pd.date_range(
+                start=datetime.now().date() - timedelta(days=days-1),
+                end=datetime.now().date(),
+                freq='D'
+            )
+            return pd.DataFrame({
+                'exchange_rate': 1.0
+            }, index=dates)
         
-        # 1) Try database for today's rate first
         origin_key = f"fiat_{base_currency.lower()}"
+        
         try:
+            # Get historical rates from database
             df = self.db_connector.get_data_from_table(
                 'fact_kpis',
                 filters={
                     'metric_key': 'price_usd',
                     'origin_key': origin_key,
                 },
-                days=1
+                days=days
             )
+            
             if not df.empty:
-                # Ensure date column exists and is today
-                if 'date' in df.columns:
-                    df_today = df[df['date'].dt.date == datetime.now().date()]
-                    if not df_today.empty and 'value' in df_today.columns:
-                        latest_val = df_today.sort_values('date', ascending=False)['value'].iloc[0]
-                        return float(latest_val)
+                # Reset index to work with the dataframe
+                df_reset = df.reset_index()
+                
+                # Ensure we have the required columns
+                if 'date' in df_reset.columns and 'value' in df_reset.columns:
+                    # Rename value column to exchange_rate for clarity
+                    df_rates = df_reset[['date', 'value']].copy()
+                    df_rates.rename(columns={'value': 'exchange_rate'}, inplace=True)
+                    
+                    # Convert date column to datetime if it isn't already
+                    df_rates['date'] = pd.to_datetime(df_rates['date'])
+                    
+                    # Sort by date and remove duplicates (keep latest if multiple per day)
+                    df_rates = df_rates.sort_values('date').drop_duplicates('date', keep='last')
+                    
+                    # Set date as index
+                    df_rates = df_rates.set_index('date')
+                    
+                    print(f"Retrieved {len(df_rates)} exchange rate records for {base_currency.upper()}/{target_currency.upper()}")
+                    return df_rates
+                    
         except Exception as e:
-            print(f"Warning: DB lookup for {origin_key} failed: {e}")
+            print(f"Error retrieving exchange rates for {base_currency}: {e}")
         
-        # 2) If missing/stale, fetch from APIs and upsert into DB
-        rate, source = self._fetch_single_rate(base_currency, target_currency)
-        if rate is not None:
-            try:
-                df_upsert = pd.DataFrame([
-                    {
-                        'date': datetime.now().date(),
-                        'metric_key': 'price_usd',
-                        'origin_key': origin_key,
-                        'value': rate
-                    }
-                ]).set_index(['metric_key', 'origin_key', 'date'])
-                self.db_connector.upsert_table('fact_kpis', df_upsert)
-            except Exception as e:
-                print(f"Warning: failed to upsert {origin_key} rate to DB: {e}")
-        return rate
+        # If no data found, return empty DataFrame with correct structure
+        print(f"Warning: No exchange rate data found for {base_currency.upper()}/{target_currency.upper()}")
+        return pd.DataFrame(columns=['exchange_rate']).rename_axis('date')
     
-    # Cache-related helpers removed: DB is now source of truth for rates
