@@ -194,11 +194,16 @@ class JsonGen():
             return None
 
         agg_config = metric_dict.get('monthly_agg')
-        agg_method = 'sum' if agg_config == 'sum' else 'mean'
-        if agg_config == 'maa':
-            agg_method_for_changes = 'last'
+        
+        if agg_config == 'sum':
+            agg_method = 'sum'
+        elif agg_config == 'avg':
+            agg_method = 'mean'
+        elif agg_config == 'maa':
+            ##TODO - special handling for MAA - use 'last' as agg_method and special handling in changes calculation
+            pass
         else:
-            agg_method_for_changes = agg_method
+            raise ValueError(f"Invalid monthly_agg config '{agg_config}' for metric {metric_id}")
             
         
         # --- AGGREGATIONS ---
