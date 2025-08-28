@@ -22,7 +22,7 @@ class MockNodeAdapter:
         self.active_rpcs = set()
         self.rpc_timeouts = {}
     
-    def check_and_kick_slow_rpcs(self, rpc_errors, error_lock):
+    def check_and_kick_slow_rpcs(self, rpc_errors, error_lock, block_range_queue=None):
         """Same logic as the real NodeAdapter."""
         current_time = time.time()
         timeout_threshold = 600  # 10 minutes in seconds
@@ -51,6 +51,17 @@ class MockNodeAdapter:
                     self.active_rpcs.discard(rpc_url)
                     # Remove from rpc_configs to prevent restart
                     self.rpc_configs = [rpc for rpc in self.rpc_configs if rpc['url'] != rpc_url]
+                    
+                    # Requeue all in-flight ranges from this kicked RPC
+                    if rpc_url in self.rpc_timeouts and block_range_queue is not None:
+                        for range_key in list(self.rpc_timeouts[rpc_url].keys()):
+                            try:
+                                start, end = map(int, range_key.split('-'))
+                                block_range_queue.put((start, end))
+                                print(f"REQUEUED: Block range {range_key} from kicked RPC {rpc_url}")
+                            except ValueError:
+                                print(f"WARNING: Could not parse block range {range_key} for requeue")
+                    
                     # Clean up timeout tracking for this RPC
                     if rpc_url in self.rpc_timeouts:
                         del self.rpc_timeouts[rpc_url]

@@ -102,7 +102,7 @@ class NodeAdapter(AbstractAdapterRaw):
             print(f"  - Transactions Per Second (TPS): {tps:.2f}")
         print("==========================")
     
-    def check_and_kick_slow_rpcs(self, rpc_errors, error_lock):
+    def check_and_kick_slow_rpcs(self, rpc_errors, error_lock, block_range_queue=None):
         """
         Checks for RPCs that are taking too long (>10 minutes) for a single block range.
         Kicks them out if there are other active RPCs available.
@@ -110,6 +110,7 @@ class NodeAdapter(AbstractAdapterRaw):
         Args:
             rpc_errors (dict): Dictionary tracking errors for each RPC configuration.
             error_lock (Lock): Thread lock to synchronize access to rpc_errors.
+            block_range_queue (Queue): Optional queue to requeue in-flight ranges from kicked RPCs.
         """
         current_time = time.time()
         timeout_threshold = 600  # 10 minutes in seconds
@@ -138,6 +139,17 @@ class NodeAdapter(AbstractAdapterRaw):
                     self.active_rpcs.discard(rpc_url)
                     # Remove from rpc_configs to prevent restart
                     self.rpc_configs = [rpc for rpc in self.rpc_configs if rpc['url'] != rpc_url]
+                    
+                    # Requeue all in-flight ranges from this kicked RPC
+                    if rpc_url in self.rpc_timeouts and block_range_queue is not None:
+                        for range_key in list(self.rpc_timeouts[rpc_url].keys()):
+                            try:
+                                start, end = map(int, range_key.split('-'))
+                                block_range_queue.put((start, end))
+                                print(f"REQUEUED: Block range {range_key} from kicked RPC {rpc_url}")
+                            except ValueError:
+                                print(f"WARNING: Could not parse block range {range_key} for requeue")
+                    
                     # Clean up timeout tracking for this RPC
                     if rpc_url in self.rpc_timeouts:
                         del self.rpc_timeouts[rpc_url]
@@ -287,7 +299,7 @@ class NodeAdapter(AbstractAdapterRaw):
                     break
 
             # Check for slow RPCs and kick them if necessary
-            self.check_and_kick_slow_rpcs(rpc_errors, error_lock)
+            self.check_and_kick_slow_rpcs(rpc_errors, error_lock, block_range_queue)
             
             time.sleep(5)  # Sleep to avoid high CPU usage
 
