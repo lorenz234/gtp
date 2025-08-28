@@ -8,6 +8,22 @@ from src.config import gtp_units, gtp_metrics
 # --- Set up a proper logger ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# --- Constants for aggregation methods and metric IDs to improve readability ---
+AGG_METHOD_SUM = 'sum'
+AGG_METHOD_MEAN = 'mean'
+AGG_METHOD_LAST = 'last'
+
+AGG_CONFIG_SUM = 'sum'
+AGG_CONFIG_AVG = 'avg'
+AGG_CONFIG_MAA = 'maa'
+
+METRIC_DAA = 'daa'
+METRIC_MAA = 'maa'
+METRIC_WAA = 'waa'
+METRIC_AA_7D = 'aa_last7d'
+METRIC_AA_30D = 'aa_last30d'
+
+
 class JsonGen():
     def __init__(self, s3_bucket: str, cf_distribution_id: str, db_connector: DbConnector, api_version: str = 'v1'):
         self.api_version = api_version
@@ -49,16 +65,16 @@ class JsonGen():
             all_dates = pd.date_range(start=start_date, end=yesterday, freq='D', tz='UTC')
             df = df.set_index('date').reindex(all_dates, fill_value=0).reset_index().rename(columns={'index': 'date'})
             
-            # Forward-fill identifier columns
+            # Forward-fill identifier columns (like metric_key) into the new date rows created by reindexing.
             for col in ['metric_key', 'origin_key']:
                 if col in df.columns:
                     df[col] = df[col].fillna(method='ffill')
         return df
 
-    def _get_prepared_timeseries_df(self, origin_key: str, metric_keys: List[str], start_date: Optional[str], max_date_fill: bool) -> Tuple[pd.DataFrame, Dict]:
+    def _get_prepared_timeseries_df(self, origin_key: str, metric_keys: List[str], start_date: Optional[str], max_date_fill: bool) -> pd.DataFrame:
         """
-        Fetches, prepares, and pivots the timeseries data for a given metric,
-        returning a single DataFrame
+        Fetches, prepares, and pivots the timeseries data for given metric keys,
+        returning a single DataFrame.
         """
         days = (pd.to_datetime('today') - pd.to_datetime(start_date or '2020-01-01')).days
 
@@ -98,23 +114,18 @@ class JsonGen():
         
         df_formatted = df_formatted.rename(columns=rename_map)
 
-        # Convert date to unix timestamp in milliseconds
-        df_formatted['unix'] = df_formatted['unix'].apply(lambda x: int(x.timestamp() * 1000))
+        # Convert datetime to unix timestamp in milliseconds (as integer) efficiently.
+        df_formatted['unix'] = (df_formatted['unix'].astype('int64') // 1_000_000)
         
-        # Ensure standard column order if usd/eth are present for consistency
-        column_order = ['unix']
-        if 'usd' in df_formatted.columns: column_order.append('usd')
-        if 'eth' in df_formatted.columns: column_order.append('eth')
-        if 'value' in df_formatted.columns: column_order.append('value')
+        # Ensure standard column order for consistency in the final JSON
+        base_order = ['unix']
+        present_cols = [col for col in ['usd', 'eth', 'value'] if col in df_formatted.columns]
+        column_order = base_order + present_cols
         
         final_df = df_formatted[column_order]
         
         values_list = final_df.values.tolist()
         columns_list = final_df.columns.to_list()
-        
-        ## make sure unix value no decimals
-        for row in values_list:
-            row[0] = int(row[0])
         
         return values_list, columns_list
 
@@ -140,9 +151,9 @@ class JsonGen():
         reverse_rename_map, final_types_ordered = self._get_column_type_mapping(df.columns.tolist(), units)
 
         changes_dict = {
-            'types': final_types_ordered
+            'types': final_types_ordered,
+            **{key: [] for key in periods.keys()}
         }
-        changes_dict.update({key: [] for key in periods.keys()})
 
         for final_type in final_types_ordered:
             original_col = reverse_rename_map.get(final_type)
@@ -152,7 +163,7 @@ class JsonGen():
                 change_val = None
                 # Ensure there is enough data for both current and previous windows
                 if len(series) >= period + agg_window:
-                    if agg_method == 'last': # For point-to-point or pre-aggregated metrics
+                    if agg_method == AGG_METHOD_LAST: # For point-to-point or pre-aggregated metrics
                         cur_val = series.iloc[-1]
                         prev_val = series.iloc[-(1 + period)]
                     else: # For rolling sum or mean
@@ -163,7 +174,9 @@ class JsonGen():
                     if pd.notna(cur_val) and pd.notna(prev_val) and prev_val > 0 and cur_val >= 0:
                         change = (cur_val - prev_val) / prev_val
                         change_val = round(change, 4)
-                        if change_val > 100: change_val = 99.99
+                        # Cap extreme growth for frontend display purposes to prevent visual distortion.
+                        if change_val > 100: 
+                            change_val = 99.99
                 
                 changes_dict[key].append(change_val)
         return changes_dict
@@ -194,7 +207,7 @@ class JsonGen():
         if df.empty or len(df) < agg_window:
             return {'types': final_types_ordered, 'data': [None] * len(final_types_ordered)}
 
-        if agg_method == 'last':
+        if agg_method == AGG_METHOD_LAST:
             aggregated_series = df.iloc[-1]
         else:
             aggregated_series = df.iloc[-agg_window:].agg(agg_method)
@@ -215,19 +228,19 @@ class JsonGen():
 
         agg_config = metric_dict.get('monthly_agg')
         
-        if agg_config == 'sum':
-            agg_method = 'sum'
-        elif agg_config == 'avg':
-            agg_method = 'mean'
-        elif agg_config == 'maa':
-            agg_method = 'maa' ## Special handling in following code
+        if agg_config == AGG_CONFIG_SUM:
+            agg_method = AGG_METHOD_SUM
+        elif agg_config == AGG_CONFIG_AVG:
+            agg_method = AGG_METHOD_MEAN
+        elif agg_config == AGG_CONFIG_MAA:
+            agg_method = AGG_METHOD_LAST # 'maa' implies pre-aggregated values, so we take the 'last' value
         else:
             raise ValueError(f"Invalid monthly_agg config '{agg_config}' for metric {metric_id}")
             
         # --- AGGREGATIONS ---
-        if agg_config == 'maa':
-            weekly_df = self._get_prepared_timeseries_df(origin_key, ['waa'], start_date, metric_dict.get('max_date_fill', False))
-            monthly_df = self._get_prepared_timeseries_df(origin_key, ['maa'], start_date, metric_dict.get('max_date_fill', False))
+        if agg_config == AGG_CONFIG_MAA:
+            weekly_df = self._get_prepared_timeseries_df(origin_key, [METRIC_WAA], start_date, metric_dict.get('max_date_fill', False))
+            monthly_df = self._get_prepared_timeseries_df(origin_key, [METRIC_MAA], start_date, metric_dict.get('max_date_fill', False))
         else:
             weekly_df = daily_df.resample('W-MON').agg(agg_method)
             monthly_df = daily_df.resample('MS').agg(agg_method)
@@ -255,14 +268,14 @@ class JsonGen():
         weekly_periods = {'7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
         monthly_periods = {'30d': 30, '90d': 90, '180d': 180, '365d': 365}
 
-        daily_changes = self._create_changes_dict(daily_df, metric_id, level, daily_periods, agg_window=1, agg_method='last')
+        daily_changes = self._create_changes_dict(daily_df, metric_id, level, daily_periods, agg_window=1, agg_method=AGG_METHOD_LAST)
         
-        if metric_id == 'daa':
-            df_aa_weekly = self._get_prepared_timeseries_df(origin_key, ['aa_last7d'], start_date, metric_dict.get('max_date_fill', False))
-            df_aa_monthly = self._get_prepared_timeseries_df(origin_key, ['aa_last30d'], start_date, metric_dict.get('max_date_fill', False))
+        if metric_id == METRIC_DAA:
+            df_aa_weekly = self._get_prepared_timeseries_df(origin_key, [METRIC_AA_7D], start_date, metric_dict.get('max_date_fill', False))
+            df_aa_monthly = self._get_prepared_timeseries_df(origin_key, [METRIC_AA_30D], start_date, metric_dict.get('max_date_fill', False))
             
-            weekly_changes = self._create_changes_dict(df_aa_weekly, metric_id, level, weekly_periods, agg_window=7, agg_method='last')
-            monthly_changes = self._create_changes_dict(df_aa_monthly, metric_id, level, monthly_periods, agg_window=30, agg_method='last')
+            weekly_changes = self._create_changes_dict(df_aa_weekly, metric_id, level, weekly_periods, agg_window=7, agg_method=AGG_METHOD_LAST)
+            monthly_changes = self._create_changes_dict(df_aa_monthly, metric_id, level, monthly_periods, agg_window=30, agg_method=AGG_METHOD_LAST)
         else:
             weekly_changes = self._create_changes_dict(daily_df, metric_id, level, weekly_periods, agg_window=7, agg_method=agg_method)
             monthly_changes = self._create_changes_dict(daily_df, metric_id, level, monthly_periods, agg_window=30, agg_method=agg_method)
@@ -274,11 +287,11 @@ class JsonGen():
         }
 
         # --- SUMMARY VALUES CALCULATION ---
-        if metric_id == 'daa':
+        if metric_id == METRIC_DAA:
             summary_data = {
-                'last_1d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=1, agg_method='last'),
-                'last_7d': self._create_summary_values_dict(df_aa_weekly, metric_id, level, agg_window=7, agg_method='last'),
-                'last_30d': self._create_summary_values_dict(df_aa_monthly, metric_id, level, agg_window=30, agg_method='last'),
+                'last_1d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=1, agg_method=AGG_METHOD_LAST),
+                'last_7d': self._create_summary_values_dict(df_aa_weekly, metric_id, level, agg_window=7, agg_method=AGG_METHOD_LAST),
+                'last_30d': self._create_summary_values_dict(df_aa_monthly, metric_id, level, agg_window=30, agg_method=AGG_METHOD_LAST),
             }
         else:
             summary_data = {
