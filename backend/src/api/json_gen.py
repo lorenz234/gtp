@@ -1,3 +1,5 @@
+import os
+import json
 import pandas as pd
 import logging
 from typing import Dict, List, Optional, Tuple
@@ -36,6 +38,13 @@ class JsonGen():
         self.units = gtp_units
         self.metrics = gtp_metrics
         self.main_config = get_main_config(api_version=self.api_version)
+        
+    def _save_to_json(self, data, path):
+        #create directory if not exists
+        os.makedirs(os.path.dirname(f'output/{self.api_version}/{path}.json'), exist_ok=True)
+        ## save to file
+        with open(f'output/{self.api_version}/{path}.json', 'w') as fp:
+            json.dump(data, fp, ignore_nan=True)
 
     def _get_raw_data_metric(self, origin_key: str, metric_key: str, days: Optional[int] = None) -> pd.DataFrame:
         """Get fact kpis from the database for a specific metric key."""
@@ -321,34 +330,37 @@ class JsonGen():
         output = fix_dict_nan(output, f'metrics/{origin_key}/{metric_id}')
         return output
 
-    def create_metric_jsons(self, metric_ids:list=None, origin_keys:list=None, level:str='chain_level', start_date='2020-01-01'):
+    def create_metric_jsons(self, metric_ids: Optional[List[str]] = None, origin_keys: Optional[List[str]] = None, level: str = 'chain_level', start_date='2020-01-01'):
         ## Loop through each metric and chain
         for metric_id in self.metrics[level].keys():
             if metric_ids and metric_id not in metric_ids:
                 continue # Skip metrics not in the provided list
-            if self.metrics[level][metric_id]['fundamental'] == False:
+            if not self.metrics[level][metric_id]['fundamental']:
                 continue # Skip non-fundamental metrics
 
             for chain in self.main_config:
                 origin_key = chain.origin_key
                 if origin_keys and origin_key not in origin_keys:
                     continue # Skip chains not in the provided list
-                
-                print(f'..processing: {origin_key} - {metric_id}')
-                
-                if chain.api_in_main == False:
-                    print(f'..skipped: Metric details export for {origin_key}. API is set to False')
+
+                logging.info(f'..processing: {origin_key} - {metric_id}')
+
+                if not chain.api_in_main:
+                    logging.info(f'..skipped: Metric details export for {origin_key}. API is set to False')
                     continue
 
                 if metric_id in chain.api_exclude_metrics:
-                    print(f'..skipped: Metric details export for {origin_key} - {metric_id}. Metric is excluded')
+                    logging.info(f'..skipped: Metric details export for {origin_key} - {metric_id}. Metric is excluded')
                     continue
 
                 
                 metric_dict = self.create_metric_per_chain_dict(origin_key, metric_id, level, start_date)
 
-                if self.s3_bucket == None:
-                    self.save_to_json(metric_dict, f'metrics/test/{origin_key}/{metric_id}')
+                if metric_dict:
+                    if self.s3_bucket == None:
+                        self._save_to_json(metric_dict, f'metrics/test/{origin_key}/{metric_id}')
+                    else:
+                        upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/metrics/test/{origin_key}/{metric_id}', metric_dict, self.cf_distribution_id, invalidate=False)
+                    logging.info(f'DONE -- Metric details export for {metric_id}')
                 else:
-                    upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/metrics/test/{origin_key}/{metric_id}', metric_dict, self.cf_distribution_id, invalidate=False)
-                print(f'DONE -- Metric details export for {metric_id}')
+                    logging.info(f'NO DATA RETURNED: Metric details export for {origin_key} - {metric_id} failed.')
