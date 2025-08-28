@@ -159,7 +159,9 @@ def run_dag():
             # Return the last zero index
             return series.index.get_loc(zero_indices[-1])
 
+        counter = 0
         for ticker in ticker_list:
+            print(f"Processing ticker: {ticker}. Overall progress: {counter}/{len(ticker_list)}")
             # Initialize data_dict for each ticker
             data_dict = {"data": {}}
 
@@ -200,11 +202,14 @@ def run_dag():
 
             # Upload to S3
             upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/robinhood/stocks/{ticker}', data_dict, cf_distribution_id, invalidate=False)
+            counter += 1
 
 
         ### Load the second dataset for totals
         df2 = execute_jinja_query(db_connector, "api/quick_bites/robinhood_totals_daily.sql.j2", query_parameters={}, return_df=True)
         df2['unix_timestamp'] = pd.to_datetime(df2['date']).astype(int) // 10**6  # Convert to milliseconds
+        ## filter df to date >= June 30th 2025
+        df2 = df2[df2['date'] >= datetime.date(datetime(2025, 6, 30))]
 
         # Sort by date to ensure proper chronological order
         df2 = df2.sort_values('date').reset_index(drop=True)
