@@ -55,27 +55,26 @@ class JsonGen():
                     df[col] = df[col].fillna(method='ffill')
         return df
 
-    def _get_prepared_daily_df(self, origin_key: str, metric_id: str, level: str, start_date: Optional[str]) -> Tuple[pd.DataFrame, Dict]:
+    def _get_prepared_timeseries_df(self, origin_key: str, metric_keys: List[str], start_date: Optional[str], max_date_fill: bool) -> Tuple[pd.DataFrame, Dict]:
         """
-        Fetches, prepares, and pivots the daily data for a given metric,
-        returning a single DataFrame with a DatetimeIndex and the metric config.
+        Fetches, prepares, and pivots the timeseries data for a given metric,
+        returning a single DataFrame
         """
-        metric_dict = self.metrics[level][metric_id]
         days = (pd.to_datetime('today') - pd.to_datetime(start_date or '2020-01-01')).days
 
         df_list = [
-            self._prepare_metric_key_data(self._get_raw_data_metric(origin_key, mk, days), metric_dict['max_date_fill'])
-            for mk in metric_dict['metric_keys']
+            self._prepare_metric_key_data(self._get_raw_data_metric(origin_key, mk, days), max_date_fill)
+            for mk in metric_keys
         ]
 
         # Filter out empty dataframes before concatenating
         valid_dfs = [df for df in df_list if not df.empty]
         if not valid_dfs:
-            return pd.DataFrame(), metric_dict
+            return pd.DataFrame()
 
         df_full = pd.concat(valid_dfs, ignore_index=True)
         df_pivot = df_full.pivot(index='date', columns='metric_key', values='value').sort_index()
-        return df_pivot, metric_dict
+        return df_pivot
         
     def _format_df_for_json(self, df: pd.DataFrame, units: List[str]) -> Tuple[List[List], List[str]]:
         """
@@ -207,7 +206,8 @@ class JsonGen():
     def create_metric_per_chain_json(self, origin_key: str, metric_id: str, level: str = 'chain_level', start_date: Optional[str] = None) -> Optional[Dict]:
         """Creates a dictionary for a metric/chain with daily, weekly, and monthly aggregations."""
         logging.info(f"Generating aggregations for {origin_key} - {metric_id}")
-        daily_df, metric_dict = self._get_prepared_daily_df(origin_key, metric_id, level, start_date)
+        metric_dict = self.metrics[level][metric_id]
+        daily_df = self._get_prepared_timeseries_df(origin_key, metric_dict['metric_keys'], start_date, metric_dict.get('max_date_fill', False))
 
         if daily_df.empty:
             logging.warning(f"No data found for {origin_key} - {metric_id}. Skipping.")
@@ -220,15 +220,20 @@ class JsonGen():
         elif agg_config == 'avg':
             agg_method = 'mean'
         elif agg_config == 'maa':
-            ##TODO - special handling for MAA - use 'last' as agg_method and special handling in changes calculation
+            ##TODO - special handling for MAA
             pass
         else:
             raise ValueError(f"Invalid monthly_agg config '{agg_config}' for metric {metric_id}")
             
         
         # --- AGGREGATIONS ---
-        weekly_df = daily_df.resample('W-MON').agg(agg_method)
-        monthly_df = daily_df.resample('MS').agg(agg_method)
+        if agg_config == 'maa':
+            weekly_df = self._get_prepared_timeseries_df(origin_key, ['waa'], start_date, metric_dict.get('max_date_fill', False))
+            monthly_df = self._get_prepared_timeseries_df(origin_key, ['maa'], start_date, metric_dict.get('max_date_fill', False))
+        else:
+            weekly_df = daily_df.resample('W-MON').agg(agg_method)
+            monthly_df = daily_df.resample('MS').agg(agg_method)
+        
 
         daily_7d_list = None
         if metric_dict.get('avg', False):
