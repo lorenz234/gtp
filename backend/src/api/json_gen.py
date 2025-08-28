@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from src.db_connector import DbConnector
 from src.config import gtp_units, gtp_metrics
 from src.main_config import get_main_config
-from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3
+from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3, empty_cloudfront_cache
 
 # --- Set up a proper logger ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -60,7 +60,7 @@ class JsonGen():
         return df
 
     @staticmethod
-    def _prepare_metric_key_data(df: pd.DataFrame, max_date_fill: bool = True) -> pd.DataFrame:
+    def _prepare_metric_key_data(df: pd.DataFrame, metric_key: str, max_date_fill: bool = True) -> pd.DataFrame:
         """Prepares metric data by trimming leading zeros and filling missing dates."""
         if df.empty:
             return df
@@ -78,10 +78,8 @@ class JsonGen():
             all_dates = pd.date_range(start=start_date, end=yesterday, freq='D', tz='UTC')
             df = df.set_index('date').reindex(all_dates, fill_value=0).reset_index().rename(columns={'index': 'date'})
             
-            # Forward-fill identifier columns (like metric_key) into the new date rows created by reindexing.
-            for col in ['metric_key', 'origin_key']:
-                if col in df.columns:
-                    df[col] = df[col].fillna(method='ffill')
+            #make sure metric_key is set correctly
+            df['metric_key'] = metric_key
         return df
 
     def _get_prepared_timeseries_df(self, origin_key: str, metric_keys: List[str], start_date: Optional[str], max_date_fill: bool) -> pd.DataFrame:
@@ -92,7 +90,7 @@ class JsonGen():
         days = (pd.to_datetime('today') - pd.to_datetime(start_date or '2020-01-01')).days
 
         df_list = [
-            self._prepare_metric_key_data(self._get_raw_data_metric(origin_key, mk, days), max_date_fill)
+            self._prepare_metric_key_data(self._get_raw_data_metric(origin_key, mk, days), mk, max_date_fill)
             for mk in metric_keys
         ]
 
@@ -231,7 +229,6 @@ class JsonGen():
 
     def create_metric_per_chain_dict(self, origin_key: str, metric_id: str, level: str = 'chain_level', start_date: Optional[str] = None) -> Optional[Dict]:
         """Creates a dictionary for a metric/chain with daily, weekly, and monthly aggregations."""
-        logging.info(f"Generating aggregations for {origin_key} - {metric_id}")
         metric_dict = self.metrics[level][metric_id]
         daily_df = self._get_prepared_timeseries_df(origin_key, metric_dict['metric_keys'], start_date, metric_dict.get('max_date_fill', False))
 
@@ -324,8 +321,6 @@ class JsonGen():
             },
         }
         
-        logging.info(f"Successfully generated data for {origin_key} - {metric_id}")
-        
         output['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         output = fix_dict_nan(output, f'metrics/{origin_key}/{metric_id}')
         return output
@@ -361,6 +356,11 @@ class JsonGen():
                         self._save_to_json(metric_dict, f'metrics/test/{origin_key}/{metric_id}')
                     else:
                         upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/metrics/test/{origin_key}/{metric_id}', metric_dict, self.cf_distribution_id, invalidate=False)
-                    logging.info(f'DONE -- Metric details export for {metric_id}')
+                    logging.info(f'DONE -- Metric details export for {metric_id} on {origin_key} successful.')
                 else:
                     logging.info(f'NO DATA RETURNED: Metric details export for {origin_key} - {metric_id} failed.')
+            
+            logging.info(f'METRIC COMPLETED -- Metric details export for {metric_id} on all chains successful.')
+        
+        ## after all metric jsons are created, invalidate the cache
+        empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/metrics/test/*')
