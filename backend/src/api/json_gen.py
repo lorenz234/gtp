@@ -4,6 +4,7 @@ import pandas as pd
 import logging
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.db_connector import DbConnector
 from src.config import gtp_units, gtp_metrics
@@ -41,9 +42,9 @@ class JsonGen():
         
     def _save_to_json(self, data, path):
         #create directory if not exists
-        os.makedirs(os.path.dirname(f'output/{self.api_version}/{path}.json'), exist_ok=True)
+        os.makedirs(os.path.dirname(f'output/{path}.json'), exist_ok=True)
         ## save to file
-        with open(f'output/{self.api_version}/{path}.json', 'w') as fp:
+        with open(f'output/{path}.json', 'w') as fp:
             json.dump(data, fp, ignore_nan=True)
 
     def _get_raw_data_metric(self, origin_key: str, metric_key: str, days: Optional[int] = None) -> pd.DataFrame:
@@ -322,45 +323,86 @@ class JsonGen():
         }
         
         output['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        output = fix_dict_nan(output, f'metrics/{origin_key}/{metric_id}')
+        output = fix_dict_nan(output, f'test/metrics/{origin_key}/{metric_id}')
         return output
+    
+    def _process_and_save_metric(self, origin_key: str, metric_id: str, level: str, start_date: str):
+        """
+        Worker function to process and save/upload a single metric-chain combination.
+        This is designed to be called by the ThreadPoolExecutor.
+        """
+        logging.info(f"Processing: {origin_key} - {metric_id}")
+        
+        metric_dict = self.create_metric_per_chain_dict(origin_key, metric_id, level, start_date)
 
-    def create_metric_jsons(self, metric_ids: Optional[List[str]] = None, origin_keys: Optional[List[str]] = None, level: str = 'chain_level', start_date='2020-01-01'):
-        ## Loop through each metric and chain
+        if metric_dict:
+            s3_path = f'{self.api_version}/test/metrics/{origin_key}/{metric_id}'
+            if self.s3_bucket is None:
+                # Assuming local saving for testing still uses a similar path structure
+                self._save_to_json(metric_dict, s3_path)
+            else:
+                upload_json_to_cf_s3(self.s3_bucket, s3_path, metric_dict, self.cf_distribution_id, invalidate=False)
+            logging.info(f"SUCCESS: Exported {origin_key} - {metric_id}")
+        else:
+            logging.warning(f"NO DATA: Skipped export for {origin_key} - {metric_id}")
+
+    def create_metric_jsons(self, metric_ids: Optional[List[str]] = None, origin_keys: Optional[List[str]] = None, level: str = 'chain_level', start_date='2020-01-01', max_workers: int = 10):
+        """
+        Generates and uploads all metric JSONs in parallel using a thread pool.
+        """
+        tasks = []
+        if metric_ids:
+            logging.info(f"Filtering tasks for specific metric IDs: {metric_ids}")
+        else:
+            logging.info(f"Generating task list for ALL metric IDs: {list(self.metrics[level].keys())}")
+            
+        if origin_keys:
+            logging.info(f"Filtering tasks for specific origin keys: {origin_keys}") 
+        else:
+            logging.info(f"Generating task list for ALL origin keys: {list(chain.origin_key for chain in self.main_config)}")
+
+        # 1. Generate the full list of tasks to be executed
         for metric_id in self.metrics[level].keys():
             if metric_ids and metric_id not in metric_ids:
-                continue # Skip metrics not in the provided list
-            if not self.metrics[level][metric_id]['fundamental']:
-                continue # Skip non-fundamental metrics
+                continue
+            if not self.metrics[level][metric_id].get('fundamental', False):
+                continue
 
             for chain in self.main_config:
                 origin_key = chain.origin_key
                 if origin_keys and origin_key not in origin_keys:
-                    continue # Skip chains not in the provided list
-
-                logging.info(f'..processing: {origin_key} - {metric_id}')
-
+                    continue
                 if not chain.api_in_main:
-                    logging.info(f'..skipped: Metric details export for {origin_key}. API is set to False')
                     continue
-
                 if metric_id in chain.api_exclude_metrics:
-                    logging.info(f'..skipped: Metric details export for {origin_key} - {metric_id}. Metric is excluded')
                     continue
-
                 
-                metric_dict = self.create_metric_per_chain_dict(origin_key, metric_id, level, start_date)
-
-                if metric_dict:
-                    if self.s3_bucket == None:
-                        self._save_to_json(metric_dict, f'metrics/test/{origin_key}/{metric_id}')
-                    else:
-                        upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/metrics/test/{origin_key}/{metric_id}', metric_dict, self.cf_distribution_id, invalidate=False)
-                    logging.info(f'DONE -- Metric details export for {metric_id} on {origin_key} successful.')
-                else:
-                    logging.info(f'NO DATA RETURNED: Metric details export for {origin_key} - {metric_id} failed.')
-            
-            logging.info(f'METRIC COMPLETED -- Metric details export for {metric_id} on all chains successful.')
+                tasks.append((origin_key, metric_id))
         
-        ## after all metric jsons are created, invalidate the cache
-        empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/metrics/test/*')
+        logging.info(f"Found {len(tasks)} metric/chain combinations to process.")
+        logging.info(f"Starting parallel processing with max_workers={max_workers}...")
+
+        # 2. Execute tasks in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks to the executor
+            future_to_task = {executor.submit(self._process_and_save_metric, origin_key, metric_id, level, start_date): (origin_key, metric_id) for origin_key, metric_id in tasks}
+
+            # Process results as they complete
+            for future in as_completed(future_to_task):
+                task = future_to_task[future]
+                try:
+                    future.result()  # We call result() to raise any exceptions that occurred
+                except Exception as exc:
+                    logging.error(f'Task {task} generated an exception: {exc}')
+
+        logging.info("All metric JSONs have been processed.")
+        
+        # 3. Invalidate the cache after all files have been uploaded
+        if self.s3_bucket and self.cf_distribution_id:
+            logging.info("Invalidating CloudFront cache for all metrics...")
+            # Note: The path might need adjustment if you removed '/test/'
+            invalidation_path = f'/{self.api_version}/metrics/*'
+            empty_cloudfront_cache(self.cf_distribution_id, invalidation_path)
+            logging.info(f"CloudFront invalidation submitted for path: {invalidation_path}")
+        else:
+            logging.info("Skipping CloudFront invalidation (S3 bucket or Distribution ID not set).")
