@@ -61,4 +61,4 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    test_load_data(args.chain, args.start_block, args.batch_size, args.validate) 
+    test_load_data(args.chain, args.start_block, args.batch_size)
