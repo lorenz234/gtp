@@ -221,6 +221,7 @@ class NodeAdapter(AbstractAdapterRaw):
             self.active_rpcs.add(rpc_config['url'])  # Mark as active
             thread = Thread(target=lambda rpc=rpc_config: self.process_rpc_config(
                 rpc, block_range_queue, rpc_errors, error_lock))
+            thread.daemon = True
             threads.append((rpc_config['url'], thread))
             thread.start()
             print(f"Started thread for {rpc_config['url']}")
@@ -250,7 +251,7 @@ class NodeAdapter(AbstractAdapterRaw):
         additional_threads = []
         while True:
             #active_threads = [thread for _, thread in threads if thread.is_alive()]
-            active_threads = [(rpc_url, thread) for rpc_url, thread in threads if thread.is_alive()]
+            active_threads = [(rpc_url, thread) for rpc_url, thread in threads if thread.is_alive() and rpc_url in self.active_rpcs]
             active_rpc_urls = [rpc_url for rpc_url, _ in active_threads]
             active = bool(active_threads)
 
@@ -279,8 +280,9 @@ class NodeAdapter(AbstractAdapterRaw):
                     print(f"Restarting workers for RPC URL: {rpc_config['url']}")
                     new_thread = Thread(target=lambda rpc=rpc_config: self.process_rpc_config(
                         rpc, block_range_queue, rpc_errors, error_lock))
+                    new_thread.daemon = True
                     threads.append((rpc_config['url'], new_thread))
-                    additional_threads.append(new_thread)
+                    additional_threads.append((rpc_config['url'], new_thread))
                     new_thread.start()
                     break
 
@@ -290,14 +292,20 @@ class NodeAdapter(AbstractAdapterRaw):
             time.sleep(5)  # Sleep to avoid high CPU usage
 
         # Join all initial threads
-        for _, thread in threads:
-            thread.join()
-            print(f"Thread for RPC URL has completed.")
+        for rpc_url, thread in threads:
+            if rpc_url in self.active_rpcs:
+                thread.join()
+                print(f"Thread for RPC URL has completed.")
+            else:
+                print(f"Skipping join for kicked RPC thread: {rpc_url}")
 
         # Join all additional threads if any were started
-        for thread in additional_threads:
-            thread.join()
-            print("Additional worker thread has completed.")
+        for rpc_url, thread in additional_threads:
+            if rpc_url in self.active_rpcs:
+                thread.join()
+                print("Additional worker thread has completed.")
+            else:
+                print(f"Skipping join for kicked additional thread: {rpc_url}")
 
         print("All worker and monitoring threads have completed.")
             
@@ -339,6 +347,7 @@ class NodeAdapter(AbstractAdapterRaw):
         workers = []
         for _ in range(rpc_config['workers']):
             worker = Thread(target=self.worker_task, args=(rpc_config, node_connection, block_range_queue, rpc_errors, error_lock))
+            worker.daemon = True
             workers.append(worker)
             worker.start()
 
