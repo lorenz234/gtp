@@ -118,7 +118,7 @@ class JsonGen():
         
         return values_list, columns_list
 
-    def _create_rolling_changes_dict(self, df: pd.DataFrame, metric_id: str, level: str, periods: Dict[str, int], agg_window: int, agg_method: str) -> Dict:
+    def _create_changes_dict(self, df: pd.DataFrame, metric_id: str, level: str, periods: Dict[str, int], agg_window: int, agg_method: str) -> Dict:
         """
         Calculates percentage change based on rolling aggregate windows over daily data.
         
@@ -255,11 +255,17 @@ class JsonGen():
         weekly_periods = {'7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
         monthly_periods = {'30d': 30, '90d': 90, '180d': 180, '365d': 365}
 
-        daily_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, daily_periods, agg_window=1, agg_method='last')
+        daily_changes = self._create_changes_dict(daily_df, metric_id, level, daily_periods, agg_window=1, agg_method='last')
         
-        ## TODO: correct maa changes
-        weekly_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, weekly_periods, agg_window=7, agg_method=agg_method)
-        monthly_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, monthly_periods, agg_window=30, agg_method=agg_method)
+        if metric_id == 'daa':
+            df_aa_weekly = self._get_prepared_timeseries_df(origin_key, ['aa_last7d'], start_date, metric_dict.get('max_date_fill', False))
+            df_aa_monthly = self._get_prepared_timeseries_df(origin_key, ['aa_last30d'], start_date, metric_dict.get('max_date_fill', False))
+            
+            weekly_changes = self._create_changes_dict(df_aa_weekly, metric_id, level, weekly_periods, agg_window=7, agg_method='last')
+            monthly_changes = self._create_changes_dict(df_aa_monthly, metric_id, level, monthly_periods, agg_window=30, agg_method='last')
+        else:
+            weekly_changes = self._create_changes_dict(daily_df, metric_id, level, weekly_periods, agg_window=7, agg_method=agg_method)
+            monthly_changes = self._create_changes_dict(daily_df, metric_id, level, monthly_periods, agg_window=30, agg_method=agg_method)
         
         changes_data = {
             'daily': daily_changes,
@@ -268,11 +274,18 @@ class JsonGen():
         }
 
         # --- SUMMARY VALUES CALCULATION ---
-        ## TODO: correct maa summary
-        summary_data = {
-            '7d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=7, agg_method=agg_method),
-            '30d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=30, agg_method=agg_method),
-        }
+        if metric_id == 'daa':
+            summary_data = {
+                'last_1d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=1, agg_method='last'),
+                'last_7d': self._create_summary_values_dict(df_aa_weekly, metric_id, level, agg_window=7, agg_method='last'),
+                'last_30d': self._create_summary_values_dict(df_aa_monthly, metric_id, level, agg_window=30, agg_method='last'),
+            }
+        else:
+            summary_data = {
+                'last_1d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=1, agg_method=agg_method),
+                'last_7d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=7, agg_method=agg_method),
+                'last_30d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=30, agg_method=agg_method),
+            }
 
         # --- FINAL OUTPUT DICT ---
         output = {
