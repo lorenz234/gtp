@@ -220,12 +220,10 @@ class JsonGen():
         elif agg_config == 'avg':
             agg_method = 'mean'
         elif agg_config == 'maa':
-            ##TODO - special handling for MAA
-            pass
+            agg_method = 'maa' ## Special handling in following functions
         else:
             raise ValueError(f"Invalid monthly_agg config '{agg_config}' for metric {metric_id}")
             
-        
         # --- AGGREGATIONS ---
         if agg_config == 'maa':
             weekly_df = self._get_prepared_timeseries_df(origin_key, ['waa'], start_date, metric_dict.get('max_date_fill', False))
@@ -233,7 +231,6 @@ class JsonGen():
         else:
             weekly_df = daily_df.resample('W-MON').agg(agg_method)
             monthly_df = daily_df.resample('MS').agg(agg_method)
-        
 
         daily_7d_list = None
         if metric_dict.get('avg', False):
@@ -255,13 +252,13 @@ class JsonGen():
 
         # --- CHANGES CALCULATION ---
         daily_periods = {'1d': 1, '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
-        weekly_periods = {'7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
-        monthly_periods = {'30d': 30, '90d': 90, '180d': 180, '365d': 365}
+        weekly_periods = {'1w': 1, '4w': 4, '12w': 12, '26w': 26, '52w': 52}
+        monthly_periods = {'1m': 1, '3m': 3, '6m': 6, '12m': 12}
 
-        daily_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, daily_periods, agg_window=1, agg_method='last')
-        weekly_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, weekly_periods, agg_window=7, agg_method=agg_method)
-        monthly_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, monthly_periods, agg_window=30, agg_method=agg_method)
-        
+        daily_changes = self._create_rolling_changes_dict(daily_df, metric_id, level, daily_periods, agg_window='daily', agg_method='last')
+        weekly_changes = self._create_rolling_changes_dict(weekly_df, metric_id, level, weekly_periods, agg_window='weekly', agg_method=agg_method)
+        monthly_changes = self._create_rolling_changes_dict(monthly_df, metric_id, level, monthly_periods, agg_window='monthly', agg_method=agg_method)
+
         changes_data = {
             'daily': daily_changes,
             'weekly': weekly_changes,
@@ -269,6 +266,7 @@ class JsonGen():
         }
 
         # --- SUMMARY VALUES CALCULATION ---
+        ## TODO: correct maa summary
         summary_data = {
             '7d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=7, agg_method=agg_method),
             '30d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=30, agg_method=agg_method),
