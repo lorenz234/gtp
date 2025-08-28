@@ -1,9 +1,12 @@
 import pandas as pd
 import logging
 from typing import Dict, List, Optional, Tuple
+from datetime import datetime, timezone
 
 from src.db_connector import DbConnector
 from src.config import gtp_units, gtp_metrics
+from src.main_config import get_main_config
+from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3
 
 # --- Set up a proper logger ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -32,6 +35,7 @@ class JsonGen():
         self.db_connector = db_connector
         self.units = gtp_units
         self.metrics = gtp_metrics
+        self.main_config = get_main_config(api_version=self.api_version)
 
     def _get_raw_data_metric(self, origin_key: str, metric_key: str, days: Optional[int] = None) -> pd.DataFrame:
         """Get fact kpis from the database for a specific metric key."""
@@ -216,7 +220,7 @@ class JsonGen():
         
         return {'types': final_types_ordered, 'data': data_list}
 
-    def create_metric_per_chain_json(self, origin_key: str, metric_id: str, level: str = 'chain_level', start_date: Optional[str] = None) -> Optional[Dict]:
+    def create_metric_per_chain_dict(self, origin_key: str, metric_id: str, level: str = 'chain_level', start_date: Optional[str] = None) -> Optional[Dict]:
         """Creates a dictionary for a metric/chain with daily, weekly, and monthly aggregations."""
         logging.info(f"Generating aggregations for {origin_key} - {metric_id}")
         metric_dict = self.metrics[level][metric_id]
@@ -312,4 +316,39 @@ class JsonGen():
         }
         
         logging.info(f"Successfully generated data for {origin_key} - {metric_id}")
+        
+        output['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        output = fix_dict_nan(output, f'metrics/{origin_key}/{metric_id}')
         return output
+
+    def create_metric_jsons(self, metric_ids:list=None, origin_keys:list=None, level:str='chain_level', start_date='2020-01-01'):
+        ## Loop through each metric and chain
+        for metric_id in self.metrics[level].keys():
+            if metric_ids and metric_id not in metric_ids:
+                continue # Skip metrics not in the provided list
+            if self.metrics[level][metric_id]['fundamental'] == False:
+                continue # Skip non-fundamental metrics
+
+            for chain in self.main_config:
+                origin_key = chain.origin_key
+                if origin_keys and origin_key not in origin_keys:
+                    continue # Skip chains not in the provided list
+                
+                print(f'..processing: {origin_key} - {metric_id}')
+                
+                if chain.api_in_main == False:
+                    print(f'..skipped: Metric details export for {origin_key}. API is set to False')
+                    continue
+
+                if metric_id in chain.api_exclude_metrics:
+                    print(f'..skipped: Metric details export for {origin_key} - {metric_id}. Metric is excluded')
+                    continue
+
+                
+                metric_dict = self.create_metric_per_chain_dict(origin_key, metric_id, level, start_date)
+
+                if self.s3_bucket == None:
+                    self.save_to_json(metric_dict, f'metrics/test/{origin_key}/{metric_id}')
+                else:
+                    upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/metrics/test/{origin_key}/{metric_id}', metric_dict, self.cf_distribution_id, invalidate=False)
+                print(f'DONE -- Metric details export for {metric_id}')
