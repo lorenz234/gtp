@@ -390,6 +390,422 @@ gtp_app_metrics =  {
         }
     }
 
+# Metrics
+## Level: either chain, da_layer, or app
+## Fundamental: whether the metric should be considered a fundamentals metrics that is also exported in jsons
+## Metric Keys: the keys that are used to query the database
+## Units: the units that are used to display the metric
+## Avg: whether the metric should be averaged over 7 days (rolling average)
+## All L2s Aggregate: how the metric should be aggregated across all L2s (sum, avg, weighted_mean)
+## Monthly Agg: how the metric should be aggregated monthly (sum, avg, maa)
+## Max Date Fill: if max_date_fill is True, fill missing rows until yesterday with 0
+## Ranking Bubble: whether the metric should be shown in the ranking bubble chart
+## Ranking Landing: whether the metric should be shown in the ranking landing page
+## Log Default: whether the metric should be shown by default on a log scale
+
+gtp_metrics_new = {
+        ## Chain Level Metrics
+        "chain_level": {
+            'tvl': {
+                'name': 'Total Value Secured',
+                'fundamental': True,
+                'metric_keys': ['tvl', 'tvl_eth'],
+                'units': {
+                    'usd': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}, 
+                    'eth': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}
+                },
+                'avg': False, ##7d rolling average
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'avg',
+                'max_date_fill' : False,
+                'ranking_bubble': False,
+                'ranking_landing': True,
+                'log_default': False
+            }
+            ,'txcount': {
+                'name': 'Transaction Count',
+                'fundamental': True,
+                'metric_keys': ['txcount'],
+                'units': {
+                    'value': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'ranking_bubble': False,
+                'ranking_landing': True,
+                'log_default': False
+            }
+            ,'daa': {
+                'name': 'Active Addresses',
+                'fundamental': True,
+                'metric_keys': ['daa'],
+                'units': {
+                    'value': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'maa',
+                'max_date_fill' : False,
+                'ranking_bubble': True,
+                'ranking_landing': True,
+                'log_default': False
+            }
+            ,'stables_mcap': {
+                'name': 'Stablecoin Supply',
+                'fundamental': True,
+                'metric_keys': ['stables_mcap', 'stables_mcap_eth'],
+                'units': {
+                    'usd': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}, 
+                    'eth': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}
+                },
+                'avg': False,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'avg',
+                'max_date_fill' : False,
+                'ranking_bubble': True,
+                'ranking_landing': True,
+                'log_default': False
+            }
+            ,'fees': {
+                'name': 'Revenue',
+                'fundamental': True,
+                'metric_keys': ['fees_paid_usd', 'fees_paid_eth'],
+                'units': {
+                    'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}, 
+                    'eth': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'ranking_bubble': True,
+                'ranking_landing': True,
+                'log_default': False
+            }
+            ,'rent_paid': {
+                'name': 'Rent Paid to L1',
+                'fundamental': True,
+                'metric_keys': ['rent_paid_usd', 'rent_paid_eth'],
+                'units': {
+                    'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}, 
+                    'eth': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : True,
+                'ranking_bubble': False,
+                'ranking_landing': True,
+                'log_default': False
+            }
+            ,'profit': {
+                'name': 'Onchain Profit',
+                'fundamental': True,
+                'metric_keys': ['profit_usd', 'profit_eth'],
+                'units': {
+                    'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}, 
+                    'eth': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : True,
+                'ranking_bubble': True,
+                'ranking_landing': True,
+                'log_default': False
+            }
+            ,'txcosts': {
+                'name': 'Transaction Costs',
+                'fundamental': True,
+                'metric_keys': ['txcosts_median_usd', 'txcosts_median_eth'],
+                'units': {
+                    'usd': {'decimals': 4, 'decimals_tooltip': 4, 'agg_tooltip': False, 'agg': False}, 
+                    'eth': {'decimals': 8, 'decimals_tooltip': 8, 'agg_tooltip': False, 'agg': False}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'weighted_mean',
+                'monthly_agg': 'avg',
+                'max_date_fill' : True,
+                'ranking_bubble': True,
+                'ranking_landing': True,
+                'log_default': False
+            }
+            ,'fdv': {
+                'name': 'Fully Diluted Valuation',
+                'fundamental': True,
+                'metric_keys': ['fdv_usd', 'fdv_eth'],
+                'units': {
+                    'usd': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': True}, 
+                    'eth': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'avg',
+                'max_date_fill' : False,
+                'ranking_bubble': True,
+                'ranking_landing': True,
+                'log_default': False
+            }
+            ,'market_cap': {
+                'name': 'Market Cap',
+                'fundamental': True,
+                'metric_keys': ['market_cap_usd', 'market_cap_eth'],
+                'units': {
+                    'usd': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': True}, 
+                    'eth': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'avg',
+                'max_date_fill' : False,
+                'ranking_bubble': False,
+                'ranking_landing': True,
+                'log_default': False
+            }
+            ,'throughput': {
+                'name': 'Throughput',
+                'fundamental': True,
+                'metric_keys': ['gas_per_second'],
+                'units': {
+                    'value': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False, 'agg': False, 'suffix': 'Mgas/s'},
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'avg',
+                'max_date_fill' : False,
+                'ranking_bubble': True,
+                'ranking_landing': True,
+                'log_default': False
+            }         
+            ,'app_revenue': {
+                'name': 'App Revenue',
+                'fundamental': True,
+                'metric_keys': ['app_fees_usd', 'app_fees_eth'],
+                'units': {
+                    'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}, 
+                    'eth': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'ranking_bubble': True,
+                'ranking_landing': True,
+                'log_default': False
+            }
+
+            ## Non Fundamental Metrics
+            ,'costs': {
+                'name': 'Costs',
+                'fundamental': False, ## not a fundamental metric
+                'metric_keys': ['costs_total_usd', 'costs_total_eth'],
+                'units': {
+                    'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}, 
+                    'eth': {'decimals': 4, 'decimals_tooltip': 4, 'agg_tooltip': True}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'ranking_bubble': False,
+                'ranking_landing': False,
+                'log_default': False
+            }
+
+            ,'costs_l1': {
+                'name': 'L1 Costs',
+                'fundamental': False, ## not a fundamental metric
+                'metric_keys': ['costs_l1_usd', 'costs_l1_eth'],
+                'units': {
+                    'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}, 
+                    'eth': {'decimals': 4, 'decimals_tooltip': 4, 'agg_tooltip': True}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'ranking_bubble': False,
+                'ranking_landing': False,
+                'log_default': False
+            }
+
+            ,'costs_blobs': {
+                'name': 'Blobs',
+                'fundamental': False, ## not a fundamental metric
+                'metric_keys': ['costs_blobs_usd', 'costs_blobs_eth'],
+                'units': {
+                    'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}, 
+                    'eth': {'decimals': 4, 'decimals_tooltip': 4, 'agg_tooltip': True}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'ranking_bubble': False,
+                'ranking_landing': False,
+                'log_default': False
+            }
+        },
+        
+        ## DA Layer Metrics
+        'data_availability': {
+            'blob_count': {
+                'name': 'Blob Count',
+                'fundamental': True,
+                'metric_keys': ['da_blob_count'],
+                'units': {
+                    'value': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': True}
+                },
+                'avg': True, ##7d rolling average
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'log_default': False
+            }
+            ,'data_posted': {
+                'name': 'Data Posted',
+                'fundamental': True,
+                'metric_keys': ['da_data_posted_bytes'],
+                'units': {
+                    'value': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True, 'suffix': 'GB'}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'log_default': False
+            }
+            ,'fees_paid': {
+                'name': 'DA Fees Paid',
+                'fundamental': True,
+                'metric_keys': ['da_fees_usd', 'da_fees_eth'],
+                'units': {
+                    'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}, 
+                    'eth': {'decimals': 4, 'decimals_tooltip': 4, 'agg_tooltip': True}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'log_default': True
+            }
+            ,'fees_per_mbyte': {
+                'name': 'Fees Paid per MB',
+                'fundamental': True,
+                'metric_keys': ['da_fees_per_mbyte_usd', 'da_fees_per_mbyte_eth'],
+                'units': {
+                    'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}, 
+                    'eth': {'decimals': 6, 'decimals_tooltip': 6, 'agg_tooltip': False}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'avg',
+                'monthly_agg': 'avg',
+                'max_date_fill' : False,
+                'log_default': True
+            }
+            ,'blob_producers': {
+                'name': 'DA Consumers',
+                'fundamental': True,
+                'metric_keys': ['da_unique_blob_producers'],
+                'units': {
+                    'value': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': True}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'avg',
+                'max_date_fill' : False,
+                'log_default': False
+            }
+        },
+        
+        ## App Level Metrics
+        'app_metrics': {
+            'txcount': {
+                'name': 'Transaction Count',
+                'metric_keys': ['txcount'],
+                'units': {
+                    'value': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'source': ['RPC', 'OLI'],
+                'icon_name': 'gtp-metrics-transactioncount'
+            }
+            ,'daa': {
+                'name': 'Active Addresses',
+                'metric_keys': ['daa'],
+                'units': {
+                    'value': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'maa',
+                'max_date_fill' : False,
+                'source': ['RPC', 'OLI'],
+                'icon_name': 'gtp-metrics-activeaddresses'
+            }
+            ,'gas_fees': {
+                'name': 'Fees Paid',
+                'metric_keys': ['fees_paid_usd', 'fees_paid_eth'],
+                'units': {
+                    'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}, 
+                    'eth': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'source': ['RPC', 'OLI'],
+                'icon_name': 'gtp-metrics-transactioncosts'
+            }
+        }
+        
+        # Eth is Money metrics (on Ethereum Level)
+        ,'eim': {
+            'eth_exported': {
+            'name': 'ETH exported',
+            'fundamental': True,
+            'metric_keys': ['eth_equivalent_exported_usd', 'eth_equivalent_exported_eth'],
+            'units': {
+                'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}, 
+                'eth': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}
+            },
+            'avg': False, ##7d rolling average
+            'monthly_agg': 'sum',
+            'max_date_fill' : False,
+            'log_default': False
+        },
+        'eth_supply': {
+            'name': 'ETH supply',
+            'fundamental': True,
+            'metric_keys': ['eth_supply_eth'],
+            'units': {
+                'value': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}
+            },
+            'avg': False, ##7d rolling average
+            'monthly_agg': 'avg',
+            'max_date_fill' : False,
+            'log_default': False
+        },
+        'eth_issuance_rate': {
+            'name': 'ETH issuance rate',
+            'fundamental': True,
+            'metric_keys': ['eth_issuance_rate'],
+            'units': {
+                'value': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}
+            },
+            'avg': False, ##7d rolling average
+            'monthly_agg': 'avg',
+            'max_date_fill' : False,
+            'log_default': False
+        }
+    }
+}
+
 gtp_fees_types = {
         'txcosts_median' : {
             'name': 'Median Fee',
