@@ -49,6 +49,7 @@ class JsonGen():
 
     def _get_raw_data_metric(self, origin_key: str, metric_key: str, days: Optional[int] = None) -> pd.DataFrame:
         """Get fact kpis from the database for a specific metric key."""
+        logging.debug(f"Fetching raw data for origin_key={origin_key}, metric_key={metric_key}, days={days}")
         query_parameters = {'origin_key': origin_key, 'metric_key': metric_key, 'days': days}
         df = self.db_connector.execute_jinja("api/select_fact_kpis.sql.j2", query_parameters, load_into_df=True)
         
@@ -63,13 +64,15 @@ class JsonGen():
     @staticmethod
     def _prepare_metric_key_data(df: pd.DataFrame, metric_key: str, max_date_fill: bool = True) -> pd.DataFrame:
         """Prepares metric data by trimming leading zeros and filling missing dates."""
+        logging.debug(f"Preparing metric key data for {metric_key}. DataFrame shape: {df.shape}")
         if df.empty:
             return df
             
         # Trim leading zeros for a cleaner chart start
-        df = df.loc[df["value"].cumsum() > 0].copy()
+        df = df.loc[df["value"].ne(0).idxmax():].copy()
         if df.empty:
             return df
+        logging.debug(f"After trimming leading zeros, DataFrame shape: {df.shape}")
 
         if max_date_fill:
             # Fill missing rows until yesterday with 0 for continuous time-series
@@ -346,7 +349,7 @@ class JsonGen():
         else:
             logging.warning(f"NO DATA: Skipped export for {origin_key} - {metric_id}")
 
-    def create_metric_jsons(self, metric_ids: Optional[List[str]] = None, origin_keys: Optional[List[str]] = None, level: str = 'chain_level', start_date='2020-01-01', max_workers: int = 10):
+    def create_metric_jsons(self, metric_ids: Optional[List[str]] = None, origin_keys: Optional[List[str]] = None, level: str = 'chain_level', start_date='2020-01-01', max_workers: int = 5):
         """
         Generates and uploads all metric JSONs in parallel using a thread pool.
         """
