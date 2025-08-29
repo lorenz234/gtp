@@ -453,7 +453,7 @@ gtp_metrics_new = {
                 'log_default': False
             }
             ,'stables_mcap': {
-                'name': 'Stablecoin Market Cap',
+                'name': 'Stablecoin Supply',
                 'fundamental': True,
                 'metric_keys': ['stables_mcap', 'stables_mcap_eth'],
                 'units': {
@@ -1070,3 +1070,43 @@ main_chart_config = {
         }
     }
 }
+
+eim_metrics = {
+        'eth_exported': {
+            'name': 'ETH exported',
+            'fundamental': True,
+            'metric_keys': ['eth_equivalent_exported_usd', 'eth_equivalent_exported_eth'],
+            'units': {
+                'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}, 
+                'eth': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}
+            },
+            'avg': False, ##7d rolling average
+            'monthly_agg': 'sum',
+            'max_date_fill' : False,
+            'log_default': False
+        },
+        'eth_supply': {
+            'name': 'ETH supply',
+            'fundamental': True,
+            'metric_keys': ['eth_supply_eth'],
+            'units': {
+                'value': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}
+            },
+            'avg': False, ##7d rolling average
+            'monthly_agg': 'avg',
+            'max_date_fill' : False,
+            'log_default': False
+        },
+        'eth_issuance_rate': {
+            'name': 'ETH issuance rate',
+            'fundamental': True,
+            'metric_keys': ['eth_issuance_rate'],
+            'units': {
+                'value': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}
+            },
+            'avg': False, ##7d rolling average
+            'monthly_agg': 'avg',
+            'max_date_fill' : False,
+            'log_default': False
+        }
+    }
