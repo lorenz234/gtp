@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.db_connector import DbConnector
-from src.config import gtp_units, gtp_metrics
+from src.config import gtp_units, gtp_metrics_new
 from src.main_config import get_main_config
 from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3, empty_cloudfront_cache
 
@@ -37,7 +37,7 @@ class JsonGen():
         self.cf_distribution_id = cf_distribution_id
         self.db_connector = db_connector
         self.units = gtp_units
-        self.metrics = gtp_metrics
+        self.metrics = gtp_metrics_new
         self.main_config = get_main_config(api_version=self.api_version)
         
     def _save_to_json(self, data, path):
@@ -403,7 +403,6 @@ class JsonGen():
         # 3. Invalidate the cache after all files have been uploaded
         if self.s3_bucket and self.cf_distribution_id:
             logging.info("Invalidating CloudFront cache for all metrics...")
-            # Note: The path might need adjustment if you removed '/test/'
             invalidation_path = f'/{self.api_version}/metrics/*'
             empty_cloudfront_cache(self.cf_distribution_id, invalidation_path)
             logging.info(f"CloudFront invalidation submitted for path: {invalidation_path}")

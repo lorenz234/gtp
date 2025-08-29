@@ -46,7 +46,7 @@ gtp_units = {
 ## Ranking Landing: whether the metric should be shown in the ranking landing page
 ## Log Default: whether the metric should be shown by default on a log scale
 
-gtp_metrics = {
+gtp_metrics_new = {
         ## Chain Level Metrics
         "chain_level": {
             'tvl': {
