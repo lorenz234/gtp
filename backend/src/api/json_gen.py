@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from src.db_connector import DbConnector
 from src.config import gtp_units, gtp_metrics_new
 from src.main_config import get_main_config
+from src.da_config import get_da_config
 from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3, empty_cloudfront_cache
 
 # --- Set up a proper logger ---
@@ -29,7 +30,6 @@ METRIC_WAA = 'waa'
 METRIC_AA_7D = 'aa_last7d'
 METRIC_AA_30D = 'aa_last30d'
 
-
 class JsonGen():
     def __init__(self, s3_bucket: str, cf_distribution_id: str, db_connector: DbConnector, api_version: str = 'v1'):
         self.api_version = api_version
@@ -39,7 +39,8 @@ class JsonGen():
         self.units = gtp_units
         self.metrics = gtp_metrics_new
         self.main_config = get_main_config(api_version=self.api_version)
-        
+        self.da_config = get_da_config(api_version=self.api_version)
+
     def _save_to_json(self, data, path):
         #create directory if not exists
         os.makedirs(os.path.dirname(f'output/{path}.json'), exist_ok=True)
@@ -151,7 +152,7 @@ class JsonGen():
         Args:
             df (pd.DataFrame): Input DataFrame with daily data, DatetimeIndex, and value columns.
             metric_id (str): The ID of the metric for config lookup.
-            level (str): The level of the data (e.g., 'chain_level').
+            level (str): The level of the data (e.g., 'chains').
             periods (Dict[str, int]): Maps change key (e.g., '30d') to lookback period in days (e.g., 30).
             agg_window (int): The size of the aggregation window in days (e.g., 30 for monthly).
             agg_method (str): The aggregation method ('sum', 'mean', or 'last' for pre-aggregated values like MAA).
@@ -231,7 +232,7 @@ class JsonGen():
         
         return {'types': final_types_ordered, 'data': data_list}
 
-    def create_metric_per_chain_dict(self, origin_key: str, metric_id: str, level: str = 'chain_level', start_date: Optional[str] = None) -> Optional[Dict]:
+    def create_metric_per_chain_dict(self, origin_key: str, metric_id: str, level: str = 'chains', start_date: Optional[str] = None) -> Optional[Dict]:
         """Creates a dictionary for a metric/chain with daily, weekly, and monthly aggregations."""
         metric_dict = self.metrics[level][metric_id]
         daily_df = self._get_prepared_timeseries_df(origin_key, metric_dict['metric_keys'], start_date, metric_dict.get('max_date_fill', False))
@@ -339,7 +340,7 @@ class JsonGen():
         metric_dict = self.create_metric_per_chain_dict(origin_key, metric_id, level, start_date)
 
         if metric_dict:
-            s3_path = f'{self.api_version}/metrics/{origin_key}/{metric_id}'
+            s3_path = f'{self.api_version}/metrics/{level}/{origin_key}/{metric_id}'
             if self.s3_bucket is None:
                 # Assuming local saving for testing still uses a similar path structure
                 self._save_to_json(metric_dict, s3_path)
@@ -348,8 +349,10 @@ class JsonGen():
             logging.info(f"SUCCESS: Exported {origin_key} - {metric_id}")
         else:
             logging.warning(f"NO DATA: Skipped export for {origin_key} - {metric_id}")
-
-    def create_metric_jsons(self, metric_ids: Optional[List[str]] = None, origin_keys: Optional[List[str]] = None, level: str = 'chain_level', start_date='2020-01-01', max_workers: int = 5):
+            
+        
+    ## TODO: add da config
+    def create_metric_jsons(self, metric_ids: Optional[List[str]] = None, origin_keys: Optional[List[str]] = None, level: str = 'chains', start_date='2020-01-01', max_workers: int = 5):
         """
         Generates and uploads all metric JSONs in parallel using a thread pool.
         """
@@ -358,11 +361,20 @@ class JsonGen():
             logging.info(f"Filtering tasks for specific metric IDs: {metric_ids}")
         else:
             logging.info(f"Generating task list for ALL metric IDs: {list(self.metrics[level].keys())}")
-            
-        if origin_keys:
-            logging.info(f"Filtering tasks for specific origin keys: {origin_keys}") 
+        
+        if level == 'chains':
+            logging.info(f"Running task list for Chains")
+            config = self.main_config
+        elif level == 'data_availability':
+            logging.info(f"Running task list for Data Availability")
+            config = self.da_config
         else:
-            logging.info(f"Generating task list for ALL origin keys: {list(chain.origin_key for chain in self.main_config)}")
+            raise ValueError(f"Invalid level '{level}'. Must be 'chains' or 'data_availability'.")
+        
+        if origin_keys:
+            logging.info(f"Filtering tasks for specific origin keys: {origin_keys}")
+        else:
+            logging.info(f"Generating task list for ALL origin keys: {list(chain.origin_key for chain in config)}")
 
         # 1. Generate the full list of tasks to be executed
         for metric_id in self.metrics[level].keys():
@@ -371,8 +383,9 @@ class JsonGen():
             if not self.metrics[level][metric_id].get('fundamental', False):
                 continue
 
-            for chain in self.main_config:
+            for chain in config:
                 origin_key = chain.origin_key
+
                 if origin_keys and origin_key not in origin_keys:
                     continue
                 if not chain.api_in_main:
@@ -403,7 +416,7 @@ class JsonGen():
         # 3. Invalidate the cache after all files have been uploaded
         if self.s3_bucket and self.cf_distribution_id:
             logging.info("Invalidating CloudFront cache for all metrics...")
-            invalidation_path = f'/{self.api_version}/metrics/*'
+            invalidation_path = f'/{self.api_version}/metrics/{level}/*'
             empty_cloudfront_cache(self.cf_distribution_id, invalidation_path)
             logging.info(f"CloudFront invalidation submitted for path: {invalidation_path}")
         else:

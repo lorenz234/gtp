@@ -46,7 +46,7 @@ def etl():
         df = json_creator.get_all_data()
 
         json_creator.create_metric_details_jsons(df) ## Deprecate as soon as FE moved
-        json_creator.create_da_metric_details_jsons(df) ## TODO: add to json_gen DAG
+        json_creator.create_da_metric_details_jsons(df) ## Deprecate as soon as FE moved
 
     @task()
     def run_create_landingpage():

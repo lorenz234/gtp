@@ -407,7 +407,7 @@ gtp_app_metrics =  {
 
 gtp_metrics_new = {
         ## Chain Level Metrics
-        "chain_level": {
+        "chains": {
             'tvl': {
                 'name': 'Total Value Secured',
                 'fundamental': True,
@@ -723,7 +723,7 @@ gtp_metrics_new = {
         },
         
         ## App Level Metrics
-        'app_metrics': {
+        'apps': {
             'txcount': {
                 'name': 'Transaction Count',
                 'metric_keys': ['txcount'],
