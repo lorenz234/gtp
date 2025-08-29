@@ -1,3 +1,5 @@
+# WARNING: At the moment we have redundant metric sources because of the updated structure in gtp_metrics_new
+
 # Units
 ## Decimals: only relevant if value isn't aggregated
 ## When aggregated (starting >1k), we always show 2 decimals
