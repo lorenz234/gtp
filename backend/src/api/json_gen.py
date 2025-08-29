@@ -326,7 +326,7 @@ class JsonGen():
         }
         
         output['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        output = fix_dict_nan(output, f'test/metrics/{origin_key}/{metric_id}')
+        output = fix_dict_nan(output, f'metrics/{origin_key}/{metric_id}')
         return output
     
     def _process_and_save_metric(self, origin_key: str, metric_id: str, level: str, start_date: str):
@@ -339,7 +339,7 @@ class JsonGen():
         metric_dict = self.create_metric_per_chain_dict(origin_key, metric_id, level, start_date)
 
         if metric_dict:
-            s3_path = f'{self.api_version}/test/metrics/{origin_key}/{metric_id}'
+            s3_path = f'{self.api_version}/metrics/{origin_key}/{metric_id}'
             if self.s3_bucket is None:
                 # Assuming local saving for testing still uses a similar path structure
                 self._save_to_json(metric_dict, s3_path)
