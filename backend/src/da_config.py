@@ -7,7 +7,7 @@ import requests
 import pickle
 
 class DAConfig(BaseModel):
-    da_layer: str
+    origin_key: str
     name: str
     name_short: str
     block_explorers: Optional[dict] = None
