@@ -57,16 +57,25 @@ def test_currency_adapter():
         return False
     
     # Test individual rate fetching
-    print("\n3️⃣ Testing individual rate fetching...")
+    print("\n3️⃣ Testing historical rate fetching...")
     try:
-        eur_rate = adapter.get_exchange_rate('eur', 'usd')
-        brl_rate = adapter.get_exchange_rate('brl', 'usd')
+        eur_df = adapter.get_exchange_rates_dataframe('eur', 'usd', days=7)
+        brl_df = adapter.get_exchange_rates_dataframe('brl', 'usd', days=7)
         
-        print(f"   EUR/USD: {eur_rate:.6f}" if eur_rate else "   EUR/USD: Failed")
-        print(f"   BRL/USD: {brl_rate:.6f}" if brl_rate else "   BRL/USD: Failed")
+        if not eur_df.empty:
+            latest_eur = eur_df['exchange_rate'].iloc[-1]
+            print(f"   EUR/USD (latest from DB): {latest_eur:.6f}")
+        else:
+            print("   EUR/USD: No historical data available")
+            
+        if not brl_df.empty:
+            latest_brl = brl_df['exchange_rate'].iloc[-1]
+            print(f"   BRL/USD (latest from DB): {latest_brl:.6f}")
+        else:
+            print("   BRL/USD: No historical data available")
         
     except Exception as e:
-        print(f"   ❌ Individual rate fetching failed: {e}")
+        print(f"   ❌ Historical rate fetching failed: {e}")
         return False
     
     # Cache functionality removed in favor of DB-backed lookup; skipping
