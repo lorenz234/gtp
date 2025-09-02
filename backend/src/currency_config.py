@@ -46,6 +46,7 @@ EXCHANGE_RATE_APIS = {
         "timeout": 10,
         "description": "ExchangeRate-API (USD-based rates)"
     },
+    # Backup provider that supports historical by date without API key
     # Historical: Frankfurter API (ECB-backed)
     "frankfurter": {
         "url_template": "https://api.frankfurter.app/{date}?from=USD",
