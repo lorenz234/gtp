@@ -60,10 +60,10 @@ class DbConnector:
                 if 'trusted_entities' in query_params.keys():
                         query_params['trusted_entities'] = '... see gtp-dna/oli/trusted_entities.yml'
                 if load_into_df:
-                        print(f"Executing query {query_name} with params {query_params} and loading into DataFrame.")
+                        #print(f"Executing query {query_name} with params {query_params} and loading into DataFrame.")
                         return pd.read_sql(text(query), self.engine)
                 else:
-                        print(f"Executing query {query_name} with params {query_params}")
+                        #print(f"Executing query {query_name} with params {query_params}")
                         with self.engine.connect() as connection:
                                 connection.execute(text(query))
                 return None                

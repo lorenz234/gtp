@@ -1,5 +1,5 @@
 from pydantic import BaseModel, HttpUrl, Field, field_validator, ValidationInfo
-from typing import Optional
+from typing import Optional, List
 import zipfile
 import io
 import json
@@ -7,7 +7,7 @@ import requests
 import pickle
 
 class DAConfig(BaseModel):
-    da_layer: str
+    origin_key: str
     name: str
     name_short: str
     block_explorers: Optional[dict] = None
@@ -21,6 +21,8 @@ class DAConfig(BaseModel):
 
     ## API
     incl_in_da_overview: bool = Field(alias="incl_in_da_overview", default=False)
+    api_in_main: bool = Field(alias="api_in_api_main", default=False)
+    api_exclude_metrics: Optional[List[str]] = Field(alias="api_api_exclude_metrics", default=None)
    
     ## METADATA
     parameters: Optional[dict] = None
