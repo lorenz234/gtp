@@ -125,6 +125,8 @@ class RedisSSEServer:
         self._chain_cache: Optional[List[str]] = None
         self._chain_cache_time: Optional[datetime] = None
         self._cache_ttl = 60
+        
+        self.chain_clients = {}  # Track clients per chain
 
     def _safe_float(self, value, default=0.0):
         try: return float(value) if value is not None else default
@@ -597,11 +599,149 @@ class RedisSSEServer:
         while True:
             try:
                 await self._update_data()
-                await self._broadcast_to_clients()
+                await self._broadcast_to_clients()  # Global broadcast
+                
+                # Broadcast to chain-specific clients
+                for chain_name in self.latest_data.keys():
+                    if chain_name in self.chain_clients:
+                        enhanced_data = await self._get_chain_sse_data(chain_name)
+                        await self._broadcast_to_chain_clients(chain_name, enhanced_data)
+                
                 await asyncio.sleep(self.config.update_interval)
             except Exception as e:
                 logger.error(f"Error in data update loop: {str(e)}")
                 await asyncio.sleep(5)
+                
+    ## chain sse methods
+    async def chain_sse_handler(self, request):
+        """Handle chain-specific SSE connection requests."""
+        chain_name = request.match_info.get('chain_name')
+        if not chain_name:
+            return web.Response(status=400, text="Chain name not provided")
+        
+        # Check if chain exists
+        if chain_name not in await self._get_all_chains():
+            return web.Response(status=404, text=f"Chain '{chain_name}' not found")
+        
+        if len(self.connected_clients) >= self.config.max_connections:
+            return web.Response(status=503, text="Too many connections")
+        
+        response = web.StreamResponse()
+        response.headers.update({
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        })
+        
+        client_ip = request.remote
+        logger.info(f"New chain SSE client connected from {client_ip} for chain: {chain_name}")
+        
+        try:
+            await response.prepare(request)
+            self.connected_clients.add(response)
+            
+            # Track chain-specific client
+            if chain_name not in self.chain_clients:
+                self.chain_clients[chain_name] = set()
+            self.chain_clients[chain_name].add(response)
+            
+            # Send initial chain data
+            initial_data = await self._get_chain_sse_data(chain_name)
+            initial_message = json.dumps({
+                "type": "initial",
+                "chain_name": chain_name,
+                "data": initial_data,
+                "timestamp": datetime.now().isoformat()
+            })
+            await response.write(f"data: {initial_message}\n\n".encode('utf-8'))
+            
+            # Keep connection alive with heartbeats
+            while True:
+                await asyncio.sleep(self.config.heartbeat_interval)
+                try:
+                    await response.write(b": heartbeat\n\n")
+                except Exception:
+                    break
+                    
+        except (ConnectionResetError, ConnectionAbortedError):
+            logger.info(f"Chain SSE client {client_ip} disconnected from chain: {chain_name}")
+        finally:
+            # Clean up client tracking
+            self.connected_clients.discard(response)
+            if chain_name in self.chain_clients:
+                self.chain_clients[chain_name].discard(response)
+                if not self.chain_clients[chain_name]:
+                    del self.chain_clients[chain_name]
+        
+        return response
+
+    async def _get_chain_sse_data(self, chain_name: str):
+        """Get comprehensive chain data for SSE streaming."""
+        try:
+            # Get current chain data
+            current_data = await self._get_latest_chain_data(chain_name)
+            
+            # Get chain metrics (ATH, 24h high)
+            metrics = self.chain_metrics.get(chain_name, {})
+            
+            # Combine all data
+            sse_data = {
+                **current_data,
+                "ath": metrics.get("ath", 0),
+                "ath_timestamp": metrics.get("ath_timestamp", ""),
+                "24h_high": metrics.get("24h_high", 0),
+                "24h_high_timestamp": metrics.get("24h_high_timestamp", ""),
+                "is_active": current_data.get("tps", 0) > 0
+            }
+            
+            return sse_data
+            
+        except Exception as e:
+            logger.error(f"Error getting chain SSE data for {chain_name}: {str(e)}")
+            return {
+                "chain_name": chain_name,
+                "error": str(e),
+                "tps": 0,
+                "ath": 0,
+                "24h_high": 0
+            }
+
+    async def _broadcast_to_chain_clients(self, chain_name: str, data):
+        """Broadcast updates to clients subscribed to a specific chain."""
+        if chain_name not in self.chain_clients or not self.chain_clients[chain_name]:
+            return
+            
+        try:
+            message = json.dumps({
+                "type": "update",
+                "chain_name": chain_name,
+                "data": data,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            sse_message = f"data: {message}\n\n"
+            disconnected_clients = set()
+            
+            for client in self.chain_clients[chain_name]:
+                try:
+                    await client.write(sse_message.encode('utf-8'))
+                except (ConnectionResetError, ConnectionAbortedError, OSError):
+                    disconnected_clients.add(client)
+                except Exception as e:
+                    logger.warning(f"Error sending to chain client: {str(e)}")
+                    disconnected_clients.add(client)
+            
+            # Clean up disconnected clients
+            if disconnected_clients:
+                self.chain_clients[chain_name].difference_update(disconnected_clients)
+                for client in disconnected_clients:
+                    self.connected_clients.discard(client)
+                
+                logger.info(f"Removed {len(disconnected_clients)} disconnected clients from chain {chain_name}")
+                
+        except Exception as e:
+            logger.error(f"Error broadcasting to chain {chain_name} clients: {str(e)}")
     
     async def sse_handler(self, request):
         """Handle SSE connection requests."""
@@ -708,24 +848,6 @@ class RedisSSEServer:
             "timestamp": datetime.now().isoformat()
         })
 
-    async def chain_events_handler(self, request):
-        """REST API endpoint to get ATH events for a single chain."""
-        chain_name = request.match_info.get('chain_name')
-        if not chain_name:
-            return web.json_response({"error": "Chain name not provided"}, status=400)
-        
-        try:
-            limit = int(request.query.get('limit', 50))
-            raw_entries = await self.redis_client.zrevrange(
-                RedisKeys.chain_ath_history(chain_name), 0, limit - 1, withscores=False
-            )
-            events = [json.loads(entry) for entry in raw_entries]
-            return web.json_response({"events": events, "timestamp": datetime.now().isoformat()})
-
-        except Exception as e:
-            logger.error(f"Error in chain_events_handler for {chain_name}: {e}")
-            return web.json_response({"error": "Internal server error"}, status=500)
-
     async def chain_history_handler(self, request):
         """REST API endpoint to get TPS history for a single chain."""
         chain_name = request.match_info.get('chain_name')
@@ -762,13 +884,13 @@ async def create_app(server: RedisSSEServer):
     })
     
     routes = [
-        web.get("/events", server.sse_handler),
+        web.get("/events", server.sse_handler),  # Global SSE
+        web.get("/events/chain/{chain_name}", server.chain_sse_handler),  # Chain SSE
         web.get("/health", server.health_handler),
         web.get("/api/data", server.api_data_handler),
         web.get("/api/history", server.history_handler),
         web.get("/api/chain/{chain_name}", server.chain_data_handler),
         web.get("/api/chain/{chain_name}/history", server.chain_history_handler),
-        web.get("/api/chain/{chain_name}/events", server.chain_events_handler),
     ]
 
     for route in routes:
@@ -789,13 +911,13 @@ async def main():
         maintenance_task = asyncio.create_task(server.periodic_maintenance_loop())
         
         logger.info(f"🚀 Starting SSE server on {config.server_host}:{config.server_port}")
-        logger.info(f"📡 SSE endpoint: /events")
+        logger.info(f"📡 Global SSE endpoint: /events")
+        logger.info(f"📡 Chain SSE endpoint: /events/chain/{{chain_name}}")
         logger.info(f"🏥 Health check: /health")
         logger.info(f"📈 Global API: /api/data")
         logger.info(f"📊 Global History: /api/history")
         logger.info(f"⛓️ Chain Data: /api/chain/{{chain_name}}")
         logger.info(f"📜 Chain History: /api/chain/{{chain_name}}/history")
-        logger.info(f"🎉 Chain Events: /api/chain/{{chain_name}}/events")
         
         runner = web.AppRunner(app)
         await runner.setup()
