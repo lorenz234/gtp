@@ -623,7 +623,9 @@ class RedisSSEServer:
         if chain_name not in await self._get_all_chains():
             return web.Response(status=404, text=f"Chain '{chain_name}' not found")
         
-        if len(self.connected_clients) >= self.config.max_connections:
+        # Count total connections (global + chain)
+        total_connections = len(self.connected_clients) + sum(len(clients) for clients in self.chain_clients.values())
+        if total_connections >= self.config.max_connections:
             return web.Response(status=503, text="Too many connections")
         
         response = web.StreamResponse()
@@ -639,9 +641,8 @@ class RedisSSEServer:
         
         try:
             await response.prepare(request)
-            self.connected_clients.add(response)
             
-            # Track chain-specific client
+            # Track chain-specific client ONLY (don't add to global clients)
             if chain_name not in self.chain_clients:
                 self.chain_clients[chain_name] = set()
             self.chain_clients[chain_name].add(response)
@@ -667,8 +668,7 @@ class RedisSSEServer:
         except (ConnectionResetError, ConnectionAbortedError):
             logger.info(f"Chain SSE client {client_ip} disconnected from chain: {chain_name}")
         finally:
-            # Clean up client tracking
-            self.connected_clients.discard(response)
+            # Clean up chain-specific client tracking only
             if chain_name in self.chain_clients:
                 self.chain_clients[chain_name].discard(response)
                 if not self.chain_clients[chain_name]:
@@ -775,9 +775,16 @@ class RedisSSEServer:
     
     async def health_handler(self, request):
         """Health check endpoint."""
+        chain_connections = sum(len(clients) for clients in self.chain_clients.values())
+        total_connections = len(self.connected_clients) + chain_connections
+        
         return web.json_response({
-            "status": "healthy", "connected_clients": len(self.connected_clients),
-            "max_connections": self.config.max_connections, "total_chains": len(self.latest_data),
+            "status": "healthy",
+            "global_clients": len(self.connected_clients),
+            "chain_clients": chain_connections,
+            "total_connections": total_connections,
+            "max_connections": self.config.max_connections,
+            "total_chains": len(self.latest_data),
             "active_chains": self.global_metrics.get("active_chains", 0),
             "total_tps": self.global_metrics.get("total_tps", 0),
             "total_tps_ath": self.global_metrics.get("total_tps_ath", 0),
