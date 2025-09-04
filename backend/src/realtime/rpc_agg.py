@@ -158,11 +158,23 @@ class EVMProcessor(BlockchainProcessor):
                 if transfers:
                     return sum(tx['cost_wei'] for tx in transfers) / len(transfers) / 1e18
                 return 0
-            
+
+            # Calculate median cost
+            def calculate_median_cost(transfers):
+                if not transfers:
+                    return 0
+                costs = sorted(tx['cost_wei'] for tx in transfers)
+                if len(costs) % 2 == 1:
+                    return costs[len(costs) // 2] / 1e18
+                return (costs[len(costs) // 2 - 1] + costs[len(costs) // 2]) / 2 / 1e18
+
+            avg_cost_eth = calc_avg_cost(all_tx)
             avg_native_cost_eth = calc_avg_cost(native_transfers)
             avg_erc20_cost_eth = calc_avg_cost(erc20_transfers)
             avg_swap_cost_eth = calc_avg_cost(swaps)
-            
+
+            median_cost_eth = calculate_median_cost(all_tx)
+
             total_costs_eth = sum(tx['cost_wei'] for tx in all_tx) / 1e18
             cost_per_gas_eth = total_costs_eth / total_gas_used if total_gas_used > 0 else 0
             
@@ -179,10 +191,12 @@ class EVMProcessor(BlockchainProcessor):
             # Get ETH price and calculate USD costs
             await self.backend.update_eth_price()
             eth_price = self.backend.eth_price_usd
-            
+
+            avg_cost_usd = avg_cost_eth * eth_price if eth_price > 0 else 0
             avg_native_cost_usd = avg_native_cost_eth * eth_price if eth_price > 0 else 0
             avg_erc20_cost_usd = avg_erc20_cost_eth * eth_price if eth_price > 0 else 0
             avg_swap_cost_usd = avg_swap_cost_eth * eth_price if eth_price > 0 else 0
+            median_cost_usd = median_cost_eth * eth_price if eth_price > 0 else 0
 
             # Build block dictionary using receipt data and current timestamp
             block_dict = {
@@ -191,21 +205,29 @@ class EVMProcessor(BlockchainProcessor):
                 "timestamp": hex(int(time.time())),
                 "gasUsed": hex(total_gas_used),
                 "gasLimit": None,  # Not available in receipts
+                "tx_cost_avg": avg_cost_eth,
+                "tx_cost_avg_usd": avg_cost_usd,
                 "tx_cost_native": avg_native_cost_eth,
                 "tx_cost_native_usd": avg_native_cost_usd,
                 "tx_cost_erc20_transfer": avg_erc20_cost_eth,
                 "tx_cost_erc20_transfer_usd": avg_erc20_cost_usd,
                 "tx_cost_swap": avg_swap_cost_eth,
                 "tx_cost_swap_usd": avg_swap_cost_usd,
+                "tx_cost_median": median_cost_eth,
+                "tx_cost_median_usd": median_cost_usd,
             }
 
             self.backend.chain_data[chain_name].update({
+                "tx_cost_avg": avg_cost_eth,
+                "tx_cost_avg_usd": avg_cost_usd,
                 "tx_cost_native": avg_native_cost_eth,
                 "tx_cost_erc20_transfer": avg_erc20_cost_eth,
                 "tx_cost_native_usd": avg_native_cost_usd,
                 "tx_cost_erc20_transfer_usd": avg_erc20_cost_usd,
                 "tx_cost_swap": avg_swap_cost_eth,
                 "tx_cost_swap_usd": avg_swap_cost_usd,
+                "tx_cost_median": median_cost_eth,
+                "tx_cost_median_usd": median_cost_usd,
             })
 
             # logger.info(self.backend.chain_data[chain_name])
@@ -599,9 +621,13 @@ class RtBackend:
             "tps": round(tps, 1),
             "tx_count": tx_count,
             "gas_used": gas_used,
+            "tx_cost_avg": chain_data.get("tx_cost_avg", 0),
+            "tx_cost_avg_usd": chain_data.get("tx_cost_avg_usd", 0),
+            "tx_cost_median": chain_data.get("tx_cost_median", 0),
+            "tx_cost_median_usd": chain_data.get("tx_cost_median_usd", 0),
             "tx_cost_native": chain_data.get("tx_cost_native", 0),
-            "tx_cost_erc20_transfer": chain_data.get("tx_cost_erc20_transfer", 0),
             "tx_cost_native_usd": chain_data.get("tx_cost_native_usd", 0),
+            "tx_cost_erc20_transfer": chain_data.get("tx_cost_erc20_transfer", 0),
             "tx_cost_erc20_transfer_usd": chain_data.get("tx_cost_erc20_transfer_usd", 0),
             "tx_cost_swap": chain_data.get("tx_cost_swap", 0),
             "tx_cost_swap_usd": chain_data.get("tx_cost_swap_usd", 0),
