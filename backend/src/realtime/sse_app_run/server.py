@@ -516,6 +516,10 @@ class RedisSSEServer:
                 "tx_cost_erc20_transfer_usd": self._safe_float(fields.get("tx_cost_erc20_transfer_usd", 0)),
                 "tx_cost_swap": self._safe_float(fields.get("tx_cost_swap", 0)),
                 "tx_cost_swap_usd": self._safe_float(fields.get("tx_cost_swap_usd", 0)),
+                "tx_cost_avg": self._safe_float(fields.get("tx_cost_avg", 0)),
+                "tx_cost_avg_usd": self._safe_float(fields.get("tx_cost_avg_usd", 0)),
+                "tx_cost_median": self._safe_float(fields.get("tx_cost_median", 0)),
+                "tx_cost_median_usd": self._safe_float(fields.get("tx_cost_median_usd", 0)),
                 "last_updated": datetime.fromtimestamp(timestamp / 1000).isoformat() if timestamp else ""
             }
         except Exception as e:
