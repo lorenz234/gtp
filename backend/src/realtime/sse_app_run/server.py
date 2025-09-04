@@ -112,9 +112,6 @@ class RedisSSEServer:
         self.connected_clients: Set[web.StreamResponse] = set()
         self.latest_data: Dict[str, Any] = {}
         self.global_metrics: Dict[str, Any] = {}
-
-        # Client manager for chain-specific SSE streams
-        self.chain_event_clients: Dict[str, Set[web.StreamResponse]] = {}
         
         # Global TPS tracking
         self.tps_ath: float = 0.0
@@ -338,16 +335,19 @@ class RedisSSEServer:
             
             is_new_ath = current_tps > metrics.get("ath", 0)
             
+            # Check if 24h high is expired or a new high
             is_new_24h_high = False
             last_24h_ts_str = metrics.get("24h_high_timestamp", "")
             if last_24h_ts_str:
                 try:
                     last_24h_dt = datetime.fromisoformat(last_24h_ts_str)
                     if (now - last_24h_dt) > timedelta(hours=24):
-                       is_new_24h_high = True
+                       is_new_24h_high = True # Expired, so this is the new high
                        metrics["24h_high"] = 0
-                except ValueError: is_new_24h_high = True
-            else: is_new_24h_high = True
+                except ValueError:
+                    is_new_24h_high = True # Invalid timestamp format
+            else: # No previous 24h high
+                is_new_24h_high = True
 
             if not is_new_24h_high and current_tps > metrics.get("24h_high", 0):
                 is_new_24h_high = True
@@ -355,17 +355,28 @@ class RedisSSEServer:
             pipe = self.redis_client.pipeline()
             
             if is_new_ath:
-                metrics["ath"], metrics["ath_timestamp"] = current_tps, timestamp
-                pipe.hset(RedisKeys.chain_tps_ath(chain_name), mapping={"value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(timestamp_ms)})
+                metrics["ath"] = current_tps
+                metrics["ath_timestamp"] = timestamp
+                pipe.hset(RedisKeys.chain_tps_ath(chain_name), mapping={
+                    "value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(timestamp_ms)
+                })
                 logger.info(f"🚀 NEW CHAIN ATH for {chain_name}: {current_tps} TPS!")
 
             if is_new_24h_high:
-                metrics["24h_high"], metrics["24h_high_timestamp"] = current_tps, timestamp
-                pipe.hset(RedisKeys.chain_tps_24h(chain_name), mapping={"value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(timestamp_ms)})
+                metrics["24h_high"] = current_tps
+                metrics["24h_high_timestamp"] = timestamp
+                pipe.hset(RedisKeys.chain_tps_24h(chain_name), mapping={
+                    "value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(timestamp_ms)
+                })
 
-            if pipe: await pipe.execute()
+            if pipe:
+                await pipe.execute()
             
-            record = TPSRecord(chain_name=chain_name, value=current_tps, timestamp=timestamp, timestamp_ms=timestamp_ms, is_ath=is_new_ath)
+            # Store history record for the chain
+            record = TPSRecord(
+                chain_name=chain_name, value=current_tps, timestamp=timestamp,
+                timestamp_ms=timestamp_ms, is_ath=is_new_ath
+            )
             await self._store_chain_tps_record(record)
 
     async def _update_global_tps_records(self, current_tps: float, timestamp: str, chain_data: Dict[str, Any]):
@@ -379,18 +390,32 @@ class RedisSSEServer:
 
             if is_new_ath:
                 old_ath = self.tps_ath
-                self.tps_ath, self.tps_ath_timestamp = current_tps, timestamp
-                pipe.hset(RedisKeys.GLOBAL_TPS_ATH, mapping={"value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(current_timestamp_ms)})
-                ath_message = f"""🚀 NEW GLOBAL TPS ALL-TIME HIGH: {current_tps:.2f} TPS! (Previous: {old_ath:.2f})"""
+                self.tps_ath = current_tps
+                self.tps_ath_timestamp = timestamp
+
+                pipe.hset(RedisKeys.GLOBAL_TPS_ATH, mapping={
+                    "value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(current_timestamp_ms)
+                })
+                logger.info(f"🚀 NEW GLOBAL TPS ALL-TIME HIGH: {current_tps} TPS! (Previous: {old_ath})")
+                ath_message = f"""🚀 NEW GLOBAL TPS ALL-TIME HIGH: {current_tps:.2f} TPS! (Previous: {old_ath:.2f})
+                \nTimestamp: {timestamp}\nActive Chains: {len(chain_breakdown)}\nChain Breakdown: {json.dumps(chain_breakdown, indent=2)}"""
                 send_discord_message(ath_message)
 
             if current_tps > self.tps_24h_high:
-                self.tps_24h_high, self.tps_24h_high_timestamp = current_tps, timestamp
-                pipe.hset(RedisKeys.GLOBAL_TPS_24H, mapping={"value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(current_timestamp_ms)})
+                self.tps_24h_high = current_tps
+                self.tps_24h_high_timestamp = timestamp
+                pipe.hset(RedisKeys.GLOBAL_TPS_24H, mapping={
+                    "value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(current_timestamp_ms)
+                })
+                logger.info(f"📊 NEW GLOBAL 24HR TPS HIGH: {current_tps} TPS!")
             
             if pipe: await pipe.execute()
 
-            record = TPSRecord(value=current_tps, timestamp=timestamp, timestamp_ms=current_timestamp_ms, chain_breakdown=chain_breakdown, total_chains=len(chain_data), active_chains=len(chain_breakdown), is_ath=is_new_ath)
+            record = TPSRecord(
+                value=current_tps, timestamp=timestamp, timestamp_ms=current_timestamp_ms,
+                chain_breakdown=chain_breakdown, total_chains=len(chain_data),
+                active_chains=len(chain_breakdown), is_ath=is_new_ath
+            )
             await self._store_global_tps_record(record)
 
         except Exception as e:
@@ -400,6 +425,7 @@ class RedisSSEServer:
         """Calculate global metrics from chain data."""
         try:
             await self._update_all_chain_records(chain_data)
+
             tps_values = [self._safe_float(data.get("tps", 0)) for data in chain_data.values() if isinstance(data, dict)]
             total_tps = sum(tps_values)
             
@@ -407,23 +433,21 @@ class RedisSSEServer:
             if total_tps > 0:
                 await self._update_global_tps_records(total_tps, current_timestamp, chain_data)
             
+            highest_tps = max(tps_values, default=0)
+            active_chains = sum(1 for tps in tps_values if tps > 0)
             eth_data = chain_data.get("ethereum", {})
+            ethereum_tx_cost_usd = self._safe_float(eth_data.get("tx_cost_erc20_transfer_usd"))
+            ethereum_tx_cost_eth = self._safe_float(eth_data.get("tx_cost_erc20_transfer"))
             l2_metrics = self._calculate_l2_metrics(chain_data)
             
             return {
-                "total_tps": round(total_tps, 1),
-                "highest_tps": round(max(tps_values, default=0), 1),
+                "total_tps": round(total_tps, 1), "highest_tps": round(highest_tps, 1),
                 "highest_l2_cost_usd": l2_metrics["highest_cost_usd"],
-                "total_chains": len(chain_data),
-                "active_chains": sum(1 for tps in tps_values if tps > 0),
-                "ethereum_tx_cost_usd": self._safe_float(eth_data.get("tx_cost_erc20_transfer_usd")),
-                "ethereum_tx_cost_eth": self._safe_float(eth_data.get("tx_cost_erc20_transfer")),
-                "layer2s_tx_cost_usd": l2_metrics["avg_cost_usd"],
-                "layer2s_tx_cost_eth": l2_metrics["avg_cost_eth"],
-                "total_tps_ath": round(self.tps_ath, 1),
-                "total_tps_ath_timestamp": self.tps_ath_timestamp,
-                "total_tps_24h_high": round(self.tps_24h_high, 1),
-                "total_tps_24h_high_timestamp": self.tps_24h_high_timestamp,
+                "total_chains": len(chain_data), "active_chains": active_chains,
+                "ethereum_tx_cost_usd": ethereum_tx_cost_usd, "ethereum_tx_cost_eth": ethereum_tx_cost_eth,
+                "layer2s_tx_cost_usd": l2_metrics["avg_cost_usd"], "layer2s_tx_cost_eth": l2_metrics["avg_cost_eth"],
+                "total_tps_ath": round(self.tps_ath, 1), "total_tps_ath_timestamp": self.tps_ath_timestamp,
+                "total_tps_24h_high": round(self.tps_24h_high, 1), "total_tps_24h_high_timestamp": self.tps_24h_high_timestamp,
                 "last_updated": current_timestamp
             }
         except Exception as e:
@@ -432,13 +456,13 @@ class RedisSSEServer:
     
     async def periodic_maintenance_loop(self):
         """Combined maintenance loop: refresh 24h high and cleanup old data every 5 minutes."""
-        logger.info("Starting periodic maintenance loop (every 1 minute)")
+        logger.info("Starting periodic maintenance loop (every 5 minutes)")
         while True:
-            await asyncio.sleep(60)
             try:
                 await self._periodic_maintenance()
             except Exception as e:
                 logger.error(f"Error in maintenance loop: {e}")
+            await asyncio.sleep(300)
    
     async def close(self):
         """Close Redis connection."""
@@ -448,18 +472,25 @@ class RedisSSEServer:
     async def _get_all_chains(self) -> List[str]:
         """Get all chain names from Redis with caching."""
         now = datetime.now()
-        if (self._chain_cache and self._chain_cache_time and (now - self._chain_cache_time).total_seconds() < self._cache_ttl):
+        
+        if (self._chain_cache and self._chain_cache_time and 
+            (now - self._chain_cache_time).total_seconds() < self._cache_ttl):
             return self._chain_cache
+        
         try:
             chains = set()
             cursor = '0'
             while cursor != 0:
                 cursor, keys = await self.redis_client.scan(cursor=cursor, match="chain:*", count=1000)
                 for key in keys:
-                    if ":tps:" in key: continue
-                    chains.add(key.split(':')[1])
-            self._chain_cache, self._chain_cache_time = sorted(list(chains)), now
+                    if ":tps:" in key: continue # Filter out metric keys
+                    chain_name = key.split(':')[1]
+                    chains.add(chain_name)
+            
+            self._chain_cache = sorted(list(chains))
+            self._chain_cache_time = now
             return self._chain_cache
+            
         except Exception as e:
             logger.error(f"Error getting chain keys: {str(e)}")
             return self._chain_cache or []
@@ -467,19 +498,40 @@ class RedisSSEServer:
     async def _get_latest_chain_data(self, chain_name: str) -> Dict[str, Any]:
         """Get latest data for a specific chain from Redis stream."""
         try:
-            entries = await self.redis_client.xrevrange(RedisKeys.chain_stream(chain_name), count=1)
-            if not entries: return {"chain_name": chain_name, "tps": 0, "error": "No data available"}
-            _id, fields = entries[0]
-            ts = self._safe_int(fields.get("timestamp", 0))
-            return {**fields, "tps": self._safe_float(fields.get("tps", 0)), "last_updated": datetime.fromtimestamp(ts/1000).isoformat() if ts else ""}
+            stream_key = RedisKeys.chain_stream(chain_name)
+            entries = await self.redis_client.xrevrange(stream_key, count=1)
+            
+            if not entries:
+                return {"chain_name": chain_name, "display_name": chain_name, "tps": 0, "error": "No data available"}
+            
+            _entry_id, fields = entries[0]
+            timestamp = self._safe_int(fields.get("timestamp", 0))
+            
+            return {
+                "chain_name": chain_name, "display_name": fields.get("display_name", chain_name),
+                "tps": self._safe_float(fields.get("tps", 0)), "timestamp": timestamp,
+                "tx_cost_erc20_transfer": self._safe_float(fields.get("tx_cost_erc20_transfer", 0)),
+                "tx_cost_erc20_transfer_usd": self._safe_float(fields.get("tx_cost_erc20_transfer_usd", 0)),
+                "last_updated": datetime.fromtimestamp(timestamp / 1000).isoformat() if timestamp else ""
+            }
         except Exception as e:
-            return {"chain_name": chain_name, "tps": 0, "error": str(e)}
+            logger.error(f"Error getting data for {chain_name}: {str(e)}")
+            return {"chain_name": chain_name, "display_name": chain_name, "tps": 0, "error": str(e)}
 
     async def _get_all_chain_data(self) -> Dict[str, Any]:
         """Get latest data for all chains concurrently."""
         chains = await self._get_all_chains()
-        results = await asyncio.gather(*[self._get_latest_chain_data(c) for c in chains])
-        return {c: r for c, r in zip(chains, results) if not isinstance(r, Exception)}
+        tasks = [self._get_latest_chain_data(chain) for chain in chains]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        chain_data = {}
+        for chain_name, result in zip(chains, results):
+            if isinstance(result, Exception):
+                logger.error(f"Error fetching data for {chain_name}: {result}")
+                chain_data[chain_name] = {"chain_name": chain_name, "tps": 0, "error": str(result)}
+            else:
+                chain_data[chain_name] = result
+        return chain_data
     
     def _calculate_l2_metrics(self, chain_data: Dict[str, Any]) -> Dict[str, Optional[float]]:
         """Calculate Layer 2 transaction cost metrics."""
@@ -509,34 +561,35 @@ class RedisSSEServer:
         try:
             chain_data = await self._get_all_chain_data()
             global_metrics = await self._calculate_global_metrics(chain_data)
-            self.latest_data, self.global_metrics = chain_data, global_metrics
-        except Exception as e: logger.error(f"Error updating data: {str(e)}")
+            self.latest_data = chain_data
+            self.global_metrics = global_metrics
+            logger.debug(f"Updated data for {len(chain_data)} chains, total TPS: {global_metrics.get('total_tps', 0)}")
+        except Exception as e:
+            logger.error(f"Error updating data: {str(e)}")
     
     async def _broadcast_to_clients(self):
-        """Broadcast updated data to all connected global SSE clients."""
+        """Broadcast updated data to all connected SSE clients."""
         if not self.connected_clients: return
-        msg = f"data: {json.dumps({'type':'update', 'data':self.latest_data, 'global_metrics':self.global_metrics})}\n\n"
-        dead = {c for c in self.connected_clients if not await self._send_to_client(c, msg)}
-        if dead: self.connected_clients.difference_update(dead)
-
-    # ### NEW ### - Broadcast function for chain-specific SSE streams
-    async def _broadcast_to_chain_clients(self):
-        if not self.chain_event_clients: return
-        dead = {}
-        for chain, clients in self.chain_event_clients.items():
-            if not clients or chain not in self.latest_data: continue
-            payload = {'type':'update', 'data':self.latest_data.get(chain), 'metrics':self.chain_metrics.get(chain)}
-            msg = f"data: {json.dumps(payload)}\n\n"
-            for c in clients:
-                if not await self._send_to_client(c, msg): dead.setdefault(chain, set()).add(c)
-        for chain, clients in dead.items():
-            self.chain_event_clients[chain].difference_update(clients)
-            if not self.chain_event_clients[chain]: del self.chain_event_clients[chain]
-
-    async def _send_to_client(self, client, message):
         try:
-            await client.write(message.encode('utf-8')); return True
-        except Exception: return False
+            message = json.dumps({
+                "type": "update", "data": self.latest_data,
+                "global_metrics": self.global_metrics,
+                "timestamp": datetime.now().isoformat()
+            })
+            sse_message = f"data: {message}\n\n"
+            disconnected_clients = set()
+            for client in self.connected_clients:
+                try: await client.write(sse_message.encode('utf-8'))
+                except (ConnectionResetError, ConnectionAbortedError, OSError):
+                    disconnected_clients.add(client)
+                except Exception as e:
+                    logger.warning(f"Error sending to client: {str(e)}")
+                    disconnected_clients.add(client)
+            if disconnected_clients:
+                self.connected_clients.difference_update(disconnected_clients)
+                logger.info(f"Removed {len(disconnected_clients)} disconnected clients. {len(self.connected_clients)} remaining.")
+        except Exception as e:
+            logger.error(f"Error broadcasting to clients: {str(e)}")
     
     async def data_update_loop(self):
         """Background task that continuously updates data and broadcasts to clients."""
@@ -544,73 +597,62 @@ class RedisSSEServer:
         while True:
             try:
                 await self._update_data()
-                # ### MODIFIED ### - Added new broadcast task
-                await asyncio.gather(
-                    self._broadcast_to_clients(),
-                    self._broadcast_to_chain_clients()
-                )
+                await self._broadcast_to_clients()
                 await asyncio.sleep(self.config.update_interval)
             except Exception as e:
                 logger.error(f"Error in data update loop: {str(e)}")
                 await asyncio.sleep(5)
     
     async def sse_handler(self, request):
-        """Handle global SSE connection requests."""
-        if len(self.connected_clients) >= self.config.max_connections: return web.Response(status=503)
-        resp = web.StreamResponse(headers={'Content-Type':'text/event-stream','Cache-Control':'no-cache','Connection':'keep-alive'})
-        await resp.prepare(request)
-        self.connected_clients.add(resp)
-        try:
-            initial_msg = f"data: {json.dumps({'type':'initial', 'data':self.latest_data, 'global_metrics':self.global_metrics})}\n\n"
-            if not await self._send_to_client(resp, initial_msg): return resp
-            while True:
-                await asyncio.sleep(self.config.heartbeat_interval)
-                if not await self._send_to_client(resp, ": heartbeat\n\n"): break
-        finally: self.connected_clients.discard(resp)
-        return resp
-    
-    # ### NEW ### - SSE Handler for chain-specific streams
-    async def chain_sse_handler(self, request):
-        chain = request.match_info.get('chain_name')
-        if not chain or chain not in self.latest_data: return web.Response(status=404, text="Chain not found")
+        """Handle SSE connection requests."""
+        if len(self.connected_clients) >= self.config.max_connections:
+            return web.Response(status=503, text="Too many connections")
         
-        clients = self.chain_event_clients.setdefault(chain, set())
-        resp = web.StreamResponse(headers={'Content-Type':'text/event-stream','Cache-Control':'no-cache','Connection':'keep-alive'})
-        await resp.prepare(request)
-        clients.add(resp)
-        logger.info(f"New SSE client for chain '{chain}'. Total for chain: {len(clients)}")
-
+        response = web.StreamResponse()
+        response.headers.update({
+            'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive', 'X-Accel-Buffering': 'no'
+        })
+        client_ip = request.remote
+        logger.info(f"New SSE client connected from {client_ip}")
         try:
-            initial_payload = {'type':'initial', 'data':self.latest_data.get(chain), 'metrics':self.chain_metrics.get(chain)}
-            initial_msg = f"data: {json.dumps(initial_payload)}\n\n"
-            if not await self._send_to_client(resp, initial_msg): return resp
-            
+            await response.prepare(request)
+            self.connected_clients.add(response)
+            initial_message = json.dumps({
+                "type": "initial", "data": self.latest_data,
+                "global_metrics": self.global_metrics, "timestamp": datetime.now().isoformat()
+            })
+            await response.write(f"data: {initial_message}\n\n".encode('utf-8'))
             while True:
                 await asyncio.sleep(self.config.heartbeat_interval)
-                if not await self._send_to_client(resp, ": heartbeat\n\n"): break
+                try: await response.write(b": heartbeat\n\n")
+                except Exception: break
+        except (ConnectionResetError, ConnectionAbortedError):
+            logger.info(f"Client {client_ip} disconnected")
         finally:
-            clients.discard(resp)
-            if not clients: del self.chain_event_clients[chain]
-            logger.info(f"SSE client for chain '{chain}' disconnected.")
-        return resp
+            self.connected_clients.discard(response)
+        return response
     
     async def health_handler(self, request):
         """Health check endpoint."""
         return web.json_response({
-            "status": "healthy", 
-            "global_sse_clients": len(self.connected_clients),
-            "chain_sse_listeners": {k:len(v) for k,v in self.chain_event_clients.items()},
-            "max_connections": self.config.max_connections, 
-            "total_chains": len(self.latest_data),
+            "status": "healthy", "connected_clients": len(self.connected_clients),
+            "max_connections": self.config.max_connections, "total_chains": len(self.latest_data),
             "active_chains": self.global_metrics.get("active_chains", 0),
             "total_tps": self.global_metrics.get("total_tps", 0),
             "total_tps_ath": self.global_metrics.get("total_tps_ath", 0),
+            "total_tps_24h_high": self.global_metrics.get("total_tps_24h_high", 0),
+            "redis_connected": self.redis_client is not None,
+            "chain_cache_active": self._chain_cache is not None,
             "timestamp": datetime.now().isoformat()
         })
     
     async def api_data_handler(self, request):
         """REST API endpoint to get current global data."""
-        return web.json_response({"data": self.latest_data, "global_metrics": self.global_metrics})
+        return web.json_response({
+            "data": self.latest_data, "global_metrics": self.global_metrics,
+            "timestamp": datetime.now().isoformat()
+        })
     
     async def history_handler(self, request):
         """REST API endpoint to get global TPS history."""
@@ -647,40 +689,78 @@ class RedisSSEServer:
         except Exception as e:
             logger.error(f"Error in global history handler: {e}")
             return web.json_response({"error": "Internal server error"}, status=500)
+
     async def chain_data_handler(self, request):
         """REST API endpoint to get current data for a single chain."""
-        chain = request.match_info.get('chain_name')
-        if not chain or chain not in self.latest_data: return web.json_response({"error": "Not found"}, status=404)
-        return web.json_response({"data": self.latest_data.get(chain), "metrics": self.chain_metrics.get(chain)})
+        chain_name = request.match_info.get('chain_name')
+        if not chain_name:
+            return web.json_response({"error": "Chain name not provided"}, status=400)
+            
+        latest_data = self.latest_data.get(chain_name)
+        metrics = self.chain_metrics.get(chain_name)
 
-    # ### MODIFIED ### - Renamed from chain_events_handler
-    async def chain_ath_history_handler(self, request):
-        """REST API endpoint to get a static list of ATH events for a single chain."""
-        chain = request.match_info.get('chain_name')
-        if not chain: return web.json_response({"error": "Chain name not provided"}, status=400)
+        if not latest_data:
+            return web.json_response({"error": f"Data for chain '{chain_name}' not found"}, status=404)
+
+        return web.json_response({
+            "data": latest_data,
+            "metrics": metrics,
+            "timestamp": datetime.now().isoformat()
+        })
+
+    async def chain_events_handler(self, request):
+        """REST API endpoint to get ATH events for a single chain."""
+        chain_name = request.match_info.get('chain_name')
+        if not chain_name:
+            return web.json_response({"error": "Chain name not provided"}, status=400)
+        
         try:
             limit = int(request.query.get('limit', 50))
-            raw = await self.redis_client.zrevrange(RedisKeys.chain_ath_history(chain), 0, limit - 1)
-            return web.json_response({"events": [json.loads(e) for e in raw]})
-        except Exception as e: return web.json_response({"error": str(e)}, status=500)
+            raw_entries = await self.redis_client.zrevrange(
+                RedisKeys.chain_ath_history(chain_name), 0, limit - 1, withscores=False
+            )
+            events = [json.loads(entry) for entry in raw_entries]
+            return web.json_response({"events": events, "timestamp": datetime.now().isoformat()})
+
+        except Exception as e:
+            logger.error(f"Error in chain_events_handler for {chain_name}: {e}")
+            return web.json_response({"error": "Internal server error"}, status=500)
 
     async def chain_history_handler(self, request):
         """REST API endpoint to get TPS history for a single chain."""
-        chain = request.match_info.get('chain_name')
-        if not chain: return web.json_response({"error": "Chain name not provided"}, status=400)
+        chain_name = request.match_info.get('chain_name')
+        if not chain_name:
+            return web.json_response({"error": "Chain name not provided"}, status=400)
+            
         try:
-            limit = int(request.query.get('limit', 100)); hours = int(request.query.get('hours', 24))
-            now, min_ts = int(datetime.now().timestamp()*1000), int((datetime.now()-timedelta(hours=hours)).timestamp()*1000)
-            raw = await self.redis_client.zrevrangebyscore(RedisKeys.chain_tps_history_24h(chain), now, min_ts, start=0, num=limit)
-            return web.json_response({"history": [json.loads(e) for e in raw]})
-        except Exception as e: return web.json_response({"error": str(e)}, status=500)
+            limit = int(request.query.get('limit', 100))
+            hours = int(request.query.get('hours', 24))
+            
+            now_ms = int(datetime.now().timestamp() * 1000)
+            min_ts = now_ms - (hours * 60 * 60 * 1000)
+            
+            key = RedisKeys.chain_tps_history_24h(chain_name)
+            raw_entries = await self.redis_client.zrevrangebyscore(
+                key, now_ms, min_ts, start=0, num=limit
+            )
+            history = [json.loads(entry) for entry in raw_entries]
+            return web.json_response({"history": history, "timestamp": datetime.now().isoformat()})
+
+        except ValueError as e:
+            return web.json_response({"error": "Invalid query parameters", "message": str(e)}, status=400)
+        except Exception as e:
+            logger.error(f"Error in chain_history_handler for {chain_name}: {e}")
+            return web.json_response({"error": "Internal server error"}, status=500)
 
 async def create_app(server: RedisSSEServer):
     """Create and configure the aiohttp application."""
     app = web.Application()
-    cors = aiohttp_cors.setup(app, defaults={"*": aiohttp_cors.ResourceOptions(allow_credentials=True, expose_headers="*", allow_headers="*", allow_methods="*")})
+    cors = aiohttp_cors.setup(app, defaults={
+        "*": aiohttp_cors.ResourceOptions(
+            allow_credentials=True, expose_headers="*", allow_headers="*", allow_methods="*"
+        )
+    })
     
-    # ### MODIFIED ### - Routes have been updated
     routes = [
         web.get("/events", server.sse_handler),
         web.get("/health", server.health_handler),
@@ -688,10 +768,7 @@ async def create_app(server: RedisSSEServer):
         web.get("/api/history", server.history_handler),
         web.get("/api/chain/{chain_name}", server.chain_data_handler),
         web.get("/api/chain/{chain_name}/history", server.chain_history_handler),
-        # New real-time SSE endpoint
-        web.get("/api/chain/{chain_name}/events", server.chain_sse_handler),
-        # Renamed static endpoint for historical ATHs
-        web.get("/api/chain/{chain_name}/ath-history", server.chain_ath_history_handler),
+        web.get("/api/chain/{chain_name}/events", server.chain_events_handler),
     ]
 
     for route in routes:
@@ -712,13 +789,13 @@ async def main():
         maintenance_task = asyncio.create_task(server.periodic_maintenance_loop())
         
         logger.info(f"🚀 Starting SSE server on {config.server_host}:{config.server_port}")
-        logger.info(f"📡 Global SSE stream: /events")
+        logger.info(f"📡 SSE endpoint: /events")
         logger.info(f"🏥 Health check: /health")
         logger.info(f"📈 Global API: /api/data")
         logger.info(f"📊 Global History: /api/history")
-        logger.info(f"⛓️ Chain SSE stream: /api/chain/{{chain_name}}/events")
+        logger.info(f"⛓️ Chain Data: /api/chain/{{chain_name}}")
         logger.info(f"📜 Chain History: /api/chain/{{chain_name}}/history")
-        logger.info(f"🎉 Static ATH list: /api/chain/{{chain_name}}/ath-history")
+        logger.info(f"🎉 Chain Events: /api/chain/{{chain_name}}/events")
         
         runner = web.AppRunner(app)
         await runner.setup()
