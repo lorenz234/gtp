@@ -514,6 +514,8 @@ class RedisSSEServer:
                 "tps": self._safe_float(fields.get("tps", 0)), "timestamp": timestamp,
                 "tx_cost_erc20_transfer": self._safe_float(fields.get("tx_cost_erc20_transfer", 0)),
                 "tx_cost_erc20_transfer_usd": self._safe_float(fields.get("tx_cost_erc20_transfer_usd", 0)),
+                "tx_cost_swap": self._safe_float(fields.get("tx_cost_swap", 0)),
+                "tx_cost_swap_usd": self._safe_float(fields.get("tx_cost_swap_usd", 0)),
                 "last_updated": datetime.fromtimestamp(timestamp / 1000).isoformat() if timestamp else ""
             }
         except Exception as e:
@@ -804,7 +806,7 @@ class RedisSSEServer:
     async def history_handler(self, request):
         """REST API endpoint to get global TPS history."""
         try:
-            limit = int(request.query.get('limit', 100))
+            limit = int(request.query.get('limit', 50))
             hours = int(request.query.get('hours', 24))
             now_ms = int(datetime.now().timestamp() * 1000)
             min_ts = now_ms - (hours * 60 * 60 * 1000)
@@ -862,7 +864,7 @@ class RedisSSEServer:
             return web.json_response({"error": "Chain name not provided"}, status=400)
             
         try:
-            limit = int(request.query.get('limit', 100))
+            limit = int(request.query.get('limit', 50))
             hours = int(request.query.get('hours', 24))
             
             now_ms = int(datetime.now().timestamp() * 1000)
