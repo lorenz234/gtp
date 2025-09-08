@@ -46,7 +46,6 @@ EXCHANGE_RATE_APIS = {
         "timeout": 10,
         "description": "ExchangeRate-API (USD-based rates)"
     },
-    # Backup provider that supports historical by date without API key
     # Historical: Frankfurter API (ECB-backed)
     "frankfurter": {
         "url_template": "https://api.frankfurter.app/{date}?from=USD",
@@ -66,80 +65,8 @@ def get_supported_currencies() -> List[str]:
     """
     return list(FIAT_CURRENCY_CONFIG.keys())
 
-def get_currency_config(currency_code: str) -> Optional[Dict]:
-    """
-    Get configuration for a specific currency.
-    
-    Args:
-        currency_code (str): Currency code (e.g., 'eur', 'brl', 'usd')
-        
-    Returns:
-        Optional[Dict]: Currency configuration or None if not found
-    """
-    return FIAT_CURRENCY_CONFIG.get(currency_code.lower())
 
-def get_coingecko_forex_id(currency_code: str) -> Optional[str]:
-    """
-    Get CoinGecko forex ID for a currency.
-    
-    Args:
-        currency_code (str): Currency code (e.g., 'eur', 'brl')
-        
-    Returns:
-        Optional[str]: CoinGecko forex ID or None if not found
-    """
-    config = get_currency_config(currency_code)
-    return config.get("coingecko_forex_id") if config else None
-
-def calculate_forex_rate_from_alternative(base_currency: str, target_currency: str, rates_data: dict) -> Optional[float]:
-    """
-    Calculate forex rate from alternative API data (USD-based rates).
-    
-    Alternative API provides USD-based rates where USD = 1.0, so:
-    EUR/USD = 1.0 / rates['EUR'] (inverted)
-    BRL/USD = 1.0 / rates['BRL'] (inverted)
-    
-    Args:
-        base_currency (str): Base currency code (e.g., 'eur')
-        target_currency (str): Target currency code (e.g., 'usd') 
-        rates_data (dict): Alternative API rates response data
-        
-    Returns:
-        Optional[float]: Exchange rate or None if calculation fails
-    """
-    try:
-        if base_currency == target_currency:
-            return 1.0
-            
-        if target_currency.lower() != 'usd':
-            # Alternative API only provides USD-based rates
-            return None
-            
-        rates = rates_data.get('rates', {})
-        base_rate = rates.get(base_currency.upper())
-        
-        if base_rate is None:
-            return None
-            
-        # For USD-based rates: EUR/USD = 1.0 / EUR_rate
-        return 1.0 / base_rate
-        
-    except (KeyError, ZeroDivisionError, TypeError):
-        return None
-
-def is_supported_currency(currency_code: str) -> bool:
-    """
-    Check if a currency is supported for conversion.
-    
-    Args:
-        currency_code (str): Currency code to check
-        
-    Returns:
-        bool: True if currency is supported
-    """
-    return currency_code.lower() in FIAT_CURRENCY_CONFIG
-
-def get_primary_exchange_rate_url() -> str:
+def get_coingecko_exchange_rate_url() -> str:
     """
     Get primary exchange rate API URL.
     
@@ -147,15 +74,6 @@ def get_primary_exchange_rate_url() -> str:
         str: CoinGecko exchange rates API URL
     """
     return EXCHANGE_RATE_APIS["coingecko"]["url"]
-
-def get_backup_exchange_rate_url() -> str:
-    """
-    Get backup exchange rate API URL.
-    
-    Returns:
-        str: Alternative exchange rate API URL
-    """
-    return EXCHANGE_RATE_APIS["exchangerate_api"]["url"]
 
 def get_backup_historical_exchange_rate_url(date_str: str) -> str:
     """

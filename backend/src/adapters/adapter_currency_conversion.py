@@ -13,9 +13,7 @@ from src.adapters.abstract_adapters import AbstractAdapter
 from src.currency_config import (
     get_supported_currencies,
     calculate_forex_rate_from_coingecko,
-    calculate_forex_rate_from_alternative,
-    get_primary_exchange_rate_url,
-    get_backup_exchange_rate_url,
+    get_coingecko_exchange_rate_url,
     get_backup_historical_exchange_rate_url,
     RATE_FETCH_CONFIG
 )
@@ -139,22 +137,16 @@ class AdapterCurrencyConversion(AbstractAdapter):
         rate = self._fetch_from_coingecko(base_currency, target_currency)
         if rate is not None:
             return rate, 'coingecko'
-            
-        # Fallback to alternative API
-        print(f"CoinGecko failed for {base_currency}/{target_currency}, trying backup API")
-        rate = self._fetch_from_alternative_api(base_currency, target_currency)
-        if rate is not None:
-            return rate, 'exchangerate_api'
-            
-        print(f"All APIs failed for {base_currency}/{target_currency}")
-        return None, ''
+        else:
+            print(f"CoinGecko API failed for {base_currency}/{target_currency}")
+            return None, ''
     
     def _fetch_from_coingecko(self, base_currency: str, target_currency: str) -> Optional[float]:
         """
         Fetch exchange rate from CoinGecko API.
         """
         try:
-            url = get_primary_exchange_rate_url()
+            url = get_coingecko_exchange_rate_url()
             
             response_data = api_get_call(
                 url, 
@@ -170,29 +162,6 @@ class AdapterCurrencyConversion(AbstractAdapter):
                 
         except Exception as e:
             print(f"CoinGecko API error for {base_currency}/{target_currency}: {e}")
-            return None
-    
-    def _fetch_from_alternative_api(self, base_currency: str, target_currency: str) -> Optional[float]:
-        """
-        Fetch exchange rate from alternative API.
-        """
-        try:
-            url = get_backup_exchange_rate_url()
-            
-            response_data = api_get_call(
-                url,
-                sleeper=1,
-                retries=RATE_FETCH_CONFIG['max_retries']
-            )
-            
-            if not response_data:
-                return None
-                
-            rate = calculate_forex_rate_from_alternative(base_currency, target_currency, response_data)
-            return rate
-                
-        except Exception as e:
-            print(f"Alternative API error for {base_currency}/{target_currency}: {e}")
             return None
 
     def _fetch_historical_rates(self, currencies: List[str], target_date: str) -> pd.DataFrame:
