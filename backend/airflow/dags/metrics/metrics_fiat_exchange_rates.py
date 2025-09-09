@@ -20,7 +20,7 @@ import os
     description='Load fiat exchange rates (e.g., EUR, BRL) into fact_kpis daily',
     tags=['metrics', 'daily', 'fiat'],
     start_date=datetime(2023, 9, 1),
-    schedule='15 00 * * *'
+    schedule='15 01 * * *' # before metrics_stables DAG
 )
 def etl():
     @task()

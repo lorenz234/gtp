@@ -82,7 +82,7 @@ def etl():
         # Step 5: Calculate total stablecoin supply
         print("\nStep 4: Calculating total stablecoin supply...")
         total_params = {
-            'days': days,
+            #'days': days,
             'load_type': 'total_supply'
         }
         total_df = stablecoin_adapter.extract(total_params)

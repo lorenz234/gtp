@@ -279,9 +279,6 @@ class AdapterCurrencyConversion(AbstractAdapter):
                     # Sort by date and remove duplicates (keep latest if multiple per day)
                     df_rates = df_rates.sort_values('date').drop_duplicates('date', keep='last')
                     
-                    # Set date as index
-                    df_rates = df_rates.set_index('date')
-                    
                     print(f"Retrieved {len(df_rates)} exchange rate records for {base_currency.upper()}/{target_currency.upper()}")
                     return df_rates
                     
