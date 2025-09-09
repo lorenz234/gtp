@@ -32,7 +32,7 @@ FIAT_CURRENCY_CONFIG = {
     }
 }
 
-# Exchange rate API endpoints (primary and backup)
+# Exchange rate API endpoints
 EXCHANGE_RATE_APIS = {
     "coingecko": {
         "url": "https://api.coingecko.com/api/v3/exchange_rates",
@@ -75,7 +75,7 @@ def get_coingecko_exchange_rate_url() -> str:
     """
     return EXCHANGE_RATE_APIS["coingecko"]["url"]
 
-def get_backup_historical_exchange_rate_url(date_str: str) -> str:
+def get_historical_exchange_rate_url(date_str: str) -> str:
     """
     Get historical exchange rate API URL for a specific date (YYYY-MM-DD).
     Uses Frankfurter with USD base.
@@ -120,7 +120,6 @@ RATE_FETCH_CONFIG = {
     "max_retries": 3,
     "retry_delay": 1.0,  # seconds
     "timeout": 10.0,     # seconds
-    "use_backup_api_on_failure": True
 }
 
 

@@ -32,50 +32,52 @@ def etl():
 
         db_connector = DbConnector()
         currencies = get_supported_currencies()
+
         adapter_params = {
             'currencies': currencies,
             'force_refresh': False
         }
         ad = AdapterCurrencyConversion(adapter_params, db_connector)
 
-        # Check if first run using marker file
-        marker_file = '/tmp/fiat_rates_initialized'
-        is_first_run = not os.path.exists(marker_file)
+        # Check if all currencies already in db
+        days = 3 ##default backfill
+        end = date.today()
+        start = end - timedelta(days=days)
 
-        if is_first_run:
-            print("First run detected. Backfilling 365 days of historical fiat rates...")
-            # Backfill 365 days
-            end = date.today()
-            start = end - timedelta(days=365)
-            frames = []
-            for offset in range(366):  # 365 days + today
-                d = start + timedelta(days=offset)
-                load_params = {
-                    'load_type': 'historical_rates',
-                    'date': d.strftime('%Y-%m-%d'),
-                    'currencies': currencies
-                }
-                df = ad.extract(load_params)
-                if not df.empty:
-                    frames.append(df)
+        for curr in currencies:
+            query = f"""select max(date) as value from fact_kpis where origin_key = 'fiat_{curr}' and metric_key = 'price_usd' """
+            result = db_connector.execute_query(query, load_df=True)
             
-            if frames:
-                ad.load(pd.concat(frames))
-                print(f"Backfilled {len(pd.concat(frames))} rows of historical fiat rates.")
-            
-            # Create marker file
-            with open(marker_file, 'w') as f:
-                f.write(str(datetime.now()))
-            print("First run complete. Future runs will load daily rates only.")
-        else:
-            print("Regular daily run. Loading current fiat rates...")
-            # Regular daily load
+            if result.empty:
+                print(f"Currency {curr} has no data in DB")
+                start = date.today() - timedelta(days=(365*3)) #3 years of data backfilling
+            else:
+                max_date = result.value.values[0]
+                if max_date is not None:
+                    print(f"Currency {curr} already has data in DB from {max_date}")
+                    if max_date < start:
+                        start = max_date
+                else:
+                    print(f"Currency {curr} has no data in DB")
+                    start = date.today() - timedelta(days=(365*3)) #3 years of data backfilling
+
+        frames = []
+
+        for offset in range((date.today() - start).days + 1):  # Include today
+            d = start + timedelta(days=offset)
             load_params = {
-                'load_type': 'current_rates',
+                'load_type': 'historical_rates',
+                'date': d.strftime('%Y-%m-%d'),
                 'currencies': currencies
             }
             df = ad.extract(load_params)
-            ad.load(df)
+            if not df.empty:
+                frames.append(df)
+
+        if frames:
+            df = pd.concat(frames)
+            ad.load(pd.concat(frames))
+            
             print(f"Loaded {len(df)} rows of current fiat rates.")
 
     load_rates()

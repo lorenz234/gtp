@@ -14,7 +14,7 @@ from src.currency_config import (
     get_supported_currencies,
     calculate_forex_rate_from_coingecko,
     get_coingecko_exchange_rate_url,
-    get_backup_historical_exchange_rate_url,
+    get_historical_exchange_rate_url,
     RATE_FETCH_CONFIG
 )
 from src.misc.helper_functions import api_get_call, print_init, print_load, print_extract
@@ -166,12 +166,12 @@ class AdapterCurrencyConversion(AbstractAdapter):
 
     def _fetch_historical_rates(self, currencies: List[str], target_date: str) -> pd.DataFrame:
         """
-        Fetch historical exchange rates for a specific date using backup historical API.
+        Fetch historical exchange rates for a specific date using historical API.
 
-        The backup provider returns USD-based rates. For base->USD, we invert the value.
+        The provider returns USD-based rates. For base->USD, we invert the value.
         """
         try:
-            url = get_backup_historical_exchange_rate_url(target_date)
+            url = get_historical_exchange_rate_url(target_date)
             response_data = api_get_call(
                 url,
                 sleeper=1,
