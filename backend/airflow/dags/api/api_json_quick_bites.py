@@ -216,9 +216,106 @@ def json_creation():
         data_dict = fix_dict_nan(data_dict, 'shopify-usdc')
 
         upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/shopify-usdc', data_dict, cf_distribution_id)
+        
+    def run_network_graph():
+        import pandas as pd
+        from src.db_connector import DbConnector
+        import time
+
+        db_connector = DbConnector()
+
+        df_main = pd.DataFrame()
+        oks = ['optimism', 'mode', 'base', 'ethereum', 'arbitrum', 'linea', 'ink', 'zksync_era', 'zora', 'soneium', 'unichain', 'scroll', 'mantle', 'celo']
+        #oks = ['optimism', 'mode', 'base', 'ethereum', 'arbitrum']
+
+        for origin_key in oks:
+            print(f'Processing {origin_key}')
+            start_time = time.time()
+
+            query_cca = f"""
+            with excl_chain as (
+                select
+                    address,
+                    origin_key
+                from fact_active_addresses faa
+                where faa."date" < current_date 
+                    AND "date" >= current_date - interval '7 days'
+                    and origin_key <> '{origin_key}'
+                    and origin_key IN ('{"','".join(oks)}')
+            )
+
+            , tmp as (
+                SELECT
+                    aa.address AS address,
+                    ex.origin_key as cca
+                FROM fact_active_addresses aa
+                    left join excl_chain ex on aa.address = ex.address
+                WHERE aa."date" < current_date 
+                    AND aa."date" >= current_date - interval '7 days'
+                    and aa.origin_key = '{origin_key}'
+                group by 1,2
+            )
+
+            select
+                '{origin_key}' as origin_chain,
+                coalesce(cca,'exclusive') as cross_chain,
+                Count(*) as value
+            from tmp
+            group by 1,2
+
+            """
+
+            df_cca = db_connector.execute_query(query_cca, load_df=True)
+            
+            query_total = f"""
+                select value 
+                from fact_kpis 
+                where origin_key = '{origin_key}'
+                and metric_key = 'aa_last7d'
+                order by date desc
+                limit 1
+            """
+
+            total = db_connector.execute_query(query_total, load_df=True)
+            total = total.value.values[0]
+
+            ## add row to df_cca witch total
+            df_cca = pd.concat([df_cca, pd.DataFrame([{
+                'origin_chain': origin_key,
+                'cross_chain': 'total',
+                'value': total
+            }])], ignore_index=True)
+
+            df_cca['percentage'] = df_cca['value'] / total
+            
+            df_main = pd.concat([df_main, df_cca], ignore_index=True)
+            
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            print(f"Processing {origin_key} took {elapsed_time:.2f} seconds")
+            
+        # rename columns to Source, Target, Value, Percentage
+        df_main = df_main.rename(columns={
+            'origin_chain': 'Source',
+            'cross_chain': 'Target',
+            'value': 'Value',
+            'percentage': 'Percentage'
+        })
+
+        ## create dict from df
+        df_dict = df_main.to_dict(orient='records')
+
+        import os
+        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
+        s3_bucket = os.getenv("S3_CF_BUCKET")
+        cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
+
+        df_dict = fix_dict_nan(df_dict, 'network graph')
+        upload_json_to_cf_s3(s3_bucket, f'v1/misc/interop/data', df_dict, cf_distribution_id)
 
     run_pectra_fork()    
     run_arbitrum_timeboost()
     run_shopify_usdc()
+    run_network_graph()
 
 json_creation()

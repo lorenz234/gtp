@@ -124,7 +124,7 @@ class DbConnector:
 # ------------------------- additional db functions --------------------------------
         def execute_query(self, query:str, load_df=False):     
                 if load_df:
-                        print(f"Executing query and loading into DataFrame: {query}")
+                        #print(f"Executing query and loading into DataFrame: {query}")
                         df = pd.read_sql(query, self.engine.connect())
                         return df
                 else:   
