@@ -689,8 +689,8 @@ class AdapterStablecoinSupply(AbstractAdapter):
                             mk_value = 'supply_bridged_exceptions'
 
                         block = df['block'].iloc[i]
-                        print(f"...retrieving bridged balance for {symbol} at block {block} ({date})")
-                        
+                        print(f"...retrieving bridged balance for {symbol} at block {block} ({date}) for {chain}")
+
                         total_balance = 0
                         
                         # Sum balances across all bridge addresses
@@ -837,8 +837,8 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 for i in range(len(df)-1, -1, -1):  # Go backwards in time
                     date = df['date'].iloc[i]
                     block = df['block'].iloc[i]
-                    print(f"...retrieving direct supply for {symbol} at block {block} ({date})")
-                    
+                    print(f"...retrieving direct supply for {symbol} at block {block} ({date}) for {chain}")
+
                     try:
                         # Call totalSupply function (or custom method name) with retry logic
                         supply_func = getattr(token_contract.functions, method_name)
@@ -1001,7 +1001,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                             break  # Stop if we reach the first block date
 
                         block = df['block'].iloc[i]
-                        print(f"...retrieving locked balance for {symbol} at block {block} ({date})")
+                        print(f"...retrieving locked balance for {symbol} at block {block} ({date}) for {chain}")
                         
                         total_balance = 0
                             
