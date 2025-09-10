@@ -624,7 +624,8 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 df_blocknumbers.drop(columns=['value', 'origin_key'], inplace=True)
                 df_blocknumbers = df_blocknumbers.sort_values(by='block', ascending=True)
                 df_blocknumbers['block'] = df_blocknumbers['block'].astype(str)
-                
+                df = df_blocknumbers.copy()
+            
                 # Get web3 connection for source chain
                 w3 = self.connections[source_chain]
                 
@@ -645,23 +646,6 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 multicall_abi = [{"stateMutability":"view","type":"function","name":"ether_balances","inputs":[{"name":"addresses","type":"address[]"}],"outputs":[{"name":"","type":"uint256[]"}]},{"stateMutability":"view","type":"function","name":"tokens_balance","inputs":[{"name":"owner","type":"address"},{"name":"tokens","type":"address[]"}],"outputs":[{"name":"","type":"uint256[]"}]},{"stateMutability":"view","type":"function","name":"token_balances","inputs":[{"name":"owners","type":"address[]"},{"name":"token","type":"address"}],"outputs":[{"name":"","type":"uint256[]"}]}]
                 contract_address = '0x54eCF3f6f61F63fdFE7c27Ee8A86e54899600C92'
                     
-
-                # ## check for exceptions !!!!!! -> remove in the end
-                # start_date = None
-                # mk_value = 'supply_bridged'
-                # if self.stables_metadata[stablecoin_id].get('exceptions') is not None:
-                #     exceptions = self.stables_metadata[stablecoin_id]['exceptions']
-                #     if source_chain in exceptions and chain in exceptions[source_chain]:
-                #         start_date = exceptions[source_chain][chain]['start_date']
-                #         start_date = pd.Timestamp(start_date)
-                #         print(f"Exceptions found for {symbol} on {chain}, using bridge addresses until {start_date}")
-                
-                ##
-                
-                # if start_date and date < start_date:
-                #         print(f"Exception END: changing metric_key for {symbol} on {chain} after end date {start_date}")
-                #         mk_value = 'supply_bridged_exceptions'
-                    
                 # Create contract instance
                 try:
                     multicall_contract = w3.eth.contract(address=Web3.to_checksum_address(contract_address), abi=multicall_abi)
@@ -679,7 +663,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     print(f"...retrieving bridged balances at block {block} ({date}) for {chain}")
                     
                     # Sum balances across all bridge addresses
-                    token_balances = {}
+                    token_balances = {token: 0 for token in token_addresses}
                     for bridge_address in bridge_addresses:
                         try:
                             # Call tokens_balance function with retry logic
@@ -699,6 +683,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
       
                         except Exception as e:
                             print(f"....Error getting balance in {bridge_address} at block {block}: {e}")
+                            raise e
                     
                     # Create a DataFrame
                     df_balances = pd.DataFrame.from_dict(token_balances, orient='index', columns=['balance'])
@@ -708,8 +693,22 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     ## rename token to metric_key and balance to value
                     df_balances.rename(columns={'token': 'token_key', 'balance': 'value'}, inplace=True)
                     df_balances['date'] = pd.to_datetime(date)
+                    df_balances['origin_key'] = chain
+                    df_balances['metric_key'] = 'supply_bridged'
 
                     df_main = pd.concat([df_main, df_balances])
+                    
+                ## remove exceptions
+                for stablecoin_id in token_addresses.keys():
+                    if self.stables_metadata[stablecoin_id].get('exceptions') is not None:
+                        exceptions = self.stables_metadata[stablecoin_id]['exceptions']
+                        if source_chain in exceptions and chain in exceptions[source_chain]:
+                            start_date = exceptions[source_chain][chain]['start_date']
+                            start_date = pd.Timestamp(start_date)
+                            print(f"Exceptions found for {stablecoin_id} on {chain}, using bridge addresses until {start_date}")
+
+                            ## change metric_key in df_main to supply_bridged_exceptions when date < start_date and stablecoin_id = token_key
+                            df_main.loc[(df_main['metric_key'] == 'supply_bridged') & (df_main['date'] < start_date) & (df_main['token_key'] == stablecoin_id), 'metric_key'] = 'supply_bridged_exceptions'
 
                 if update and not df_main.empty and 'value' in df_main.columns:
                     df_main = df_main[df_main['value'] != 0]
@@ -724,6 +723,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         
         # Clean up data
         if not df_main.empty:
+            #print(df_main.head().to_markdown())
             df_main = df_main[df_main['value'] != 0]
             df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
             df_main = df_main.dropna()
