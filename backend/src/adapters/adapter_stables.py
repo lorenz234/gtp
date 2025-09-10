@@ -4,7 +4,6 @@ import pandas as pd
 from web3 import Web3
 import datetime
 from web3.middleware import ExtraDataToPOAMiddleware
-from requests.exceptions import HTTPError
 
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.helper_functions import print_init, print_load, print_extract
@@ -14,6 +13,7 @@ from src.stables_config import stables_metadata, stables_mapping
 ## This should also work for new tokens being added etc
 ## TODO: add functionality that for some chains we don't need block data (we only need it if we have direct tokens)
 ## TODO: use get_erc20_balance function from helper_functions to get balances
+## TODO: replace bridged ethereum with rotki multicall contract -> 20x fewer RPC calls and faster https://etherscan.io/address/0x54eCF3f6f61F63fdFE7c27Ee8A86e54899600C92#readContract
 
 class AdapterStablecoinSupply(AbstractAdapter):
     """
@@ -169,7 +169,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         elif self.load_type == 'locked_supply':
             df = self.get_locked_supply(update=update)
         elif self.load_type == 'total_supply':
-            df = self.get_total_supply()
+            df = self.get_total_supply(days=self.days)
         else:
             raise ValueError(f"load_type {self.load_type} not supported for this adapter")
 
@@ -573,7 +573,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             
             # Check if chain has bridged tokens
             if 'bridged' not in self.stables_mapping[chain]:
-                print(f"No bridged tokens defined for {chain}")
+                print(f"No bridge contracts defined for {chain}")
                 continue
             
             # Get bridge contracts for this chain
@@ -596,7 +596,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 first_block_date = None
 
             # Process each source chain (usually Ethereum)
-            ## TODO: add support for other source chains
+            ## TODO: add support for other source chains -> would also require rotki multicall deployment being available
             for source_chain, bridge_addresses in bridge_config.items():
                 if source_chain != 'ethereum':
                     print(f"Skipping source chain {source_chain} for {chain} - only Ethereum supported so far")
@@ -624,11 +624,13 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 df_blocknumbers.drop(columns=['value', 'origin_key'], inplace=True)
                 df_blocknumbers = df_blocknumbers.sort_values(by='block', ascending=True)
                 df_blocknumbers['block'] = df_blocknumbers['block'].astype(str)
-                
+                df = df_blocknumbers.copy()
+            
                 # Get web3 connection for source chain
                 w3 = self.connections[source_chain]
                 
-                # Check balances for all stablecoins in all bridge addresses
+                ## create dictionary of all tokens on source_chain
+                token_addresses = {}
                 for stablecoin_id in self.stablecoins:
                     if stablecoin_id not in self.stables_metadata:
                         print(f"Stablecoin {stablecoin_id} not in metadata, skipping")
@@ -638,107 +640,90 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         print(f"Stablecoin {stablecoin_id} not available on {source_chain}, skipping")
                         continue
                     
-                    stable_data = self.stables_metadata[stablecoin_id]
-                    symbol = stable_data['symbol']
-                    decimals = stable_data['decimals']
+                    token_addresses[stablecoin_id] = self.stables_metadata[stablecoin_id]['addresses'][source_chain]
                     
-                    print(f"Checking {symbol} locked in {chain} bridges")
                     
-                    # Surce chain token address (e.g., USDT on Ethereum)
-                    token_address = self.stables_metadata[stablecoin_id]['addresses'][source_chain]
+                multicall_abi = [{"stateMutability":"view","type":"function","name":"ether_balances","inputs":[{"name":"addresses","type":"address[]"}],"outputs":[{"name":"","type":"uint256[]"}]},{"stateMutability":"view","type":"function","name":"tokens_balance","inputs":[{"name":"owner","type":"address"},{"name":"tokens","type":"address[]"}],"outputs":[{"name":"","type":"uint256[]"}]},{"stateMutability":"view","type":"function","name":"token_balances","inputs":[{"name":"owners","type":"address[]"},{"name":"token","type":"address"}],"outputs":[{"name":"","type":"uint256[]"}]}]
+                contract_address = '0x54eCF3f6f61F63fdFE7c27Ee8A86e54899600C92'
                     
-                    # Basic ERC20 ABI for balanceOf function
-                    token_abi = [
-                        {"constant":True,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"}
-                    ]
-                    
-                    # Create a DataFrame for this stablecoin
-                    df = df_blocknumbers.copy()
-                    df['origin_key'] = chain
-                    df['token_key'] = stablecoin_id
-                    df['value'] = 0.0  # Initialize balance column
+                # Create contract instance
+                try:
+                    multicall_contract = w3.eth.contract(address=Web3.to_checksum_address(contract_address), abi=multicall_abi)
+                except Exception as e:
+                    print(f"Failed to create multicall_contract instance: {e}")
+                    continue
 
-                    ## check for exceptions 
-                    start_date = None
-                    mk_value = 'supply_bridged'
+                for i in range(len(df)-1, -1, -1):  # Go backwards in time
+                    date = df['date'].iloc[i]
+                    if first_block_date and date < first_block_date:
+                        print(f"Reached first block date ({first_block_date}) for {chain}, stopping")
+                        break  # Stop if we reach the first block date
+
+                    block = df['block'].iloc[i]
+                    print(f"...retrieving bridged balances at block {block} ({date}) for {chain}")
+                    
+                    # Sum balances across all bridge addresses
+                    token_balances = {token: 0 for token in token_addresses}
+                    for bridge_address in bridge_addresses:
+                        try:
+                            # Call tokens_balance function with retry logic
+                            balances = self.retry_balance_call(
+                                multicall_contract.functions.tokens_balance(
+                                    Web3.to_checksum_address(bridge_address),
+                                    [Web3.to_checksum_address(token_address) for token_address in token_addresses.values()]
+                                ).call,
+                                block_identifier=int(block)
+                            )
+                            
+                            ## map balances to token_addresses
+                            for i, token in enumerate(token_addresses):
+                                decimals = stables_metadata[token]['decimals']
+                                #print(f"Token {i}: {token} with {decimals} decimals")
+                                token_balances[token] += balances[i] / (10 ** decimals)
+      
+                        except Exception as e:
+                            print(f"....Error getting balance in {bridge_address} at block {block}: {e}")
+                            raise e
+                    
+                    # Create a DataFrame
+                    df_balances = pd.DataFrame.from_dict(token_balances, orient='index', columns=['balance'])
+                    df_balances.index.name = 'token'
+                    df_balances.reset_index(inplace=True)
+
+                    ## rename token to metric_key and balance to value
+                    df_balances.rename(columns={'token': 'token_key', 'balance': 'value'}, inplace=True)
+                    df_balances['date'] = pd.to_datetime(date)
+                    df_balances['origin_key'] = chain
+                    df_balances['metric_key'] = 'supply_bridged'
+
+                    df_main = pd.concat([df_main, df_balances])
+                    
+                ## remove exceptions
+                for stablecoin_id in token_addresses.keys():
                     if self.stables_metadata[stablecoin_id].get('exceptions') is not None:
                         exceptions = self.stables_metadata[stablecoin_id]['exceptions']
                         if source_chain in exceptions and chain in exceptions[source_chain]:
                             start_date = exceptions[source_chain][chain]['start_date']
                             start_date = pd.Timestamp(start_date)
-                            print(f"Exceptions found for {symbol} on {chain}, using bridge addresses until {start_date}")
-                    
-                    # Create contract instance
-                    try:
-                        token_contract = w3.eth.contract(address=Web3.to_checksum_address(token_address), abi=token_abi)
-                    except Exception as e:
-                        print(f"Failed to create contract instance for {stablecoin_id}: {e}")
-                        continue
-                    
-                    # Check balance in each bridge address for each block
-                    contract_deployed = True
-                    for i in range(len(df)-1, -1, -1):  # Go backwards in time
-                        date = df['date'].iloc[i]
-                        if first_block_date and date < first_block_date:
-                            print(f"Reached first block date ({first_block_date}) for {chain}, stopping")
-                            break  # Stop if we reach the first block date
+                            print(f"Exceptions found for {stablecoin_id} on {chain}, using bridge addresses until {start_date}")
 
-                        if start_date and date < start_date:
-                            print(f"Exception END: changing metric_key for {symbol} on {chain} after end date {start_date}")
-                            mk_value = 'supply_bridged_exceptions'
+                            ## change metric_key in df_main to supply_bridged_exceptions when date < start_date and stablecoin_id = token_key
+                            df_main.loc[(df_main['metric_key'] == 'supply_bridged') & (df_main['date'] < start_date) & (df_main['token_key'] == stablecoin_id), 'metric_key'] = 'supply_bridged_exceptions'
 
-                        block = df['block'].iloc[i]
-                        print(f"...retrieving bridged balance for {symbol} at block {block} ({date})")
-                        
-                        total_balance = 0
-                        
-                        # Sum balances across all bridge addresses
-                        for bridge_address in bridge_addresses:
-                            try:
-                                # Call balanceOf function with retry logic
-                                balance = self.retry_balance_call(
-                                    token_contract.functions.balanceOf(
-                                        Web3.to_checksum_address(bridge_address)
-                                    ).call,
-                                    block_identifier=int(block)
-                                )
-                                
-                                # Convert to proper decimal representation
-                                adjusted_balance = balance / (10 ** decimals)
-                                total_balance += adjusted_balance
-                                
-                            except Exception as e:
-                                print(f"....Error getting balance for {symbol} in {bridge_address} at block {block}: {e}")
-                                if 'execution reverted' in str(e) or 'Could not decode contract function call' in str(e):
-                                    # Contract might not be deployed yet
-                                    contract_deployed = False
-                                    break
-                        
-                        if not contract_deployed:
-                            print(f"Contract for {symbol} not deployed at block {block}, stopping")
-                            break
-                        
-                        df.loc[df.index[i], 'value'] = total_balance
-                        df.loc[df.index[i], 'metric_key'] = mk_value
-                    
-                    # Drop unneeded columns
-                    df.drop(columns=['block'], inplace=True)
+                if update and not df_main.empty and 'value' in df_main.columns:
+                    df_main = df_main[df_main['value'] != 0]
+                    df_main = df_main.dropna()
+                    df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+                    df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
 
-                    df_main = pd.concat([df_main, df])
-                    
-                    if update and not df.empty and 'value' in df.columns:
-                        df = df[df['value'] != 0]
-                        df = df.dropna()
-                        df.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
-                        df.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
-
-                        # If col index in df_main, drop it
-                        if 'index' in df.columns:
-                            df.drop(columns=['index'], inplace=True)
-                        self.load(df)                    
+                    # If col index in df_main, drop it
+                    if 'index' in df_main.columns:
+                        df_main.drop(columns=['index'], inplace=True)
+                    self.load(df_main)                    
         
         # Clean up data
         if not df_main.empty:
+            #print(df_main.head().to_markdown())
             df_main = df_main[df_main['value'] != 0]
             df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
             df_main = df_main.dropna()
@@ -836,8 +821,8 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 for i in range(len(df)-1, -1, -1):  # Go backwards in time
                     date = df['date'].iloc[i]
                     block = df['block'].iloc[i]
-                    print(f"...retrieving direct supply for {symbol} at block {block} ({date})")
-                    
+                    print(f"...retrieving direct supply for {symbol} at block {block} ({date}) for {chain}")
+
                     try:
                         # Call totalSupply function (or custom method name) with retry logic
                         supply_func = getattr(token_contract.functions, method_name)
@@ -1000,7 +985,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                             break  # Stop if we reach the first block date
 
                         block = df['block'].iloc[i]
-                        print(f"...retrieving locked balance for {symbol} at block {block} ({date})")
+                        print(f"...retrieving locked balance for {symbol} at block {block} ({date}) for {chain}")
                         
                         total_balance = 0
                             
@@ -1068,8 +1053,9 @@ class AdapterStablecoinSupply(AbstractAdapter):
         1. Retrieves bridged supply data from Ethereum bridge contracts
         2. Retrieves direct supply data from L2 native tokens
         3. Retrieves locked supply data from treasury contracts
-        4. Combines them to get total stablecoin supply by chain and stablecoin
-        5. Also calculates a total across all stablecoins for each chain
+        4. Applies currency conversion for non-USD stablecoins
+        5. Combines them to get total stablecoin supply by chain and stablecoin
+        6. Also calculates a total across all stablecoins for each chain
         """
 
         days = days if days is not None else 9999
@@ -1107,6 +1093,32 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     days=days
                 )
         
+        # Pre-fetch exchange rate DataFrames for all supported non-USD currencies
+        from src.adapters.adapter_currency_conversion import AdapterCurrencyConversion
+        currency_adapter = AdapterCurrencyConversion({}, self.db_connector)
+        
+        # Get all possible currencies from stables metadata
+        all_currencies = set()
+        for token_key, metadata in self.stables_metadata.items():
+            fiat = metadata.get('fiat', 'usd')
+            all_currencies.add(fiat)
+        
+        # Fetch exchange rate DataFrames for all currencies
+        df_exchange_rates = pd.DataFrame()
+        for currency in all_currencies:
+            try:
+                rates_df = currency_adapter.get_exchange_rates_dataframe(currency, days=days)
+                rates_df['fiat_currency'] = currency
+                if not rates_df.empty:
+                    df_exchange_rates = pd.concat([df_exchange_rates, rates_df])
+                    print(f"Pre-fetched {len(rates_df)} exchange rate records for {currency.upper()}")
+                else:
+                    print(f"No exchange rate data found for {currency.upper()}")
+            except Exception as e:
+                print(f"Error pre-fetching exchange rates for {currency}: {e}")
+                
+        print(df_exchange_rates.head().to_markdown())
+        
         # Reset index to work with the dataframes
         if not df_bridged.empty:
             df_bridged = df_bridged.reset_index()
@@ -1133,10 +1145,44 @@ class AdapterStablecoinSupply(AbstractAdapter):
             # Return empty dataframe with correct structure
             return pd.DataFrame(columns=['metric_key', 'origin_key', 'date', 'token_key', 'value']).set_index(['metric_key', 'origin_key', 'date', 'token_key'])
         
+        # Apply currency conversion for non-USD stablecoins
+        print("Checking for non-USD stablecoins to convert...")
+        
+        # Reset index to work with the dataframe
+        df_reset = df.reset_index()
+
+        # Create a mapping of token keys to their fiat currencies
+        tk_currency_map = {}
+        if 'token_key' in df_reset.columns:
+            for token_key in df_reset['token_key'].unique():
+                if token_key and token_key in self.stables_metadata:
+                    fiat = self.stables_metadata[token_key].get('fiat')
+                    tk_currency_map[token_key] = fiat
+
+        if tk_currency_map:
+            ## print unique fiat currencies
+            unique_fiat_currencies = list(set(tk_currency_map.values()))
+            print(f"Found stablecoins with currencies: {unique_fiat_currencies}")
+
+        # create df from tk_currency_map
+        df_tk_currency_map = pd.DataFrame(list(tk_currency_map.items()), columns=['token_key', 'fiat_currency'])
+        print(df_tk_currency_map.head().to_markdown())
+
+        # Map fiat currencies to the main dataframe
+        df_reset = df_reset.merge(df_tk_currency_map, on='token_key', how='left')
+        print(df_reset.head().to_markdown())
+        
+        # Map exchange rates to the main dataframe
+        df_reset = df_reset.merge(df_exchange_rates, on=['fiat_currency', 'date'], how='left')
+
+        # calculate usd value by multiplying with exchange rates
+        df_reset['value'] = df_reset['value'] * df_reset['exchange_rate']
+
         # Also create total across all stablecoins
         df_total = df.groupby(['origin_key', 'date'])['value'].sum().reset_index()
         df_total['metric_key'] = 'stables_mcap'
 
+        #### Special logic for Ethereum (remove bridged supply from Ethereum values)
         df_total_ethereum = df_total[df_total['origin_key'] == 'ethereum'].copy()
         df_total = df_total[df_total['origin_key'] != 'ethereum']
 

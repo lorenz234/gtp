@@ -101,8 +101,8 @@ class JSONCreation():
         #only chains that are in the api output and deployment is "PROD" and api_in_apps is True
         self.chains_list_in_api_apps = [chain.origin_key for chain in self.main_config if chain.api_in_apps == True]
 
-        self.da_layers_list = [x.da_layer for x in self.da_config]
-        self.da_layer_overview = [x.da_layer for x in self.da_config if x.incl_in_da_overview == True]
+        self.da_layers_list = [x.origin_key for x in self.da_config]
+        self.da_layer_overview = [x.origin_key for x in self.da_config if x.incl_in_da_overview == True]
 
         ## all feest metrics keys
         self.fees_list = [item for sublist in [self.fees_types[metric]['metric_keys'] for metric in self.fees_types] for item in sublist]
@@ -1118,7 +1118,7 @@ class JSONCreation():
                 'chain_type': chain.chain_type,
                 'caip2': self.db_connector.get_chain_info(origin_key, 'caip2'),
                 'evm_chain_id': chain.evm_chain_id,
-                'active_tabs': chain.api_active_tabs,
+                'tab_status': chain.api_tab_status,
                 'deployment': chain.api_deployment_flag,
                 'name_short': chain.name_short,
                 'company': chain.company,
@@ -1154,8 +1154,8 @@ class JSONCreation():
 
         da_dict = {}
         for da in self.da_config:
-            da_key = da.da_layer
-            url_key = da.da_layer.replace('_', '-')
+            da_key = da.origin_key
+            url_key = da.origin_key.replace('_', '-')
 
             da_dict[da_key] = {
                     'name': da.name,
@@ -1486,7 +1486,7 @@ class JSONCreation():
             
             da_dict = {}    
             for da in self.da_config:
-                origin_key = da.da_layer
+                origin_key = da.origin_key
                 # if chain.api_in_main == False:
                 #     print(f'..skipped: Metric details export for {origin_key}. API is set to False')
                 #     continue
@@ -1883,7 +1883,7 @@ class JSONCreation():
         ## data_posted, fees_paid
         for da in self.da_config:
             if da.incl_in_da_overview:
-                da_layer = da.da_layer
+                da_layer = da.origin_key
 
                 for metric in metrics_list:
                     mk_list = self.generate_daily_list(df, metric, da_layer, metric_type='da')
@@ -1924,7 +1924,7 @@ class JSONCreation():
         # iterate over each da_layer and generate table and chart data
         for da in self.da_config:
             if da.incl_in_da_overview:
-                origin_key = da.da_layer
+                origin_key = da.origin_key
                 ## calc number of DA consumers and generate list
                 query_parameters = {'da_layer': origin_key}
 

@@ -1,0 +1,39 @@
+{#
+    A query to get chain rankings from the fact_kpis table.
+    We rank the chains based on their metrics on the last day.
+
+    Parameters:
+    - metric_key: the specific metric key to consider for data extraction.
+    - comparison_oks: A list of origin keys to consider for data extraction.
+    - origin_key: the specific origin key to filter the results.
+#}
+
+
+WITH y AS (
+  SELECT
+    metric_key,
+    origin_key,
+    value,
+    RANK()       OVER (
+	    PARTITION BY metric_key
+	    ORDER BY
+	      /* for tx_costs lower is better */
+	      CASE WHEN metric_key = 'txcosts_median_usd' THEN value END ASC NULLS LAST,
+	      /* for all other metrics higher is better */
+	      CASE WHEN metric_key <> 'txcosts_median_usd' THEN value END DESC NULLS LAST
+	  ) AS rank,
+    COUNT(*)      OVER (PARTITION BY metric_key)                                 AS out_of
+  FROM fact_kpis
+  WHERE "date" = CURRENT_DATE - INTERVAL '1 day'
+  	AND metric_key = '{{ metric_key }}'
+  	AND origin_key IN ( '{{ comparison_oks | join("', '") }}' )
+)
+SELECT
+  metric_key,
+  origin_key,
+  value,
+  rank,
+  out_of
+FROM y
+WHERE origin_key = '{{ origin_key }}'
+ORDER BY metric_key;

@@ -37,7 +37,7 @@ def etl():
         json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
         df = json_creator.get_all_data()
 
-        json_creator.create_chain_details_jsons(df)
+        json_creator.create_chain_details_jsons(df) ## TODO: Create new chain details for new FE and without metrics etc.
 
     @task()
     def run_create_metrics_details():
@@ -45,8 +45,8 @@ def etl():
         json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
         df = json_creator.get_all_data()
 
-        json_creator.create_metric_details_jsons(df)
-        json_creator.create_da_metric_details_jsons(df)
+        json_creator.create_metric_details_jsons(df) ## Deprecate as soon as FE moved
+        json_creator.create_da_metric_details_jsons(df) ## Deprecate as soon as FE moved
 
     @task()
     def run_create_landingpage():
@@ -119,7 +119,7 @@ def etl():
         json_creator.create_labels_json('full')
         json_creator.create_labels_json('quick')
         json_creator.create_labels_sparkline_json()
-        #json_creator.create_projects_json() # now lives in backend/airflow/dags/oli/oli_oss_directory.py
+        json_creator.create_projects_json() # also lives in backend/airflow/dags/oli/oli_oss_directory.py
 
         json_creator.create_export_labels_parquet('top50k')
 

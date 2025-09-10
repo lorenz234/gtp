@@ -35,13 +35,10 @@ def check():
         db_connector = DbConnector()
 
         for chain in main_config:
-            if chain.api_deployment_flag != 'PROD' or chain.origin_key in ['imx']:
+            if chain.api_deployment_flag != 'PROD' or chain.origin_key in ['imx', 'loopring']:
                 continue
             
-            if chain.origin_key == 'loopring':
-                test_time = 720  # 12 hours in minutes
-            else:
-                test_time = 60
+            test_time = 60
             
             print(f"Processing chain: {chain.origin_key}")
             max_val = db_connector.get_max_value(f'{chain.origin_key}_tx', 'block_timestamp')

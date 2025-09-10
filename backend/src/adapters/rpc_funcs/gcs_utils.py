@@ -107,8 +107,22 @@ def save_data_for_range(df, block_start, block_end, chain, bucket_name):
         try:
             # Handle different timestamp formats
             if isinstance(block_timestamp, (int, float, np.int64, np.float64)):
-                # Unix timestamp (seconds since epoch)
+                # Unix timestamp - could be seconds or milliseconds
                 timestamp_value = float(block_timestamp)
+                original_value = timestamp_value
+                
+                # If timestamp is larger than 1e10, it's likely in milliseconds
+                # (timestamps in seconds would be around 1.7e9 for year 2024)
+                if timestamp_value > 1e10:
+                    # Convert milliseconds to seconds
+                    timestamp_value = timestamp_value / 1000.0
+                    print(f"Converted timestamp from milliseconds: {original_value} -> {timestamp_value}")
+                
+                # Additional validation: ensure timestamp is within reasonable range
+                # (between 2020 and 2050)
+                if timestamp_value < 1577836800 or timestamp_value > 2524608000:  # 2020-01-01 to 2050-01-01
+                    raise ValueError(f"Timestamp {timestamp_value} is outside reasonable range")
+                
                 date_str = datetime.fromtimestamp(timestamp_value).strftime("%Y-%m-%d")
             else:
                 # String timestamp or datetime object
