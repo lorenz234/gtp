@@ -668,9 +668,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 except Exception as e:
                     print(f"Failed to create multicall_contract instance: {e}")
                     continue
-                    
-                # Check balances in each bridge address for each block
-                contract_deployed = True
+
                 for i in range(len(df)-1, -1, -1):  # Go backwards in time
                     date = df['date'].iloc[i]
                     if first_block_date and date < first_block_date:
@@ -679,13 +677,12 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
                     block = df['block'].iloc[i]
                     print(f"...retrieving bridged balances at block {block} ({date}) for {chain}")
-
-                    total_balance = 0
                     
                     # Sum balances across all bridge addresses
+                    token_balances = {}
                     for bridge_address in bridge_addresses:
                         try:
-                            # Call balanceOf function with retry logic
+                            # Call tokens_balance function with retry logic
                             balances = self.retry_balance_call(
                                 multicall_contract.functions.tokens_balance(
                                     Web3.to_checksum_address(bridge_address),
@@ -694,41 +691,36 @@ class AdapterStablecoinSupply(AbstractAdapter):
                                 block_identifier=int(block)
                             )
                             
-                            
-                            
-                            # Convert to proper decimal representation
-                            adjusted_balance = balance / (10 ** decimals)
-                            total_balance += adjusted_balance
-                            
+                            ## map balances to token_addresses
+                            for i, token in enumerate(token_addresses):
+                                decimals = stables_metadata[token]['decimals']
+                                #print(f"Token {i}: {token} with {decimals} decimals")
+                                token_balances[token] += balances[i] / (10 ** decimals)
+      
                         except Exception as e:
-                            print(f"....Error getting balance for {symbol} in {bridge_address} at block {block}: {e}")
-                            if 'execution reverted' in str(e) or 'Could not decode contract function call' in str(e):
-                                # Contract might not be deployed yet
-                                contract_deployed = False
-                                break
+                            print(f"....Error getting balance in {bridge_address} at block {block}: {e}")
                     
-                    if not contract_deployed:
-                        print(f"Contract for {symbol} not deployed at block {block}, stopping")
-                        break
-                    
-                    df.loc[df.index[i], 'value'] = total_balance
-                    df.loc[df.index[i], 'metric_key'] = mk_value
-                
-                # Drop unneeded columns
-                df.drop(columns=['block'], inplace=True)
+                    # Create a DataFrame
+                    df_balances = pd.DataFrame.from_dict(token_balances, orient='index', columns=['balance'])
+                    df_balances.index.name = 'token'
+                    df_balances.reset_index(inplace=True)
 
-                df_main = pd.concat([df_main, df])
-                
-                if update and not df.empty and 'value' in df.columns:
-                    df = df[df['value'] != 0]
-                    df = df.dropna()
-                    df.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
-                    df.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+                    ## rename token to metric_key and balance to value
+                    df_balances.rename(columns={'token': 'token_key', 'balance': 'value'}, inplace=True)
+                    df_balances['date'] = pd.to_datetime(date)
+
+                    df_main = pd.concat([df_main, df_balances])
+
+                if update and not df_main.empty and 'value' in df_main.columns:
+                    df_main = df_main[df_main['value'] != 0]
+                    df_main = df_main.dropna()
+                    df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
+                    df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
 
                     # If col index in df_main, drop it
-                    if 'index' in df.columns:
-                        df.drop(columns=['index'], inplace=True)
-                    self.load(df)                    
+                    if 'index' in df_main.columns:
+                        df_main.drop(columns=['index'], inplace=True)
+                    self.load(df_main)                    
         
         # Clean up data
         if not df_main.empty:
