@@ -146,8 +146,8 @@ def json_creation():
             if metric_key in ['fees_paid_priority_eth', 'fees_paid_priority_usd']:
                 data_dict["data"][metric_key]["total"] = df['value'].sum()
 
-                data_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-                data_dict = fix_dict_nan(data_dict, 'arbitrum-timeboost')
+        data_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        data_dict = fix_dict_nan(data_dict, 'arbitrum-timeboost')
 
         upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/arbitrum-timeboost', data_dict, cf_distribution_id)
         
