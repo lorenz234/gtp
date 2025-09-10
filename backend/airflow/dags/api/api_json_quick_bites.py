@@ -216,7 +216,8 @@ def json_creation():
         data_dict = fix_dict_nan(data_dict, 'shopify-usdc')
 
         upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/shopify-usdc', data_dict, cf_distribution_id)
-        
+    
+    @task()
     def run_network_graph():
         import pandas as pd
         from src.db_connector import DbConnector
