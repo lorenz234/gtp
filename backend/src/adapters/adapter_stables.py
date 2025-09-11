@@ -156,7 +156,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             load_type: str - Type of data to load ('block_data', 'bridged_supply', 'direct_supply', 'total_supply')
             stablecoins: list (optional) - Specific stablecoins to track
         """
-        self.days = load_params['days']
+        self.days = load_params.get('days', 9999)
         self.load_type = load_params['load_type']
         self.stablecoins = load_params.get('stablecoins', list(self.stables_metadata.keys()))
         
