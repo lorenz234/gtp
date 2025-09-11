@@ -1118,6 +1118,7 @@ class JSONCreation():
                 'chain_type': chain.chain_type,
                 'caip2': self.db_connector.get_chain_info(origin_key, 'caip2'),
                 'evm_chain_id': chain.evm_chain_id,
+                'links': chain.links,
                 'tab_status': chain.api_tab_status,
                 'deployment': chain.api_deployment_flag,
                 'name_short': chain.name_short,
@@ -1139,10 +1140,13 @@ class JSONCreation():
                 'l2beat_id': chain.aliases_l2beat,
                 'raas': chain.metadata_raas,
                 'stack': chain.metadata_stack,
-                'website': chain.socials_website,
-                'twitter': chain.socials_twitter,
-                'block_explorer': next(iter(chain.block_explorers.values())) if chain.block_explorers else None,
-                'block_explorers': chain.block_explorers,
+                
+                ## can be removed soon (see links)
+                'website': chain.links["website"] if chain.links and chain.links["website"] else None,
+                'twitter': chain.links["socials"]["Twitter"] if chain.links and chain.links["socials"] and chain.links["socials"]["Twitter"] else None,
+                'block_explorer': next(iter(chain.links["block_explorers"].values())) if chain.links and chain.links["block_explorers"] else None,
+                'block_explorers': chain.links["block_explorers"] if chain.links and chain.links["block_explorers"] else None,
+
                 'rhino_listed': bool(getattr(chain, 'aliases_rhino', None)),
                 'rhino_naming': getattr(chain, 'aliases_rhino', None)
             }

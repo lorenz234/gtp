@@ -18,7 +18,7 @@ class MainConfig(BaseModel):
     name_short: str
     company: Optional[str] = None
     bucket: str
-    block_explorers: Optional[dict] = None
+
     colors: dict
     logo: dict = {
         'body': "<svg width=\"15\" height=\"15\" viewBox=\"0 0 15 15\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"7.5\" cy=\"7.5\" r=\"7.5\" fill=\"currentColor\"/></svg>",
@@ -55,9 +55,8 @@ class MainConfig(BaseModel):
     metadata_stack: Optional[Dict] = Field(alias="metadata_stack", default=None)
     metadata_raas: Optional[str] = Field(alias="metadata_raas", default=None)
 
-    ## SOCIALS
-    socials_website: Optional[str] = Field(alias="socials_website", default=None)
-    socials_twitter: Optional[str] = Field(alias="socials_twitter ", default=None)
+    ## LINKS
+    links: Optional[dict] = Field(alias="links", default=None)
 
     ## RUNS
     runs_aggregate_blockspace: Optional[bool] = Field(alias="runs_aggregate_blockspace", default=None)
