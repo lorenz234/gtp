@@ -709,7 +709,9 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
                             ## change metric_key in df_main to supply_bridged_exceptions when date < start_date and stablecoin_id = token_key
                             df_main.loc[(df_main['metric_key'] == 'supply_bridged') & (df_main['date'] < start_date) & (df_main['token_key'] == stablecoin_id), 'metric_key'] = 'supply_bridged_exceptions'
-
+                
+                #print(df_main.head().to_markdown())
+                
                 if update and not df_main.empty and 'value' in df_main.columns:
                     df_main = df_main[df_main['value'] != 0]
                     df_main = df_main.dropna()
@@ -722,11 +724,11 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     self.load(df_main)                    
         
         # Clean up data
-        if not df_main.empty:
+        if not df_main.empty and 'value' in df_main.columns:
             #print(df_main.head().to_markdown())
             df_main = df_main[df_main['value'] != 0]
-            df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
             df_main = df_main.dropna()
+            df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
             df_main.set_index(['metric_key', 'origin_key', 'date', 'token_key'], inplace=True)
         else:
             # Return empty dataframe with correct structure
