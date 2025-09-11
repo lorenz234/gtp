@@ -45,9 +45,8 @@ def etl():
             'days': days, 
             'load_type': 'block_data'
         }
-        block_df = stablecoin_adapter.extract(block_params, update=True)
-        #stablecoin_adapter.load(block_df)
-        print(f"Loaded {len(block_df)} block records")
+        stablecoin_adapter.extract(block_params, update=True)
+        print(f"Loaded block records")
 
         # Step 2: Get bridged stablecoin supply
         print("\nStep 2: Collecting bridged stablecoin data...")
@@ -55,9 +54,8 @@ def etl():
             'days': days,
             'load_type': 'bridged_supply'
         }
-        bridged_df = stablecoin_adapter.extract(bridged_params, update=True)
-        stablecoin_adapter.load(bridged_df)
-        print(f"Loaded {len(bridged_df)} bridged stablecoin records")
+        stablecoin_adapter.extract(bridged_params, update=True)
+        print(f"Loaded bridged stablecoin records")
 
         # Step 3: Get direct stablecoin supply
         print("\nStep 3: Collecting direct stablecoin data...")
@@ -65,17 +63,16 @@ def etl():
             'days': days,
             'load_type': 'direct_supply'
         }
-        direct_df = stablecoin_adapter.extract(direct_params, update=True)
-        stablecoin_adapter.load(direct_df)
-        print(f"Loaded {len(direct_df)} direct stablecoin records")
+        stablecoin_adapter.extract(direct_params, update=True)
+        print(f"Loaded direct stablecoin records")
 
         # Step 4: Get locked stablecoin supply
         print("\nStep 4: Getting locked supply...")
-        direct_params = {
+        locked_params = {
             'days': days,
             'load_type': 'locked_supply'
         }
-        locked_df = stablecoin_adapter.extract(direct_params)
+        locked_df = stablecoin_adapter.extract(locked_params)
         stablecoin_adapter.load(locked_df)
         print(f"Loaded {len(locked_df)} locked stablecoin records")
 
