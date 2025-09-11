@@ -25,7 +25,7 @@ from airflow.utils.trigger_rule import TriggerRule
     schedule='24 1 * * *' # Every day at 01:24
 )
 
-def etl():
+def run_dag():
     @task()
     def get_USDC_in_bridge_supply():
         from web3 import Web3
@@ -156,3 +156,5 @@ def etl():
     create_json_task = create_json()
 
     get_USDC_in_bridge_supply_task >> create_json_task
+    
+run_dag()
