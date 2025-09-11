@@ -1001,8 +1001,7 @@ stables_mapping = {
             },
         },
 
-    },
-    
+    },  
     "plume": {
         "bridged": {
             "ethereum": [

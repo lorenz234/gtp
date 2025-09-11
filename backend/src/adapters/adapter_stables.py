@@ -724,7 +724,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     self.load(df_main)                    
         
         # Clean up data
-        if not df_main.empty and 'value' in df_main.columns:
+        if not update and not df_main.empty and 'value' in df_main.columns:
             #print(df_main.head().to_markdown())
             df_main = df_main[df_main['value'] != 0]
             df_main = df_main.dropna()
