@@ -1,0 +1,27 @@
+WITH arbitrum_stables AS (
+    SELECT 
+        "date", 
+        value AS stables_on_arb_with_hl
+    FROM public.fact_kpis
+    WHERE origin_key = 'arbitrum' 
+      AND metric_key = 'stables_mcap'
+      AND "date" >= '2024-01-01'
+      AND "date" < CURRENT_DATE
+),
+hyperliquid_bridge AS (
+    SELECT 
+        "date", 
+        value AS hyperliquid_bridge_usdc
+    FROM public.fact_kpis
+    WHERE metric_key = 'qb_hyperliquid_bridge_usdc'
+      AND "date" >= '2024-01-01'
+      AND "date" < CURRENT_DATE
+)
+SELECT 
+    COALESCE(a."date", h."date") AS date,
+    ROUND(COALESCE(a.stables_on_arb_with_hl, 0)::NUMERIC, 2) AS stables_on_arb_with_hl,
+    ROUND((COALESCE(a.stables_on_arb_with_hl, 0) - COALESCE(h.hyperliquid_bridge_usdc, 0))::NUMERIC, 2) AS stables_on_arb_without_hl,
+    ROUND(COALESCE(h.hyperliquid_bridge_usdc, 0)::NUMERIC, 2) AS hyperliquid_usdc
+FROM arbitrum_stables a
+FULL OUTER JOIN hyperliquid_bridge h ON a."date" = h."date"
+ORDER BY date DESC;
