@@ -207,9 +207,9 @@ def etl():
                                 'name': [chain.name for chain in config],
                                 'name_short': [chain.name_short for chain in config],
                                 'bucket': [chain.bucket for chain in config],
-                                'block_explorers': [None if chain.links is None or chain.links["block_explorers"] is None else next(iter(chain.links["block_explorers"].values())) for chain in config],
-                                'socials_website': [None if chain.links is None or chain.links["website"] is None else chain.links["website"] for chain in config],
-                                'socials_twitter': [None if chain.links is None or chain.links["socials"] is None or chain.links["socials"]["Twitter"] is None else chain.links["socials"]["Twitter"] for chain in config],
+                                'block_explorers': [next(iter(chain.links["block_explorers"].values())) if chain.links and chain.links["block_explorers"] else None for chain in config],
+                                'socials_website': [chain.links["website"] if chain.links and chain.links["website"] else None for chain in config],
+                                'socials_twitter': [chain.links["socials"]["Twitter"] if chain.links and chain.links["socials"] and "Twitter" in chain.links["socials"] else None for chain in config],
                                 'runs_aggregate_blockspace': [chain.runs_aggregate_blockspace for chain in config]
                                 })
 
