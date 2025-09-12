@@ -477,7 +477,7 @@ class JsonGen():
         return ranking_dict
     
     def get_kpi_cards_data(self,origin_key, metric_id):
-        logging.info(f"Generating KPI card data for {origin_key} - {metric_id}")
+        logging.debug(f"Generating KPI card data for {origin_key} - {metric_id}")
         kpi_dict = {
             'sparkline': {},
             'current_values': {},
@@ -519,8 +519,9 @@ class JsonGen():
             chains_dict["data"] = {
                 "chain_id": chain.origin_key,
                 "chain_name": chain.name,
+                "events": chain.events,
                 "ranking": self.get_chain_ranking_dict(origin_key),
-                "kpi_cards": self.get_kpi_cards_dict(chain)
+                "kpi_cards": self.get_kpi_cards_dict(chain),
             }
 
         return chains_dict

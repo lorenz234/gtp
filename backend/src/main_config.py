@@ -57,6 +57,9 @@ class MainConfig(BaseModel):
 
     ## LINKS
     links: Optional[dict] = Field(alias="links", default=None)
+    
+    ## EVENTS
+    events: Optional[list[dict]] = Field(alias="events", default=None)
 
     ## RUNS
     runs_aggregate_blockspace: Optional[bool] = Field(alias="runs_aggregate_blockspace", default=None)
