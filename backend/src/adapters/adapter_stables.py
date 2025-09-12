@@ -391,7 +391,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             )
             
             # Check if we already have complete data in the database
-            if not existing_data.empty and len(existing_data) >= self.days:
+            if not existing_data.empty and len(existing_data) >= self.days + 1:
                 print(f"...using existing block data for {chain} from database")
                 # Rename 'value' column to match expected format
                 existing_data = existing_data.reset_index()
@@ -544,7 +544,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 df_main = pd.concat([df_main, df_chain])
         
         # Remove duplicates and set index
-        if not df_main.empty:
+        if not update and not df_main.empty:
             df_main.drop_duplicates(subset=['metric_key', 'origin_key', 'date'], inplace=True)
             df_main.set_index(['metric_key', 'origin_key', 'date'], inplace=True)
 
