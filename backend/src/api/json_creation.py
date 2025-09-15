@@ -45,7 +45,7 @@ class JSONCreation():
         self.cf_distribution_id = cf_distribution_id
         self.db_connector = db_connector
         self.main_config = get_main_config(api_version=self.api_version)
-        self.multi_config = get_multi_config()
+        self.multi_config = get_multi_config(api_version=self.api_version)
         self.da_config = get_da_config(api_version=self.api_version)
         self.latest_eth_price = self.db_connector.get_last_price_usd('ethereum')
 
