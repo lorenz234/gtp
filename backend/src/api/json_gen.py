@@ -508,6 +508,13 @@ class JsonGen():
         for metric_id, metric in self.metrics['chains'].items():
             if metric['ranking_bubble'] and metric_id != 'txcosts' and metric_id not in chain.api_exclude_metrics:
                 kpi_cards_dict[metric_id] = self.get_kpi_cards_data(chain.origin_key, metric_id)
+
+        ## reorder metrics like daa, throughput, stables_mcap, fees, app_revenue, fdv, others
+        ordered_metrics = ['daa', 'throughput', 'stables_mcap', 'fees', 'app_revenue', 'fdv']
+        for metric_id in ordered_metrics:
+            if metric_id in kpi_cards_dict:
+                kpi_cards_dict[metric_id] = kpi_cards_dict.pop(metric_id)
+
         return kpi_cards_dict
 
     def create_chains_dict(self, origin_key:str):

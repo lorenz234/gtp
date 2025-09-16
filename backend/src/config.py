@@ -514,7 +514,7 @@ gtp_metrics_new = {
                 'all_l2s_aggregate': 'sum',
                 'monthly_agg': 'sum',
                 'max_date_fill' : True,
-                'ranking_bubble': True,
+                'ranking_bubble': False,
                 'ranking_landing': True,
                 'log_default': False
             }
