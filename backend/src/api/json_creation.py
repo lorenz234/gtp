@@ -3100,7 +3100,7 @@ class JSONCreation():
         ## filter based on settings in main_config
         for adapter in self.main_config:
             ## filter out origin_keys from df if in_api=false
-            if adapter.api_in_main == False:
+            if adapter.api_in_main == False or adapter.api_deployment_flag not in ["PROD", "DEV"]:
                 #print(f"Filtering out origin_keys for adapter {adapter.name}")
                 df = df[df.origin_key != adapter.origin_key]
             elif len(adapter.api_exclude_metrics) > 0:
@@ -3146,7 +3146,7 @@ class JSONCreation():
         ## filter based on settings in main_config
         for adapter in self.main_config:
             ## filter out origin_keys from df if in_api=false
-            if adapter.api_in_main == False:
+            if adapter.api_in_main == False or adapter.api_deployment_flag not in ["PROD", "DEV"]:
                 #print(f"Filtering out origin_keys for adapter {adapter.name}")
                 df = df[df.origin_key != adapter.origin_key]
             elif len(adapter.api_exclude_metrics) > 0:
@@ -3195,7 +3195,7 @@ class JSONCreation():
         ## filter based on settings in main_config
         for adapter in self.main_config:
             ## filter out origin_keys from df if in_api=false
-            if adapter.api_in_main == False:
+            if adapter.api_in_main == False or adapter.api_deployment_flag not in ["PROD", "DEV"]:
                 #print(f"Filtering out origin_keys for adapter {adapter.name}")
                 df = df[df.origin_key != adapter.origin_key]
             elif len(adapter.api_exclude_metrics) > 0:
