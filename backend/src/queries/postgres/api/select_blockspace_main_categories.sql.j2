@@ -1,0 +1,26 @@
+{#
+    A query to get the blockspace in txcount by main categories for a chain
+
+    Parameters:
+    - days: default = 30; The time interval (in days) to consider for data extraction.
+    - origin_key: The origin_key to filter the data.
+
+    Question: filter out cefi here? since it's for apps page
+#}
+
+{% set days = days | default(30) %}
+
+SELECT 
+	main_category_id, 
+	sum(txcount) as txcount,
+	ROUND(
+        SUM(txcount) * 100.0 / SUM(SUM(txcount)) OVER (), 
+        2
+    ) AS pct_share
+FROM blockspace_fact_category_level
+left join oli_categories using (category_id)
+where origin_key = '{{ origin_key }}'
+	and date > current_date - interval '{{ days }} days'
+	and category_id not in ('total_usage')
+group by 1
+order by 2 desc
