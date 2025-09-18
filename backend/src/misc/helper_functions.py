@@ -652,7 +652,7 @@ def convert_economics_mapping_into_df(data): # turns yml object of economics_map
 
 # get all official Open Labels Initative tags from OLI Github
 def get_all_oli_tags_from_github():
-    url = "https://raw.githubusercontent.com/openlabelsinitiative/OLI/refs/heads/main/1_data_model/tags/tag_definitions.yml"
+    url = "https://raw.githubusercontent.com/openlabelsinitiative/OLI/refs/heads/main/1_label_schema/tags/tag_definitions.yml"
     response = requests.get(url)
     data = yaml.load(response.text, Loader=yaml.FullLoader)
     df = pd.DataFrame(data['tags'])
