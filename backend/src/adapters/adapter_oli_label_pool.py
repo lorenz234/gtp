@@ -120,29 +120,41 @@ class AdapterLabelPool(AbstractAdapter):
 
     def get_latest_new_attestations(self, load_params):
         # get latest attestations
-        j = self.graphql_query_attestations(self.schemaId, 999999, load_params['time_created'], 0)
-        if len(j['data']['attestations']) == 0:
-            return pd.DataFrame()
-        # create df from json
-        df = pd.DataFrame(j['data']['attestations'])
-        # rename columns & sort
-        df = df[['id', 'attester', 'recipient', 'isOffchain', 'revoked', 'ipfsHash', 'txid', 'decodedDataJson', 'time', 'timeCreated', 'revocationTime']]
-        df = df.rename(columns={'isOffchain': 'is_offchain', 'ipfsHash': 'ipfs_hash', 'txid': 'tx_id', 'decodedDataJson': 'decoded_data_json', 'timeCreated': 'time_created', 'revocationTime': 'revocation_time'})
-        # return df with new attestations
-        return df
+        try:
+            j = self.graphql_query_attestations(self.schemaId, 999999, load_params['time_created'], 0)
+            if len(j['data']['attestations']) == 0:
+                return pd.DataFrame()
+            # create df from json
+            df = pd.DataFrame(j['data']['attestations'])
+            # rename columns & sort
+            df = df[['id', 'attester', 'recipient', 'isOffchain', 'revoked', 'ipfsHash', 'txid', 'decodedDataJson', 'time', 'timeCreated', 'revocationTime']]
+            df = df.rename(columns={'isOffchain': 'is_offchain', 'ipfsHash': 'ipfs_hash', 'txid': 'tx_id', 'decodedDataJson': 'decoded_data_json', 'timeCreated': 'time_created', 'revocationTime': 'revocation_time'})
+            # return df with new attestations
+            return df
+        except Exception as e:
+            print(f"#-#-# GraphQL ERROR in get_latest_new_attestations: {e}")
+            print(j)
+            raise e
+            #return pd.DataFrame()
 
     def get_latest_revoked_attestations(self, load_params):
-        # get latest revoked attestations
-        j = self.graphql_query_attestations(self.schemaId, 999999, 0, load_params['time_created'])
-        if len(j['data']['attestations']) == 0:
-            return pd.DataFrame()
-        # create df from json
-        df = pd.DataFrame(j['data']['attestations'])
-        # rename columns & sort
-        df = df[['id', 'attester', 'recipient', 'isOffchain', 'revoked', 'ipfsHash', 'txid', 'decodedDataJson', 'time', 'timeCreated', 'revocationTime']]
-        df = df.rename(columns={'isOffchain': 'is_offchain', 'ipfsHash': 'ipfs_hash', 'txid': 'tx_id', 'decodedDataJson': 'decoded_data_json', 'timeCreated': 'time_created', 'revocationTime': 'revocation_time'})
-        # return df with revoked attestations
-        return df
+        try:
+            # get latest revoked attestations
+            j = self.graphql_query_attestations(self.schemaId, 999999, 0, load_params['time_created'])
+            if len(j['data']['attestations']) == 0:
+                return pd.DataFrame()
+            # create df from json
+            df = pd.DataFrame(j['data']['attestations'])
+            # rename columns & sort
+            df = df[['id', 'attester', 'recipient', 'isOffchain', 'revoked', 'ipfsHash', 'txid', 'decodedDataJson', 'time', 'timeCreated', 'revocationTime']]
+            df = df.rename(columns={'isOffchain': 'is_offchain', 'ipfsHash': 'ipfs_hash', 'txid': 'tx_id', 'decodedDataJson': 'decoded_data_json', 'timeCreated': 'time_created', 'revocationTime': 'revocation_time'})
+            # return df with revoked attestations
+            return df
+        except Exception as e:
+            print(f"#-#-# GraphQL ERROR in get_latest_revoked_attestations: {e}")
+            print(j)
+            raise e
+            #return pd.DataFrame()
         
     def graphql_query_attestations(self, schemaId, count, timeCreated, revocationTime):
         query = """
