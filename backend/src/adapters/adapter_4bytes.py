@@ -50,7 +50,15 @@ class Adapter4Bytes(AbstractAdapter):
         # create folder if not exists
         if not os.path.exists('compiled_contracts'):
             os.makedirs('compiled_contracts', exist_ok=True)
+            already_downloaded = []
+        else: # if last run failed, the folder already exists with some files in them but not all
+            print("Folder compiled_contracts already exists, resuming download from last run...")
+            already_downloaded = os.listdir('compiled_contracts')
+
         for f in manifest_data:
+            if f.split('/')[-1] in already_downloaded:
+                print(f"Skipping {f}, already downloaded.")
+                continue
             # Download parquet export
             df = self.download_parquet(f)
             # Collect all signatures first
