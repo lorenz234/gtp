@@ -333,6 +333,18 @@ stables_metadata = {
             "plume": "0xdddD73F5Df1F0DC31373357beAC77545dC5A6f3F"
         }
     },
+    "metamask-usd": {
+        "name": "MetaMask USD",
+        "symbol": "mUSD",
+        "decimals": 6,
+        "coingecko_id": "metamask-usd",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xaca92e438df0b2401ff60da7e4337b687a2435da"
+        }
+    },
+
     # Non-USD Stablecoins
     "euro-coin": {                       # EURC
         "name": "Euro Coin",
@@ -482,6 +494,10 @@ stables_mapping = {
             },
             "glo-dollar": {
                 "token_address": "0x4f604735c1cf31399c6e711d5962b2b3e0225ad3",  # USDGLO native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "metamask-usd": {
+                "token_address": "0xaca92e438df0b2401ff60da7e4337b687a2435da",  # mUSD native on Ethereum
                 "method_name": "totalSupply",
             }
         },
@@ -800,6 +816,10 @@ stables_mapping = {
                 "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
                 "method_name":   "totalSupply",
             },
+            "metamask-usd": {
+                "token_address": "0xacA92E438df0B2401fF60dA7E4337B687a2435DA",
+                "method_name":   "totalSupply",
+            }
         }
     },
     "manta": {
