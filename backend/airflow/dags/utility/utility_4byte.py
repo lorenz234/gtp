@@ -11,7 +11,7 @@ from src.misc.airflow_utils import alert_via_webhook
 @dag(
     default_args={
         'owner' : 'lorenz',
-        'retries' : 1,
+        'retries' : 5,
         'email_on_failure': False,
         'retry_delay' : timedelta(seconds=5),
         'on_failure_callback': lambda context: alert_via_webhook(context, user='lorenz')
@@ -33,7 +33,7 @@ def etl():
 
         adapter.extract({
             'save_path': 'backend/', # save path of 4byte.parquet file inside ec2 instance
-            'provider': 'verifieralliance' # options: "sourcify" or "verifieralliance"
+            'provider': 'sourcify' # options: "sourcify" or "verifieralliance"
         })
 
         adapter.load({
