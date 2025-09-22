@@ -481,7 +481,7 @@ def etl():
     revoke_onchain = revoke_old_attestations() ## revoke old attestations from the label pool
 
     # Define execution order
-    read_contracts >> read_pool >> read_remap >> refresh_tags >> trusted_entities >> sync_to_db >> refresh >> write_oss >> write_chain >> write_contracts >> write_owner_project >> revoke_onchain
+    read_contracts >> read_pool >> read_remap >> refresh_tags >> trusted_entities >> sync_to_db >> refresh >> write_chain >> write_contracts >> write_owner_project >> revoke_onchain
     
 etl()
 

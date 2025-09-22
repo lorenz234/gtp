@@ -33,7 +33,7 @@ def etl():
 
         adapter.extract({
             'save_path': 'backend/', # save path of 4byte.parquet file inside ec2 instance
-            'provider': 'verifieralliance' # options: "sourcify" or "verifieralliance"
+            'provider': 'sourcify' # options: "sourcify" or "verifieralliance"
         })
 
         adapter.load({
