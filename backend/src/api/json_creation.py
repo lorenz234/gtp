@@ -45,7 +45,7 @@ class JSONCreation():
         self.cf_distribution_id = cf_distribution_id
         self.db_connector = db_connector
         self.main_config = get_main_config(api_version=self.api_version)
-        self.multi_config = get_multi_config()
+        self.multi_config = get_multi_config(api_version=self.api_version)
         self.da_config = get_da_config(api_version=self.api_version)
         self.latest_eth_price = self.db_connector.get_last_price_usd('ethereum')
 
@@ -3100,7 +3100,7 @@ class JSONCreation():
         ## filter based on settings in main_config
         for adapter in self.main_config:
             ## filter out origin_keys from df if in_api=false
-            if adapter.api_in_main == False:
+            if adapter.api_in_main == False or adapter.api_deployment_flag not in ["PROD", "DEV"]:
                 #print(f"Filtering out origin_keys for adapter {adapter.name}")
                 df = df[df.origin_key != adapter.origin_key]
             elif len(adapter.api_exclude_metrics) > 0:
@@ -3146,7 +3146,7 @@ class JSONCreation():
         ## filter based on settings in main_config
         for adapter in self.main_config:
             ## filter out origin_keys from df if in_api=false
-            if adapter.api_in_main == False:
+            if adapter.api_in_main == False or adapter.api_deployment_flag not in ["PROD", "DEV"]:
                 #print(f"Filtering out origin_keys for adapter {adapter.name}")
                 df = df[df.origin_key != adapter.origin_key]
             elif len(adapter.api_exclude_metrics) > 0:
@@ -3195,7 +3195,7 @@ class JSONCreation():
         ## filter based on settings in main_config
         for adapter in self.main_config:
             ## filter out origin_keys from df if in_api=false
-            if adapter.api_in_main == False:
+            if adapter.api_in_main == False or adapter.api_deployment_flag not in ["PROD", "DEV"]:
                 #print(f"Filtering out origin_keys for adapter {adapter.name}")
                 df = df[df.origin_key != adapter.origin_key]
             elif len(adapter.api_exclude_metrics) > 0:
