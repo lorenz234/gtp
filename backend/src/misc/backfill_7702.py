@@ -15,6 +15,7 @@ import getpass
 import argparse
 import json
 import os
+import shutil
 from datetime import datetime, date
 import pandas as pd
 from sqlalchemy import text
@@ -36,19 +37,41 @@ from src.adapters.rpc_funcs.utils import (
     connect_to_node
 )
 
-# Progress tracking
-PROGRESS_FILE = "backfill_7702_progress.json"
+# Progress tracking - will be set dynamically based on chain
+PROGRESS_FILE = None
 
 # Thread-safe progress tracking
 progress_lock = threading.Lock()
 progress_bars = {}  # Per-chain progress bars
 
+def set_progress_file(chain_name=None, is_multi_chain=False):
+    """Set the progress file name based on chain and multi-chain mode."""
+    global PROGRESS_FILE
+    if is_multi_chain or chain_name is None:
+        PROGRESS_FILE = "backfill_7702_progress.json"
+    else:
+        PROGRESS_FILE = f"backfill_7702_progress_{chain_name}.json"
+
 def load_progress():
-    """Load progress from JSON file."""
+    """Load progress from JSON file with corruption recovery."""
     if os.path.exists(PROGRESS_FILE):
         try:
             with open(PROGRESS_FILE, 'r') as f:
-                return json.load(f)
+                content = f.read().strip()
+                if not content:
+                    print("Warning: Progress file is empty, starting fresh")
+                    return {}
+                return json.loads(content)
+        except json.JSONDecodeError as e:
+            print(f"Warning: Progress file corrupted ({e}), creating backup and starting fresh")
+            # Create backup of corrupted file
+            backup_file = f"{PROGRESS_FILE}.corrupted.{int(time.time())}"
+            try:
+                shutil.copy2(PROGRESS_FILE, backup_file)
+                print(f"Corrupted file backed up to: {backup_file}")
+            except:
+                pass
+            return {}
         except Exception as e:
             print(f"Warning: Could not load progress file: {e}")
     return {}
@@ -591,25 +614,48 @@ def process_single_chain(chain, db_connector, start_date, block_batch_size, dry_
         return {'chain': chain, 'status': 'failed', 'processed': 0, 'error': str(e)}
 
 def show_progress():
-    """Show current progress from the progress file."""
-    progress = load_progress()
+    """Show current progress from all progress files."""
+    import glob
     
-    if not progress or 'chains' not in progress:
-        print("No progress file found or no chains processed yet.")
+    # Find all progress files
+    progress_files = glob.glob("backfill_7702_progress*.json")
+    
+    if not progress_files:
+        print("No progress files found.")
         return
     
-    print(f"\n📊 Current Progress (last run: {progress.get('last_run', 'unknown')})")
+    print(f"\n📊 Current Progress")
     print("=" * 80)
     
-    for chain, data in progress['chains'].items():
-        status = data.get('status', 'unknown')
-        status_emoji = {'completed': '✅', 'in_progress': '🔄', 'failed': '❌', 'skipped': '⏭️'}.get(status, '❓')
+    for progress_file in sorted(progress_files):
+        print(f"\n📄 {progress_file}:")
         
-        print(f"\n🔗 {chain.upper()} {status_emoji} ({status}):")
-        print(f"   Latest block processed: {data.get('latest_block_processed', 'unknown')}")
-        print(f"   Latest date processed:  {data.get('latest_date_processed', 'unknown')}")
-        print(f"   Total transactions:     {data.get('total_transactions_processed', 0)}")
-        print(f"   Last updated:           {data.get('last_updated', 'unknown')}")
+        # Temporarily set the progress file
+        global PROGRESS_FILE
+        old_progress_file = PROGRESS_FILE
+        PROGRESS_FILE = progress_file
+        
+        try:
+            progress = load_progress()
+            
+            if not progress or 'chains' not in progress:
+                print("   No progress data found.")
+                continue
+                
+            print(f"   Last run: {progress.get('last_run', 'unknown')}")
+            
+            for chain, data in progress['chains'].items():
+                status = data.get('status', 'unknown')
+                status_emoji = {'completed': '✅', 'in_progress': '🔄', 'failed': '❌', 'skipped': '⏭️'}.get(status, '❓')
+                
+                print(f"   🔗 {chain.upper()} {status_emoji} ({status}):")
+                print(f"      Latest block processed: {data.get('latest_block_processed', 'unknown')}")
+                print(f"      Latest date processed:  {data.get('latest_date_processed', 'unknown')}")
+                print(f"      Total transactions:     {data.get('total_transactions_processed', 0)}")
+                print(f"      Last updated:           {data.get('last_updated', 'unknown')}")
+        finally:
+            # Restore original progress file
+            PROGRESS_FILE = old_progress_file
 
 def main():
     parser = argparse.ArgumentParser(description='Multi-threaded EIP-7702 backfill script with parallel processing')
@@ -629,11 +675,15 @@ def main():
         return
     
     if args.reset_progress:
-        if os.path.exists(PROGRESS_FILE):
-            os.remove(PROGRESS_FILE)
-            print(f"🗑️  Progress file {PROGRESS_FILE} deleted. Starting fresh.")
+        import glob
+        progress_files = glob.glob("backfill_7702_progress*.json")
+        if progress_files:
+            for pf in progress_files:
+                os.remove(pf)
+                print(f"🗑️  Progress file {pf} deleted.")
+            print("Starting fresh.")
         else:
-            print("No progress file to reset.")
+            print("No progress files to reset.")
         return
     
     if args.test_blocks:
@@ -672,17 +722,27 @@ def main():
         print(f"   Processing ALL chains")
         chains_to_process = get_chains_with_type4_txs(db_connector, args.start_date)
         print(f"   Found {len(chains_to_process)} chains with type 4 transactions")
+        is_multi_chain = True
+        chain_name = None
     elif args.chain:
         chains_to_process = [args.chain]
         print(f"   Processing single chain: {args.chain}")
+        is_multi_chain = False
+        chain_name = args.chain
     else:
         # Default behavior: find chains with type 4 transactions
         chains_to_process = get_chains_with_type4_txs(db_connector, args.start_date)
         print(f"   Found {len(chains_to_process)} chains with type 4 transactions")
+        is_multi_chain = True
+        chain_name = None
     
     if not chains_to_process:
         print("❌ No chains to process!")
         return
+    
+    # Set progress file based on single chain vs multi-chain mode
+    set_progress_file(chain_name, is_multi_chain)
+    print(f"   Progress file: {PROGRESS_FILE}")
     
     # Filter out already completed chains unless explicitly requested
     progress = load_progress()
