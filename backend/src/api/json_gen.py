@@ -1,5 +1,6 @@
 import os
 import json
+from duckdb import df
 import pandas as pd
 import logging
 from typing import Dict, List, Optional, Tuple
@@ -8,9 +9,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.db_connector import DbConnector
 from src.config import gtp_units, gtp_metrics_new
-from src.main_config import get_main_config
+from src.main_config import MainConfig, get_main_config
 from src.da_config import get_da_config
 from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3, empty_cloudfront_cache
+from src.misc.jinja_helper import execute_jinja_query
 
 # --- Set up a proper logger ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -498,17 +500,81 @@ class JsonGen():
         kpi_dict['current_values'] = {'types': daily_cols[1:], 'data': current_values}
 
         ## Week over week changes (compare latest values against values 7 days prior)
-        last_week_values = daily_list[-8][1:]
-        kpi_dict['wow_change'] = {'types': daily_cols[1:], 'data': [(x - y) / y for x, y in zip(current_values, last_week_values)]}
+        if len(daily_list) > 8:
+            last_week_values = daily_list[-8][1:]
+            kpi_dict['wow_change'] = {'types': daily_cols[1:], 'data': [(x - y) / y for x, y in zip(current_values, last_week_values)]}
+        else:
+            kpi_dict['wow_change'] = 0.00
 
         return kpi_dict
 
-    def get_kpi_cards_dict(self, chain):
+    def get_kpi_cards_dict(self, chain:MainConfig):
         kpi_cards_dict = {}
         for metric_id, metric in self.metrics['chains'].items():
             if metric['ranking_bubble'] and metric_id != 'txcosts' and metric_id not in chain.api_exclude_metrics:
                 kpi_cards_dict[metric_id] = self.get_kpi_cards_data(chain.origin_key, metric_id)
+
+        ## reorder metrics like daa, throughput, stables_mcap, fees, app_revenue, fdv, others
+        ordered_metrics = ['daa', 'throughput', 'stables_mcap', 'fees', 'app_revenue', 'fdv']
+        for metric_id in ordered_metrics:
+            if metric_id in kpi_cards_dict:
+                kpi_cards_dict[metric_id] = kpi_cards_dict.pop(metric_id)
+
         return kpi_cards_dict
+    
+    def get_blockspace_dict(self, chain:MainConfig):
+        if chain.api_in_apps:
+            ## get blockspace info
+            query_parameters = {
+                "origin_key": chain.origin_key,
+                "days": 7,
+            }
+            blockspace = execute_jinja_query(self.db_connector, "api/select_blockspace_main_categories.sql.j2", query_parameters, return_df=True) 
+            
+            output_dict = { "blockspace": {
+                    "types": blockspace.columns.tolist(),
+                    "data": blockspace.values.tolist()
+                }
+            }
+        else:
+            output_dict = {"blockspace": {"types": [], "data": []}}
+
+        return output_dict
+
+
+    def get_ecosystem_dict(self, chain:MainConfig):
+        if chain.api_in_apps:
+            ## get top 50 apps
+            query_parameters = {
+                "origin_key": chain.origin_key,
+                "days": 7,
+                "limit": 50
+            }
+            top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", query_parameters, return_df=True)
+            top_apps['txcount'] = top_apps['txcount'].astype(int)
+
+            ## get total number of apps
+            query_parameters = {
+                "origin_key": 'arbitrum',
+                "days": 7
+            }
+            active_apps = execute_jinja_query(self.db_connector, "api/select_count_apps.sql.j2", query_parameters, return_df=True)
+            active_apps_count = int(active_apps.values[0][0])
+            
+            output_dict = {
+                
+                "active_apps": {
+                    "count": active_apps_count
+                },
+                "apps": {
+                    "types": top_apps.columns.tolist(),
+                    "data": top_apps.values.tolist()
+                },
+            }
+        else:
+            output_dict = {}
+
+        return output_dict
 
     def create_chains_dict(self, origin_key:str):
         chains_dict = {}
@@ -519,10 +585,15 @@ class JsonGen():
             chains_dict["data"] = {
                 "chain_id": chain.origin_key,
                 "chain_name": chain.name,
+                "events": chain.events,
                 "ranking": self.get_chain_ranking_dict(origin_key),
-                "kpi_cards": self.get_kpi_cards_dict(chain)
+                "kpi_cards": self.get_kpi_cards_dict(chain),
+                "blockspace": self.get_blockspace_dict(chain),
+                "ecosystem": self.get_ecosystem_dict(chain)
             }
 
+        chains_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        chains_dict = fix_dict_nan(chains_dict, f'chains/{origin_key}/overview')
         return chains_dict
     
     def _process_and_save_chain_overview(self, origin_key: str):
@@ -579,9 +650,10 @@ class JsonGen():
             for future in as_completed(future_to_task):
                 task = future_to_task[future]
                 try:
-                    future.result()  # We call result() to raise any exceptions that occurred
+                    future.result()  # We call result() to raise any    exceptions that occurred
                 except Exception as exc:
                     logging.error(f'Task {task} generated an exception: {exc}')
+                    raise exc
 
         logging.info("All metric JSONs have been processed.")
         

@@ -57,6 +57,9 @@ class MainConfig(BaseModel):
 
     ## LINKS
     links: Optional[dict] = Field(alias="links", default=None)
+    
+    ## EVENTS
+    events: Optional[list[dict]] = Field(alias="events", default=None)
 
     ## RUNS
     runs_aggregate_blockspace: Optional[bool] = Field(alias="runs_aggregate_blockspace", default=None)
@@ -158,12 +161,12 @@ def get_main_config(db_connector:DbConnector=None, main_config_dict=None, source
 
     return main_config
 
-def get_all_l2_config():
-    main_config = get_main_config()
+def get_all_l2_config(api_version = 'v1'):
+    main_config = get_main_config(api_version = api_version)
     all_l2_config = main_config + [MainConfig(origin_key='all_l2s', chain_type = '-', name='All L2s', name_short='-', bucket='-', colors={"light":["#FFDF27","#FE5468"],"dark":["#FFDF27","#FE5468"],"darkTextOnBackground": False}, ecosystem_old=["op-stack", "op-super", "all-chains"], api_in_api_main=True, api_api_deployment_flag='PROD', api_api_exclude_metrics=[])] ## for multi-chain metrics
     return all_l2_config
 
-def get_multi_config():
-    all_l2_config = get_all_l2_config()
+def get_multi_config(api_version = 'v1'):
+    all_l2_config = get_all_l2_config(api_version = api_version)
     multi_config = all_l2_config + [MainConfig(origin_key='multiple', chain_type = 'all-L2s', name='Multiple L2s', name_short='-', colors = {"light":["#cdd8d3","#cdd8d3"],"dark":["#cdd8d3","#cdd8d3"],"darkTextOnBackground": False} , bucket='-', ecosystem_old=[], api_in_api_main=True, api_api_deployment_flag='PROD', api_api_exclude_metrics=[])] ## for multi-chain metrics
     return multi_config

@@ -10,10 +10,10 @@
 {% set days = days | default(30) %}
 {% set limit = limit | default(2) %}
 
-SELECT owner_project
+SELECT owner_project, sum(txcount) as txcount
 FROM public.vw_apps_contract_level_materialized
 where origin_key = '{{origin_key}}'
     and date > current_date - interval '{{days}} days'
 group by 1
-order by sum(txcount) desc
+order by 2 desc
 limit {{ limit }}

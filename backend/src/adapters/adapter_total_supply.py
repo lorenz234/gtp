@@ -63,9 +63,10 @@ class AdapterTotalSupply(AbstractAdapter):
                 # Calculate max days from deployment date + 1 day
                 deployment_date = datetime.strptime(coin.cs_deployment_date, '%Y-%m-%d')
                 deployment_date = deployment_date + timedelta(days=1)  # Start one day later
-                max_days = (datetime.now() - deployment_date).days
+                max_days = (datetime.now() - deployment_date).days +1
                 
                 if days > max_days:
+                    print(f"Warning: Reducing days from {days} to {max_days} because deployment date is {coin.cs_deployment_date}")
                     days = max_days
 
                 # build the dataframe with block heights
@@ -88,6 +89,7 @@ class AdapterTotalSupply(AbstractAdapter):
                     block_df = block_df.reset_index()
                     block_df['block_number'] = block_df['value'].astype(int)
                     block_df = block_df[['date', 'block_number']]
+                    print(f"Fetched block data for Ethereum: {block_df.shape[0]} rows")
                     
                     # Merge with df
                     df = df.merge(block_df, on='date', how='left')
@@ -130,11 +132,12 @@ class AdapterTotalSupply(AbstractAdapter):
                 w3 = Web3(Web3.HTTPProvider(rpc))
                 token_address = coin.cs_token_address if Web3.is_checksum_address(coin.cs_token_address) else Web3.to_checksum_address(coin.cs_token_address)
                 contract = w3.eth.contract(address=token_address, abi=token_abi)
-                print(f'...connected to {coin.cs_deployment_origin_key} at {rpc}')
+                print(f'...connected to {coin.cs_deployment_origin_key} at {rpc} for {token_address}')
                 time.sleep(1)
 
                 # get the total supply for each block
                 decimals = contract.functions.decimals().call()
+                print(f"Fetched decimals for {coin.origin_key} at {token_address}: {decimals}")
                 time.sleep(1)
 
                 df['block_number'] = df['block_number'].astype(int)
@@ -142,6 +145,7 @@ class AdapterTotalSupply(AbstractAdapter):
                     retry_counter = 0
                     while True:
                         try:
+                            print(f"Fetching total supply for {coin.origin_key} at block {row['block_number']}")
                             totalsupply = contract.functions.totalSupply().call(block_identifier=row['block_number'])/10**decimals
                             break
                         except Exception as e:

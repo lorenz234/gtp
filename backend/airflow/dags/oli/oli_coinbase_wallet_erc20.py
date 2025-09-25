@@ -32,15 +32,15 @@ def etl():
         # attest from OLI_coinbase_wallet_pk wallet
         oli = OLI(private_key=os.getenv("OLI_coinbase_wallet_pk"))
         # check where we left off with, last attestations to OLI Label Pool from OLI_coinbase_wallet_pk
-        j_latest_OLI_Label_Pool = oli.graphql_query_attestations(attester=oli.address)
+        j_latest_OLI_Label_Pool = oli.graphql_query_attestations(attester=oli.address, take=1)
 
         # set schema to Coinbase wallet schema, to get new attestations from that schema (revocable: False)
         oli.oli_label_pool_schema = "0x1134b93c315c222968305b0467339b4fe8fc42c4646c4d4fce5d89e506c5aa6c"
         # extract timeCreated of last attestation we have reattested to OLI Label Pool in Coinbase wallet schema
         ref_id = j_latest_OLI_Label_Pool["data"]["attestations"][0]["refUID"]
-        timeCreated = oli.graphql_query_attestations(id=ref_id)["data"]["attestations"][0]["timeCreated"]
+        timeCreated = oli.graphql_query_attestations(id=ref_id, take=1)["data"]["attestations"][0]["timeCreated"]
         # get all new attestations to attest
-        j = oli.graphql_query_attestations(take=10000, timeCreated=timeCreated)
+        j = oli.graphql_query_attestations(take=1000, timeCreated=timeCreated)
 
         # switch back to OLI Label Pool schema and start attesting
         oli.oli_label_pool_schema = "0xb763e62d940bed6f527dd82418e146a904e62a297b8fa765c9b3e1f0bc6fdd68"
