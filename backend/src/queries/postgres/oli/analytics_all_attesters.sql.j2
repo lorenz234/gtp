@@ -1,0 +1,7 @@
+SELECT 
+    encode(attester, 'hex') AS attester,
+    MAX(time_created) AS last_time_created,
+    MAX(revocation_time) as last_time_revoked
+FROM public.oli_label_pool_silver
+GROUP BY attester
+ORDER BY last_time_created DESC;

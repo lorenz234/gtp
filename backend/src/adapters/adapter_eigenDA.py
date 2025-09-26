@@ -134,6 +134,9 @@ class AdapterEigenDA(AbstractAdapter):
         # merge melted dataframes
         df_melt = pd.concat([df_melted, df_melted2], ignore_index=True)
 
+        # group one last time to merge v1 & v2 data (e.g. SOON who switched account_name)
+        df_melt = df_melt.groupby(['date', 'origin_key', 'metric_key']).sum().reset_index()
+
         # set index (moved set index into the DAG)
         #df_melt = df_melt.set_index(['date', 'origin_key', 'metric_key'])
 
