@@ -100,9 +100,9 @@ def main():
                 "totals": {
                     "types": ["chain_id", "tag_id", "row_count"],
                     "values": [[chain_id, tag_id, row_count] for chain_id, tag_id, row_count in zip(
-                        df_att['chain_id'].tolist(),
-                        df_att['tag_id'].tolist(),
-                        df_att['row_count'].tolist()
+                        df_totals['chain_id'].tolist(),
+                        df_totals['tag_id'].tolist(),
+                        df_totals['row_count'].tolist()
                     )]
                 }
             }
