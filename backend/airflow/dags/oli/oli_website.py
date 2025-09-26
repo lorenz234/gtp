@@ -44,7 +44,7 @@ def main():
         query_parameters = {}
         df = execute_jinja_query(db_connector, "oli/analytics_all_attesters.sql.j2", query_parameters, return_df=True)
         # get timestamp of 2 days ago
-        timestamp = 0#int(datetime.now().timestamp()) - 2*24*60*60
+        timestamp = int(datetime.now().timestamp()) - 2*24*60*60
         # filter df for only rows where timestamp is greater than timestamp of 2 days ago
         df = df[(df['last_time_created'] > timestamp) | (df['last_time_created'] == 0)]
         df = df[(df['last_time_revoked'] > timestamp) | (df['last_time_revoked'] == 0)]
