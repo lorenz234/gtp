@@ -1,0 +1,9 @@
+SELECT 
+    (SELECT COUNT(*) FROM public.oli_label_pool_silver) AS count_tags,
+    (SELECT COUNT(*) FROM public.oli_label_pool_bronze) AS count_attestations,
+    (SELECT COUNT(*) FROM public.oli_label_pool_silver WHERE revoked = true) AS revoked_count_tags,
+    (SELECT COUNT(*) FROM public.oli_label_pool_bronze WHERE revoked = true) AS revoked_count_attestations,
+    (SELECT COUNT(*) FROM public.oli_label_pool_silver WHERE is_offchain = true) AS offchain_count_tags,
+    (SELECT COUNT(*) FROM public.oli_label_pool_bronze WHERE is_offchain = true) AS offchain_count_attestations,
+    (SELECT COUNT(*) FROM public.oli_label_pool_silver WHERE is_offchain = false) AS onchain_count_tags,
+    (SELECT COUNT(*) FROM public.oli_label_pool_bronze WHERE is_offchain = false) AS onchain_count_attestations;
