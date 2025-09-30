@@ -215,19 +215,41 @@ class UserOpsBackfiller:
             if user_ops_df.empty:
                 return True
 
-            # Create composite primary key from origin_key, tx_hash and tree_index
-            user_ops_df.drop_duplicates(subset=['origin_key', 'tx_hash', 'tree_index'], inplace=True)
-            user_ops_df.set_index(['origin_key', 'tx_hash', 'tree_index'], inplace=True)
+            # Create a copy to avoid modifying the original
+            df_to_save = user_ops_df.copy()
+
+            # Ensure required columns exist
+            required_cols = ['origin_key', 'tx_hash', 'tree_index']
+            missing_cols = [col for col in required_cols if col not in df_to_save.columns]
+            if missing_cols:
+                print(f"Error: Missing required columns: {missing_cols}")
+                print(f"Available columns: {df_to_save.columns.tolist()}")
+                return False
+
+            # Drop duplicates before setting index
+            initial_count = len(df_to_save)
+            df_to_save.drop_duplicates(subset=required_cols, keep='first', inplace=True)
+            duplicates_removed = initial_count - len(df_to_save)
+            if duplicates_removed > 0:
+                print(f"Removed {duplicates_removed} duplicate records")
+
+            # Reset index before setting new one to avoid issues
+            df_to_save.reset_index(drop=True, inplace=True)
+
+            # Set composite primary key
+            df_to_save.set_index(required_cols, inplace=True)
 
             # Save to database
-            self.db_connector.upsert_table('uops', user_ops_df, if_exists='update')
-            print(f"Saved {len(user_ops_df)} user operations to database")
+            self.db_connector.upsert_table('uops', df_to_save, if_exists='update')
+            print(f"Saved {len(df_to_save)} user operations to database")
             return True
         except Exception as e:
             print(f"Error saving user ops to database: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
-    def backfill_chain_date(self, chain, date_str, dry_run=False):
+    def backfill_chain_date(self, chain, date_str, dry_run=False, batch_size=50):
         """
         Backfill user operations for a specific chain and date.
 
@@ -271,11 +293,12 @@ class UserOpsBackfiller:
             return stats
 
         all_user_ops = []
+        # Use the provided batch_size parameter
 
         # Process each parquet file
-        for file_path in parquet_files:
+        for i, file_path in enumerate(parquet_files):
             try:
-                print(f"Processing file: {file_path}")
+                print(f"Processing file {i+1}/{len(parquet_files)}: {file_path}")
 
                 # Load the parquet file
                 df_raw = self.load_parquet_from_gcs(file_path)
@@ -296,24 +319,40 @@ class UserOpsBackfiller:
                 else:
                     print(f"No user operations found in {file_path}")
 
+                # Save batch when we reach batch_size files with user ops or at the end
+                should_save_batch = False
+
+                # Count files with user ops for batching
+                files_with_user_ops = len(all_user_ops)
+
+                # Save if we have reached batch size or we're at the last file
+                if files_with_user_ops >= batch_size:
+                    should_save_batch = True
+                elif i == len(parquet_files) - 1 and files_with_user_ops > 0:
+                    should_save_batch = True
+
+                if should_save_batch:
+                    combined_user_ops = pd.concat(all_user_ops, ignore_index=True)
+                    print(f"Saving batch of {len(combined_user_ops)} user operations from {files_with_user_ops} files to database...")
+                    success = self.save_user_ops_to_db(combined_user_ops)
+                    if success:
+                        print(f"Successfully saved batch to database")
+                        all_user_ops = []  # Clear the batch
+                    else:
+                        print(f"Failed to save batch to database")
+                        stats['errors'] += 1
+
             except Exception as e:
                 print(f"Error processing file {file_path}: {e}")
                 stats['errors'] += 1
                 continue
-
-        # Combine and save all user operations for this date
-        if all_user_ops:
-            combined_user_ops = pd.concat(all_user_ops, ignore_index=True)
-            success = self.save_user_ops_to_db(combined_user_ops)
-            if not success:
-                stats['errors'] += 1
 
         print(f"Completed {chain} for {date_str}: {stats['files_processed']} files, "
               f"{stats['transactions_processed']} transactions, {stats['user_ops_extracted']} user ops")
 
         return stats
 
-    def backfill_chain(self, chain, start_date=None, end_date=None, dry_run=False):
+    def backfill_chain(self, chain, start_date=None, end_date=None, dry_run=False, batch_size=50):
         """
         Backfill user operations for an entire chain.
 
@@ -354,7 +393,7 @@ class UserOpsBackfiller:
         total_stats = {'total_files': 0, 'total_transactions': 0, 'total_user_ops': 0, 'total_errors': 0}
 
         for date_str in available_dates:
-            date_stats = self.backfill_chain_date(chain, date_str, dry_run)
+            date_stats = self.backfill_chain_date(chain, date_str, dry_run, batch_size)
 
             total_stats['total_files'] += date_stats['files_processed']
             total_stats['total_transactions'] += date_stats['transactions_processed']
@@ -371,7 +410,7 @@ class UserOpsBackfiller:
 
         return total_stats
 
-    def backfill_all_chains(self, start_date=None, end_date=None, dry_run=False):
+    def backfill_all_chains(self, start_date=None, end_date=None, dry_run=False, batch_size=50):
         """
         Backfill user operations for all available chains.
 
@@ -379,6 +418,7 @@ class UserOpsBackfiller:
             start_date (str): Start date in YYYY-MM-DD format (optional)
             end_date (str): End date in YYYY-MM-DD format (optional)
             dry_run (bool): If True, only preview what would be processed
+            batch_size (int): Number of files to process before saving to database
 
         Returns:
             dict: Overall statistics
@@ -392,7 +432,7 @@ class UserOpsBackfiller:
 
         for chain in available_chains:
             try:
-                chain_stats = self.backfill_chain(chain, start_date, end_date, dry_run)
+                chain_stats = self.backfill_chain(chain, start_date, end_date, dry_run, batch_size)
 
                 overall_stats['chains_processed'] += chain_stats.get('chains_processed', 0)
                 overall_stats['total_files'] += chain_stats.get('total_files', 0)
@@ -432,6 +472,7 @@ Examples:
     parser.add_argument('--chain', type=str, help='Specific chain to process (e.g., ethereum, arbitrum)')
     parser.add_argument('--start-date', type=str, help='Start date in YYYY-MM-DD format')
     parser.add_argument('--end-date', type=str, help='End date in YYYY-MM-DD format')
+    parser.add_argument('--batch-size', type=int, default=50, help='Number of files to process before saving to database (default: 50)')
     parser.add_argument('--dry-run', action='store_true', help='Preview what would be processed without actually doing it')
 
     args = parser.parse_args()
@@ -462,10 +503,10 @@ Examples:
     try:
         if args.chain:
             # Process specific chain
-            backfiller.backfill_chain(args.chain, args.start_date, args.end_date, args.dry_run)
+            backfiller.backfill_chain(args.chain, args.start_date, args.end_date, args.dry_run, args.batch_size)
         else:
             # Process all chains
-            backfiller.backfill_all_chains(args.start_date, args.end_date, args.dry_run)
+            backfiller.backfill_all_chains(args.start_date, args.end_date, args.dry_run, args.batch_size)
 
         print(f"\nBackfill completed successfully!")
 
@@ -493,6 +534,9 @@ if __name__ == "__main__":
 
   # Process Ethereum for a specific date range
   #python backfill_user_ops.py --chain ethereum --start-date 2024-01-01 --end-date 2024-01-31
+
+  # Process with custom batch size (save every 100 files instead of default 50)
+  #python backfill_user_ops.py --chain ethereum --batch-size 100
 
   # Dry run to see what would be processed
   #python backfill_user_ops.py --dry-run
