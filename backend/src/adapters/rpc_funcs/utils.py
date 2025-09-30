@@ -1278,8 +1278,9 @@ def load_4bytes_data():
     try:
         # Try different possible locations for the 4bytes.parquet file
         possible_paths = [
+            "/home/ubuntu/gtp/backend/4bytes.parquet",  # Server deployment path
             "4bytes.parquet",
-            "backend/4bytes.parquet", 
+            "backend/4bytes.parquet",
             os.path.join(os.path.dirname(__file__), "4bytes.parquet"),
             os.path.join(os.path.dirname(__file__), "..", "..", "4bytes.parquet")
         ]
