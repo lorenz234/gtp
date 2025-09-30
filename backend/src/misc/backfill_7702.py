@@ -607,10 +607,21 @@ def process_single_chain(chain, db_connector, start_date, block_batch_size, dry_
         print(f"   ✅ Completed {chain}: {chain_processed} total transactions processed")
         update_chain_progress(chain, max_block, max_date, chain_processed, 'completed')
         return {'chain': chain, 'status': 'completed', 'processed': chain_processed, 'error': None}
-        
+
     except Exception as e:
         print(f"   ❌ Error processing {chain}: {e}")
-        update_chain_progress(chain, 0, datetime.now().date(), 0, 'failed')
+        # Don't reset progress - keep the last successful block
+        # Load current progress to preserve it
+        progress = load_progress()
+        if 'chains' in progress and chain in progress['chains']:
+            current_block = progress['chains'][chain].get('latest_block_processed', 0)
+            current_date = progress['chains'][chain].get('latest_date_processed', datetime.now().date())
+            current_total = progress['chains'][chain].get('total_transactions_processed', 0)
+        else:
+            current_block = 0
+            current_date = datetime.now().date()
+            current_total = 0
+        update_chain_progress(chain, current_block, current_date, current_total, 'failed')
         return {'chain': chain, 'status': 'failed', 'processed': 0, 'error': str(e)}
 
 def show_progress():
@@ -765,23 +776,25 @@ def main():
     
     # Use ThreadPoolExecutor for parallel processing
     start_time = time.time()
-    
+    results = []
+    total_processed = 0
+
     with ThreadPoolExecutor(max_workers=args.workers) as executor:
         # Submit all chain processing jobs
         future_to_chain = {
             executor.submit(
-                process_single_chain, 
-                chain, 
-                DbConnector(), 
-                args.start_date, 
-                args.block_batch_size, 
+                process_single_chain,
+                chain,
+                DbConnector(),
+                args.start_date,
+                args.block_batch_size,
                 args.dry_run
             ): chain for chain in chains_to_process
         }
-        
+
         print(f"\n📊 Processing {len(chains_to_process)} chains in parallel...")
         print("=" * 80)
-        
+
         # Collect results as they complete
         for future in as_completed(future_to_chain):
             chain = future_to_chain[future]

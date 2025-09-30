@@ -804,7 +804,21 @@ def extract_authorization_list(transaction_details, block_timestamp, block_date,
                     
                     # Calculate the authority (EOA) from r,s,v values
                     sender = to_checksum_address(auth_dict['address'])
-                    chain_id = int(auth_dict['chainId'], 16) if isinstance(auth_dict['chainId'], str) else auth_dict['chainId']
+                    # Handle chainId in different formats: hex string (0x...), decimal string, or integer
+                    raw_chain_id = auth_dict['chainId']
+                    if isinstance(raw_chain_id, str):
+                        if raw_chain_id.startswith('0x'):
+                            chain_id = int(raw_chain_id, 16)  # Hex string
+                        else:
+                            chain_id = int(raw_chain_id)  # Decimal string
+                    else:
+                        chain_id = raw_chain_id  # Already an integer
+
+                    # Fix: Some RPCs return chainId as bytes-encoded string (224180385329 = ASCII "42161")
+                    # This is a known issue with certain RPC endpoints
+                    if chain_id == 224180385329:  # This is the string "42161" interpreted as bytes
+                        chain_id = 42161  # Arbitrum One
+
                     nonce = int(auth_dict['nonce'], 16) if isinstance(auth_dict['nonce'], str) else auth_dict['nonce']
                     v = 27 + int(auth_dict['yParity'], 16) if isinstance(auth_dict['yParity'], str) else 27 + auth_dict['yParity']
                     r = int(auth_dict['r'], 16) if isinstance(auth_dict['r'], str) else auth_dict['r']
