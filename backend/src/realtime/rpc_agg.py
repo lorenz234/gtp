@@ -563,12 +563,14 @@ class RtBackend:
             self.chain_data[chain_name]["errors"] += 1
             return None
         
-    def calculate_block_time(self, chain_name: str, current_timestamp: int) -> float:
+    def calculate_block_time(self, chain_name: str, current_block_number: int, current_timestamp: int) -> float:
         """
         Calculate average block time based on current and previous block timestamps.
+        Accounts for missed blocks by dividing time difference by number of blocks elapsed.
         
         Args:
             chain_name: Name of the blockchain
+            current_block_number: Block number of the current block
             current_timestamp: Timestamp of the current block
             
         Returns:
@@ -576,12 +578,15 @@ class RtBackend:
         """
         chain = self.chain_data[chain_name]
         
-        # If we have a previous timestamp, calculate the time difference
-        if chain["last_block_timestamp"] is not None:
-            block_time = current_timestamp - chain["last_block_timestamp"]
+        # If we have a previous block, calculate the time difference
+        if chain["last_block_number"] is not None and chain["last_block_timestamp"] is not None:
+            time_diff = current_timestamp - chain["last_block_timestamp"]
+            blocks_elapsed = current_block_number - chain["last_block_number"]
             
-            # Only add valid block times (positive and reasonable)
-            if 0 < block_time < 3600:  # Ignore if > 1 hour (likely a gap)
+            # Only add valid block times (positive time, positive blocks, and reasonable)
+            if blocks_elapsed > 0 and time_diff > 0 and time_diff < 3600:  # Ignore if > 1 hour (likely a gap)
+                # Calculate per-block time by dividing total time by number of blocks
+                block_time = time_diff / blocks_elapsed
                 chain["block_time_history"].append(block_time)
                 
                 # Keep only last 10 block times
@@ -612,7 +617,7 @@ class RtBackend:
             return chain["tps"]
         
         # Calculate block time before handling missed blocks
-        block_time = self.calculate_block_time(chain_name, current_timestamp)
+        block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp)
         
         # Handle missed blocks with estimation
         blocks_missed = 0
