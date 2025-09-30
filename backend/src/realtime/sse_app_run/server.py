@@ -511,6 +511,7 @@ class RedisSSEServer:
             
             return {
                 "chain_name": chain_name, "display_name": fields.get("display_name", chain_name),
+                "block_time": self._safe_float(fields.get("block_time", 0)),
                 "tps": self._safe_float(fields.get("tps", 0)), "timestamp": timestamp,
                 "tx_cost_erc20_transfer": self._safe_float(fields.get("tx_cost_erc20_transfer", 0)),
                 "tx_cost_erc20_transfer_usd": self._safe_float(fields.get("tx_cost_erc20_transfer_usd", 0)),
