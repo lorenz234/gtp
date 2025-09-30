@@ -596,7 +596,7 @@ class RtBackend:
         # Calculate average from history
         if chain["block_time_history"]:
             avg_block_time = sum(chain["block_time_history"]) / len(chain["block_time_history"])
-            chain["block_time"] = round(avg_block_time, 2)
+            chain["block_time"] = round(avg_block_time, 3)
         else:
             chain["block_time"] = 0
             
