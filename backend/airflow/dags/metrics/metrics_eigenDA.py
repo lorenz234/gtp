@@ -34,17 +34,19 @@ def run_dag():
 
         load_params = {
             'days': 7,  # Look back 7 days
-            'endpoint': 'https://eigenda-mainnet-ethereum-blobmetadata-usage.s3.amazonaws.com/stats',
+            'endpoint': 'https://eigenda-mainnet-ethereum-blobmetadata-usage.s3.us-east-2.amazonaws.com/v2/stats',
             'table': 'fact_kpis'  # Example table name
         }
-        
+
         df = eigen.extract(load_params)
         df = df.set_index(['date', 'origin_key', 'metric_key'])
         eigen.load(df)
 
         # How to find out new namespaces
         # df = eigen.call_api_endpoint()
-        # df.groupby(['account_name']).sum().reset_index()
+        # df = df.groupby(['account_name', 'customer_id', 'version']).sum().reset_index()
+        # df = df.drop(columns=['datetime'])
+        # df
 
     run_eigendata_extract_load()
 

@@ -11,7 +11,7 @@ from src.misc.airflow_utils import alert_via_webhook
 @dag(
     default_args={
         'owner': 'lorenz',
-        'retries': 2,
+        'retries': 5,
         'email_on_failure': False,
         'retry_delay': timedelta(minutes=5),
         'on_failure_callback': lambda context: alert_via_webhook(context, user='lorenz')
@@ -36,7 +36,7 @@ def main():
         ad = AdapterLabelPool({}, db_connector)
 
         # get new labels from the GraphQL endpoint
-        df = ad.extract()
+        df = ad.extract() # you can set from when to load [optional] e.g. {'time_created': 1758504151}
         
         # load labels into bronze table, then also increment to silver and lastly pushes untrusted owner_project labels to airtable
         ad.load(df)
