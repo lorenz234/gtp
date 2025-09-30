@@ -486,6 +486,8 @@ class RtBackend:
                 "errors": 0,
                 "last_updated": None,
                 "block_history": [],
+                "block_time": 0,  # Average block time in seconds
+                "block_time_history": [],  # Store last 10 block times for averaging
             }
 
     async def update_eth_price(self) -> None:
@@ -560,6 +562,40 @@ class RtBackend:
             logger.error(f"Exception fetching block from {chain_name}: {str(e)}")
             self.chain_data[chain_name]["errors"] += 1
             return None
+        
+    def calculate_block_time(self, chain_name: str, current_timestamp: int) -> float:
+        """
+        Calculate average block time based on current and previous block timestamps.
+        
+        Args:
+            chain_name: Name of the blockchain
+            current_timestamp: Timestamp of the current block
+            
+        Returns:
+            Average block time in seconds (rounded to 2 decimals)
+        """
+        chain = self.chain_data[chain_name]
+        
+        # If we have a previous timestamp, calculate the time difference
+        if chain["last_block_timestamp"] is not None:
+            block_time = current_timestamp - chain["last_block_timestamp"]
+            
+            # Only add valid block times (positive and reasonable)
+            if 0 < block_time < 3600:  # Ignore if > 1 hour (likely a gap)
+                chain["block_time_history"].append(block_time)
+                
+                # Keep only last 10 block times
+                if len(chain["block_time_history"]) > 10:
+                    chain["block_time_history"] = chain["block_time_history"][-10:]
+        
+        # Calculate average from history
+        if chain["block_time_history"]:
+            avg_block_time = sum(chain["block_time_history"]) / len(chain["block_time_history"])
+            chain["block_time"] = round(avg_block_time, 2)
+        else:
+            chain["block_time"] = 0
+            
+        return chain["block_time"]
 
     def calculate_tps(self, chain_name: str, current_block: Dict[str, Any]) -> float:
         """Calculate TPS for a chain based on the current block and last 3 blocks."""
@@ -574,6 +610,9 @@ class RtBackend:
         if chain["last_block_number"] is not None and current_block_number <= chain["last_block_number"]:
             #logger.debug(f"{chain_name}: Skipping duplicate/old block {current_block_number}")
             return chain["tps"]
+        
+        # Calculate block time before handling missed blocks
+        block_time = self.calculate_block_time(chain_name, current_timestamp)
         
         # Handle missed blocks with estimation
         blocks_missed = 0
@@ -606,11 +645,11 @@ class RtBackend:
         self._update_chain_data(chain_name, current_block_number, current_timestamp, tx_count, tps)
         
         # Publish to Redis
-        asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, tps))
+        asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, tps, block_time))
         
         return tps
 
-    async def _publish_chain_update(self, chain_name: str, block_number: int, tx_count: int, gas_used: int, tps: float) -> None:
+    async def _publish_chain_update(self, chain_name: str, block_number: int, tx_count: int, gas_used: int, tps: float, block_time: float) -> None:
         """Publish chain update to Redis stream."""
         chain_data = self.chain_data[chain_name]
         
@@ -620,6 +659,7 @@ class RtBackend:
             "block_number": block_number,
             "tps": round(tps, 1),
             "tx_count": tx_count,
+            "block_time": block_time,
             "gas_used": gas_used,
             "tx_cost_avg": chain_data.get("tx_cost_avg", 0),
             "tx_cost_avg_usd": chain_data.get("tx_cost_avg_usd", 0),
