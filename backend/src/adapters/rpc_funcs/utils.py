@@ -15,6 +15,8 @@ from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs, check_gcs_connectio
 from eth_account import Account
 from eth_utils import keccak, to_checksum_address
 import rlp
+import polars as pl
+from src.adapters.rpc_funcs.user_ops_processor import find_UserOps
 
 # ---------------- Utility Functions ---------------------
 def safe_float_conversion(x):
@@ -802,7 +804,21 @@ def extract_authorization_list(transaction_details, block_timestamp, block_date,
                     
                     # Calculate the authority (EOA) from r,s,v values
                     sender = to_checksum_address(auth_dict['address'])
-                    chain_id = int(auth_dict['chainId'], 16) if isinstance(auth_dict['chainId'], str) else auth_dict['chainId']
+                    # Handle chainId in different formats: hex string (0x...), decimal string, or integer
+                    raw_chain_id = auth_dict['chainId']
+                    if isinstance(raw_chain_id, str):
+                        if raw_chain_id.startswith('0x'):
+                            chain_id = int(raw_chain_id, 16)  # Hex string
+                        else:
+                            chain_id = int(raw_chain_id)  # Decimal string
+                    else:
+                        chain_id = raw_chain_id  # Already an integer
+
+                    # Fix: Some RPCs return chainId as bytes-encoded string (224180385329 = ASCII "42161")
+                    # This is a known issue with certain RPC endpoints
+                    if chain_id == 224180385329:  # This is the string "42161" interpreted as bytes
+                        chain_id = 42161  # Arbitrum One
+
                     nonce = int(auth_dict['nonce'], 16) if isinstance(auth_dict['nonce'], str) else auth_dict['nonce']
                     v = 27 + int(auth_dict['yParity'], 16) if isinstance(auth_dict['yParity'], str) else 27 + auth_dict['yParity']
                     r = int(auth_dict['r'], 16) if isinstance(auth_dict['r'], str) else auth_dict['r']
@@ -1141,6 +1157,15 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
 
             df_prep = prep_dataframe_new(df, chain)
 
+            # Process user ops using raw data (for full input) + prepared data (for fees)
+            user_ops_df = pd.DataFrame()
+            try:
+                user_ops_df = process_user_ops_for_transactions(w3, df, df_prep, chain)
+                if not user_ops_df.empty:
+                    print(f"...extracted {len(user_ops_df)} user operations from {len(df)} transactions")
+            except Exception as e:
+                print(f"WARNING: {rpc_url} - user ops extraction failed for blocks {current_start} to {current_end}: {e}")
+
             df_prep.drop_duplicates(subset=['tx_hash'], inplace=True)
             df_prep.set_index('tx_hash', inplace=True)
             df_prep.index.name = 'tx_hash'
@@ -1162,6 +1187,20 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
                     except Exception as e:
                         print(f"ERROR: {rpc_url} - inserting authorization list data for blocks {current_start} to {current_end}: {e}")
                         # Don't fail the whole operation if auth list insertion fails
+                
+                # Insert user ops data if any were extracted
+                if not user_ops_df.empty:
+                    try:
+                        # Create composite primary key from origin_key, tx_hash and tree_index (matching database constraint)
+                        user_ops_df.drop_duplicates(subset=['origin_key', 'tx_hash', 'tree_index'], inplace=True)
+                        user_ops_df.set_index(['origin_key', 'tx_hash', 'tree_index'], inplace=True)
+                        
+                        uops_table_name = 'uops'
+                        db_connector.upsert_table(uops_table_name, user_ops_df, if_exists='update')
+                        print(f"...user ops data inserted for blocks {current_start} to {current_end}: {user_ops_df.shape[0]} records")
+                    except Exception as e:
+                        print(f"ERROR: {rpc_url} - inserting user ops data for blocks {current_start} to {current_end}: {e}")
+                        # Don't fail the whole operation if user ops insertion fails
                 
                 return rows_uploaded  # Return the number of rows uploaded
             except Exception as e:
@@ -1228,3 +1267,167 @@ def get_chain_config(db_connector, chain_name):
             break
 
     return config_list, batch_size
+
+def load_4bytes_data():
+    """
+    Loads the 4bytes.parquet file for user ops processing.
+    
+    Returns:
+        polars.DataFrame: The 4bytes DataFrame or None if not found
+    """
+    try:
+        # Try different possible locations for the 4bytes.parquet file
+        possible_paths = [
+            "/home/ubuntu/gtp/backend/4bytes.parquet",  # Server deployment path
+            "4bytes.parquet",
+            "backend/4bytes.parquet",
+            os.path.join(os.path.dirname(__file__), "4bytes.parquet"),
+            os.path.join(os.path.dirname(__file__), "..", "..", "4bytes.parquet")
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                df_4bytes = pl.read_parquet(path)
+                print(f"Loaded 4bytes.parquet from {path} with {len(df_4bytes)} rows")
+                return df_4bytes
+        
+        print("Warning: 4bytes.parquet not found. User ops processing will be skipped.")
+        return None
+    except Exception as e:
+        print(f"Error loading 4bytes.parquet: {e}")
+        return None
+
+def process_user_ops_for_transactions(w3, df_raw, df_prep, chain):
+    """
+    Processes user operations using raw data (for full input) and prepared data (for fees).
+    
+    Args:
+        w3: Web3 instance
+        df_raw: Raw DataFrame containing transaction data with full input
+        df_prep: Prepared DataFrame containing chain-specific fee calculations
+        chain: Chain identifier
+        
+    Returns:
+        pandas.DataFrame: DataFrame containing user operations data
+    """
+    try:
+        # Load 4bytes data
+        df_4bytes = load_4bytes_data()
+        if df_4bytes is None:
+            print("Skipping user ops processing due to missing 4bytes data")
+            return pd.DataFrame()
+        
+        # Create lookup from prepared data (using tx hash as key) for fees, timestamps, and dates
+        prep_data_lookup = {}
+        df_prep_reset = df_prep.reset_index()
+        for _, prep_row in df_prep_reset.iterrows():
+            # Get the hash key (handle both string and bytes)
+            tx_hash_key = prep_row.get('tx_hash', '')
+            if isinstance(tx_hash_key, bytes):
+                tx_hash_key = tx_hash_key.hex()
+            elif isinstance(tx_hash_key, str) and tx_hash_key.startswith('\\x'):
+                tx_hash_key = tx_hash_key[2:]  # Remove \x prefix to get raw hex
+            
+            # Store the prepared data (fees, timestamps, dates - all properly formatted)
+            prep_data_lookup[tx_hash_key] = {
+                'tx_fee': prep_row.get('tx_fee', 0) or 0,
+                'block_timestamp': prep_row.get('block_timestamp'),
+                'block_date': prep_row.get('block_date'),
+                'block_number': prep_row.get('block_number', 0)
+            }
+        
+        all_user_ops = []
+        
+        # Process each transaction using raw data
+        for _, tx_row in df_raw.iterrows():
+            try:
+                # Convert the raw pandas row to a format that find_UserOps expects
+                class Transaction:
+                    def __init__(self, tx_data):
+                        # Convert hash from string to bytes
+                        hash_val = tx_data.get('hash', '0x')
+                        if isinstance(hash_val, str):
+                            self.hash = bytes.fromhex(hash_val.replace('0x', ''))
+                        else:
+                            self.hash = hash_val
+                        
+                        self.blockNumber = tx_data.get('blockNumber', 0)
+                        
+                        # Convert input from string to bytes
+                        input_val = tx_data.get('input', '0x')
+                        if isinstance(input_val, str):
+                            self.input = bytes.fromhex(input_val.replace('0x', ''))
+                        else:
+                            self.input = input_val
+                
+                tx_obj = Transaction(tx_row)
+                
+                # Extract user ops for this transaction
+                user_ops = find_UserOps(tx_obj, df_4bytes)
+                
+                if user_ops:
+                    # Get prepared data (fees, timestamps, dates) from prep_dataframe_new output
+                    tx_hash_str = tx_row['hash'].replace('0x', '') if isinstance(tx_row['hash'], str) else tx_row['hash'].hex()
+                    prep_data = prep_data_lookup.get(tx_hash_str, {})
+                    
+                    tx_fee_eth = prep_data.get('tx_fee', 0)
+                    fee_per_op = tx_fee_eth / len(user_ops) if len(user_ops) > 0 and tx_fee_eth > 0 else 0
+                    
+                    # Use prepared data for timestamps and dates (guaranteed to be valid)
+                    block_timestamp = prep_data.get('block_timestamp')
+                    block_date = prep_data.get('block_date') 
+                    block_number = prep_data.get('block_number', tx_row.get('blockNumber', 0))
+                    
+                    # Fallback to 1970-01-01 if prepared data doesn't have timestamps
+                    if block_timestamp is None:
+                        block_timestamp = pd.to_datetime(0, unit='s')
+                    if block_date is None:
+                        block_date = pd.to_datetime(0, unit='s').date()
+                    
+                    # Process each user op
+                    for user_op in user_ops:
+                        user_op_data = {
+                            'origin_key': chain,
+                            'tx_hash': '\\x' + tx_obj.hash.hex(),
+                            'tree_index': user_op.get('index', ''),
+                            'tree': user_op.get('tree', ''),
+                            'tree_4byte': user_op.get('tree_4byte', ''),
+                            'is_decoded': user_op.get('is_decoded', False),
+                            'has_bytes': user_op.get('has_bytes', False),
+                            'from_address': user_op.get('from'),
+                            'to_address': user_op.get('to'),
+                            'tx_fee_split': fee_per_op,
+                            'block_number': block_number,
+                            'block_timestamp': block_timestamp,
+                            'block_date': block_date,
+                            'beneficiary': user_op.get('beneficiary'),
+                            'paymaster': user_op.get('paymaster')
+                        }
+                        
+                        # Convert addresses to proper bytea format
+                        for addr_field in ['from_address', 'to_address', 'beneficiary', 'paymaster']:
+                            if user_op_data[addr_field]:
+                                addr = user_op_data[addr_field]
+                                if isinstance(addr, str) and addr.startswith('0x'):
+                                    user_op_data[addr_field] = '\\x' + addr[2:]
+                                elif isinstance(addr, str) and not addr.startswith('\\x'):
+                                    user_op_data[addr_field] = '\\x' + addr
+                        
+                        all_user_ops.append(user_op_data)
+                        
+            except Exception as e:
+                hash_val = tx_row.get('hash', 'unknown')
+                print(f"Error processing user ops for transaction {hash_val}: {e}")
+                print(f"  Hash type: {type(hash_val)}, Input type: {type(tx_row.get('input', ''))}")
+                continue
+        
+        if all_user_ops:
+            user_ops_df = pd.DataFrame(all_user_ops)
+            print(f"Combined extraction: {len(user_ops_df)} user operations from {len(df_raw)} transactions")
+            return user_ops_df
+        else:
+            return pd.DataFrame()
+            
+    except Exception as e:
+        print(f"Error in process_user_ops_for_transactions: {e}")
+        return pd.DataFrame()

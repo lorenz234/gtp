@@ -2,11 +2,12 @@
 """
 EIP-7702 Authorization List Backfill Script
 
-Backfills 7702 authorization data for all type 4 transactions from April onwards.
-Uses existing authorization list functions to fill the authorizations_7702 table.
+Multi-threaded backfill of 7702 authorization data for all type 4 transactions.
+Uses parallel processing to handle multiple chains simultaneously with proper
+error handling and progress tracking.
 
 Usage:
-    python simple_7702_backfill.py [--chain CHAIN] [--dry-run]
+    python backfill_7702.py [--chain CHAIN] [--dry-run] [--workers N]
 """
 
 import sys
@@ -14,9 +15,15 @@ import getpass
 import argparse
 import json
 import os
+import shutil
 from datetime import datetime, date
 import pandas as pd
 from sqlalchemy import text
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
+import time
+import queue
 
 # Add backend path
 sys_user = getpass.getuser()
@@ -30,15 +37,41 @@ from src.adapters.rpc_funcs.utils import (
     connect_to_node
 )
 
-# Progress tracking
-PROGRESS_FILE = "backfill_7702_progress.json"
+# Progress tracking - will be set dynamically based on chain
+PROGRESS_FILE = None
+
+# Thread-safe progress tracking
+progress_lock = threading.Lock()
+progress_bars = {}  # Per-chain progress bars
+
+def set_progress_file(chain_name=None, is_multi_chain=False):
+    """Set the progress file name based on chain and multi-chain mode."""
+    global PROGRESS_FILE
+    if is_multi_chain or chain_name is None:
+        PROGRESS_FILE = "backfill_7702_progress.json"
+    else:
+        PROGRESS_FILE = f"backfill_7702_progress_{chain_name}.json"
 
 def load_progress():
-    """Load progress from JSON file."""
+    """Load progress from JSON file with corruption recovery."""
     if os.path.exists(PROGRESS_FILE):
         try:
             with open(PROGRESS_FILE, 'r') as f:
-                return json.load(f)
+                content = f.read().strip()
+                if not content:
+                    print("Warning: Progress file is empty, starting fresh")
+                    return {}
+                return json.loads(content)
+        except json.JSONDecodeError as e:
+            print(f"Warning: Progress file corrupted ({e}), creating backup and starting fresh")
+            # Create backup of corrupted file
+            backup_file = f"{PROGRESS_FILE}.corrupted.{int(time.time())}"
+            try:
+                shutil.copy2(PROGRESS_FILE, backup_file)
+                print(f"Corrupted file backed up to: {backup_file}")
+            except:
+                pass
+            return {}
         except Exception as e:
             print(f"Warning: Could not load progress file: {e}")
     return {}
@@ -51,23 +84,25 @@ def save_progress(progress_data):
     except Exception as e:
         print(f"Warning: Could not save progress: {e}")
 
-def update_chain_progress(chain, latest_block, latest_date, total_processed):
-    """Update progress for a specific chain."""
-    progress = load_progress()
-    
-    if 'chains' not in progress:
-        progress['chains'] = {}
-    
-    progress['chains'][chain] = {
-        'latest_block_processed': latest_block,
-        'latest_date_processed': str(latest_date),  # Ensure it's a string
-        'total_transactions_processed': total_processed,
-        'last_updated': datetime.now().isoformat()
-    }
-    
-    progress['last_run'] = datetime.now().isoformat()
-    
-    save_progress(progress)
+def update_chain_progress(chain, latest_block, latest_date, total_processed, status='in_progress'):
+    """Update progress for a specific chain - thread safe."""
+    with progress_lock:
+        progress = load_progress()
+        
+        if 'chains' not in progress:
+            progress['chains'] = {}
+        
+        progress['chains'][chain] = {
+            'latest_block_processed': latest_block,
+            'latest_date_processed': str(latest_date),  # Ensure it's a string
+            'total_transactions_processed': total_processed,
+            'last_updated': datetime.now().isoformat(),
+            'status': status  # in_progress, completed, failed, skipped
+        }
+        
+        progress['last_run'] = datetime.now().isoformat()
+        
+        save_progress(progress)
 
 def get_chain_resume_block(chain, min_block):
     """Get the block to resume from for a chain."""
@@ -81,6 +116,23 @@ def get_chain_resume_block(chain, min_block):
         print(f"   🆕 Starting {chain} from block {min_block} (no previous progress)")
         return min_block
 
+
+def check_table_schema(db_connector, table_name):
+    """Check if a table has the required tx_type column."""
+    try:
+        with db_connector.engine.connect() as conn:
+            schema_query = """
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = :table_name
+            AND column_name = 'tx_type'
+            """
+            result = conn.execute(text(schema_query), {"table_name": table_name}).fetchone()
+            return result is not None
+    except Exception as e:
+        print(f"❌ Error checking schema for {table_name}: {e}")
+        return False
 
 def get_all_tx_tables(db_connector):
     """Get all transaction tables in the database."""
@@ -101,8 +153,9 @@ def get_chains_from_tables(tables):
     return [table.replace('_tx', '') for table in tables]
 
 def get_chains_with_type4_txs(db_connector, start_date='2024-04-01'):
-    """Get all chains that have type 4 transactions since the start date."""
+    """Get all chains that have type 4 transactions since the start date, with schema validation."""
     chains_with_type4 = []
+    skipped_chains = []
     
     # Get all transaction tables
     tables = get_all_tx_tables(db_connector)
@@ -110,6 +163,14 @@ def get_chains_with_type4_txs(db_connector, start_date='2024-04-01'):
     
     with db_connector.engine.connect() as conn:
         for table in tables:
+            chain_name = table.replace('_tx', '')
+            
+            # First check if table has tx_type column
+            if not check_table_schema(db_connector, table):
+                print(f"⚠️  Skipping {chain_name}: missing tx_type column")
+                skipped_chains.append(chain_name)
+                continue
+            
             try:
                 # Check if table has type 4 transactions
                 check_query = f"""
@@ -122,16 +183,18 @@ def get_chains_with_type4_txs(db_connector, start_date='2024-04-01'):
                 result = conn.execute(text(check_query), {"start_date": start_date}).scalar()
                 
                 if result > 0:
-                    chain_name = table.replace('_tx', '')
                     chains_with_type4.append(chain_name)
                     print(f"✅ Found type 4 transactions in {chain_name}")
                 else:
-                    chain_name = table.replace('_tx', '')
                     print(f"⏭️  No type 4 transactions in {chain_name}")
                     
             except Exception as e:
                 print(f"❌ Error checking {table}: {e}")
+                skipped_chains.append(chain_name)
                 continue
+    
+    if skipped_chains:
+        print(f"\n⚠️  Skipped {len(skipped_chains)} chains due to schema issues: {skipped_chains}")
     
     return chains_with_type4
 
@@ -440,30 +503,178 @@ def test_block_range(db_connector, chain, start_block, end_block):
     except Exception as e:
         print(f"❌ Error testing block range: {e}")
 
+def process_single_chain(chain, db_connector, start_date, block_batch_size, dry_run):
+    """Process a single chain - designed to run in a thread."""
+    try:
+        print(f"\n🚀 Worker started for chain: {chain}")
+        
+        # Get overall block range for this chain
+        min_block, max_block, min_date, max_date = get_overall_block_range_for_chain(db_connector, chain, start_date)
+        
+        if min_block is None:
+            print(f"   ❌ No data found for {chain} since {start_date}")
+            update_chain_progress(chain, 0, datetime.now().date(), 0, 'skipped')
+            return {'chain': chain, 'status': 'skipped', 'processed': 0, 'error': 'No data'}
+        
+        total_blocks = max_block - min_block + 1
+        print(f"   📊 {chain}: blocks {min_block} to {max_block} ({total_blocks:,} blocks)")
+        
+        # Get Web3 connection
+        try:
+            active_rpc_configs, _ = get_chain_config(db_connector, chain)
+            
+            if not active_rpc_configs:
+                print(f"   ❌ No RPC config found for {chain}")
+                update_chain_progress(chain, 0, datetime.now().date(), 0, 'failed')
+                return {'chain': chain, 'status': 'failed', 'processed': 0, 'error': 'No RPC config'}
+            
+            rpc_config = active_rpc_configs[0]
+            w3 = connect_to_node(rpc_config)
+            if not w3 or not w3.is_connected():
+                print(f"   ❌ Could not connect to {chain} RPC")
+                update_chain_progress(chain, 0, datetime.now().date(), 0, 'failed')
+                return {'chain': chain, 'status': 'failed', 'processed': 0, 'error': 'RPC connection failed'}
+            
+            print(f"   ✅ Connected to {chain} RPC")
+            
+        except Exception as e:
+            print(f"   ❌ Error connecting to {chain}: {e}")
+            update_chain_progress(chain, 0, datetime.now().date(), 0, 'failed')
+            return {'chain': chain, 'status': 'failed', 'processed': 0, 'error': str(e)}
+        
+        # Check if we can resume from previous progress
+        current_block = get_chain_resume_block(chain, min_block)
+        chain_processed = 0
+        
+        # Create progress bar for this chain
+        progress_desc = f"{chain:>15}"
+        total_iterations = (max_block - current_block + block_batch_size) // block_batch_size
+        
+        with tqdm(total=total_iterations, desc=progress_desc, position=None, leave=True, 
+                 bar_format='{desc}: {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]') as pbar:
+            
+            batch_num = 1
+            while current_block <= max_block:
+                batch_end = min(current_block + block_batch_size - 1, max_block)
+                
+                # Quick check if this range has any type 4 transactions
+                if not check_type4_exists_in_range(db_connector, chain, current_block, batch_end):
+                    # Update progress even for empty batches
+                    update_chain_progress(chain, batch_end, datetime.now().date(), chain_processed)
+                    current_block = batch_end + 1
+                    pbar.update(1)
+                    continue
+                
+                # Get transactions for this block batch
+                transactions = get_type4_transactions_in_block_range(db_connector, chain, current_block, batch_end)
+                
+                if not transactions.empty:
+                    # Check existing authorization data for this batch
+                    tx_hashes = []
+                    for tx_hash in transactions['tx_hash'].tolist():
+                        if isinstance(tx_hash, memoryview):
+                            tx_hashes.append('0x' + tx_hash.tobytes().hex())
+                        else:
+                            tx_hashes.append(str(tx_hash))
+                    existing_auth = check_existing_auth_data(db_connector, tx_hashes)
+                    
+                    if existing_auth:
+                        # Filter out transactions with existing auth data
+                        transactions = transactions[~transactions['tx_hash'].astype(str).str.replace('\\x', '').str.replace('0x', '').str.lower().isin(
+                            [h.lower() for h in existing_auth]
+                        )]
+                    
+                    if not transactions.empty:
+                        # Get the latest date from this batch for progress tracking
+                        batch_latest_date = transactions['block_date'].max()
+                        
+                        # Process this batch
+                        batch_processed = process_chain_transactions(db_connector, chain, w3, transactions, dry_run)
+                        
+                        if batch_processed > 0:
+                            chain_processed += batch_processed
+                        
+                        # Save progress after processing batch
+                        update_chain_progress(chain, batch_end, batch_latest_date, chain_processed)
+                    else:
+                        # All transactions already processed
+                        update_chain_progress(chain, batch_end, datetime.now().date(), chain_processed)
+                
+                current_block = batch_end + 1
+                pbar.update(1)
+                batch_num += 1
+        
+        print(f"   ✅ Completed {chain}: {chain_processed} total transactions processed")
+        update_chain_progress(chain, max_block, max_date, chain_processed, 'completed')
+        return {'chain': chain, 'status': 'completed', 'processed': chain_processed, 'error': None}
+
+    except Exception as e:
+        print(f"   ❌ Error processing {chain}: {e}")
+        # Don't reset progress - keep the last successful block
+        # Load current progress to preserve it
+        progress = load_progress()
+        if 'chains' in progress and chain in progress['chains']:
+            current_block = progress['chains'][chain].get('latest_block_processed', 0)
+            current_date = progress['chains'][chain].get('latest_date_processed', datetime.now().date())
+            current_total = progress['chains'][chain].get('total_transactions_processed', 0)
+        else:
+            current_block = 0
+            current_date = datetime.now().date()
+            current_total = 0
+        update_chain_progress(chain, current_block, current_date, current_total, 'failed')
+        return {'chain': chain, 'status': 'failed', 'processed': 0, 'error': str(e)}
+
 def show_progress():
-    """Show current progress from the progress file."""
-    progress = load_progress()
+    """Show current progress from all progress files."""
+    import glob
     
-    if not progress or 'chains' not in progress:
-        print("No progress file found or no chains processed yet.")
+    # Find all progress files
+    progress_files = glob.glob("backfill_7702_progress*.json")
+    
+    if not progress_files:
+        print("No progress files found.")
         return
     
-    print(f"\n📊 Current Progress (last run: {progress.get('last_run', 'unknown')})")
+    print(f"\n📊 Current Progress")
     print("=" * 80)
     
-    for chain, data in progress['chains'].items():
-        print(f"\n🔗 {chain.upper()}:")
-        print(f"   Latest block processed: {data.get('latest_block_processed', 'unknown')}")
-        print(f"   Latest date processed:  {data.get('latest_date_processed', 'unknown')}")
-        print(f"   Total transactions:     {data.get('total_transactions_processed', 0)}")
-        print(f"   Last updated:           {data.get('last_updated', 'unknown')}")
+    for progress_file in sorted(progress_files):
+        print(f"\n📄 {progress_file}:")
+        
+        # Temporarily set the progress file
+        global PROGRESS_FILE
+        old_progress_file = PROGRESS_FILE
+        PROGRESS_FILE = progress_file
+        
+        try:
+            progress = load_progress()
+            
+            if not progress or 'chains' not in progress:
+                print("   No progress data found.")
+                continue
+                
+            print(f"   Last run: {progress.get('last_run', 'unknown')}")
+            
+            for chain, data in progress['chains'].items():
+                status = data.get('status', 'unknown')
+                status_emoji = {'completed': '✅', 'in_progress': '🔄', 'failed': '❌', 'skipped': '⏭️'}.get(status, '❓')
+                
+                print(f"   🔗 {chain.upper()} {status_emoji} ({status}):")
+                print(f"      Latest block processed: {data.get('latest_block_processed', 'unknown')}")
+                print(f"      Latest date processed:  {data.get('latest_date_processed', 'unknown')}")
+                print(f"      Total transactions:     {data.get('total_transactions_processed', 0)}")
+                print(f"      Last updated:           {data.get('last_updated', 'unknown')}")
+        finally:
+            # Restore original progress file
+            PROGRESS_FILE = old_progress_file
 
 def main():
-    parser = argparse.ArgumentParser(description='EIP-7702 backfill script with block batching and progress tracking')
+    parser = argparse.ArgumentParser(description='Multi-threaded EIP-7702 backfill script with parallel processing')
     parser.add_argument('--chain', type=str, help='Process specific chain only (use "all" to process all chains)')
     parser.add_argument('--dry-run', action='store_true', help='Run without inserting data')
-    parser.add_argument('--block-batch-size', type=int, default=10, help='Number of blocks to process in each batch (default: 10)')
+    parser.add_argument('--block-batch-size', type=int, default=100, help='Number of blocks to process in each batch (default: 100)')
     parser.add_argument('--start-date', type=str, default='2024-04-01', help='Start date (YYYY-MM-DD)')
+    parser.add_argument('--workers', type=int, default=4, help='Number of worker threads for parallel processing (default: 4)')
     parser.add_argument('--show-progress', action='store_true', help='Show current progress and exit')
     parser.add_argument('--reset-progress', action='store_true', help='Reset progress file and start fresh')
     parser.add_argument('--test-blocks', type=str, help='Test specific block range for type 4 transactions (format: chain:start:end)')
@@ -475,11 +686,15 @@ def main():
         return
     
     if args.reset_progress:
-        if os.path.exists(PROGRESS_FILE):
-            os.remove(PROGRESS_FILE)
-            print(f"🗑️  Progress file {PROGRESS_FILE} deleted. Starting fresh.")
+        import glob
+        progress_files = glob.glob("backfill_7702_progress*.json")
+        if progress_files:
+            for pf in progress_files:
+                os.remove(pf)
+                print(f"🗑️  Progress file {pf} deleted.")
+            print("Starting fresh.")
         else:
-            print("No progress file to reset.")
+            print("No progress files to reset.")
         return
     
     if args.test_blocks:
@@ -504,10 +719,11 @@ def main():
             print(f"❌ Error testing blocks: {e}")
             return
     
-    print("🚀 Starting EIP-7702 Authorization List Backfill")
+    print("🚀 Starting Multi-threaded EIP-7702 Authorization List Backfill")
     print(f"   Start date: {args.start_date}")
     print(f"   Dry run: {args.dry_run}")
     print(f"   Block batch size: {args.block_batch_size}")
+    print(f"   Worker threads: {args.workers}")
     
     # Initialize database
     db_connector = DbConnector()
@@ -517,173 +733,115 @@ def main():
         print(f"   Processing ALL chains")
         chains_to_process = get_chains_with_type4_txs(db_connector, args.start_date)
         print(f"   Found {len(chains_to_process)} chains with type 4 transactions")
+        is_multi_chain = True
+        chain_name = None
     elif args.chain:
         chains_to_process = [args.chain]
         print(f"   Processing single chain: {args.chain}")
+        is_multi_chain = False
+        chain_name = args.chain
     else:
         # Default behavior: find chains with type 4 transactions
         chains_to_process = get_chains_with_type4_txs(db_connector, args.start_date)
         print(f"   Found {len(chains_to_process)} chains with type 4 transactions")
+        is_multi_chain = True
+        chain_name = None
     
+    if not chains_to_process:
+        print("❌ No chains to process!")
+        return
+    
+    # Set progress file based on single chain vs multi-chain mode
+    set_progress_file(chain_name, is_multi_chain)
+    print(f"   Progress file: {PROGRESS_FILE}")
+    
+    # Filter out already completed chains unless explicitly requested
+    progress = load_progress()
+    if progress and 'chains' in progress and not args.chain:
+        remaining_chains = []
+        for chain in chains_to_process:
+            chain_status = progress['chains'].get(chain, {}).get('status', 'pending')
+            if chain_status != 'completed':
+                remaining_chains.append(chain)
+            else:
+                print(f"   ✅ Skipping {chain} (already completed)")
+        chains_to_process = remaining_chains
+    
+    if not chains_to_process:
+        print("✅ All chains already completed!")
+        return
+    
+    print(f"\n🚀 Starting parallel processing of {len(chains_to_process)} chains with {args.workers} workers")
+    print(f"   Chains to process: {chains_to_process}")
+    
+    # Use ThreadPoolExecutor for parallel processing
+    start_time = time.time()
+    results = []
     total_processed = 0
-    successful_chains = []
-    failed_chains = []
-    
-    for chain in chains_to_process:
-        print(f"\n📊 Processing chain: {chain}")
-        
-        try:
-            # Get overall block range for this chain (much faster than counting type 4 transactions)
-            min_block, max_block, min_date, max_date = get_overall_block_range_for_chain(db_connector, chain, args.start_date)
-            
-            if min_block is None:
-                print(f"   No data found for {chain} since {args.start_date}")
-                continue
-            
-            total_days = (max_date - min_date).days + 1 if max_date != min_date else 1
-            total_blocks = max_block - min_block + 1
-            print(f"   Processing blocks {min_block} to {max_block} ({total_blocks:,} blocks)")
-            print(f"   Date range: {min_date} to {max_date} ({total_days} days total)")
-            print(f"   Will check for type 4 transactions in batches of {args.block_batch_size} blocks")
-            
-            # Get Web3 connection
-            try:
-                active_rpc_configs, _ = get_chain_config(db_connector, chain)
-                
-                if not active_rpc_configs:
-                    print(f"   No RPC config found for {chain}, skipping")
-                    continue
-                
-                rpc_config = active_rpc_configs[0]
-                w3 = connect_to_node(rpc_config)
-                if not w3 or not w3.is_connected():
-                    print(f"   Could not connect to {chain}, skipping")
-                    continue
-                
-                print(f"   Connected to {chain} RPC")
-                
-            except Exception as e:
-                print(f"   Error connecting to {chain}: {e}")
-                continue
-            
-            # Process blocks in batches
-            chain_processed = 0
-            chain_auth_records = 0
-            
-            # Check if we can resume from previous progress
-            current_block = get_chain_resume_block(chain, min_block)
-            batch_num = 1
-            
-            while current_block <= max_block:
-                batch_end = min(current_block + args.block_batch_size - 1, max_block)
-                
-                # Calculate progress
-                block_progress, days_total, days_remaining = calculate_progress(
-                    current_block, min_block, max_block, 
-                    min_date, min_date, max_date  # Use min_date as current date for now
-                )
-                
-                print(f"   Batch {batch_num}: Processing blocks {current_block} to {batch_end}")
-                print(f"     Progress: {block_progress:.1f}% | ~{days_remaining} days of data remaining")
-                
-                # Quick check if this range has any type 4 transactions
-                if not check_type4_exists_in_range(db_connector, chain, current_block, batch_end):
-                    print(f"     ⏭️  No type 4 transactions in blocks {current_block} to {batch_end}")
-                    # Still save progress for empty batches
-                    from datetime import datetime
-                    current_date = datetime.now().date()
-                    update_chain_progress(chain, batch_end, current_date, chain_processed)
-                    print(f"     💾 Progress saved: latest block {batch_end} (empty batch)")
-                    current_block = batch_end + 1
-                    batch_num += 1
-                    continue
-                
-                # Get transactions for this block batch
-                transactions = get_type4_transactions_in_block_range(db_connector, chain, current_block, batch_end)
-                
-                if not transactions.empty:
-                    print(f"     Found {len(transactions)} type 4 transactions in this batch")
-                    # Get the actual date range for this batch for better progress tracking
-                    batch_min_date = transactions['block_date'].min()
-                    batch_max_date = transactions['block_date'].max()
-                    
-                    # Update progress with actual current date
-                    _, _, days_remaining = calculate_progress(
-                        current_block, min_block, max_block,
-                        batch_max_date, min_date, max_date
-                    )
-                    
 
-                    
-                    # Check existing authorization data for this batch
-                    # Convert memoryview objects to hex strings
-                    tx_hashes = []
-                    for tx_hash in transactions['tx_hash'].tolist():
-                        if isinstance(tx_hash, memoryview):
-                            tx_hashes.append('0x' + tx_hash.tobytes().hex())
-                        else:
-                            tx_hashes.append(str(tx_hash))
-                    existing_auth = check_existing_auth_data(db_connector, tx_hashes)
-                    
-                    if existing_auth:
-                        # Filter out transactions with existing auth data
-                        transactions = transactions[~transactions['tx_hash'].astype(str).str.replace('\\x', '').str.replace('0x', '').str.lower().isin(
-                            [h.lower() for h in existing_auth]
-                        )]
-                        print(f"     Filtered out {len(existing_auth)} transactions with existing auth data")
-                    
-                    if not transactions.empty:
-                        # Get the latest date from this batch for progress tracking
-                        batch_latest_date = transactions['block_date'].max()
-                        
-                        # Process this batch
-                        batch_processed = process_chain_transactions(db_connector, chain, w3, transactions, args.dry_run)
-                        
-                        if batch_processed > 0:
-                            # Count authorization records (estimate: each type 4 tx might have 1-3 auth records)
-                            estimated_auth_records = batch_processed * 2  # rough estimate
-                            
-                            chain_processed += batch_processed
-                            chain_auth_records += estimated_auth_records
-                            
-                            if args.dry_run:
-                                print(f"     ✅ DRY RUN: Would process {batch_processed} transactions (~{estimated_auth_records} auth records)")
-                            else:
-                                print(f"     ✅ Processed {batch_processed} authorization records")
-                        else:
-                            print(f"     ⚠️  No authorization lists found in {len(transactions)} type 4 transactions")
-                        
-                        # Save progress after processing batch (regardless of whether auth lists were found)
-                        update_chain_progress(chain, batch_end, batch_latest_date, chain_processed)
-                        print(f"     💾 Progress saved: latest block {batch_end}")
-                    else:
-                        print(f"     ⏭️  All transactions in this batch already processed")
-                        # Still save progress even if all transactions were already processed
-                        # Use the current date or a reasonable estimate
-                        from datetime import datetime
-                        current_date = datetime.now().date()
-                        update_chain_progress(chain, batch_end, current_date, chain_processed)
-                        print(f"     💾 Progress saved: latest block {batch_end} (skipped batch)")
+    with ThreadPoolExecutor(max_workers=args.workers) as executor:
+        # Submit all chain processing jobs
+        future_to_chain = {
+            executor.submit(
+                process_single_chain,
+                chain,
+                DbConnector(),
+                args.start_date,
+                args.block_batch_size,
+                args.dry_run
+            ): chain for chain in chains_to_process
+        }
+
+        print(f"\n📊 Processing {len(chains_to_process)} chains in parallel...")
+        print("=" * 80)
+
+        # Collect results as they complete
+        for future in as_completed(future_to_chain):
+            chain = future_to_chain[future]
+            try:
+                result = future.result()
+                results.append(result)
+                total_processed += result['processed']
                 
-                current_block = batch_end + 1
-                batch_num += 1
-            
-            total_processed += chain_processed
-            successful_chains.append(chain)
-            print(f"   ✅ Completed {chain}: {chain_processed} total transactions processed")
-            
-        except Exception as e:
-            print(f"   ❌ Error processing {chain}: {e}")
-            failed_chains.append(chain)
-            continue
+                if result['status'] == 'completed':
+                    print(f"\n✅ {chain}: Completed ({result['processed']} transactions)")
+                elif result['status'] == 'failed':
+                    print(f"\n❌ {chain}: Failed - {result['error']}")
+                elif result['status'] == 'skipped':
+                    print(f"\n⏭️  {chain}: Skipped - {result['error']}")
+                    
+            except Exception as exc:
+                print(f"\n💥 {chain}: Unexpected error - {exc}")
+                results.append({'chain': chain, 'status': 'failed', 'processed': 0, 'error': str(exc)})
     
-    print(f"\n🎉 Backfill completed!")
+    # Summary
+    end_time = time.time()
+    duration = end_time - start_time
+    
+    successful = [r for r in results if r['status'] == 'completed']
+    failed = [r for r in results if r['status'] == 'failed']
+    skipped = [r for r in results if r['status'] == 'skipped']
+    
+    print(f"\n" + "=" * 80)
+    print(f"🎉 Multi-threaded Backfill Completed!")
+    print(f"   Duration: {duration:.1f} seconds")
     print(f"   Total transactions processed: {total_processed}")
-    print(f"   Successful chains ({len(successful_chains)}): {successful_chains}")
-    if failed_chains:
-        print(f"   Failed chains ({len(failed_chains)}): {failed_chains}")
+    print(f"   Successful chains ({len(successful)}): {[r['chain'] for r in successful]}")
+    if failed:
+        failed_info = [f"{r['chain']} ({r['error']})" for r in failed]
+        print(f"   Failed chains ({len(failed)}): {failed_info}")
+    if skipped:
+        skipped_info = [f"{r['chain']} ({r['error']})" for r in skipped]
+        print(f"   Skipped chains ({len(skipped)}): {skipped_info}")
     if args.dry_run:
         print("   This was a dry run - no data was inserted")
+    
+    print(f"\n📊 Final Status Summary:")
+    for result in results:
+        status_emoji = {'completed': '✅', 'failed': '❌', 'skipped': '⏭️'}.get(result['status'], '❓')
+        print(f"   {status_emoji} {result['chain']:>15}: {result['status']} ({result['processed']} txs)")
+        if result['error']:
+            print(f"      └── Error: {result['error']}")
 
 
 if __name__ == '__main__':
