@@ -252,6 +252,8 @@ class JsonGen():
 
     def create_metric_per_chain_dict(self, origin_key: str, metric_id: str, level: str = 'chains', start_date: Optional[str] = None) -> Optional[Dict]:
         """Creates a dictionary for a metric/chain with daily, weekly, and monthly aggregations."""
+        # quarterly data doesn't have any changes or summary values for now
+        
         metric_dict = self.metrics[level][metric_id]
         daily_df = self._get_prepared_timeseries_df(origin_key, metric_dict['metric_keys'], start_date, metric_dict.get('max_date_fill', False))
 
@@ -274,9 +276,11 @@ class JsonGen():
         if agg_config == AGG_CONFIG_MAA:
             weekly_df = self._get_prepared_timeseries_df(origin_key, [METRIC_WAA], start_date, metric_dict.get('max_date_fill', False))
             monthly_df = self._get_prepared_timeseries_df(origin_key, [METRIC_MAA], start_date, metric_dict.get('max_date_fill', False))
+            quarterly_df = self._get_prepared_timeseries_df(origin_key, [METRIC_MAA], start_date, metric_dict.get('max_date_fill', False))
         else:
             weekly_df = daily_df.resample('W-MON').agg(agg_method)
             monthly_df = daily_df.resample('MS').agg(agg_method)
+            quarterly_df = daily_df.resample('QS').agg(agg_method)
 
         daily_7d_list = None
         if metric_dict.get('avg', False):
@@ -287,11 +291,13 @@ class JsonGen():
         daily_list, daily_cols = self._format_df_for_json(daily_df, metric_dict['units'])
         weekly_list, weekly_cols = self._format_df_for_json(weekly_df, metric_dict['units'])
         monthly_list, monthly_cols = self._format_df_for_json(monthly_df, metric_dict['units'])
-        
+        quarterly_list, quarterly_cols = self._format_df_for_json(quarterly_df, metric_dict['units'])
+
         timeseries_data = {
             'daily': {'types': daily_cols, 'data': daily_list},
             'weekly': {'types': weekly_cols, 'data': weekly_list},
             'monthly': {'types': monthly_cols, 'data': monthly_list},
+            'quarterly': {'types': quarterly_cols, 'data': quarterly_list},
         }
         if daily_7d_list is not None:
             timeseries_data['daily_7d_rolling'] = {'types': daily_cols, 'data': daily_7d_list}
@@ -306,7 +312,7 @@ class JsonGen():
         if metric_id == METRIC_DAA:
             df_aa_weekly = self._get_prepared_timeseries_df(origin_key, [METRIC_AA_7D], start_date, metric_dict.get('max_date_fill', False))
             df_aa_monthly = self._get_prepared_timeseries_df(origin_key, [METRIC_AA_30D], start_date, metric_dict.get('max_date_fill', False))
-            
+
             weekly_changes = self._create_changes_dict(df_aa_weekly, metric_id, level, weekly_periods, agg_window=7, agg_method=AGG_METHOD_LAST)
             monthly_changes = self._create_changes_dict(df_aa_monthly, metric_id, level, monthly_periods, agg_window=30, agg_method=AGG_METHOD_LAST)
         else:
@@ -317,6 +323,7 @@ class JsonGen():
             'daily': daily_changes,
             'weekly': weekly_changes,
             'monthly': monthly_changes,
+            'quarterly': None, # quarterly_changes, # Not used for now
         }
 
         # --- SUMMARY VALUES CALCULATION ---
