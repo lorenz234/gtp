@@ -480,27 +480,48 @@ def upload_file_to_cf_s3(bucket, path_name, local_path, cf_distribution_id):
     print(f'..uploaded to {path_name}')
     empty_cloudfront_cache(cf_distribution_id, f'/{path_name}')
 
-
-def upload_json_to_cf_s3(bucket, path_name, details_dict, cf_distribution_id, invalidate=True):
-    # Convert Dictionary to JSON String
+def upload_json_to_cf_s3(
+    bucket: str,
+    path_name: str,
+    details_dict: dict,
+    cf_distribution_id: str,
+    invalidate: bool = True,
+    cache_control: str | None = None,
+    content_type: str = "application/json"
+):
+    """
+    Uploads JSON to S3 and (optionally) sets Cache-Control headers for CloudFront.
+    If `cache_control` is provided, it's sent to S3 as the object's CacheControl.
+    
+    # Example cache setting
+    SHORT_CACHE = "public, max-age=60, s-maxage=900, stale-while-revalidate=60, stale-if-error=86400"
+    max-age: 60 seconds in browser cache -> after 60 seconds browser will revalidate with CDN
+    s-maxage: 900 seconds in CDN cache -> after 900 seconds CDN will revalidate with S3
+    stale-while-revalidate: 60 seconds -> if CDN cache is stale, still serve stale content while revalidating in the background
+    stale-if-error: 86400 seconds -> if CDN cannot reach S3, serve stale content for up to 24 hours
+    """
     details_json = json.dumps(details_dict)
 
-    # Upload JSON String to an S3 Object
     s3 = boto3.client(
         "s3",
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
-    )
-    s3.put_object(
-        Bucket=bucket, 
-        Key=f'{path_name}.json',
-        Body=details_json,
-        ContentType='application/json'
+        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
     )
 
-    print(f'..uploaded to {path_name}')
+    put_kwargs = {
+        "Bucket": bucket,
+        "Key": f"{path_name}.json",
+        "Body": details_json,
+        "ContentType": content_type,
+    }
+    if cache_control:
+        put_kwargs["CacheControl"] = cache_control
+
+    s3.put_object(**put_kwargs)
+    print(f"..uploaded to {path_name}.json")
+
     if invalidate:
-        empty_cloudfront_cache(cf_distribution_id, f'/{path_name}.json')
+        empty_cloudfront_cache(cf_distribution_id, f"/{path_name}.json")
 
 def remove_file_from_s3(bucket, path_name):
     s3 = boto3.resource(
