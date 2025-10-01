@@ -6,6 +6,8 @@ import polars as pl
 from eth_abi import decode
 import re
 import regex
+from web3 import Web3
+w3 = Web3() # using offchain utils only
 
 # Extract parameter types from a function signature
 def extract_param_types_from_signature(signature):
@@ -585,7 +587,7 @@ def find_to_address(f, functions, options):
             all_index.remove(f['index'])
         for index in all_index:
             result = search_nested_dict(f['full_decoded_input'][index], options)
-            if result:
+            if w3.is_address(result):
                 #print(f"to address found: {result} in {index}")
                 return result
 
@@ -598,7 +600,7 @@ def find_to_address(f, functions, options):
             for i in function_indices:
                 specific_index = ':'.join(f['index'].split(':')[:i + 1])
                 result = search_nested_dict(f['full_decoded_input'][specific_index], options)
-                if result:
+                if w3.is_address(result):
                     #print(f"to address found: {result} in {specific_index}")
                     return result
 
@@ -621,7 +623,7 @@ def find_from_address(f, functions, options):
             all_index.remove(f['index'])
         for index in all_index:
             result = search_nested_dict(f['full_decoded_input'][index], options)
-            if result:
+            if w3.is_address(result):
                 #print(f"from address found: {result} in {index}")
                 return result
 
@@ -633,7 +635,7 @@ def find_from_address(f, functions, options):
             for i in function_indices:
                 specific_index = ':'.join(f['index'].split(':')[:i + 1])
                 result = search_nested_dict(f['full_decoded_input'][specific_index], options)
-                if result:
+                if w3.is_address(result):
                     #print(f"from address found: {result} in {specific_index}")
                     return result
                 else:
@@ -642,7 +644,7 @@ def find_from_address(f, functions, options):
                     parent_index = ':'.join(f['index'].split(':')[:i])
                     if parent_index != '':
                         result = search_nested_dict(f['full_decoded_input'][parent_index], ['to', 'target'])
-                        if result:
+                        if w3.is_address(result):
                             #print(f"to address found: {result} in {parent_index}")
                             return result
 
@@ -668,7 +670,7 @@ def find_ERC4337_information(f, functions, options_beneficiary, options_paymaste
             beneficiary = search_nested_dict(f['full_decoded_input'][index], options_beneficiary)
             paymasterAndData = search_nested_dict(f['full_decoded_input'][index], options_paymaster)
             paymaster = '0x' + paymasterAndData.hex()[:40] if paymasterAndData else None # can be None if no paymaster was used
-            if beneficiary or paymaster:
+            if w3.is_address(beneficiary) or w3.is_address(paymaster):
                 #print(f"beneficiary address found: {beneficiary} in {index}")
                 #print(f"paymaster address found: {paymaster} in {index}")
                 return beneficiary, paymaster
@@ -683,7 +685,7 @@ def find_ERC4337_information(f, functions, options_beneficiary, options_paymaste
                 beneficiary = search_nested_dict(f['full_decoded_input'][specific_index], options_beneficiary)
                 paymasterAndData = search_nested_dict(f['full_decoded_input'][specific_index], options_paymaster)
                 paymaster = '0x' + paymasterAndData.hex()[:40] if paymasterAndData else None # can be None if no paymaster was used
-                if beneficiary or paymaster:
+                if w3.is_address(beneficiary) or w3.is_address(paymaster):
                     #print(f"beneficiary address found: {beneficiary} in {specific_index}")
                     #print(f"paymaster address found: {paymaster} in {specific_index}")
                     return beneficiary, paymaster
