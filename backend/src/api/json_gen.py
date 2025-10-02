@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.db_connector import DbConnector
-from src.config import gtp_units, gtp_metrics_new
+from src.config import gtp_units, gtp_metrics_new, levels_dict
 from src.main_config import MainConfig, get_main_config
 from src.da_config import get_da_config
 from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3, empty_cloudfront_cache
@@ -582,6 +582,95 @@ class JsonGen():
             output_dict = {}
 
         return output_dict
+    
+    def get_lifetime_achievements_dict(self, chain: str) -> dict:
+        """Creates a dictionary with lifetime achievements for a given chain."""
+        lifetime_achievements_dict = {}
+        
+        # Create a list of all metric keys we need to query
+        metrics_sum = ['txcount', 'fees', 'profit', 'rent_paid']
+        metric_keys = {}
+        for metric in metrics_sum:
+            for mk in gtp_metrics_new['chains'][metric]['metric_keys']:
+                metric_keys[mk] = metric
+
+        # Query and process standard metrics
+        query_parameters = {
+            'metric_keys': list(metric_keys.keys()),
+            'origin_key': chain,
+        }
+        result_df = execute_jinja_query(
+            self.db_connector, 
+            "api/select_fact_kpis_achievements.sql.j2", 
+            query_parameters, 
+            return_df=True
+        )
+        
+        for row in result_df.to_dict(orient='records'):
+            metric_key = row['metric_key']
+            total_value = row['total_value']
+            
+            if metric_key in levels_dict:
+                achievement = self._calculate_achievement(total_value, levels_dict[metric_key])
+                if achievement:
+                    metric_id = metric_keys[metric_key]
+                    if metric_id not in lifetime_achievements_dict:
+                        lifetime_achievements_dict[metric_id] = {}
+                    if len(gtp_metrics_new['chains'][metric_id]['units'].keys()) == 1:
+                        unit = 'value'
+                    else:
+                        unit = metric_key[-3:]
+                    lifetime_achievements_dict[metric_id][unit] = achievement
+
+        # Query and process DAA metric separately
+        query_parameters = {'origin_key': chain}
+        result_df = execute_jinja_query(
+            self.db_connector, 
+            "api/select_total_aa.sql.j2", 
+            query_parameters, 
+            return_df=True
+        )
+        
+        for row in result_df.to_dict(orient='records'):
+            total_value = row['value']
+            achievement = self._calculate_achievement(total_value, levels_dict['daa'])
+            if achievement:
+                lifetime_achievements_dict['daa'] = {}
+                lifetime_achievements_dict['daa']['value'] = achievement
+
+        return lifetime_achievements_dict
+
+
+    def _calculate_achievement(self, total_value: float, levels: dict) -> dict | None:
+        """
+        Calculate achievement level and progress for a given value.
+        
+        Returns dict with level info, or None if no threshold reached.
+        """
+        # Sort levels in descending order to find highest achieved level
+        sorted_levels = sorted(levels.items(), key=lambda x: x[1], reverse=True)
+        
+        for level, threshold in sorted_levels:
+            if total_value >= threshold:
+                max_level = max(levels.keys())
+                
+                # Calculate progress to next level
+                if level == max_level:
+                    percent_to_next = None
+                else:
+                    next_threshold = levels[level + 1]
+                    if next_threshold > threshold:  # Avoid division by zero
+                        percent_to_next = (total_value - threshold) / (next_threshold - threshold) * 100
+                    else:
+                        percent_to_next = 100.0
+                
+                return {
+                    'level': level,
+                    'total_value': total_value,
+                    'percent_to_next_level': round(percent_to_next,2) if percent_to_next is not None else None
+                }
+        
+        return None  # No threshold reached
 
     def create_chains_dict(self, origin_key:str):
         chains_dict = {}
@@ -595,6 +684,10 @@ class JsonGen():
                 "events": chain.events,
                 "ranking": self.get_chain_ranking_dict(origin_key),
                 "kpi_cards": self.get_kpi_cards_dict(chain),
+                "achievements": {
+                    "streaks": {},
+                    "lifetime": self.get_lifetime_achievements_dict(origin_key),
+                },
                 "blockspace": self.get_blockspace_dict(chain),
                 "ecosystem": self.get_ecosystem_dict(chain)
             }

@@ -1,0 +1,15 @@
+{#
+    A query to sum up data for certain origin_keys in the fact_kpis table
+
+    Parameters:
+    - metric_keys: List of metric keys to consider for data extraction.
+    - origin_key: List of origin keys to consider for data extraction.
+#}
+
+select 
+    metric_key, 
+    sum(value) as total_value
+from fact_kpis
+where metric_key in ( '{{ metric_keys | join("', '") }}' )
+	and origin_key = '{{ origin_key }}'
+group by 1
