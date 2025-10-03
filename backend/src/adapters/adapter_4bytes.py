@@ -9,8 +9,8 @@ import glob
 import os
 from eth_utils import keccak
 import tempfile
-
-
+import pickle
+from src.adapters.rpc_funcs.utils import create_4byte_lookup
 
 class Adapter4Bytes(AbstractAdapter):
 
@@ -31,7 +31,9 @@ class Adapter4Bytes(AbstractAdapter):
         else:
             # we are already in backend/ folder
             self.save_path = self.save_path.replace('backend/', '')
+            
         self.save_path = self.save_path + "/4bytes.parquet" if self.save_path[-1] != '/' else self.save_path + "4bytes.parquet"
+        self.save_path_lookup = self.save_path + "/four_byte_lookup.pkl" if self.save_path[-1] != '/' else self.save_path + "four_byte_lookup.pkl"
 
         # only two provider of smart contracts are available here: "sourcify" or "verifieralliance", default is "sourcify"
         self.provider = extract_params.get('provider', 'sourcify')
@@ -103,8 +105,16 @@ class Adapter4Bytes(AbstractAdapter):
         ).drop("max_count")
         # remove count & function column to reduce size
         combined_df = combined_df.drop(["count", "function"])
+        
+        ## write to parquet
         combined_df.write_parquet(self.save_path)
         print("Created file: 4bytes.parquet")
+        
+        ## write to pickle file
+        four_byte_lookup = create_4byte_lookup(combined_df)
+        with open(self.save_path_lookup, "wb") as f:
+            pickle.dump(four_byte_lookup, f)
+        
         print(f"Combined results: {len(combined_df)} rows")
 
         ## delete the folder "compiled_contracts/*.parquet" 
