@@ -39,8 +39,7 @@ from adapters.rpc_funcs.utils import (
     process_user_ops_for_transactions,
     connect_to_node,
     get_chain_config,
-    load_4bytes_data,
-    create_4byte_lookup
+    load_4bytes_pickle
 )
 from db_connector import DbConnector
 from main_config import get_main_config
@@ -295,9 +294,10 @@ class UserOpsBackfiller:
             return stats
         
         # Load 4bytes data
-        df_4bytes = load_4bytes_data()
-        four_byte_lookup = create_4byte_lookup(df_4bytes)
-        print(f"Loaded {len(df_4bytes)} 4byte entries into lookup dict for user ops processing")
+        # df_4bytes = load_4bytes_data()
+        # four_byte_lookup = create_4byte_lookup(df_4bytes)
+        four_byte_lookup = load_4bytes_pickle()
+        print(f"Loaded {len(four_byte_lookup)} 4byte entries into lookup dict for user ops processing")
 
         all_user_ops = []
         # Use the provided batch_size parameter

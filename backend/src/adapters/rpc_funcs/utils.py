@@ -5,6 +5,7 @@ import pandas as pd
 import os
 import random
 import time
+import pickle
 from src.adapters.rpc_funcs.web3 import Web3CC
 from sqlalchemy import text
 from src.main_config import get_main_config 
@@ -1324,6 +1325,35 @@ def load_4bytes_data():
         return None
     except Exception as e:
         print(f"Error loading 4bytes.parquet: {e}")
+        return None
+    
+def load_4bytes_pickle():
+    """
+    Loads the four_byte_lookup.pickle file for user ops processing.
+    
+    Returns:
+        dict: The four_byte_lookup lookup dictionary or None if not found
+    """
+    try:
+        possible_paths = [
+            "/home/ubuntu/gtp/backend/four_byte_lookup.pickle",  # Server deployment path
+            "four_byte_lookup.pickle",
+            "backend/four_byte_lookup.pickle",
+            os.path.join(os.path.dirname(__file__), "four_byte_lookup.pickle"),
+            os.path.join(os.path.dirname(__file__), "..", "..", "four_byte_lookup.pickle")
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                with open(path, 'rb') as f:
+                    four_byte_lookup = pickle.load(f)
+                    print(f"Loaded four_byte_lookup.pickle from {path} with {len(four_byte_lookup)} entries")
+                    return four_byte_lookup
+
+        print("Warning: four_byte_lookup.pickle not found. User ops processing will be skipped.")
+        return None
+    except Exception as e:
+        print(f"Error loading four_byte_lookup.pickle: {e}")
         return None
     
 # Load 4bytes data into optimized lookup dict for O(1) average time lookups

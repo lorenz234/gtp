@@ -1,10 +1,9 @@
 import time
-
 from src.adapters.abstract_adapters import AbstractAdapterRaw
 from src.adapters.rpc_funcs.funcs_backfill import check_and_record_missing_block_ranges, find_first_block_of_day, find_last_block_of_day, date_to_unix_timestamp
 from queue import Queue, Empty
 from threading import Thread, Lock
-from src.adapters.rpc_funcs.utils import Web3CC, connect_to_gcs, check_db_connection, check_gcs_connection, get_latest_block, connect_to_node, fetch_and_process_range, load_4bytes_data, create_4byte_lookup
+from src.adapters.rpc_funcs.utils import Web3CC, connect_to_gcs, check_db_connection, check_gcs_connection, get_latest_block, connect_to_node, fetch_and_process_range, load_4bytes_pickle
 from datetime import datetime
 
 
@@ -36,10 +35,12 @@ class NodeAdapter(AbstractAdapterRaw):
         self.table_name = f'{self.chain}_tx'
         
         # Load 4bytes data
-        self.df_4bytes = load_4bytes_data()
-        self.four_byte_lookup = create_4byte_lookup(self.df_4bytes)
-        print(f"Loaded {len(self.df_4bytes)} 4byte entries into lookup dict for user ops processing")
-        
+        # self.df_4bytes = load_4bytes_data()
+        # self.four_byte_lookup = create_4byte_lookup(self.df_4bytes)
+        self.four_byte_lookup = load_4bytes_pickle()
+
+        print(f"Loaded {len(self.four_byte_lookup)} 4byte entries into lookup dict for user ops processing")
+
         # Try to initialize Web3 connection with the provided RPC configs
         self.w3 = None
         for rpc_config in self.rpc_configs:
