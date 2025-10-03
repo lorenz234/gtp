@@ -1329,31 +1329,31 @@ def load_4bytes_data():
     
 def load_4bytes_pickle():
     """
-    Loads the four_byte_lookup.pickle file for user ops processing.
+    Loads the four_byte_lookup.pkl file for user ops processing.
     
     Returns:
         dict: The four_byte_lookup lookup dictionary or None if not found
     """
     try:
         possible_paths = [
-            "/home/ubuntu/gtp/backend/four_byte_lookup.pickle",  # Server deployment path
-            "four_byte_lookup.pickle",
-            "backend/four_byte_lookup.pickle",
-            os.path.join(os.path.dirname(__file__), "four_byte_lookup.pickle"),
-            os.path.join(os.path.dirname(__file__), "..", "..", "four_byte_lookup.pickle")
+            "/home/ubuntu/gtp/backend/four_byte_lookup.pkl",  # Server deployment path
+            "four_byte_lookup.pkl",
+            "backend/four_byte_lookup.pkl",
+            os.path.join(os.path.dirname(__file__), "four_byte_lookup.pkl"),
+            os.path.join(os.path.dirname(__file__), "..", "..", "four_byte_lookup.pkl")
         ]
         
         for path in possible_paths:
             if os.path.exists(path):
                 with open(path, 'rb') as f:
                     four_byte_lookup = pickle.load(f)
-                    print(f"Loaded four_byte_lookup.pickle from {path} with {len(four_byte_lookup)} entries")
+                    print(f"Loaded four_byte_lookup.pkl from {path} with {len(four_byte_lookup)} entries")
                     return four_byte_lookup
 
-        print("Warning: four_byte_lookup.pickle not found. User ops processing will be skipped.")
+        print("Warning: four_byte_lookup.pkl not found. User ops processing will be skipped.")
         return None
     except Exception as e:
-        print(f"Error loading four_byte_lookup.pickle: {e}")
+        print(f"Error loading four_byte_lookup.pkl: {e}")
         return None
     
 # Load 4bytes data into optimized lookup dict for O(1) average time lookups
