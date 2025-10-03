@@ -1,8 +1,6 @@
 import ast
-from datetime import datetime, date
+from datetime import date
 import numpy as np
-import boto3
-import botocore
 import pandas as pd
 import os
 import random
@@ -1140,7 +1138,7 @@ def fetch_data_for_range(w3, block_start, block_end):
     except Exception as e:
         raise e
 
-def fetch_and_process_range(current_start, current_end, chain, w3, table_name, bucket_name, db_connector, rpc_url):
+def fetch_and_process_range(current_start, current_end, chain, w3, table_name, bucket_name, db_connector, rpc_url, df_4bytes):
     """
     Fetches and processes transaction data for a range of blocks, saves it to GCS, and inserts it into the database.
     Also processes authorization list data from type 4 transactions.
@@ -1190,7 +1188,7 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
             # Process user ops using raw data (for full input) + prepared data (for fees)
             user_ops_df = pd.DataFrame()
             try:
-                user_ops_df = process_user_ops_for_transactions(w3, df, df_prep, chain)
+                user_ops_df = process_user_ops_for_transactions(w3, df, df_prep, chain, df_4bytes)
                 if not user_ops_df.empty:
                     print(f"...extracted {len(user_ops_df)} user operations from {len(df)} transactions")
             except Exception as e:
@@ -1327,7 +1325,7 @@ def load_4bytes_data():
         print(f"Error loading 4bytes.parquet: {e}")
         return None
 
-def process_user_ops_for_transactions(w3, df_raw, df_prep, chain):
+def process_user_ops_for_transactions(w3, df_raw, df_prep, chain, df_4bytes):
     """
     Processes user operations using raw data (for full input) and prepared data (for fees).
     
@@ -1336,13 +1334,12 @@ def process_user_ops_for_transactions(w3, df_raw, df_prep, chain):
         df_raw: Raw DataFrame containing transaction data with full input
         df_prep: Prepared DataFrame containing chain-specific fee calculations
         chain: Chain identifier
+        df_4bytes: DataFrame containing 4bytes data for decoding user ops
         
     Returns:
         pandas.DataFrame: DataFrame containing user operations data
     """
     try:
-        # Load 4bytes data
-        df_4bytes = load_4bytes_data()
         if df_4bytes is None:
             print("Skipping user ops processing due to missing 4bytes data")
             return pd.DataFrame()

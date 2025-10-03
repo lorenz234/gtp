@@ -19,7 +19,7 @@ pd.set_option('display.max_colwidth', 50)
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
 try:
-    from src.adapters.rpc_funcs.utils import fetch_and_process_range, Web3CC
+    from src.adapters.rpc_funcs.utils import fetch_and_process_range, Web3CC, load_4bytes_data
     from src.db_connector import DbConnector
     from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs
     print("✓ Successfully imported all required modules")
@@ -115,6 +115,8 @@ def process_chain_range(chain, start_block, end_block, db_connector, bucket_name
         print(f"   ✗ RPC connection failed: {e}")
         return False
     
+    df_4bytes = load_4bytes_data()
+    
     # Process the block range in smaller chunks to avoid timeouts
     chunk_size = 25  # Process 25 blocks at a time to avoid rate limits
     blocks_processed = 0
@@ -144,7 +146,8 @@ def process_chain_range(chain, start_block, end_block, db_connector, bucket_name
                     table_name=table_name,
                     bucket_name=bucket_name,
                     db_connector=db_connector,
-                    rpc_url=config['rpc_url']
+                    rpc_url=config['rpc_url'],
+                    df_4bytes=df_4bytes
                 )
                 
                 blocks_in_chunk = chunk_end - chunk_start + 1

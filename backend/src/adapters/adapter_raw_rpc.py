@@ -4,7 +4,7 @@ from src.adapters.abstract_adapters import AbstractAdapterRaw
 from src.adapters.rpc_funcs.funcs_backfill import check_and_record_missing_block_ranges, find_first_block_of_day, find_last_block_of_day, date_to_unix_timestamp
 from queue import Queue, Empty
 from threading import Thread, Lock
-from src.adapters.rpc_funcs.utils import Web3CC, connect_to_gcs, check_db_connection, check_gcs_connection, get_latest_block, connect_to_node, fetch_and_process_range
+from src.adapters.rpc_funcs.utils import Web3CC, connect_to_gcs, check_db_connection, check_gcs_connection, get_latest_block, connect_to_node, fetch_and_process_range, load_4bytes_data
 from datetime import datetime
 
 
@@ -34,6 +34,9 @@ class NodeAdapter(AbstractAdapterRaw):
 
         self.chain = adapter_params['chain']
         self.table_name = f'{self.chain}_tx'
+        
+        # Load 4bytes data
+        self.df_4bytes = load_4bytes_data()
         
         # Try to initialize Web3 connection with the provided RPC configs
         self.w3 = None
@@ -401,7 +404,7 @@ class NodeAdapter(AbstractAdapterRaw):
                 rows_loaded = fetch_and_process_range(
                     block_range[0], block_range[1], self.chain, node_connection,
                     self.table_name, self.bucket_name,
-                    self.db_connector, rpc_url
+                    self.db_connector, rpc_url, self.df_4bytes
                 )
 
                 # Calculate time taken for this block range

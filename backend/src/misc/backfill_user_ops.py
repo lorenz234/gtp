@@ -38,7 +38,8 @@ from adapters.rpc_funcs.utils import (
     prep_dataframe_new,
     process_user_ops_for_transactions,
     connect_to_node,
-    get_chain_config
+    get_chain_config,
+    load_4bytes_data
 )
 from db_connector import DbConnector
 from main_config import get_main_config
@@ -169,7 +170,7 @@ class UserOpsBackfiller:
             print(f"Failed to setup RPC connection for {chain}: {e}")
             return None
 
-    def process_transactions_for_user_ops(self, chain, df_raw, w3):
+    def process_transactions_for_user_ops(self, chain, df_raw, w3, df_4bytes):
         """
         Process transactions to extract user operations.
 
@@ -191,7 +192,7 @@ class UserOpsBackfiller:
 
             try:
                 # Extract user operations using both raw and prepared data
-                user_ops_df = process_user_ops_for_transactions(w3, df_raw, df_prep, chain)
+                user_ops_df = process_user_ops_for_transactions(w3, df_raw, df_prep, chain, df_4bytes)
                 return user_ops_df
             finally:
                 # Always change back to original directory
@@ -291,6 +292,9 @@ class UserOpsBackfiller:
             print(f"Skipping {chain} due to RPC connection failure")
             stats['errors'] += 1
             return stats
+        
+        # Load 4bytes data
+        self.df_4bytes = load_4bytes_data()
 
         all_user_ops = []
         # Use the provided batch_size parameter
@@ -300,7 +304,7 @@ class UserOpsBackfiller:
             try:
                 print(f"Processing file {i+1}/{len(parquet_files)}: {file_path}")
 
-                # Load the parquet file
+                # Load the parquet file.-
                 df_raw = self.load_parquet_from_gcs(file_path)
                 if df_raw is None or df_raw.empty:
                     print(f"Skipping empty file: {file_path}")
@@ -310,7 +314,7 @@ class UserOpsBackfiller:
                 stats['transactions_processed'] += len(df_raw)
 
                 # Extract user operations
-                user_ops_df = self.process_transactions_for_user_ops(chain, df_raw, w3)
+                user_ops_df = self.process_transactions_for_user_ops(chain, df_raw, w3, self.df_4bytes)
 
                 if not user_ops_df.empty:
                     all_user_ops.append(user_ops_df)
