@@ -115,11 +115,11 @@ def parse_custom_eip7821_batch(data):
 
     return final_dict
 
-# Decode input bytes to a human-readable format
-def decode_input(input_bytes, df):
+# Decode input bytes to a human-readable format using the pre-computed lookup map
+def decode_input(input_bytes, four_byte_lookup: dict):
     # Extract method selector (first 4 bytes)
     method_selector = '0x' + input_bytes.hex()[:8]
-
+    
     # !!! Edge cases for custom calldata structure such as Gnosis Safe multiSend(bytes transactions) on Worldchain
     try:
         if method_selector == '0x8d80ff0a': # Gnosis Safe multi send
@@ -149,27 +149,27 @@ def decode_input(input_bytes, df):
             true_signature = "batchCall((address target,bool allowFailure,uint256 value,bytes data)[] transactions)"
             true_decoded = decode(extract_param_types_from_signature(true_signature), input_bytes[4:])
             return true_decoded, true_signature
-
     except Exception as e:
         print(f"Failed to decode custom method {method_selector}: {str(e)}")
 
     # Using Polars to filter the DataFrame for the method selector (can be multiple methods)
-    methods = df.filter(pl.col('4byte') == method_selector)
+   # Using the dictionary for a high-speed O(1) lookup
+    signatures = four_byte_lookup.get(method_selector)
 
-    # if no methods are found, return empty tuple and method selector
-    if methods.is_empty():
-        #print(f"Method selector {method_selector} not found in registry.")
+    # if no methods are found, return
+    if not signatures:
         return None, None
 
-    # Try to decode the input data using the method signature, go from most likely to least likely
-    for method in methods.iter_rows(named=True):
+    # Try to decode the input data using the method signature(s)
+    for signature in signatures:
         try:
-            types = extract_param_types_from_signature(method['signature'])
-            if types == [''] and input_bytes[4:] == b'':
+            types = extract_param_types_from_signature(signature)
+            calldata = input_bytes[4:]
+            if not types and not calldata:
                 # special case for function calls without input bytes, return empty dict with signature
-                return (), method['signature']
-            d = decode(types, input_bytes[4:])
-            return d, method['signature']
+                return (), signature
+            d = decode(types, calldata)
+            return d, signature
         except Exception as e:
             pass
             #print(f"Failed to decode using method {method['signature']}: {str(e)}")
@@ -257,14 +257,14 @@ def is_branch(hierarchy):
     return number_of_lists == 1 and start_from_zero_or_one
 
 # decodes any input bytes, as far down as possible
-def process_transaction(trx, df):
+def process_transaction(trx, four_byte_lookup: dict):
     
     unchecked = []
     checked = []
 
     # only process input if the calldata length is a valid function call: 4 + 32*n bytes
     if (len(trx.input) - 4) % 32 == 0:
-        d, sig = decode_input(trx.input, df)
+        d, sig = decode_input(trx.input, four_byte_lookup)
 
         if d is not None:
             unchecked.append(
@@ -299,7 +299,7 @@ def process_transaction(trx, df):
         # found one calldata byte
         elif isinstance(byte_dict, bytes):
             #print(f"Found one byte: {byte_dict.hex()}")
-            d2, sig2 = decode_input(byte_dict, df)
+            d2, sig2 = decode_input(byte_dict, four_byte_lookup)
             #print(f"|__ d2 data: {d2}")
             #print(f"|__ sig2 data: {sig2}")
             if d2 != None: # successful decoding
@@ -325,7 +325,7 @@ def process_transaction(trx, df):
         elif isinstance(flatten_byte_dict(byte_dict), bytes):
             byte_dict_flattend = flatten_byte_dict(byte_dict)
             #print(f"Found one byte in array: {byte_dict_flattend.hex()}")
-            d2, sig2 = decode_input(byte_dict_flattend, df)
+            d2, sig2 = decode_input(byte_dict_flattend, four_byte_lookup)
             #print(f"|__ d2 data: {d2}")
             #print(f"|__ sig2 data: {sig2}")
             if d2 != None: # successful decoding
@@ -359,7 +359,7 @@ def process_transaction(trx, df):
                 byte_dict_flattend = flatten_byte_dict(byte_dict)
                 for i, byte in byte_dict_flattend.items():
                     #print(f"Decoding byte {i+1}/{len(byte_dict_flattend)} with array index {i}")
-                    d2, sig2 = decode_input(byte, df)
+                    d2, sig2 = decode_input(byte, four_byte_lookup)
                     #print(f"|__ d2 data: {d2}")
                     #print(f"|__ sig2 data: {sig2}")
                     if d2 != None: # successful decoding
@@ -693,10 +693,10 @@ def find_ERC4337_information(f, functions, options_beneficiary, options_paymaste
     return None, None
 
 ### main function
-def find_UserOps(trx, df):
+def find_UserOps(trx, four_byte_lookup: dict):
     try:
         #print(f"### Processing transaction {trx.hash.hex()}")
-        j = process_transaction(trx, df)
+        j = process_transaction(trx, four_byte_lookup)
         #print(f"### Done decoding, total UserOps decoded: {len(j)}")
         f = match_transaction(j)
         #print(f"### Done matching")
