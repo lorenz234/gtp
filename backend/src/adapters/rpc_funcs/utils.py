@@ -814,10 +814,40 @@ def extract_authorization_list(transaction_details, block_timestamp, block_date,
                     else:
                         chain_id = raw_chain_id  # Already an integer
 
-                    # Fix: Some RPCs return chainId as bytes-encoded string (224180385329 = ASCII "42161")
+                    # Fix: Some RPCs return chainId as ASCII-encoded string interpreted as bytes
                     # This is a known issue with certain RPC endpoints
-                    if chain_id == 224180385329:  # This is the string "42161" interpreted as bytes
-                        chain_id = 42161  # Arbitrum One
+                    # Examples:
+                    # - 224180385329 = ASCII "42161" (Arbitrum)
+                    # - 53292796293173 = ASCII "0x2105" (Base, 0x2105 = 8453)
+                    # - 15000593373388704315732276017 = ASCII "0x3432313631" = ASCII "42161" (Arbitrum double-encoded)
+
+                    # Try to decode ASCII-encoded chain IDs (handles single and double encoding)
+                    original_chain_id = chain_id
+                    max_decode_attempts = 3  # Prevent infinite loops
+
+                    for _ in range(max_decode_attempts):
+                        if chain_id <= 2**32:  # Reasonable chain ID range
+                            break
+
+                        try:
+                            # Convert to hex and try ASCII decoding
+                            hex_str = hex(chain_id)[2:]
+                            if len(hex_str) % 2:
+                                hex_str = '0' + hex_str
+
+                            ascii_decoded = bytes.fromhex(hex_str).decode('ascii', errors='strict')
+
+                            # Check if it's a hex string or decimal string
+                            if ascii_decoded.startswith('0x'):
+                                chain_id = int(ascii_decoded, 16)
+                            elif ascii_decoded.isdigit():
+                                chain_id = int(ascii_decoded)
+                            else:
+                                # Not a valid chain ID format, stop
+                                break
+                        except (ValueError, UnicodeDecodeError):
+                            # Not ASCII-encoded, stop
+                            break
 
                     nonce = int(auth_dict['nonce'], 16) if isinstance(auth_dict['nonce'], str) else auth_dict['nonce']
                     v = 27 + int(auth_dict['yParity'], 16) if isinstance(auth_dict['yParity'], str) else 27 + auth_dict['yParity']
