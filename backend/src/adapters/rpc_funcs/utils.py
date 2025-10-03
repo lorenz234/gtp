@@ -9,7 +9,7 @@ from src.adapters.rpc_funcs.web3 import Web3CC
 from sqlalchemy import text
 from src.main_config import get_main_config 
 from src.adapters.rpc_funcs.chain_configs import chain_configs
-from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs, check_gcs_connection, save_data_for_range
+from src.adapters.rpc_funcs.gcs_utils import save_data_for_range
 from eth_account import Account
 from eth_utils import keccak, to_checksum_address
 import rlp
@@ -1138,7 +1138,7 @@ def fetch_data_for_range(w3, block_start, block_end):
     except Exception as e:
         raise e
 
-def fetch_and_process_range(current_start, current_end, chain, w3, table_name, bucket_name, db_connector, rpc_url, df_4bytes):
+def fetch_and_process_range(current_start, current_end, chain, w3, table_name, bucket_name, db_connector, rpc_url, four_byte_lookup):
     """
     Fetches and processes transaction data for a range of blocks, saves it to GCS, and inserts it into the database.
     Also processes authorization list data from type 4 transactions.
@@ -1153,6 +1153,7 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
         bucket_name (str): The name of the GCS bucket.
         db_connector: The database connector object.
         rpc_url (str): The RPC URL used for fetching data.
+        four_byte_lookup: The 4byte directory lookup object for userops.
 
     Raises:
         MaxWaitTimeExceededException: If the operation exceeds the maximum wait time.
@@ -1188,7 +1189,7 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
             # Process user ops using raw data (for full input) + prepared data (for fees)
             user_ops_df = pd.DataFrame()
             try:
-                user_ops_df = process_user_ops_for_transactions(w3, df, df_prep, chain, df_4bytes)
+                user_ops_df = process_user_ops_for_transactions(w3, df, df_prep, chain, four_byte_lookup)
                 if not user_ops_df.empty:
                     print(f"...extracted {len(user_ops_df)} user operations from {len(df)} transactions")
             except Exception as e:
@@ -1324,8 +1325,19 @@ def load_4bytes_data():
     except Exception as e:
         print(f"Error loading 4bytes.parquet: {e}")
         return None
+    
+# Load 4bytes data into optimized lookup dict for O(1) average time lookups
+def create_4byte_lookup(df: pl.DataFrame) -> dict:
+    """
+    Pre-processes the Polars DataFrame into a dictionary for O(1) average time lookups.
+    This is a crucial optimization.
+    """
+    # Group by '4byte' and aggregate all 'signature' strings into a list for each selector
+    lookup_df = df.group_by("4byte").agg(pl.col("signature"))
+    # Convert the result to a dictionary: {'0x...': ['sig1', 'sig2'], ...}
+    return {row[0]: row[1] for row in lookup_df.iter_rows()}
 
-def process_user_ops_for_transactions(w3, df_raw, df_prep, chain, df_4bytes):
+def process_user_ops_for_transactions(w3, df_raw, df_prep, chain, four_byte_lookup):
     """
     Processes user operations using raw data (for full input) and prepared data (for fees).
     
@@ -1334,13 +1346,13 @@ def process_user_ops_for_transactions(w3, df_raw, df_prep, chain, df_4bytes):
         df_raw: Raw DataFrame containing transaction data with full input
         df_prep: Prepared DataFrame containing chain-specific fee calculations
         chain: Chain identifier
-        df_4bytes: DataFrame containing 4bytes data for decoding user ops
+        four_byte_lookup: Dictionary for 4byte lookups
         
     Returns:
         pandas.DataFrame: DataFrame containing user operations data
     """
     try:
-        if df_4bytes is None:
+        if four_byte_lookup is None:
             print("Skipping user ops processing due to missing 4bytes data")
             return pd.DataFrame()
         
@@ -1390,7 +1402,7 @@ def process_user_ops_for_transactions(w3, df_raw, df_prep, chain, df_4bytes):
                 tx_obj = Transaction(tx_row)
                 
                 # Extract user ops for this transaction
-                user_ops = find_UserOps(tx_obj, df_4bytes)
+                user_ops = find_UserOps(tx_obj, four_byte_lookup)
                 
                 if user_ops:
                     # Get prepared data (fees, timestamps, dates) from prep_dataframe_new output

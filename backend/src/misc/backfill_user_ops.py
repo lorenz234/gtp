@@ -39,7 +39,8 @@ from adapters.rpc_funcs.utils import (
     process_user_ops_for_transactions,
     connect_to_node,
     get_chain_config,
-    load_4bytes_data
+    load_4bytes_data,
+    create_4byte_lookup
 )
 from db_connector import DbConnector
 from main_config import get_main_config
@@ -170,7 +171,7 @@ class UserOpsBackfiller:
             print(f"Failed to setup RPC connection for {chain}: {e}")
             return None
 
-    def process_transactions_for_user_ops(self, chain, df_raw, w3, df_4bytes):
+    def process_transactions_for_user_ops(self, chain, df_raw, w3, four_byte_lookup):
         """
         Process transactions to extract user operations.
 
@@ -192,7 +193,7 @@ class UserOpsBackfiller:
 
             try:
                 # Extract user operations using both raw and prepared data
-                user_ops_df = process_user_ops_for_transactions(w3, df_raw, df_prep, chain, df_4bytes)
+                user_ops_df = process_user_ops_for_transactions(w3, df_raw, df_prep, chain, four_byte_lookup)
                 return user_ops_df
             finally:
                 # Always change back to original directory
@@ -294,7 +295,9 @@ class UserOpsBackfiller:
             return stats
         
         # Load 4bytes data
-        self.df_4bytes = load_4bytes_data()
+        df_4bytes = load_4bytes_data()
+        four_byte_lookup = create_4byte_lookup(df_4bytes)
+        print(f"Loaded {len(df_4bytes)} 4byte entries into lookup dict for user ops processing")
 
         all_user_ops = []
         # Use the provided batch_size parameter
@@ -314,7 +317,7 @@ class UserOpsBackfiller:
                 stats['transactions_processed'] += len(df_raw)
 
                 # Extract user operations
-                user_ops_df = self.process_transactions_for_user_ops(chain, df_raw, w3, self.df_4bytes)
+                user_ops_df = self.process_transactions_for_user_ops(chain, df_raw, w3, four_byte_lookup)
 
                 if not user_ops_df.empty:
                     all_user_ops.append(user_ops_df)
