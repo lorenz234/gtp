@@ -114,6 +114,7 @@ class Adapter4Bytes(AbstractAdapter):
         four_byte_lookup = create_4byte_lookup(combined_df)
         with open(self.save_path_lookup, "wb") as f:
             pickle.dump(four_byte_lookup, f)
+        print("Created file: four_byte_lookup.pkl")
         
         print(f"Combined results: {len(combined_df)} rows")
 
