@@ -30,7 +30,8 @@ class AdapterOSO(AbstractAdapter):
         return df 
 
     def load(self, df:pd.DataFrame):
-        tbl_name = 'oli_oss_directory'     
+        tbl_name = 'oli_oss_directory'
+        df = df[df['timestamp'].isnull() == False] # only load rows that have a timestamp (i.e. new or updated compared to our current db state)
         self.db_connector.upsert_table(tbl_name, df)
         print_load(self.name, df.shape, tbl_name)
 
@@ -91,13 +92,18 @@ class AdapterOSO(AbstractAdapter):
     def extract_oss(self):
         ## get latest oss projects from oss-directory Github repo and our active projects in our db
         df_oss = self.load_oss_projects()
-        df_active_projects = self.db_connector.get_active_projects()
+        df_db = self.db_connector.get_table('oli_oss_directory')
+        df_db = df_db[(df_db['active'] == True) & (df_db['source'] == 'OSS_DIRECTORY')]
+        df_db = df_db.drop(columns=['logo_path', 'timestamp'])
 
-        ## deactivate projects in our db that don't appear anymore in the oss-directory 
-        self.deactivate_dropped_projects(df_oss, df_active_projects)
+        ## deactivate projects in our db that don't appear anymore in the oss-directory
+        self.deactivate_dropped_projects(df_oss, df_db)
 
-        ## identify new projects send a notification in Discord
-        df_new_projects = df_oss[~df_oss['name'].isin(df_active_projects['name'])]
+        ## add timestamp to df_oss if any of the columns changed compared to df_db
+        df_oss = self.add_timestamp_for_changes(df_oss, df_db)
+
+        ## identify new projects & send a message in Discord
+        df_new_projects = df_oss[~df_oss['name'].isin(df_db['name'])]
         new_projects = df_new_projects['name'].to_list()
         print(f"...{len(new_projects)} projects newly added since the last sync: {new_projects}")
         if len(new_projects) > 0:
@@ -107,4 +113,30 @@ class AdapterOSO(AbstractAdapter):
         df_oss.set_index('name', inplace=True)
 
         return df_oss
+    
 
+    ## This function compares df_oss and df_db and adds a timestamp to rows in df_oss that have changed compared to df_db
+    def add_timestamp_for_changes(self, df_oss, df_db):
+        # Columns to check if data was updated (excluding 'name' which is the merge key)
+        CHECK_COLS = ['display_name', 'description', 'github', 'websites', 'npm', 'social', 'active', 'source']
+        df_oss_temp = df_oss.copy()
+        df_db_temp = df_db.copy()
+        df_oss_temp[CHECK_COLS] = df_oss_temp[CHECK_COLS].fillna("NAN")
+        df_db_temp[CHECK_COLS] = df_db_temp[CHECK_COLS].fillna("NAN")
+        merged_df = pd.merge(
+            df_oss_temp,
+            df_db_temp,
+            on='name',
+            how='left',
+            suffixes=('_oss', '_db')
+        )
+        changed_mask = pd.concat([
+            merged_df[f'{col}_oss'].ne(merged_df[f'{col}_db'])
+            for col in CHECK_COLS
+        ], axis=1).any(axis=1)
+        changed_rows_df = df_oss[df_oss['name'].isin(merged_df.loc[changed_mask, 'name'])]
+        # Add timestamp to columns in df_oss which are in updated_names
+        updated_names = changed_rows_df['name'].to_list()
+        timestamp = int(pd.Timestamp.now().timestamp())
+        df_oss['timestamp'] = df_oss['name'].apply(lambda x: timestamp if x in updated_names else None)
+        return df_oss
