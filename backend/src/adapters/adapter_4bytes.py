@@ -32,7 +32,7 @@ class Adapter4Bytes(AbstractAdapter):
             # we are already in backend/ folder
             self.save_path = self.save_path.replace('backend/', '')
             
-        self.save_path = self.save_path + "/4bytes.parquet" if self.save_path[-1] != '/' else self.save_path + "4bytes.parquet"
+        self.save_path_parquet = self.save_path + "/4bytes.parquet" if self.save_path[-1] != '/' else self.save_path + "4bytes.parquet"
         self.save_path_lookup = self.save_path + "/four_byte_lookup.pkl" if self.save_path[-1] != '/' else self.save_path + "four_byte_lookup.pkl"
 
         # only two provider of smart contracts are available here: "sourcify" or "verifieralliance", default is "sourcify"
@@ -85,7 +85,7 @@ class Adapter4Bytes(AbstractAdapter):
             df_with_params.write_parquet(f"{f.split('.')[0]}.parquet")
             print(f"Processed {f}: {len(df_with_params)} with params")
 
-        ## combine all parquet files into one final file called "4bytes.parquet" and save under self.save_path
+        ## combine all parquet files into one final file called "4bytes.parquet" & "four_byte_lookup.pkl" and save under self.save_path_parquet & self.save_path_lookup
         files = glob.glob("compiled_contracts/*.parquet")
         print(f"Found {len(files)} parquet files")
         all_df = []
@@ -107,7 +107,7 @@ class Adapter4Bytes(AbstractAdapter):
         combined_df = combined_df.drop(["count", "function"])
         
         ## write to parquet
-        combined_df.write_parquet(self.save_path)
+        combined_df.write_parquet(self.save_path_parquet)
         print("Created file: 4bytes.parquet")
         
         ## write to pickle file
@@ -125,16 +125,20 @@ class Adapter4Bytes(AbstractAdapter):
 
 
     def load(self, load_params:dict):
-        # Load the path of where to upload the 4bytes.parquet file
-        s3_path = load_params.get('s3_path', 'v1/export/4bytes.parquet')
+        # Load the path of where to upload the 4bytes.parquet & four_byte_lookup.pkl file
+        s3_path_parquet = load_params.get('s3_path_parquet', 'v1/export/4bytes.parquet')
+        s3_path_lookup = load_params.get('s3_path_lookup', 'v1/export/four_byte_lookup.pkl')
         # Get upload secrets
         s3_bucket = load_params.get('S3_CF_BUCKET', None)
         cf_distribution_id = load_params.get('CF_DISTRIBUTION_ID', None)
         if s3_bucket is None or cf_distribution_id is None:
             raise ValueError("S3_CF_BUCKET and CF_DISTRIBUTION_ID must be provided in load_params")
         # Upload to S3 & invalidate
-        upload_file_to_cf_s3(s3_bucket, s3_path, self.save_path, cf_distribution_id)
-        print(f"Uploaded 4bytes.parquet to S3: {s3_path}")
+        upload_file_to_cf_s3(s3_bucket, s3_path_parquet, self.save_path_parquet, cf_distribution_id)
+        print(f"Uploaded 4bytes.parquet to S3: {s3_path_parquet}")
+        # Upload pickle file as well
+        upload_file_to_cf_s3(s3_bucket, s3_path_lookup, self.save_path_lookup, cf_distribution_id)
+        print(f"Uploaded four_byte_lookup.pkl to S3: {s3_path_lookup}")
 
 
 #-#-#-#-# Helper Functions #-#-#-#-#

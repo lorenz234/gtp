@@ -32,12 +32,13 @@ def etl():
         adapter = Adapter4Bytes()
 
         adapter.extract({
-            'save_path': 'backend/', # save path of 4byte.parquet file inside ec2 instance
+            'save_path': 'backend/', # save path of four_byte_lookup.pkl file inside ec2 instance
             'provider': 'sourcify' # options: "sourcify" or "verifieralliance"
         })
 
         adapter.load({
-            's3_path': 'v1/export/4bytes.parquet', # save path inside S3 bucket
+            's3_path_parquet': 'v1/export/4bytes.parquet', # save path inside S3 bucket
+            's3_path_lookup': 'v1/export/four_byte_lookup.pkl', # save path inside S3 bucket
             'S3_CF_BUCKET': os.getenv("S3_CF_BUCKET"),
             'CF_DISTRIBUTION_ID': os.getenv("CF_DISTRIBUTION_ID")
         })        
