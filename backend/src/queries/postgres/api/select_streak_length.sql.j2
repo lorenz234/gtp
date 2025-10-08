@@ -1,0 +1,73 @@
+{#
+    A query to get the current streak length of increasing days for specific metrics from the fact_kpis table.
+
+    Parameters:
+    - origin_key: the specific origin key to filter the results.
+#}
+
+WITH t AS (
+  SELECT
+    metric_key,
+    date,
+    value,
+    LAG(value) OVER (PARTITION BY metric_key ORDER BY date) AS prev_value,
+    LAG(date)  OVER (PARTITION BY metric_key ORDER BY date) AS prev_date
+  FROM fact_kpis
+  where origin_key = '{{ origin_key }}'
+  and metric_key in ('txcount', 'fees_paid_usd', 'fees_paid_eth')
+  and date < current_date
+),
+x AS (
+  SELECT
+    *,
+    /* true only when it's the next calendar day AND value increased */
+    (date = prev_date + INTERVAL '1 day' AND value > prev_value) AS inc_day
+  FROM t
+),
+y AS (
+  SELECT
+    *,
+    /* start a new group when not increasing (or first row) */
+    CASE WHEN inc_day THEN 0 ELSE 1 END AS break_flag
+  FROM x
+),
+z AS (
+  SELECT
+    *,
+    SUM(break_flag) OVER (
+      PARTITION BY metric_key
+      ORDER BY date
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS grp_id
+  FROM y
+),
+w AS (
+  SELECT
+    *,
+    ROW_NUMBER() OVER (
+      PARTITION BY metric_key, grp_id
+      ORDER BY date
+    ) AS rn_in_grp,
+    MAX(date) OVER (PARTITION BY metric_key) AS max_date
+  FROM z
+),
+
+yesterdays_val as (
+	SELECT 
+		metric_key,
+	  value as yesterdays_value
+	FROM public.fact_kpis fk
+	WHERE metric_key in ('txcount', 'fees_paid_usd', 'fees_paid_eth')
+	    AND origin_key = '{{ origin_key }}'
+	    AND "date" = current_date - INTERVAL '1 days' 
+)
+
+select
+  metric_key,
+  CASE WHEN inc_day THEN rn_in_grp - 1 ELSE 0 END AS current_streak_length,
+  yesterdays_value
+FROM w
+left join yesterdays_val using (metric_key)
+WHERE date = max_date
+ORDER BY 2 desc;
+
