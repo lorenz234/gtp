@@ -1420,6 +1420,8 @@ def process_user_ops_for_transactions(w3, df_raw, df_prep, chain, four_byte_look
                             self.hash = hash_val
                         
                         self.blockNumber = tx_data.get('blockNumber', 0)
+                        self.fromAddress = tx_data.get('from', None)
+                        self.toAddress = tx_data.get('to', None)
                         
                         # Convert input from string to bytes
                         input_val = tx_data.get('input', '0x')
