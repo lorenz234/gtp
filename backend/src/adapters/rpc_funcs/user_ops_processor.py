@@ -152,8 +152,7 @@ def decode_input(input_bytes, four_byte_lookup: dict):
     except Exception as e:
         print(f"Failed to decode custom method {method_selector}: {str(e)}")
 
-    # Using Polars to filter the DataFrame for the method selector (can be multiple methods)
-   # Using the dictionary for a high-speed O(1) lookup
+   # Using the dictionary four_byte_lookup.pkl for a high-speed O(1) lookup
     signatures = four_byte_lookup.get(method_selector)
 
     # if no methods are found, return
@@ -735,6 +734,14 @@ def find_UserOps(trx, four_byte_lookup: dict):
             or len(f) > 1 
             or any(uo['has_bytes'] == True for uo in f)
         ):
+            # if from or to is None, we default back to the original trx from/to
+            for uo in f:
+                if uo['from'] is None:
+                    # print("from address not found, defaulting back to original from")
+                    uo['from'] = trx['from']
+                if uo['to'] is None:
+                    # print("to address not found, defaulting back to original to")
+                    uo['to'] = trx['to']
             return f
         else:
             return []
