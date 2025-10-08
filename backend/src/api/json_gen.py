@@ -486,7 +486,7 @@ class JsonGen():
         return ranking_dict
     
     def get_kpi_cards_data(self,origin_key, metric_id):
-        logging.info(f"Generating KPI card data for {origin_key} - {metric_id}")
+        #logging.info(f"Generating KPI card data for {origin_key} - {metric_id}")
         kpi_dict = {
             'sparkline': {},
             'current_values': {},
@@ -640,7 +640,6 @@ class JsonGen():
 
         return lifetime_achievements_dict
 
-
     def _calculate_achievement(self, total_value: float, levels: dict) -> dict | None:
         """
         Calculate achievement level and progress for a given value.
@@ -671,6 +670,73 @@ class JsonGen():
                 }
         
         return None  # No threshold reached
+    
+    def get_streaks_dict(self, origin_key: str) -> dict:
+        query_parameters = {'origin_key': origin_key}
+
+        result_df = execute_jinja_query(
+            self.db_connector, 
+            "api/select_streak_length.sql.j2", 
+            query_parameters, 
+            return_df=True
+        )
+        
+        streaks_dict = {}
+        for metric_id in gtp_metrics_new['chains']:
+            metric_keys = gtp_metrics_new['chains'][metric_id]['metric_keys']
+            for metric_key in metric_keys:
+                if metric_key in result_df['metric_key'].values:
+                    streak_length = int(result_df.loc[result_df['metric_key'] == metric_key, 'current_streak_length'].values[0])
+                    yesterday_value = float(result_df.loc[result_df['metric_key'] == metric_key, 'yesterdays_value'].values[0]) if 'yesterdays_value' in result_df.columns else None
+                    if not pd.isna(yesterday_value):
+                        if metric_id not in streaks_dict:
+                            streaks_dict[metric_id] = {}
+                        if len(gtp_metrics_new['chains'][metric_id]['units'].keys()) == 1:
+                            unit = 'value'
+                        else:
+                            unit = metric_key[-3:]
+                            
+                        streaks_dict[metric_id][unit] = {
+                            'streak_length': streak_length,
+                            'yesterday_value': round(yesterday_value, 4) if yesterday_value is not None else 0
+                        }
+                    else:
+                        logging.warning(f"Skipping streak for {origin_key} - {metric_key} due to NaN yesterday_value")
+                    
+        return streaks_dict
+    
+    def get_streaks_today_dict(self) -> dict:
+        streaks_today_dict = {}
+
+        for chain in self.main_config:
+            if chain.api_in_main and chain.origin_key not in ['imx', 'loopring']:
+                query_parameters = {'origin_key': chain.origin_key}
+
+                result_df = execute_jinja_query(
+                    self.db_connector, 
+                    "api/select_streak_today.sql.j2", 
+                    query_parameters, 
+                    return_df=True
+                )
+                
+                if result_df is not None and not result_df.empty:
+                    streaks_today_dict[chain.origin_key] = {}
+                
+                for metric_id in gtp_metrics_new['chains']:
+                    metric_keys = gtp_metrics_new['chains'][metric_id]['metric_keys']
+                    for metric_key in metric_keys:
+                        for col in result_df.columns:
+                            if metric_key == col:
+                                if metric_id not in streaks_today_dict[chain.origin_key]:
+                                    streaks_today_dict[chain.origin_key][metric_id] = {}
+                                if len(gtp_metrics_new['chains'][metric_id]['units'].keys()) == 1:
+                                    unit = 'value'
+                                else:
+                                    unit = metric_key[-3:]
+                                streaks_today_dict[chain.origin_key][metric_id][unit] = result_df[col].values[0].astype(float) if result_df[col].values[0] is not None else 0
+        
+        return streaks_today_dict
+
 
     def create_chains_dict(self, origin_key:str):
         chains_dict = {}
@@ -685,7 +751,7 @@ class JsonGen():
                 "ranking": self.get_chain_ranking_dict(origin_key),
                 "kpi_cards": self.get_kpi_cards_dict(chain),
                 "achievements": {
-                    "streaks": {},
+                    "streaks": self.get_streaks_dict(origin_key),
                     "lifetime": self.get_lifetime_achievements_dict(origin_key),
                 },
                 "blockspace": self.get_blockspace_dict(chain),
@@ -765,3 +831,27 @@ class JsonGen():
             logging.info(f"CloudFront invalidation submitted for path: {invalidation_path}")
         else:
             logging.info("Skipping CloudFront invalidation (S3 bucket or Distribution ID not set).")
+            
+    def create_streaks_today_json(self):
+        """
+        Generates and uploads the streaks_today JSON.
+        """
+        logging.info("Generating streaks_today JSON...")
+        streaks_today_dict = self.get_streaks_today_dict()
+        
+        if not streaks_today_dict:
+            logging.warning("No data found for streaks_today. Skipping upload.")
+            return
+        
+        output_dict = {
+            "data": streaks_today_dict,
+            'last_updated_utc': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        s3_path = f'{self.api_version}/chains/all/streaks_today'
+        if self.s3_bucket is None:
+            # Assuming local saving for testing still uses a similar path structure
+            self._save_to_json(output_dict, s3_path)
+        else:
+            upload_json_to_cf_s3(self.s3_bucket, s3_path, output_dict, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60, s-maxage=900, stale-while-revalidate=60, stale-if-error=86400")
+        logging.info(f"SUCCESS: Exported streaks_today JSON")

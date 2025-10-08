@@ -1,0 +1,24 @@
+{#
+    A query to get todays's values for specific metrics from the {{ origin_key }}_tx table.
+
+    Parameters:
+    - origin_key: the specific origin key to filter the results.
+#}
+
+
+
+
+with price_eth as (
+	select value
+	FROM public.fact_kpis_granular
+	where origin_key = 'ethereum' and metric_key = 'price_usd'
+	order by timestamp desc
+	limit 1
+)
+
+select 
+	count(*) as txcount,
+	sum(tx_fee) as fees_paid_eth,
+	sum(tx_fee) * (select value from price_eth) as fees_paid_usd
+from {{ origin_key }}_tx
+where block_date = current_date
