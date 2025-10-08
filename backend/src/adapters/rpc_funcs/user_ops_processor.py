@@ -735,6 +735,14 @@ def find_UserOps(trx, four_byte_lookup: dict):
             or len(f) > 1 
             or any(uo['has_bytes'] == True for uo in f)
         ):
+            # if from or to is None, we default back to the original trx from/to
+            for uo in f:
+                if uo['from'] is None:
+                    # print("from address not found, defaulting back to original from")
+                    uo['from'] = trx['from']
+                if uo['to'] is None:
+                    # print("to address not found, defaulting back to original to")
+                    uo['to'] = trx['to']
             return f
         else:
             return []
