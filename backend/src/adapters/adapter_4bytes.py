@@ -98,7 +98,7 @@ class Adapter4Bytes(AbstractAdapter):
         combined_df = combined_df.with_columns(pl.col('signature').map_elements(self.add_variable_names, return_dtype=pl.Utf8).alias('signature'))
         # remove duplicate signatures with same function names (by grouping 4byte & function, then remove any duplicates with lower count number)
         combined_df = combined_df.with_columns(pl.col("signature").str.split("(").list.get(0).alias("function"))
-        combined_df = combined_df.group_by('function').first()
+        combined_df = combined_df.group_by(['4byte', 'function']).first()
         # remove count & function column to reduce size
         combined_df = combined_df.sort('count', descending=True)
         combined_df = combined_df.drop(["count", "function"])
