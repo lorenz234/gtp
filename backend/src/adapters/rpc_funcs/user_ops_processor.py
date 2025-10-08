@@ -152,8 +152,7 @@ def decode_input(input_bytes, four_byte_lookup: dict):
     except Exception as e:
         print(f"Failed to decode custom method {method_selector}: {str(e)}")
 
-    # Using Polars to filter the DataFrame for the method selector (can be multiple methods)
-   # Using the dictionary for a high-speed O(1) lookup
+   # Using the dictionary four_byte_lookup.pkl for a high-speed O(1) lookup
     signatures = four_byte_lookup.get(method_selector)
 
     # if no methods are found, return
