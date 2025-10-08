@@ -128,7 +128,7 @@ def etl():
 
         json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
         df = json_creator.get_all_data()
-        json_creator.create_metric_details_jsons(df, ['market_cap', 'fdv'])
+        json_creator.create_metric_details_jsons(df, ['market_cap', 'fdv'], cache_control="public, max-age=60, s-maxage=1800, stale-while-revalidate=60, stale-if-error=86400")
 
     run_market_chart_hourly()
     
