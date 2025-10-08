@@ -1364,8 +1364,7 @@ def create_4byte_lookup(df: pl.DataFrame) -> dict:
     """
     # Group by '4byte' and aggregate all 'signature' strings into a list for each selector
     lookup_df = df.group_by("4byte").agg(pl.col("signature"))
-    # Convert the result to a dictionary: {'0x...': ['sig1', 'sig2'], ...}
-    return {row[0]: row[1] for row in lookup_df.iter_rows()}
+    return dict(lookup_df.iter_rows())
 
 def process_user_ops_for_transactions(w3, df_raw, df_prep, chain, four_byte_lookup):
     """
