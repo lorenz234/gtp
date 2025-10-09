@@ -1030,7 +1030,7 @@ class OctantV2():
             logging.info(
                 "/trackers/octant/summary.json uploaded to S3")
             
-        empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/trackers/octant/*')
+        #empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/trackers/octant/*')
 
     def load_epoch_data(self, epoch: int):
         """
