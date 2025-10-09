@@ -279,17 +279,17 @@ class BlockspaceJSONCreation():
                 # filter the dataframes accordingly, we'll use the chain_totals_df to calculate the gas_fees_share and txcount_share
                 main_category_df = chain_df.loc[(chain_df.main_category_key == main_category_key)]
 
-                # create dict for each main_category_key
-                chain_dict["daily"][main_category_key] = {
-                    "data": []
-                }
+                # # create dict for each main_category_key
+                # chain_dict["daily"][main_category_key] = {
+                #     "data": []
+                # }
 
-                # create list of lists for each main_category_key
-                mk_list = main_category_df[[
-                    'unix', 'gas_fees_eth', 'gas_fees_usd', 'txcount', 'gas_fees_share_eth', 'gas_fees_share_usd', 'txcount_share']].values.tolist()
+                # # create list of lists for each main_category_key
+                # mk_list = main_category_df[[
+                #     'unix', 'gas_fees_eth', 'gas_fees_usd', 'txcount', 'gas_fees_share_eth', 'gas_fees_share_usd', 'txcount_share']].values.tolist()
 
-                # add the list of lists to the main_category_key dict
-                chain_dict["daily"][main_category_key]['data'] = mk_list
+                # # add the list of lists to the main_category_key dict
+                # chain_dict["daily"][main_category_key]['data'] = mk_list
 
                 for timeframe in overview_timeframes:
                     timeframe_key = f'{timeframe}d' if timeframe != 'max' else 'max'
