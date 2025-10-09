@@ -55,7 +55,7 @@ FEE_CURRENCY_DIRECTORY_ADDRESS = Web3.to_checksum_address(
 )
 
 # ---------------------------------------------------------------------
-# Known Celo tokens
+# Known Celo tokens (https://celoscan.io/address/0x15F344b9E6c3Cb6F0376A36A64928b13F62C6276#readProxyContract#F2)
 # ---------------------------------------------------------------------
 KNOWN_TOKENS = {
     "0x471ece3750da237f93b8e339c536989b8978a438": "CELO",
@@ -63,15 +63,23 @@ KNOWN_TOKENS = {
     "0xd8763cba276a3738e6de85b4b3bf5fded6d6ca73": "cEUR",
     "0xe8537a3d056da446677b9e9d6c5db704eaab4787": "cREAL",
     "0x73f93dcc49cb8a239e2032663e9475dd5ef29a08": "eXOF",
+    "0x2f25deb3848c207fc8e0c34035b3ba7fc157602b": "USDC-Adapter",
+    "0x0e2a3e05bc9a16f5292a6170456a710cb89c6f72": "USDT-Adapter",
     "0x456a3d042c0dbd3db53d5489e98dfb038553b0d0": "cKES",
     "0x105d4a9306d2e55a71d2eb95b81553ae1dc20d7b": "PUSO",
     "0x8a567e2ae79ca692bd748ab832081c45de4041ea": "cCOP",
     "0xfaea5f3404bba20d3cc2f8c4b0a888f55a3c7313": "cGHS",
     "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e": "USDT",
     "0xceba9300f2b948710d2653dd7b07f33a8b32118c": "USDC",
-    "0x0e2a3e05bc9a16f5292a6170456a710cb89c6f72": "USDT-Adapter",
-    "0x2f25deb3848c207fc8e0c34035b3ba7fc157602b": "USDC-Adapter",
     "0x4f604735c1cf31399c6e711d5962b2b3e0225ad3": "USDGLO",
+    "0xCCF663b1fF11028f0b19058d0f7B674004a40746": "cGBP",
+    "0x4c35853A3B4e647fD266f4de678dCc8fEC410BF6": "cZAR",
+    "0xff4Ab19391af240c311c54200a492233052B6325": "cCAD",
+    "0x7175504C455076F15c04A2F90a8e352281F492F9": "cAUD",
+    "0xb55a79F398E759E43C95b979163f30eC87Ee131D": "cCHF",
+    "0xE2702Bd97ee33c88c8f6f92DA3B733608aa76F71": "cNGN",
+    "0xc45eCF20f3CD864B32D9794d6f76814aE8892e20": "cJPY",
+    "0xd221812de1bd094f35587ee8e174b07b6167d9af": "wETH",
 }
 
 # ---------------------------------------------------------------------
