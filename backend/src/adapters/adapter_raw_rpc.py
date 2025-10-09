@@ -119,7 +119,7 @@ class NodeAdapter(AbstractAdapterRaw):
             block_range_queue (Queue): Optional queue to requeue in-flight ranges from kicked RPCs.
         """
         current_time = time.time()
-        timeout_threshold = 600  # 10 minutes in seconds
+        timeout_threshold = 300  # 5 minutes in seconds
         rpcs_to_kick = []
         
         # Check each RPC for timeouts
