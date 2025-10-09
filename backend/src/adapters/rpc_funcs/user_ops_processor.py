@@ -90,13 +90,21 @@ def parse_custom_eip7821_batch(data):
 
     # executionCalldata: first 32 bytes give the offset until trx_count
     offset_to_trx_count = uint256(executionCalldata, 0)
-    trx_count = uint256(executionCalldata, offset_to_trx_count) # trx_count
-    # then for each transaction, 32 bytes for their offset follow
-    trx_offsets = [uint256(executionCalldata, offset_to_trx_count+32*(i+1)) + offset_to_trx_count+32 for i in range(trx_count)]
-    trx_data = []
-    for i in range(trx_count):
-        trx_data.append(executionCalldata[trx_offsets[i]:trx_offsets[i+1] if i+1 < trx_count else len(executionCalldata)])
-    # break down of each transaction data into their components
+
+    if mode[:1] == b'\x01': # batch call = more than 1 transaction
+        trx_count = uint256(executionCalldata, offset_to_trx_count) # trx_count
+        # then for each transaction, 32 bytes for their offset follow
+        trx_offsets = [uint256(executionCalldata, offset_to_trx_count+32*(i+1)) + offset_to_trx_count+32 for i in range(trx_count)]
+        trx_data = []
+        for i in range(trx_count):
+            trx_data.append(executionCalldata[trx_offsets[i]:trx_offsets[i+1] if i+1 < trx_count else len(executionCalldata)])
+    elif mode[:1] == b'\x00': # single call = 1 transaction
+        trx_count = 1
+        trx_data = [executionCalldata[offset_to_trx_count:]]
+    else:
+        raise ValueError("Unknown mode in EIP-7821 batchExecute.")
+
+    # break down each transaction data into their components
     transaction_tuple = ()
     for trx in trx_data:
         target = addr(trx, 0)
