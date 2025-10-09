@@ -61,8 +61,8 @@ class AdapterEigenDA(AbstractAdapter):
         return map
 
     def call_api_endpoint(self):
-        yesterday = (pd.Timestamp.now() - pd.Timedelta(days=1)).strftime('%Y-%m-%d')
-        self.endpoint = f"{self.load_params.get('endpoint')}/{yesterday}.json"
+        today = pd.Timestamp.now().strftime('%Y-%m-%d')
+        self.endpoint = f"{self.load_params.get('endpoint')}/{today}.json"
         
         response = requests.get(self.endpoint)
         if response.status_code == 200:
@@ -84,6 +84,9 @@ class AdapterEigenDA(AbstractAdapter):
 
         # hard drop everything pre 2025-01-01
         df = df[df['datetime'] >= pd.Timestamp('2025-01-01').date()]
+
+        # drop todays value as the day is not fully over yet
+        df = df[df['datetime'] < pd.Timestamp.now().date()]
 
         # drop account_name (namespace is more accurate)
         df = df.drop(columns=['account_name'])
