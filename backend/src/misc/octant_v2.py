@@ -838,7 +838,7 @@ class OctantV2():
                 "/trackers/octant/community.json community JSON saved")
         else:
             upload_json_to_cf_s3(
-                self.s3_bucket, f'{self.api_version}/trackers/octant/community', compiled_data, self.cf_distribution_id, invalidate=False)
+                self.s3_bucket, f'{self.api_version}/trackers/octant/community', compiled_data, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60, s-maxage=300, stale-while-revalidate=60, stale-if-error=86400")
             logging.info(
                 "/trackers/octant/community.json uploaded to S3")
 
@@ -902,7 +902,7 @@ class OctantV2():
                 "/trackers/octant/project_funding.json funding JSON saved")
         else:
             upload_json_to_cf_s3(
-                self.s3_bucket, f'{self.api_version}/trackers/octant/project_funding', compiled_data, self.cf_distribution_id, invalidate=False)
+                self.s3_bucket, f'{self.api_version}/trackers/octant/project_funding', compiled_data, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60, s-maxage=300, stale-while-revalidate=60, stale-if-error=86400")
             logging.info(
                 "/trackers/octant/project_funding.json uploaded to S3")
 
@@ -965,7 +965,7 @@ class OctantV2():
                 "/trackers/octant/project_metadata.json metadata JSON saved")
         else:
             upload_json_to_cf_s3(
-                self.s3_bucket, f'{self.api_version}/trackers/octant/project_metadata', compiled_data, self.cf_distribution_id, invalidate=False)
+                self.s3_bucket, f'{self.api_version}/trackers/octant/project_metadata', compiled_data, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60, s-maxage=300, stale-while-revalidate=60, stale-if-error=86400")
             logging.info(
                 "/trackers/octant/project_metadata.json uploaded to S3")
 
@@ -1026,11 +1026,11 @@ class OctantV2():
                 "/trackers/octant/summary.json summary JSON saved")
         else:
             upload_json_to_cf_s3(
-                self.s3_bucket, f'{self.api_version}/trackers/octant/summary', compiled_data, self.cf_distribution_id, invalidate=False)
+                self.s3_bucket, f'{self.api_version}/trackers/octant/summary', compiled_data, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60, s-maxage=300, stale-while-revalidate=60, stale-if-error=86400")
             logging.info(
                 "/trackers/octant/summary.json uploaded to S3")
             
-        empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/trackers/octant/*')
+        #empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/trackers/octant/*')
 
     def load_epoch_data(self, epoch: int):
         """
@@ -1084,4 +1084,4 @@ class OctantV2():
         logging.info(f"# Creating Octant Project Metadata JSON")
         self.create_project_metadata_json()
 
-        empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/trackers/octant/*')
+        #empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/trackers/octant/*')

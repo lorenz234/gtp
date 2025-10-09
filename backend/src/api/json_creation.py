@@ -1397,7 +1397,7 @@ class JSONCreation():
         ## after all chain details jsons are created, invalidate the cache
         empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/chains/*')
 
-    def create_metric_details_jsons(self, df, metric_keys:list=None):
+    def create_metric_details_jsons(self, df, metric_keys:list=None, cache_control=None):
         if metric_keys != None:
             ## create metrics_filtered that only contains metrics that are in the metric_keys list
             metrics_filtered = {key: value for key, value in self.metrics.items() if key in metric_keys}
@@ -1470,7 +1470,7 @@ class JSONCreation():
             if self.s3_bucket == None:
                 self.save_to_json(details_dict, f'metrics/{metric}')
             else:
-                upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/metrics/{metric}', details_dict, self.cf_distribution_id, invalidate=False)
+                upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/metrics/{metric}', details_dict, self.cf_distribution_id, invalidate=False, cache_control=cache_control)
             print(f'DONE -- Metric details export for {metric}')
 
         ## after all metric jsons are created, invalidate the cache
@@ -1593,7 +1593,7 @@ class JSONCreation():
         if self.s3_bucket == None:
             self.save_to_json(fees_dict, f'fees/table')
         else:
-            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/fees/table', fees_dict, self.cf_distribution_id)
+            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/fees/table', fees_dict, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60, s-maxage=900, stale-while-revalidate=60, stale-if-error=86400")
         print(f'DONE -- fees/table.json export')
 
     def create_fees_linechart_json(self, df):
@@ -1634,10 +1634,10 @@ class JSONCreation():
         if self.s3_bucket == None:
             self.save_to_json(fees_dict, f'fees/linechart')
         else:
-            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/fees/linechart_test', fees_dict, self.cf_distribution_id, invalidate=False)
+            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/fees/linechart_test', fees_dict, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60, s-maxage=300, stale-while-revalidate=60, stale-if-error=86400")
             fees_dict['chain_data'].pop('ethereum', None)
-            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/fees/linechart', fees_dict, self.cf_distribution_id, invalidate=False)
-            empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/fees/linechart*')
+            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/fees/linechart', fees_dict, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60, s-maxage=300, stale-while-revalidate=60, stale-if-error=86400")
+            #empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/fees/linechart*')
         
         print(f'DONE -- fees/linechart.json export')
 

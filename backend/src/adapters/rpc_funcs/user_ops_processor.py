@@ -738,10 +738,10 @@ def find_UserOps(trx, four_byte_lookup: dict):
             for uo in f:
                 if uo['from'] is None:
                     # print("from address not found, defaulting back to original from")
-                    uo['from'] = trx['from']
+                    uo['from'] = trx.fromAddress
                 if uo['to'] is None:
                     # print("to address not found, defaulting back to original to")
-                    uo['to'] = trx['to']
+                    uo['to'] = trx.toAddress
             return f
         else:
             return []
