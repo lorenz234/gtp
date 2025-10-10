@@ -63,21 +63,15 @@ class JsonGen():
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df['metric_key'] = metric_key
-        return df
-
-    ## TODO: remove? not in use so far
-    def _get_raw_data_multi_oks(self, origin_keys: List[str], metric_key: str, days: Optional[int] = None) -> pd.DataFrame:
-        """Get fact kpis from the database for a specific metric key."""
-        logging.debug(f"Fetching raw data for origin_keys={origin_keys}, metric_key={metric_key}, days={days}")
-        query_parameters = {'origin_keys': origin_keys, 'metric_key': metric_key, 'days': days}
-        df = self.db_connector.execute_jinja("api/select_fact_kpis_multi_oks.sql.j2", query_parameters, load_into_df=True)
-
-        if df.empty:
-            return pd.DataFrame()
+        
+        if metric_key == 'gas_per_second':
+            # Convert gas_per_second from gas units to millions of gas units for easier readability
+            df['value'] = df['value'] / 1_000_000
             
-        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
-        df.sort_values(by=['date'], inplace=True, ascending=True)
-        df['metric_key'] = metric_key
+        if metric_key == 'da_data_posted_bytes':
+            # Convert da_data_posted_bytes from bytes to gigabytes for easier readability
+            df['value'] = df['value'] / 1024 / 1024 / 1024
+
         return df
 
     @staticmethod
