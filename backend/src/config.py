@@ -39,6 +39,7 @@ gtp_metrics = {
         'tvl': {
             'name': 'Total Value Secured',
             'icon': 'metrics-total-value-secured',
+            'category': 'value-locked',
             'fundamental': True,
             'metric_keys': ['tvl', 'tvl_eth'],
             'units': {
@@ -56,6 +57,7 @@ gtp_metrics = {
         ,'txcount': {
             'name': 'Transaction Count',
             'icon': 'metrics-transaction-count',
+            'category': 'activity',
             'fundamental': True,
             'metric_keys': ['txcount'],
             'units': {
@@ -72,6 +74,7 @@ gtp_metrics = {
         ,'daa': {
             'name': 'Active Addresses',
             'icon': 'metrics-active-addresses',
+            'category': 'activity',
             'fundamental': True,
             'metric_keys': ['daa'],
             'units': {
@@ -88,6 +91,7 @@ gtp_metrics = {
         ,'stables_mcap': {
             'name': 'Stablecoin Supply',
             'icon': 'metrics-stablecoin-market-cap',
+            'category': 'value-locked',
             'fundamental': True,
             'metric_keys': ['stables_mcap', 'stables_mcap_eth'],
             'units': {
@@ -105,6 +109,7 @@ gtp_metrics = {
         ,'fees': {
             'name': 'Revenue',
             'icon': 'metrics-revenue',
+            'category': 'business',
             'fundamental': True,
             'metric_keys': ['fees_paid_usd', 'fees_paid_eth'],
             'units': {
@@ -122,6 +127,7 @@ gtp_metrics = {
         ,'rent_paid': {
             'name': 'Rent Paid to L1',
             'icon': 'metrics-rent-paid-to-l1',
+            'category': 'business',
             'fundamental': True,
             'metric_keys': ['rent_paid_usd', 'rent_paid_eth'],
             'units': {
@@ -139,6 +145,7 @@ gtp_metrics = {
         ,'profit': {
             'name': 'Onchain Profit',
             'icon': 'metrics-onchain-profit',
+            'category': 'business',
             'fundamental': True,
             'metric_keys': ['profit_usd', 'profit_eth'],
             'units': {
@@ -156,6 +163,7 @@ gtp_metrics = {
         ,'txcosts': {
             'name': 'Transaction Costs',
             'icon': 'metrics-transaction-cost',
+            'category': 'convenience',
             'fundamental': True,
             'metric_keys': ['txcosts_median_usd', 'txcosts_median_eth'],
             'units': {
@@ -173,6 +181,7 @@ gtp_metrics = {
         ,'fdv': {
             'name': 'Fully Diluted Valuation',
             'icon': 'metrics-fully-diluted-valuation',
+            'category': 'market',
             'fundamental': True,
             'metric_keys': ['fdv_usd', 'fdv_eth'],
             'units': {
@@ -190,6 +199,7 @@ gtp_metrics = {
         ,'market_cap': {
             'name': 'Market Cap',
             'icon': 'metrics-market-cap',
+            'category': 'market',
             'fundamental': True,
             'metric_keys': ['market_cap_usd', 'market_cap_eth'],
             'units': {
@@ -207,6 +217,7 @@ gtp_metrics = {
         ,'throughput': {
             'name': 'Throughput',
             'icon': 'metrics-throughput',
+            'category': 'activity',
             'fundamental': True,
             'metric_keys': ['gas_per_second'],
             'units': {
@@ -223,6 +234,7 @@ gtp_metrics = {
         ,'app_revenue': {
             'name': 'App Revenue',
             'icon': 'metrics-revenue',
+            'category': 'business',
             'fundamental': True,
             'metric_keys': ['app_fees_usd', 'app_fees_eth'],
             'units': {
@@ -295,6 +307,7 @@ gtp_da_metrics = {
         'blob_count': {
             'name': 'Blob Count',
             'icon': 'da-blobs-number',
+            'category': 'metrics',
             'fundamental': True,
             'metric_keys': ['da_blob_count'],
             'units': {
@@ -309,6 +322,7 @@ gtp_da_metrics = {
         ,'data_posted': {
             'name': 'Data Posted',
             'icon': 'da-data-posted',
+            'category': 'metrics',
             'fundamental': True,
             'metric_keys': ['da_data_posted_bytes'],
             'units': {
@@ -323,6 +337,7 @@ gtp_da_metrics = {
         ,'fees_paid': {
             'name': 'DA Fees Paid',
             'icon': 'da-fees-paid',
+            'category': 'metrics',
             'fundamental': True,
             'metric_keys': ['da_fees_usd', 'da_fees_eth'],
             'units': {
@@ -338,6 +353,7 @@ gtp_da_metrics = {
         ,'fees_per_mbyte': {
             'name': 'Fees Paid per MB',
             'icon': 'da-fees-paid-per-mb',
+            'category': 'metrics',
             'fundamental': True,
             'metric_keys': ['da_fees_per_mbyte_usd', 'da_fees_per_mbyte_eth'],
             'units': {
@@ -353,6 +369,7 @@ gtp_da_metrics = {
         ,'blob_producers': {
             'name': 'DA Consumers',
             'icon': 'da-consumers',
+            'category': 'metrics',
             'fundamental': True,
             'metric_keys': ['da_unique_blob_producers'],
             'units': {
@@ -431,6 +448,7 @@ gtp_metrics_new = {
             'tvl': {
                 'name': 'Total Value Secured',
                 'icon': 'metrics-total-value-secured',
+                'category': 'value-locked',
                 'fundamental': True,
                 'metric_keys': ['tvl', 'tvl_eth'],
                 'units': {
@@ -448,6 +466,7 @@ gtp_metrics_new = {
             ,'txcount': {
                 'name': 'Transaction Count',
                 'icon': 'metrics-transaction-count',
+                'category': 'activity',
                 'fundamental': True,
                 'metric_keys': ['txcount'],
                 'units': {
@@ -464,6 +483,7 @@ gtp_metrics_new = {
             ,'daa': {
                 'name': 'Active Addresses',
                 'icon': 'metrics-active-addresses',
+                'category': 'activity',
                 'fundamental': True,
                 'metric_keys': ['daa'],
                 'units': {
@@ -480,6 +500,7 @@ gtp_metrics_new = {
             ,'stables_mcap': {
                 'name': 'Stablecoin Supply',
                 'icon': 'metrics-stablecoin-market-cap',
+                'category': 'value-locked',
                 'fundamental': True,
                 'metric_keys': ['stables_mcap', 'stables_mcap_eth'],
                 'units': {
@@ -497,6 +518,7 @@ gtp_metrics_new = {
             ,'fees': {
                 'name': 'Revenue',
                 'icon': 'metrics-revenue',
+                'category': 'business',
                 'fundamental': True,
                 'metric_keys': ['fees_paid_usd', 'fees_paid_eth'],
                 'units': {
@@ -514,6 +536,7 @@ gtp_metrics_new = {
             ,'rent_paid': {
                 'name': 'Rent Paid to L1',
                 'icon': 'metrics-rent-paid-to-l1',
+                'category': 'business',
                 'fundamental': True,
                 'metric_keys': ['rent_paid_usd', 'rent_paid_eth'],
                 'units': {
@@ -531,6 +554,7 @@ gtp_metrics_new = {
             ,'profit': {
                 'name': 'Onchain Profit',
                 'icon': 'metrics-onchain-profit',
+                'category': 'business',
                 'fundamental': True,
                 'metric_keys': ['profit_usd', 'profit_eth'],
                 'units': {
@@ -548,6 +572,7 @@ gtp_metrics_new = {
             ,'txcosts': {
                 'name': 'Transaction Costs',
                 'icon': 'metrics-transaction-cost',
+                'category': 'convenience',
                 'fundamental': True,
                 'metric_keys': ['txcosts_median_usd', 'txcosts_median_eth'],
                 'units': {
@@ -565,6 +590,7 @@ gtp_metrics_new = {
             ,'fdv': {
                 'name': 'Fully Diluted Valuation',
                 'icon': 'metrics-fully-diluted-valuation',
+                'category': 'market',
                 'fundamental': True,
                 'metric_keys': ['fdv_usd', 'fdv_eth'],
                 'units': {
@@ -582,6 +608,7 @@ gtp_metrics_new = {
             ,'market_cap': {
                 'name': 'Market Cap',
                 'icon': 'metrics-market-cap',
+                'category': 'market',
                 'fundamental': True,
                 'metric_keys': ['market_cap_usd', 'market_cap_eth'],
                 'units': {
@@ -599,6 +626,7 @@ gtp_metrics_new = {
             ,'throughput': {
                 'name': 'Throughput',
                 'icon': 'metrics-throughput',
+                'category': 'activity',
                 'fundamental': True,
                 'metric_keys': ['gas_per_second'],
                 'units': {
@@ -615,6 +643,7 @@ gtp_metrics_new = {
             ,'app_revenue': {
                 'name': 'App Revenue',
                 'icon': 'metrics-revenue',
+                'category': 'business',
                 'fundamental': True,
                 'metric_keys': ['app_fees_usd', 'app_fees_eth'],
                 'units': {
@@ -688,6 +717,7 @@ gtp_metrics_new = {
             'blob_count': {
                 'name': 'Blob Count',
                 'icon': 'da-blobs-number',
+                'category': 'metrics',
                 'fundamental': True,
                 'metric_keys': ['da_blob_count'],
                 'units': {
@@ -702,6 +732,7 @@ gtp_metrics_new = {
             ,'data_posted': {
                 'name': 'Data Posted',
                 'icon': 'da-data-posted',
+                'category': 'metrics',
                 'fundamental': True,
                 'metric_keys': ['da_data_posted_bytes'],
                 'units': {
@@ -716,6 +747,7 @@ gtp_metrics_new = {
             ,'fees_paid': {
                 'name': 'DA Fees Paid',
                 'icon': 'da-fees-paid',
+                'category': 'metrics',
                 'fundamental': True,
                 'metric_keys': ['da_fees_usd', 'da_fees_eth'],
                 'units': {
@@ -731,6 +763,7 @@ gtp_metrics_new = {
             ,'fees_per_mbyte': {
                 'name': 'Fees Paid per MB',
                 'icon': 'da-fees-paid-per-mb',
+                'category': 'metrics',
                 'fundamental': True,
                 'metric_keys': ['da_fees_per_mbyte_usd', 'da_fees_per_mbyte_eth'],
                 'units': {
@@ -746,6 +779,7 @@ gtp_metrics_new = {
             ,'blob_producers': {
                 'name': 'DA Consumers',
                 'icon': 'da-consumers',
+                'category': 'metrics',
                 'fundamental': True,
                 'metric_keys': ['da_unique_blob_producers'],
                 'units': {
@@ -764,6 +798,7 @@ gtp_metrics_new = {
             'txcount': {
                 'name': 'Transaction Count',
                 'icon': 'metrics-transaction-count',
+                'category': 'activity',
                 'metric_keys': ['txcount'],
                 'units': {
                     'value': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}
@@ -778,6 +813,7 @@ gtp_metrics_new = {
             ,'daa': {
                 'name': 'Active Addresses',
                 'icon': 'metrics-active-addresses',
+                'category': 'activity',
                 'metric_keys': ['daa'],
                 'units': {
                     'value': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}
@@ -792,6 +828,7 @@ gtp_metrics_new = {
             ,'gas_fees': {
                 'name': 'Fees Paid',
                 'icon': 'metrics-revenue',
+                'category': 'activity',
                 'metric_keys': ['fees_paid_usd', 'fees_paid_eth'],
                 'units': {
                     'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}, 
