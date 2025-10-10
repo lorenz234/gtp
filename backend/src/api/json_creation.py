@@ -1474,7 +1474,8 @@ class JSONCreation():
             print(f'DONE -- Metric details export for {metric}')
 
         ## after all metric jsons are created, invalidate the cache
-        empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/metrics/*')
+        if cache_control == None:
+            empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/metrics/*')
 
     def create_da_metric_details_jsons(self, df, metric_keys:list=None):
         if metric_keys != None:
