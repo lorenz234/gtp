@@ -5,95 +5,152 @@
     The output includes the current sum, prior sum, and percentage growth.
     
     Parameters:
-    -   metric_key: string
+    -   metric_configs: dict
     -   origin_key: string
-    -   timeframes: dict{int: float} (e.g. {7: 0.1, 30: 0.25, 90: 0.5}); keys are timeframes in days, values are minimum growth percentages (e.g. 0.1 = 10%)
 #}
 
 INSERT INTO highlights (date, origin_key, metric_key, type, value, growth_prior_value, growth_pct_growth)
 
-WITH last_date AS (
-  SELECT MAX(date)::date AS as_of
-  FROM fact_kpis
-  WHERE metric_key = '{{ metric_key }}' AND origin_key = '{{ origin_key }}'
-  and date < current_date
+WITH agg_config AS (
+  SELECT * FROM (
+    VALUES
+    {% set ns = namespace(first=true) %}
+    {% for metric, cfg in metric_configs.items() %}
+      {% if not ns.first %},{% endif %}
+      ('{{ metric }}', '{{ cfg.agg }}')
+      {% set ns.first = false %}
+    {% endfor %}
+  ) AS v(metric_key, agg_kind)
 ),
 timeframes AS (
-    SELECT * FROM (VALUES
-        {% for days, min_growth in timeframes.items() %}
-            ({{ days }}, {{ min_growth }}::numeric){% if not loop.last %},{% endif %}
-        {% endfor %}
-    ) AS t(days, min_growth)
+  SELECT * FROM (
+    VALUES
+    {% set ns = namespace(first=true) %}
+    {% for metric, cfg in metric_configs.items() %}
+      {% for days, min_growth in cfg.thresholds.items() %}
+        {% if not ns.first %},{% endif %}
+        ('{{ metric }}', {{ days }}, {{ min_growth }}::numeric)
+        {% set ns.first = false %}
+      {% endfor %}
+    {% endfor %}
+  ) AS t(metric_key, days, min_growth)
 ),
-window_sums AS (
+last_date AS (
+  SELECT f.metric_key, MAX(f.date)::date AS as_of
+  FROM fact_kpis f
+  JOIN timeframes tf USING (metric_key)
+  WHERE f.origin_key = '{{ origin_key }}'
+    AND f.date < current_date
+  GROUP BY f.metric_key
+),
+windows AS (
   SELECT
-    t.days,
-    t.min_growth,
+    tf.metric_key,
+    ac.agg_kind,
+    tf.days,
+    tf.min_growth,
     ld.as_of,
-    (ld.as_of - ((t.days - 1) || ' days')::interval)::date AS curr_start,
+    (ld.as_of - ((tf.days - 1) || ' days')::interval)::date AS curr_start,
     ld.as_of AS curr_end,
-    (ld.as_of - ((2*t.days - 1) || ' days')::interval)::date AS prev_start,
-    (ld.as_of - (t.days || ' days')::interval)::date         AS prev_end,
-    -- sums
-    SUM(CASE WHEN f.date BETWEEN
-               (ld.as_of - ((t.days - 1) || ' days')::interval)::date AND ld.as_of
+    (ld.as_of - ((2*tf.days - 1) || ' days')::interval)::date AS prev_start,
+    (ld.as_of - (tf.days || ' days')::interval)::date         AS prev_end
+  FROM timeframes tf
+  JOIN agg_config ac USING (metric_key)
+  JOIN last_date ld USING (metric_key)
+),
+-- Sums + coverage counts
+sum_agg AS (
+  SELECT
+    w.metric_key, w.days, w.min_growth, w.as_of,
+    w.curr_start, w.curr_end, w.prev_start, w.prev_end,
+    SUM(CASE WHEN f.date BETWEEN w.curr_start AND w.curr_end
              THEN f.value::numeric ELSE 0 END) AS curr_sum,
-    SUM(CASE WHEN f.date BETWEEN
-               (ld.as_of - ((2*t.days - 1) || ' days')::interval)::date
-               AND (ld.as_of - (t.days || ' days')::interval)::date
+    SUM(CASE WHEN f.date BETWEEN w.prev_start AND w.prev_end
              THEN f.value::numeric ELSE 0 END) AS prev_sum,
-    -- coverage (distinct days with data)
-    COUNT(DISTINCT CASE WHEN f.date BETWEEN
-               (ld.as_of - ((t.days - 1) || ' days')::interval)::date AND ld.as_of
-         THEN f.date END) AS curr_count,
-    COUNT(DISTINCT CASE WHEN f.date BETWEEN
-               (ld.as_of - ((2*t.days - 1) || ' days')::interval)::date
-               AND (ld.as_of - (t.days || ' days')::interval)::date
-         THEN f.date END) AS prev_count
-  FROM timeframes t
-  CROSS JOIN last_date ld
+    COUNT(DISTINCT CASE WHEN f.date BETWEEN w.curr_start AND w.curr_end
+                        THEN f.date END) AS curr_count,
+    COUNT(DISTINCT CASE WHEN f.date BETWEEN w.prev_start AND w.prev_end
+                        THEN f.date END) AS prev_count
+  FROM windows w
   LEFT JOIN fact_kpis f
-    ON f.metric_key = '{{ metric_key }}'
+    ON f.metric_key = w.metric_key
    AND f.origin_key = '{{ origin_key }}'
-   AND f.date BETWEEN
-       (ld.as_of - ((2*t.days - 1) || ' days')::interval)::date
-       AND ld.as_of
-  GROUP BY t.days, t.min_growth, ld.as_of
+   AND f.date BETWEEN w.prev_start AND w.curr_end
+  GROUP BY w.metric_key, w.days, w.min_growth, w.as_of,
+           w.curr_start, w.curr_end, w.prev_start, w.prev_end
+),
+-- Latest points in each window
+last_points AS (
+  SELECT
+    w.metric_key, w.days, w.min_growth, w.as_of,
+    w.curr_start, w.curr_end, w.prev_start, w.prev_end,
+    MAX(f.date) FILTER (WHERE f.date BETWEEN w.curr_start AND w.curr_end) AS curr_last_date,
+    MAX(f.date) FILTER (WHERE f.date BETWEEN w.prev_start AND w.prev_end) AS prev_last_date
+  FROM windows w
+  LEFT JOIN fact_kpis f
+    ON f.metric_key = w.metric_key
+   AND f.origin_key = '{{ origin_key }}'
+   AND f.date BETWEEN w.prev_start AND w.curr_end
+  GROUP BY w.metric_key, w.days, w.min_growth, w.as_of,
+           w.curr_start, w.curr_end, w.prev_start, w.prev_end
+),
+last_vals AS (
+  SELECT
+    lp.*,
+    fc.value::numeric AS curr_last_value,
+    fp.value::numeric AS prev_last_value
+  FROM last_points lp
+  LEFT JOIN fact_kpis fc
+    ON fc.metric_key = lp.metric_key
+   AND fc.origin_key = '{{ origin_key }}'
+   AND fc.date = lp.curr_last_date
+  LEFT JOIN fact_kpis fp
+    ON fp.metric_key = lp.metric_key
+   AND fp.origin_key = '{{ origin_key }}'
+   AND fp.date = lp.prev_last_date
+),
+-- Combine by agg_kind
+assembled AS (
+  SELECT
+    w.metric_key, w.days, w.min_growth, w.as_of,
+    w.curr_start, w.curr_end, w.prev_start, w.prev_end, ac.agg_kind,
+    -- choose window values depending on agg_kind
+    CASE WHEN ac.agg_kind = 'sum'  THEN s.curr_sum  ELSE lv.curr_last_value END AS curr_value,
+    CASE WHEN ac.agg_kind = 'sum'  THEN s.prev_sum  ELSE lv.prev_last_value END AS prev_value,
+    -- coverage rules per agg_kind
+    CASE WHEN ac.agg_kind = 'sum'  THEN s.curr_count ELSE (CASE WHEN lv.curr_last_date IS NULL THEN 0 ELSE 1 END) END AS curr_cov,
+    CASE WHEN ac.agg_kind = 'sum'  THEN s.prev_count ELSE (CASE WHEN lv.prev_last_date IS NULL THEN 0 ELSE 1 END) END AS prev_cov
+  FROM windows w
+  JOIN agg_config ac USING (metric_key)
+  JOIN sum_agg s USING (metric_key, days, min_growth, as_of, curr_start, curr_end, prev_start, prev_end)
+  JOIN last_vals lv USING (metric_key, days, min_growth, as_of, curr_start, curr_end, prev_start, prev_end)
 ),
 growth AS (
   SELECT
-    days, min_growth, as_of,
-    curr_start, curr_end, prev_start, prev_end,
-    curr_sum, prev_sum, curr_count, prev_count,
-    (curr_sum - prev_sum) / NULLIF(prev_sum, 0) AS pct_growth,
-    (prev_sum = 0 AND curr_sum > 0) AS infinite_growth
-  FROM window_sums
-),
-coverage AS (
-  SELECT
-    g.*,
-    CEIL(days * 0.9)::int AS needed_days
-  FROM growth g
+    a.*,
+    CEIL(a.days * 0.9)::int AS needed_days,
+    (a.curr_value - a.prev_value) / NULLIF(a.prev_value, 0) AS pct_growth,
+    (a.prev_value = 0 AND a.curr_value > 0) AS infinite_growth
+  FROM assembled a
 )
 SELECT
   as_of AS date,
-  '{{ origin_key }}' as origin_key,
-  '{{ metric_key }}' as metric_key,
-  'growth_' || days as type,
-  curr_sum as value,
-  prev_sum as growth_prior_value,
-  pct_growth as growth_pct_growth
-  --prev_count/curr_count as coverage
-FROM coverage
+  '{{ origin_key }}' AS origin_key,
+  metric_key,
+  'growth_' || days AS type,
+  curr_value AS value,
+  prev_value AS growth_prior_value,
+  pct_growth AS growth_pct_growth
+FROM growth
 WHERE
-  -- require adequate coverage in both windows
-  prev_count >= needed_days
-  AND curr_count >= needed_days
-  AND (
-    infinite_growth
-    OR (pct_growth IS NOT NULL AND pct_growth > min_growth)
+  (
+    -- coverage requirement adapts to agg_kind
+    (agg_kind = 'sum'  AND prev_cov >= needed_days AND curr_cov >= needed_days) OR
+    (agg_kind = 'last' AND prev_cov >= 1           AND curr_cov >= 1)
   )
+  AND (infinite_growth OR (pct_growth IS NOT NULL AND pct_growth > min_growth))
 ORDER BY
+  metric_key,
   CASE WHEN infinite_growth THEN 1 ELSE 0 END DESC,
   pct_growth DESC NULLS LAST,
   date
