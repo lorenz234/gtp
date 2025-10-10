@@ -1,0 +1,105 @@
+{#
+    This query identifies relative growth for a given metric and origin over specified timeframes.
+    For each timeframe, it calculates the sum of values in the current and previous periods,
+    and determines if the growth percentage exceeds a defined minimum growth threshold.
+    The output includes the current sum, prior sum, and percentage growth.
+    
+    Parameters:
+    -   metric_key: string
+    -   origin_key: string
+    -   timeframes: dict{int: float} (e.g. {7: 0.1, 30: 0.25, 90: 0.5}); keys are timeframes in days, values are minimum growth percentages (e.g. 0.1 = 10%)
+#}
+
+INSERT INTO highlights (date, origin_key, metric_key, type, value, growth_prior_value, growth_pct_growth)
+
+WITH last_date AS (
+  SELECT MAX(date)::date AS as_of
+  FROM fact_kpis
+  WHERE metric_key = '{{ metric_key }}' AND origin_key = '{{ origin_key }}'
+  and date < current_date
+),
+timeframes AS (
+    SELECT * FROM (VALUES
+        {% for days, min_growth in timeframes.items() %}
+            ({{ days }}, {{ min_growth }}::numeric){% if not loop.last %},{% endif %}
+        {% endfor %}
+    ) AS t(days, min_growth)
+),
+window_sums AS (
+  SELECT
+    t.days,
+    t.min_growth,
+    ld.as_of,
+    (ld.as_of - ((t.days - 1) || ' days')::interval)::date AS curr_start,
+    ld.as_of AS curr_end,
+    (ld.as_of - ((2*t.days - 1) || ' days')::interval)::date AS prev_start,
+    (ld.as_of - (t.days || ' days')::interval)::date         AS prev_end,
+    -- sums
+    SUM(CASE WHEN f.date BETWEEN
+               (ld.as_of - ((t.days - 1) || ' days')::interval)::date AND ld.as_of
+             THEN f.value::numeric ELSE 0 END) AS curr_sum,
+    SUM(CASE WHEN f.date BETWEEN
+               (ld.as_of - ((2*t.days - 1) || ' days')::interval)::date
+               AND (ld.as_of - (t.days || ' days')::interval)::date
+             THEN f.value::numeric ELSE 0 END) AS prev_sum,
+    -- coverage (distinct days with data)
+    COUNT(DISTINCT CASE WHEN f.date BETWEEN
+               (ld.as_of - ((t.days - 1) || ' days')::interval)::date AND ld.as_of
+         THEN f.date END) AS curr_count,
+    COUNT(DISTINCT CASE WHEN f.date BETWEEN
+               (ld.as_of - ((2*t.days - 1) || ' days')::interval)::date
+               AND (ld.as_of - (t.days || ' days')::interval)::date
+         THEN f.date END) AS prev_count
+  FROM timeframes t
+  CROSS JOIN last_date ld
+  LEFT JOIN fact_kpis f
+    ON f.metric_key = '{{ metric_key }}'
+   AND f.origin_key = '{{ origin_key }}'
+   AND f.date BETWEEN
+       (ld.as_of - ((2*t.days - 1) || ' days')::interval)::date
+       AND ld.as_of
+  GROUP BY t.days, t.min_growth, ld.as_of
+),
+growth AS (
+  SELECT
+    days, min_growth, as_of,
+    curr_start, curr_end, prev_start, prev_end,
+    curr_sum, prev_sum, curr_count, prev_count,
+    (curr_sum - prev_sum) / NULLIF(prev_sum, 0) AS pct_growth,
+    (prev_sum = 0 AND curr_sum > 0) AS infinite_growth
+  FROM window_sums
+),
+coverage AS (
+  SELECT
+    g.*,
+    CEIL(days * 0.9)::int AS needed_days
+  FROM growth g
+)
+SELECT
+  as_of AS date,
+  '{{ origin_key }}' as origin_key,
+  '{{ metric_key }}' as metric_key,
+  'growth_' || days as type,
+  curr_sum as value,
+  prev_sum as growth_prior_value,
+  pct_growth as growth_pct_growth
+  --prev_count/curr_count as coverage
+FROM coverage
+WHERE
+  -- require adequate coverage in both windows
+  prev_count >= needed_days
+  AND curr_count >= needed_days
+  AND (
+    infinite_growth
+    OR (pct_growth IS NOT NULL AND pct_growth > min_growth)
+  )
+ORDER BY
+  CASE WHEN infinite_growth THEN 1 ELSE 0 END DESC,
+  pct_growth DESC NULLS LAST,
+  date
+
+ON CONFLICT (date, origin_key, metric_key, type)  
+DO UPDATE SET 
+    value = EXCLUDED.value,
+    growth_prior_value = EXCLUDED.growth_prior_value,
+    growth_pct_growth = EXCLUDED.growth_pct_growth
