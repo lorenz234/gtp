@@ -45,6 +45,9 @@ def backfiller_dag():
     
 
     for chain, settings in chain_settings.items():
+        if chain == 'polygon_zkevm':
+            continue  # skip zkevm as it contains many empty blocks and is slow to backfill
+        
         @task(task_id=f'new_backfill_{chain}', execution_timeout=timedelta(minutes=90))
         def run_backfill_task(chain_name, db_connector, start_date, end_date, batch_size):
             active_rpc_configs, batch_size = get_chain_config(db_connector, chain_name)
@@ -80,12 +83,7 @@ def backfiller_dag():
         batch_size = settings['batch_size']
         db_connector = DbConnector()
 
-        if chain == 'polygon_zkevm':
-            start_date = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d')
-        # elif chain == 'gravity':
-        #     start_date = (datetime.now() - timedelta(days=140)).strftime('%Y-%m-%d')
-        else:
-            start_date = (datetime.now() - timedelta(days=5)).strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
         end_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
 
         run_backfill_task(chain_name=chain, db_connector=db_connector, start_date=start_date, end_date=end_date, batch_size=batch_size)
