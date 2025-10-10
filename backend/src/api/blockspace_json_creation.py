@@ -3,7 +3,7 @@ import simplejson as json
 import pandas as pd
 
 from src.main_config import get_main_config, get_all_l2_config
-from src.misc.helper_functions import upload_json_to_cf_s3, db_addresses_to_checksummed_addresses, fix_dict_nan
+from src.misc.helper_functions import upload_json_to_cf_s3, db_addresses_to_checksummed_addresses, fix_dict_nan, empty_cloudfront_cache
 from src.db_connector import DbConnector
 
 class BlockspaceJSONCreation():
@@ -479,8 +479,10 @@ class BlockspaceJSONCreation():
             if self.s3_bucket == None:
                 self.save_to_json(chain_dict, f'chains/blockspace/{origin_key}')
             else:
-                upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/chains/blockspace/{origin_key}', chain_dict, self.cf_distribution_id)
+                upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/chains/blockspace/{origin_key}', chain_dict, self.cf_distribution_id, invalidate=False)
+            
             print(f'-- DONE -- Single chain blockspace export for {origin_key}')
+        empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/chains/blockspace/*')
 
     def get_comparison_aggregate_data_day(self, days, category_type, origin_keys:list):
         date_where = f"and date >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')" if days != 'max' else ""
