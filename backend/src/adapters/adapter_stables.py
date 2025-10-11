@@ -575,26 +575,23 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 print(f"No bridge contracts defined for {chain}")
                 continue
             
-            if chain not in self.connections:
-                print(f"Chain {chain} not connected, skipping")
-                send_discord_message(f"Stables adapter: {chain} RPC couldn't connect for bridged stablecoin supply tracking, skipping for now")
-                continue
-            
             print(f"Processing bridged stablecoins for {chain}")
             
             # Get bridge contracts for this chain
             bridge_config = self.stables_mapping[chain]['bridged']
 
             # Get date of first block of this chain
-            # Only needed for chains with direct tokens; bridged-only chains will query all historical data
+            # Only needed for chains with direct tokens; bridged-only chains will query all historical data -- WHY do we need this again?
             first_block_date = None
             chain_has_direct_tokens = self.stables_mapping[chain].get("direct") is not None and len(self.stables_mapping[chain]["direct"]) > 0
             
             if chain_has_direct_tokens:
-                # Chain has direct tokens, so we need its RPC connection for the first block date
+                # Chain has direct tokens, so we need its RPC connection for the first block date 
                 if chain not in self.connections:
-                    raise ValueError(f"Chain {chain} not connected to RPC, please add RPC connection (assign special_use in sys_rpc_config)")
-                first_block_date = self.get_block_date(self.connections[chain], 1)
+                    print(f"Error: Chain {chain} not connected to RPC, could not get first block date")
+                    first_block_date = None
+                else:
+                    first_block_date = self.get_block_date(self.connections[chain], 1)
                 print(f"First block date for {chain}: {first_block_date}")
             else:
                 # Chain only has bridged tokens, no need for first block date filtering
@@ -752,14 +749,15 @@ class AdapterStablecoinSupply(AbstractAdapter):
             if chain not in self.stables_mapping:
                 print(f"No mapping found for {chain}, skipping")
                 continue
-            
-            if chain not in self.connections:
-                print(f"Chain {chain} not connected, skipping")
-                continue
                 
             # Check if chain has direct tokens
             if 'direct' not in self.stables_mapping[chain]:
                 print(f"No direct tokens defined for {chain}")
+                continue
+            
+            if chain not in self.connections:
+                print(f"Error: Chain {chain} not connected, skipping")
+                send_discord_message(f"Stables adapter: {chain} RPC couldn't connect for direct stablecoin supply tracking, skipping for now")
                 continue
                 
             print(f"Processing direct stablecoins for {chain}")
