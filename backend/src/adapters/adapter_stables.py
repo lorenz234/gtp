@@ -8,6 +8,7 @@ from web3.middleware import ExtraDataToPOAMiddleware
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.helper_functions import print_init, print_load, print_extract
 from src.stables_config import stables_metadata, stables_mapping
+from src.misc.helper_functions import send_discord_message
 
 ## TODO: add days 'auto' functionality. if blocks are missing, fetch all. If tokens are missing, fetch all
 ## This should also work for new tokens being added etc
@@ -569,12 +570,17 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 print(f"No mapping found for {chain}, skipping")
                 continue
             
-            print(f"Processing bridged stablecoins for {chain}")
-            
             # Check if chain has bridged tokens
             if 'bridged' not in self.stables_mapping[chain]:
                 print(f"No bridge contracts defined for {chain}")
                 continue
+            
+            if chain not in self.connections:
+                print(f"Chain {chain} not connected, skipping")
+                send_discord_message(f"Stables adapter: {chain} RPC couldn't connected for bridged stablecoin supply tracking, skipping for now")
+                continue
+            
+            print(f"Processing bridged stablecoins for {chain}")
             
             # Get bridge contracts for this chain
             bridge_config = self.stables_mapping[chain]['bridged']
