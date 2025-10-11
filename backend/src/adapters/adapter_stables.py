@@ -577,7 +577,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             
             if chain not in self.connections:
                 print(f"Chain {chain} not connected, skipping")
-                send_discord_message(f"Stables adapter: {chain} RPC couldn't connected for bridged stablecoin supply tracking, skipping for now")
+                send_discord_message(f"Stables adapter: {chain} RPC couldn't connect for bridged stablecoin supply tracking, skipping for now")
                 continue
             
             print(f"Processing bridged stablecoins for {chain}")
