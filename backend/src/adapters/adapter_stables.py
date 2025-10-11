@@ -1123,7 +1123,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             except Exception as e:
                 print(f"Error pre-fetching exchange rates for {currency}: {e}")
                 
-        print(df_exchange_rates.head().to_markdown())
+        #print(df_exchange_rates.head().to_markdown())
         
         # Reset index to work with the dataframes
         if not df_bridged.empty:
@@ -1176,7 +1176,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
         # Map fiat currencies to the main dataframe
         df_reset = df_reset.merge(df_tk_currency_map, on='token_key', how='left')
-        print(df_reset.head().to_markdown())
+        #print(df_reset.head().to_markdown())
         
         # Map exchange rates to the main dataframe
         df_reset = df_reset.merge(df_exchange_rates, on=['fiat_currency', 'date'], how='left')
