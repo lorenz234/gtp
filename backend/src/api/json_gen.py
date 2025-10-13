@@ -778,7 +778,10 @@ class JsonGen():
 
         for chain in self.main_config:
             if chain.api_in_main and chain.origin_key not in ['imx', 'loopring']:
-                query_parameters = {'origin_key': chain.origin_key}
+                query_parameters = {
+                    'origin_key': chain.origin_key,
+                    'custom_gas': True if chain.origin_key in ['mantle', 'metis', 'gravity', 'plume', 'celo'] else False,
+                }
 
                 result_df = execute_jinja_query(
                     self.db_connector, 
