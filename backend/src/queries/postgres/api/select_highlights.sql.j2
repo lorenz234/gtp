@@ -1,0 +1,53 @@
+{#
+    A query to get the highest recent highlights from the highlights table.
+
+    Parameters:
+    - origin_key: The origin key to consider for data extraction.
+    - days: The time interval (in days) to consider for recent highlights (default is 7 days).
+    - limit: The maximum number of results to return (default is 5).
+#}
+
+
+WITH ath_multiple AS (
+  SELECT *
+  FROM public.highlights
+  WHERE date > current_date - interval '{{ days }} days'
+    AND origin_key = '{{ origin_key }}'
+    AND type = 'ath_multiple'
+),
+ath_regular AS (
+  SELECT *
+  FROM public.highlights
+  WHERE date > current_date - interval '{{ days }} days'
+    AND origin_key = '{{ origin_key }}'
+    AND type = 'ath_regular'
+),
+growth AS (
+  SELECT *
+  FROM public.highlights
+  WHERE date > current_date - interval '{{ days }} days'
+    AND origin_key = '{{ origin_key }}'
+    AND type ILIKE 'growth_%%'
+),
+combined AS (
+  SELECT 1 AS prio, * FROM ath_multiple
+  UNION ALL
+  SELECT 2 AS prio, * FROM ath_regular
+  UNION ALL
+  SELECT 3 AS prio, * FROM growth
+),
+ranked AS (
+  SELECT
+    c.*,
+    ROW_NUMBER() OVER (
+      PARTITION BY origin_key, metric_key
+      ORDER BY prio, growth_pct_growth desc, date DESC
+    ) AS rn
+  FROM combined c
+)
+
+SELECT date, metric_key, type, value, ath_prior_max, ath_next_threshold, growth_prior_value, growth_pct_growth
+FROM ranked
+WHERE rn = 1
+ORDER BY date DESC, prio ASC
+LIMIT {{ limit | default(5) }}

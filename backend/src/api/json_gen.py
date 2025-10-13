@@ -439,6 +439,80 @@ class JsonGen():
             logging.info(f"CloudFront invalidation submitted for path: {invalidation_path}")
         else:
             logging.info("Skipping CloudFront invalidation (S3 bucket or Distribution ID not set).")
+            
+    def get_chain_highlights_dict(self, origin_key: str, days: int = 7, limit: int = 5) -> Dict:
+        highlights = []
+        query_params = {
+            "origin_key": origin_key,
+            "days" : days,
+            "limit": limit
+        }
+        df = execute_jinja_query(self.db_connector, 'api/select_highlights.sql.j2', query_params, return_df=True)
+
+        for index, row in df.iterrows():
+            highlight_type = row['type']
+            metric_key = row['metric_key']
+            for metric_id in gtp_metrics_new['chains']:
+                if metric_key in gtp_metrics_new['chains'][metric_id]['metric_keys']:
+                    metric_config = gtp_metrics_new['chains'][metric_id]
+                    break
+            is_currency = True if 'usd' in metric_config['units'] else False
+            is_eth = True if metric_key[-3:] == 'eth' else False
+            unit = "ETH" if is_eth else "$" if is_currency else ""
+
+            if highlight_type == 'ath_multiple':
+                ath_val = int(row['ath_next_threshold'])
+                if ath_val >= 1_000_000_000:
+                    ath_multiple = f"{ath_val / 1_000_000_000:.2f}B"
+                elif ath_val >= 1_000_000:
+                    ath_multiple = f"{ath_val / 1_000_000:.2f}M"
+                elif ath_val >= 1_000:
+                    ath_multiple = f"{ath_val / 1_000:.2f}K"
+                else:
+                    ath_multiple = f"{ath_val:,}"
+                highlight_text = f"New all-time high, surpassing {unit}{ath_multiple} for the first time"
+            elif highlight_type == 'ath_regular':
+                prev_ath_val = int(row['ath_prior_max'])
+                if prev_ath_val >= 1_000_000_000:
+                    prev_ath = f"{prev_ath_val / 1_000_000_000:.2f}B"
+                elif prev_ath_val >= 1_000_000:
+                    prev_ath = f"{prev_ath_val / 1_000_000:.2f}M"
+                elif prev_ath_val >= 1_000:
+                    prev_ath = f"{prev_ath_val / 1_000:.2f}K"
+                else:
+                    prev_ath = f"{prev_ath_val:,}"
+                highlight_text = f"New all-time high, surpassing previous ATH of {unit}{prev_ath}"
+            elif highlight_type.startswith('growth_'):
+                period = highlight_type.split('_')[1]
+                highlight_text = f"This metric grew by {row['growth_pct_growth']*100:.2f}% over the past {period} days"
+            else:
+                highlight_text = "Wow!"
+                
+            value_val = row['value']
+            if value_val >= 1_000_000_000:
+                value = f"{value_val / 1_000_000_000:.2f}B"
+            elif value_val >= 1_000_000:
+                value = f"{value_val / 1_000_000:.2f}M"
+            elif value_val >= 1_000:
+                value = f"{value_val / 1_000:.2f}K"
+            else:
+                value = f"{value_val:,}"
+
+            value = f"{unit}{value}" if unit else value
+
+            highlight_dict = {
+                'metric_id': metric_id,
+                'metric_name': metric_config['name'] if metric_config else metric_id,
+                'icon': metric_config['icon'] if metric_config else 'default_icon',
+                'type': row['type'],
+                'text': highlight_text,
+                'value': value,
+                'date': row['date'].strftime('%Y-%m-%d'),
+            }
+            highlights.append(highlight_dict)
+            
+        return highlights
+
 
     def get_chain_rankings_data(self, origin_key, metric_id):
         ## Comparison chains (all that are not excluded for this metric and are in main and on prod in case it's not dev api)
@@ -741,6 +815,7 @@ class JsonGen():
             chains_dict["data"] = {
                 "chain_id": chain.origin_key,
                 "chain_name": chain.name,
+                "highlights": self.get_chain_highlights_dict(origin_key),
                 "events": chain.events,
                 "ranking": self.get_chain_ranking_dict(origin_key),
                 "kpi_cards": self.get_kpi_cards_dict(chain),
