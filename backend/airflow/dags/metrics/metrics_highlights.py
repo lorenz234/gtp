@@ -48,7 +48,8 @@ def etl():
                 }
 
                 execute_jinja_query(db_connector, 'chain_metrics/upsert_highlights_ath.sql.j2', query_params)
-                
+    
+    @task()           
     def run_growth():
         from src.db_connector import DbConnector
         from src.misc.jinja_helper import execute_jinja_query
