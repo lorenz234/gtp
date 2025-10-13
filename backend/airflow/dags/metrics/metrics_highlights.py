@@ -19,7 +19,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Run highlights (ATHs, growth, others).',
     tags=['metrics', 'daily'],
     start_date=datetime(2025,10,12),
-    schedule='30 05 * * *' # after metrics_sql (04:30)
+    schedule='10 05 * * *' # after metrics_sql (04:30), before api_json_creation (05:30)
 )
 
 def etl():
