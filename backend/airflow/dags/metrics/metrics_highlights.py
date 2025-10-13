@@ -30,6 +30,7 @@ def etl():
         from src.main_config import get_main_config
         from src.config import highlights_daily_thresholds
 
+        db_connector = DbConnector()
         main_config = get_main_config()
         days = 30
 
@@ -46,7 +47,6 @@ def etl():
                     "thresholds_by_metric": ath_thresholds
                 }
 
-                db_connector = DbConnector()
                 execute_jinja_query(db_connector, 'chain_metrics/upsert_highlights_ath.sql.j2', query_params)
                 
     def run_growth():
@@ -55,6 +55,7 @@ def etl():
         from src.main_config import get_main_config
         from src.config import highlights_daily_thresholds
 
+        db_connector = DbConnector()
         main_config = get_main_config()
 
         ## dict that has metric_key as key and the relative_growth dict as value (if exists)
@@ -69,7 +70,6 @@ def etl():
                     "origin_key": chain.origin_key,
                 }
 
-                db_connector = DbConnector()
                 execute_jinja_query(db_connector, 'chain_metrics/upsert_highlights_growth.sql.j2', query_params)
                 
     run_aths()
