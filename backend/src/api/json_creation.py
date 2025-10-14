@@ -1143,6 +1143,7 @@ class JSONCreation():
                 'l2beat_id': chain.aliases_l2beat,
                 'raas': chain.metadata_raas,
                 'stack': chain.metadata_stack,
+                'excluded_metrics': chain.api_exclude_metrics,
                 
                 ## can be removed soon (see links)
                 'website': chain.links["website"] if chain.links and chain.links["website"] else None,
@@ -1200,6 +1201,26 @@ class JSONCreation():
             'main_chart_config': self.main_chart_config,
             'ethereum_events': self.ethereum_events['upgrades'],
         }
+        
+        ## enhance metrics_dict with supported chains info
+        for metric in master_dict['metrics']:
+            supported_chains = []
+            for chain in self.main_config:
+                if metric in chain.api_exclude_metrics or chain.api_in_main == False:
+                    continue
+                if self.api_version == 'v1' and chain.api_deployment_flag != 'PROD':
+                    continue
+                supported_chains.append(chain.origin_key)
+            master_dict['metrics'][metric]['supported_chains'] = supported_chains
+            
+        ## enhance chains dict with supported metrics info
+        for chain in master_dict['chains']:
+            supported_metrics = []
+            for metric in self.metrics:
+                if metric in master_dict['chains'][chain]["excluded_metrics"]:
+                    continue
+                supported_metrics.append(metric)
+            master_dict['chains'][chain]['supported_metrics'] = supported_metrics
 
         master_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         master_dict = fix_dict_nan(master_dict, 'master')
