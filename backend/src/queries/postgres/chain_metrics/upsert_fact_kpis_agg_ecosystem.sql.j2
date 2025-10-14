@@ -1,0 +1,33 @@
+{#
+    This query aggregates key metrics across multiple chains to form an "ecosystem" view.
+    
+    Parameters:
+    -   days: int (optional) number of days to look back for aggregation
+#}
+
+INSERT INTO fact_kpis (metric_key, origin_key, date, value)
+
+select
+    metric_key,
+    'ethereum_ecosystem' as origin_key,
+	date,
+	SUM(value) as value
+from fact_kpis
+where origin_key in (
+	select origin_key
+	from sys_main_conf
+	where chain_type in ('L1', 'L2') 
+		and api_in_main 
+		and api_deployment_flag = 'PROD'
+	)
+	-- txcosts and daa missing
+	and metric_key in (
+		'tvl', 'tvl_eth', 'txcount', 'stables_mcap', 'stables_mcap_eth', 'fees_paid_usd', 'fees_paid_eth', 
+		'rent_paid_usd', 'rent_paid_eth', 'profit_usd', 'profit_eth', 'fdv_usd', 'fdv_eth', 
+		'market_cap_usd', 'market_cap_eth', 'gas_per_second', 'app_fees_usd', 'app_fees_eth'
+	)
+    and date >= current_date - interval '{{ days | default(9999) }} days'
+group by 1,2,3
+
+ON CONFLICT (metric_key, origin_key, date) DO UPDATE SET
+    value = EXCLUDED.value;
