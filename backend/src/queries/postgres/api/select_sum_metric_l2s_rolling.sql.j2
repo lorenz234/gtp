@@ -25,7 +25,8 @@ WHERE fk.metric_key = '{{ metric_key }}'
         'da_celestia',
         'da_ethereum_blobs',
         'da_ethereum_calldata',
-        'ethereum'
+        'ethereum',
+        'ethereum_ecosystem'
     )
     AND fk."date" >= current_date - INTERVAL '{{ days }} days' 
     AND fk."date" < current_date
