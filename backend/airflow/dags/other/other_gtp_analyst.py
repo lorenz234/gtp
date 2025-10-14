@@ -67,9 +67,11 @@ def gtp_analyst():
         from src.db_connector import DbConnector
         from src.misc.jinja_helper import execute_jinja_query
         from src.config import gtp_metrics_new
-        from src.misc.helper_functions import highlights_prep, send_discord_message
+        from src.misc.helper_functions import highlights_prep, send_discord_message, send_telegram_message
 
         db_connector = DbConnector()
+        TG_BOT_TOKEN = os.getenv("GROWTHEPIE_BOT_TOKEN")
+        TG_CHAT_ID = "@growthepie_alerts"
 
         origin_key = 'ethereum_ecosystem'
         name = 'Ethereum Ecosystem'
@@ -93,6 +95,7 @@ def gtp_analyst():
                     f"**Value:** {highlight['value']}"
                 )
                 send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"))
+                send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message)
 
     run_analyst()
     run_highlights()
