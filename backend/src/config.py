@@ -461,7 +461,8 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'ranking_bubble': False,
                 'ranking_landing': True,
-                'log_default': False
+                'log_default': False,
+                'url_path':  "/fundamentals/total-value-secured"
             }
             ,'txcount': {
                 'name': 'Transaction Count',
@@ -478,7 +479,8 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'ranking_bubble': False,
                 'ranking_landing': True,
-                'log_default': False
+                'log_default': False,
+                'url_path': "/fundamentals/transaction-count"
             }
             ,'daa': {
                 'name': 'Active Addresses',
@@ -495,7 +497,8 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'ranking_bubble': True,
                 'ranking_landing': True,
-                'log_default': False
+                'log_default': False,
+                'url_path': "/fundamentals/daily-active-addresses",
             }
             ,'stables_mcap': {
                 'name': 'Stablecoin Supply',
@@ -513,7 +516,8 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'ranking_bubble': True,
                 'ranking_landing': True,
-                'log_default': False
+                'log_default': False,
+                'url_path': "/fundamentals/stablecoin-market-cap",
             }
             ,'fees': {
                 'name': 'Revenue',
@@ -531,7 +535,8 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'ranking_bubble': True,
                 'ranking_landing': True,
-                'log_default': False
+                'log_default': False,
+                'url_path': "/fundamentals/fees-paid-by-users",
             }
             ,'rent_paid': {
                 'name': 'Rent Paid to L1',
@@ -549,7 +554,8 @@ gtp_metrics_new = {
                 'max_date_fill' : True,
                 'ranking_bubble': False,
                 'ranking_landing': True,
-                'log_default': False
+                'log_default': False,
+                'url_path': "/fundamentals/rent-paid",
             }
             ,'profit': {
                 'name': 'Onchain Profit',
@@ -567,7 +573,8 @@ gtp_metrics_new = {
                 'max_date_fill' : True,
                 'ranking_bubble': False,
                 'ranking_landing': True,
-                'log_default': False
+                'log_default': False,
+                'url_path': "/fundamentals/profit",
             }
             ,'txcosts': {
                 'name': 'Transaction Costs',
@@ -585,7 +592,8 @@ gtp_metrics_new = {
                 'max_date_fill' : True,
                 'ranking_bubble': True,
                 'ranking_landing': True,
-                'log_default': False
+                'log_default': False,
+                'url_path': "/fundamentals/transaction-costs",
             }
             ,'fdv': {
                 'name': 'Fully Diluted Valuation',
@@ -603,7 +611,8 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'ranking_bubble': True,
                 'ranking_landing': True,
-                'log_default': False
+                'log_default': False,
+                'url_path': "/fundamentals/fully-diluted-valuation",
             }
             ,'market_cap': {
                 'name': 'Market Cap',
@@ -621,7 +630,8 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'ranking_bubble': False,
                 'ranking_landing': True,
-                'log_default': False
+                'log_default': False,
+                'url_path': "/fundamentals/market-cap",
             }
             ,'throughput': {
                 'name': 'Throughput',
@@ -638,7 +648,8 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'ranking_bubble': True,
                 'ranking_landing': True,
-                'log_default': False
+                'log_default': False,
+                'url_path': "/fundamentals/throughput",
             }         
             ,'app_revenue': {
                 'name': 'App Revenue',
@@ -656,7 +667,8 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'ranking_bubble': True,
                 'ranking_landing': True,
-                'log_default': False
+                'log_default': False,
+                'url_path': "/fundamentals/app-revenue",
             }
 
             ## Non Fundamental Metrics

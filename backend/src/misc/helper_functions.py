@@ -13,6 +13,7 @@ import numpy as np
 import yaml
 from openai import OpenAI
 from web3 import Web3
+from playwright.sync_api import sync_playwright
 
 import dotenv
 dotenv.load_dotenv()
@@ -308,6 +309,14 @@ def print_orchestration_raw_start(name:str):
 
 def print_orchestration_raw_end(name:str):
     print(f'Orchestration {name} RAW finished.')
+    
+ 
+# get metric config from metric key   
+def get_metric_config_from_metric_key(metric_key, gtp_metrics):
+    for metric_id in gtp_metrics['chains']:
+        if metric_key in gtp_metrics['chains'][metric_id]['metric_keys']:
+            metric_config = gtp_metrics['chains'][metric_id]
+            return metric_id, metric_config
 
 ## Discord functions
 def send_discord_message(message, webhook_url=None):
@@ -323,7 +332,7 @@ def send_discord_message(message, webhook_url=None):
         print(f"Error sending message: {response.text}")
         
         
-def send_telegram_message(bot_token: str, chat_id: str, message: str):
+def send_telegram_message(bot_token: str, chat_id: str, message: str, photo_url: str | None = None):
     """
     Sends a message to a Telegram channel or group.
 
@@ -331,20 +340,79 @@ def send_telegram_message(bot_token: str, chat_id: str, message: str):
         bot_token: Telegram bot token from BotFather
         chat_id: Channel username (e.g. '@growthepie_alerts') or numeric chat ID
         message: Message text (supports Markdown)
+        photo_url: Optional URL of a photo to send with the message
     """
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "Markdown",  # or "HTML"
-        "disable_web_page_preview": True
-    }
-
-    response = requests.post(url, json=payload)
+    
+    if photo_url:
+        url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+        # If local file, open and send via multipart/form-data
+        if not photo_url.startswith("http"):
+            with open(photo_url, "rb") as photo_file:
+                files = {"photo": photo_file}
+                data = {
+                    "chat_id": chat_id,
+                    "caption": message,
+                    "parse_mode": "Markdown"
+                }
+                response = requests.post(url, data=data, files=files)
+        else:
+            payload = {
+                "chat_id": chat_id,
+                "photo": photo_url,
+                "caption": message,
+                "parse_mode": "Markdown"
+            }
+            response = requests.post(url, json=payload)
+    else:
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "Markdown",  # or "HTML"
+            "disable_web_page_preview": True
+        }
+        response = requests.post(url, json=payload)
+        
     if response.status_code != 200:
         print(f"Error sending message: {response.text}")
     else:
         print("✅ Message sent successfully!")
+
+async def generate_screenshot(url: str, filename: str):
+    # async with async_playwright() as p:
+    #     # Launch browser
+    #     browser = await p.chromium.launch(headless=True)
+    #     page = await browser.new_page()
+        
+    #     # Set viewport size for high quality charts
+    #     await page.set_viewport_size({"width": 1200, "height": 800})
+        
+    #     print(f"📸 Loading chart: {url}")
+    #     await page.goto(url, wait_until="networkidle", timeout=30000)
+        
+    #     # Wait a bit more for chart to fully render
+    #     await page.wait_for_timeout(4000)
+        
+    #     # Take screenshot
+    #     screenshot_path = f"generated_images/{filename}"
+    #     await page.screenshot(path=screenshot_path, full_page=False)
+        
+    #     await browser.close()
+    #     print(f"✅ Screenshot saved: {screenshot_path}")
+        
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.set_viewport_size({"width": 1200, "height": 800})
+
+        print(f"📸 Loading chart: {url}")
+        page.goto(url, wait_until="networkidle", timeout=30000)
+        page.wait_for_timeout(4000)
+
+        screenshot_path = f"generated_images/{filename}"
+        page.screenshot(path=screenshot_path, full_page=False)
+        browser.close()
+        print(f"✅ Screenshot saved: {screenshot_path}")
 
 ## Binance functions
 def date_string_to_unix(date_string: str) -> int:
@@ -918,10 +986,8 @@ def highlights_prep(df, gtp_metrics):
     for index, row in df.iterrows():
         highlight_type = row['type']
         metric_key = row['metric_key']
-        for metric_id in gtp_metrics['chains']:
-            if metric_key in gtp_metrics['chains'][metric_id]['metric_keys']:
-                metric_config = gtp_metrics['chains'][metric_id]
-                break
+        metric_id, metric_config = get_metric_config_from_metric_key(metric_key, gtp_metrics)
+        
         is_currency = True if 'usd' in metric_config['units'] else False
         is_eth = True if metric_key[-3:] == 'eth' else False
         unit = "ETH " if is_eth else "$ " if is_currency else ""
@@ -968,6 +1034,7 @@ def highlights_prep(df, gtp_metrics):
 
         highlight_dict = {
             'metric_id': metric_id,
+            'metric_key': metric_key,
             'metric_name': metric_config['name'] if metric_config else metric_id,
             'icon': metric_config['icon'] if metric_config else 'default_icon',
             'type': row['type'],

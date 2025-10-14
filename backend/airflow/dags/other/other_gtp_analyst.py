@@ -67,9 +67,12 @@ def gtp_analyst():
         from src.db_connector import DbConnector
         from src.misc.jinja_helper import execute_jinja_query
         from src.config import gtp_metrics_new
-        from src.misc.helper_functions import highlights_prep, send_discord_message, send_telegram_message
+        from src.misc.helper_functions import highlights_prep, send_discord_message, send_telegram_message, generate_screenshot
+        from src.main_config import get_main_config
 
         db_connector = DbConnector()
+        main_config = get_main_config()
+        
         TG_BOT_TOKEN = os.getenv("GROWTHEPIE_BOT_TOKEN")
         TG_CHAT_ID = "@growthepie_alerts"
 
@@ -95,7 +98,33 @@ def gtp_analyst():
                     f"**Value:** {highlight['value']}"
                 )
                 send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"))
-                send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message)
+                #send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message)
+                
+                metric_key = highlight['metric_key']
+                metric_id = highlight['metric_id']
+                date = highlight['date']
+                metric_conf = gtp_metrics_new['chains'][metric_id]
+                metric_fe = metric_conf['url_path'].split('/')[-1]
+                
+                ## ecosyste-wide
+                chains_url = ''
+                for chain in main_config:
+                    if chain.api_in_main and chain.api_deployment_flag == 'PROD' and metric_id not in chain.api_exclude_metrics:
+                        chains_url += f"{chain.origin_key}%2C"
+                chains_url = chains_url[:-3]  # remove last %2C
+                
+                if metric_conf['category'] in ['value-locked', 'market'] or metric_id in ['throughput', 'fully_diluted_valuation']:
+                    timespan = 'max'
+                else:
+                    timespan = '180d'
+
+                url = f"https://www.growthepie.com/embed/fundamentals/{metric_fe}?showUsd=true&theme=dark&timespan={timespan}&scale=stacked&interval=daily&showMainnet=true&chains={chains_url}&zoomed=false"
+                print(f"🌐 Chart URL: {url}")
+
+                filename = f"{date}_{metric_key}.png"
+
+                generate_screenshot(url, filename)
+                send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message, photo_url=f"generated_images/{filename}")
 
     run_analyst()
     run_highlights()
