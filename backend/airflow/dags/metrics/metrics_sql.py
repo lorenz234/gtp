@@ -115,10 +115,11 @@ def etl():
         
         execute_jinja_query(DbConnector(), "chain_metrics/upsert_fact_kpis_agg_ecosystem.sql.j2", {"days": 9999})
 
+    usd_to_eth = run_usd_to_eth()
+    da = run_da_metrics()
+    run_metrics_dependent() >> run_economics() >> usd_to_eth
+    run_metrics_independent() >> da
 
-    run_metrics_dependent() >> run_economics() >> run_usd_to_eth()
-    run_metrics_independent() >> run_da_metrics()
-
-    [run_usd_to_eth(), run_da_metrics()] >> run_eth_to_usd() >> run_aggregate_ecosystem()
+    [usd_to_eth, da] >> run_eth_to_usd() >> run_aggregate_ecosystem()
 
 etl()
