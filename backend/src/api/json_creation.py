@@ -1070,7 +1070,7 @@ class JSONCreation():
     ############################################################
     ##### Main Platfrom #####
     ############################################################
-    def create_master_json(self, df_data):
+    def create_master_json(self, df_data, private_access=None):
         exec_string = "SELECT category_id, category_name, main_category_id, main_category_name FROM vw_oli_category_mapping"
         df = pd.read_sql(exec_string, self.db_connector.engine.connect())
 
@@ -1104,6 +1104,9 @@ class JSONCreation():
             origin_key = chain.origin_key
             if chain.api_in_main == False:
                 print(f'..skipped: Master json export for {origin_key}. API is set to False')
+                continue
+            if chain.api_deployment_flag not in ['PROD', 'DEV'] and private_access != origin_key:
+                print(f'..skipped: Master json export for {origin_key}. Deployment flag is set to {chain.api_deployment_flag}')
                 continue
 
             url_key = chain.origin_key.replace('_', '-')
@@ -1204,7 +1207,10 @@ class JSONCreation():
         if self.s3_bucket == None:
             self.save_to_json(master_dict, 'master')
         else:
-            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/master', master_dict, self.cf_distribution_id)
+            if private_access:
+                upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/master_{private_access}', master_dict, self.cf_distribution_id)
+            else:
+                upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/master', master_dict, self.cf_distribution_id)
 
         print(f'DONE -- master.json export')
 
