@@ -1217,7 +1217,7 @@ class JSONCreation():
         for chain in master_dict['chains']:
             supported_metrics = []
             for metric in self.metrics:
-                if metric in master_dict['chains'][chain]["excluded_metrics"]:
+                if metric in master_dict['chains'][chain]["excluded_metrics"] or self.metrics[metric]['fundamental'] == False:
                     continue
                 supported_metrics.append(metric)
             master_dict['chains'][chain]['supported_metrics'] = supported_metrics
