@@ -61,7 +61,40 @@ def gtp_analyst():
             print(f"Processed {len(result.get('responses', []))} milestone responses")
         else:
             print("⚠️ Social media pipeline completed with no results or encountered errors")
+            
+    @task()
+    def run_highlights():
+        from src.db_connector import DbConnector
+        from src.misc.jinja_helper import execute_jinja_query
+        from src.config import gtp_metrics_new
+        from src.misc.helper_functions import highlights_prep, send_discord_message
+
+        db_connector = DbConnector()
+
+        origin_key = 'ethereum_ecosystem'
+        name = 'Ethereum Ecosystem'
+        
+        query_params = {
+            "origin_key": origin_key,
+            "days" : 2,
+            "limit": 5
+        }
+        df = execute_jinja_query(db_connector, 'api/select_highlights.sql.j2', query_params, return_df=True)
+
+        if not df.empty:
+            highlights = highlights_prep(df, gtp_metrics_new)
+
+            for highlight in highlights:
+                message = (
+                    f"**{highlight['type'].replace('_', ' ').title()} for {name}**\n"
+                    f"_{highlight['text']}_\n"
+                    f"**Metric:** {highlight['metric_name']}\n"
+                    f"**Date:** {highlight['date']}\n"
+                    f"**Value:** {highlight['value']}"
+                )
+                send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"))
 
     run_analyst()
+    run_highlights()
 gtp_analyst()
     
