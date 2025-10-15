@@ -449,6 +449,8 @@ class JsonGen():
         df = execute_jinja_query(self.db_connector, 'api/select_highlights.sql.j2', query_params, return_df=True)
         if not df.empty:
             highlights = highlights_prep(df, gtp_metrics_new)
+        else:
+            highlights = []
 
         return highlights
 
