@@ -1181,10 +1181,18 @@ class JSONCreation():
         fees_types_api = {key: {sub_key: value for sub_key, value in sub_dict.items() if sub_key != 'metric_keys'} 
                                   for key, sub_dict in self.fees_types.items()}
 
+        default_selection = self.get_default_selection(df_data, top_n=5)
+        default_sorting = ['ethereum'] + self.get_default_selection(df_data, top_n=999)
+        if private_access:
+            # Ensure private_access is first in default_selection and default_sorting
+            default_selection = [private_access] + [c for c in default_selection if c != private_access]
+            default_selection = default_selection[:5]
+            default_sorting = [private_access] + [c for c in default_sorting if c != private_access]
+
         master_dict = {
             'current_version' : self.api_version,
-            'default_chain_selection' : self.get_default_selection(df_data, top_n=5),
-            'default_chain_sorting' : ['ethereum'] + self.get_default_selection(df_data, top_n=999),
+            'default_chain_selection' : default_selection,
+            'default_chain_sorting' : default_sorting,
             'chains' : chain_dict,
             'custom_logos' : self.get_custom_logos(),
             'da_layers' : da_dict,
@@ -1193,9 +1201,9 @@ class JSONCreation():
             'app_metrics' : self.app_metrics,
             'fee_metrics' : fees_types_api,
             'blockspace_categories' : {
-                'main_categories' : main_category_dict,
-                'sub_categories' : sub_category_dict,
-                'mapping' : mapping_dict,
+            'main_categories' : main_category_dict,
+            'sub_categories' : sub_category_dict,
+            'mapping' : mapping_dict,
             },
             'maturity_levels': self.maturity_levels,
             'main_chart_config': self.main_chart_config,
