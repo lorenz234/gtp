@@ -1,0 +1,31 @@
+{#
+    A query to get projected TPS data based on a compound growth formula.
+
+    Parameters:
+    - start_day: The starting date for the projection 
+    - months_total: The total number of months to project
+    - annual_factor: The annual growth factor 
+    - starting_tps: The starting TPS value
+#}
+
+  WITH params AS (
+    SELECT
+      TIMESTAMP '{{ start_day }}'                AS start_date,
+      {{ months_total }}                         AS months_total,     
+      {{ starting_tps }}::double precision             AS start_tps,
+      {{ annual_factor }}::double precision                AS annual_factor
+  ),
+  expanded AS (
+    SELECT
+      gs AS month_idx,
+      (SELECT start_date FROM params) + (gs || ' months')::interval AS month_date
+    FROM generate_series(0, (SELECT months_total FROM params) - 1) AS t(gs)
+  )
+  SELECT
+    date_trunc('month', month_date) AS month,
+    'projection' AS data_type,
+    (
+      (SELECT start_tps FROM params)
+      * power((SELECT annual_factor FROM params), month_idx / 12.0)
+    ) ::double precision AS tps
+  FROM expanded

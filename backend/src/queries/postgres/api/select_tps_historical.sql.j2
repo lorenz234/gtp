@@ -1,0 +1,18 @@
+{#
+    A query to get historical TPS data from the fact_kpis table.
+
+    Parameters:
+    - origin_key: The origin key to consider for data extraction.
+#}
+
+SELECT
+  date_trunc('month', date) AS month,
+  AVG(value) FILTER (WHERE metric_key = 'gas_limit') AS gas_limit,
+  AVG(value) FILTER (WHERE metric_key = 'block_time_seconds') AS block_time_seconds,
+  (AVG(value) FILTER (WHERE metric_key = 'gas_limit')) / NULLIF(AVG(value) FILTER (WHERE metric_key = 'block_time_seconds'), 0) AS gas_per_second_limit,
+  (AVG(value) FILTER (WHERE metric_key = 'gas_limit')) / NULLIF(AVG(value) FILTER (WHERE metric_key = 'block_time_seconds'), 0) / 100000 / 2 AS tps
+FROM public.fact_kpis
+WHERE metric_key IN ('gas_limit', 'block_time_seconds')
+  AND origin_key = '{{ origin_key }}'
+GROUP BY 1
+ORDER BY 1;
