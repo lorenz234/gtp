@@ -27,5 +27,6 @@
     (
       (SELECT start_tps FROM params)
       * power((SELECT annual_factor FROM params), month_idx / 12.0)
-    ) ::double precision AS tps
+    ) ::double precision AS tps,
+    10000 as target_tps
   FROM expanded

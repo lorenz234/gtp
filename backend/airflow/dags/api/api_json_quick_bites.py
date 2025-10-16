@@ -235,8 +235,9 @@ def json_creation():
             "data": {
                 "historical_tps" : {},
                 "projected_tps": {},
+                "target_tps": {}
+                }
             }    
-        }    
 
         ## Historical TPS
         query_parameters = {
@@ -253,7 +254,7 @@ def json_creation():
         df_tps = df[['unix', 'tps']].copy()
 
         data_dict["data"]['historical_tps']= {
-            "daily": {
+            "monthly": {
                 "types": df_tps.columns.tolist(),
                 "values": df_tps.values.tolist()
             }
@@ -281,16 +282,25 @@ def json_creation():
         df_tps = df[['unix', 'tps']].copy()
 
         data_dict["data"]['projected_tps']= {
-            "daily": {
+            "monthly": {
                 "types": df_tps.columns.tolist(),
                 "values": df_tps.values.tolist()
+            }
+        }
+
+        df_target = df[['unix', 'target_tps']].copy()
+
+        data_dict["data"]['target_tps']= {
+            "monthly": {
+                "types": df_target.columns.tolist(),
+                "values": df_target.values.tolist()
             }
         }
 
         data_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         data_dict = fix_dict_nan(data_dict, 'ethereum-scaling')
 
-        upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/ethereum-scaling', data_dict, cf_distribution_id)
+        upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/ethereum-scaling/data.json', data_dict, cf_distribution_id)
     
     @task()
     def run_network_graph():
