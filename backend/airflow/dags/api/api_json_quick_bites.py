@@ -219,6 +219,9 @@ def json_creation():
         
     @task()
     def run_ethereum_scaling():
+        ## TODO: load Dune data daily (add days param with 5 days default)
+        ## TODO: replace start day with real date, reduce months_total to dynamically, starting tps from last historical value (all for both Ethereum and L2s)
+
         import datetime
         import pandas as pd
         from datetime import datetime, timezone
@@ -235,9 +238,11 @@ def json_creation():
             "data": {
                 "historical_tps" : {},
                 "projected_tps": {},
-                "target_tps": {}
-                }
+                "target_tps": {},
+                "l2_projected_tps": {}
             }    
+        }
+        
 
         ## Historical TPS
         query_parameters = {
@@ -263,10 +268,10 @@ def json_creation():
         ## get last value for current tps
         data_dict["data"]['historical_tps']["total"] = df_tps['tps'].iloc[-1]
 
-        ## Projected TPS
+        ## Projected TPS Ethereum Mainnet
         query_parameters = {
             'start_day': '2025-10-01',
-            'months_total': 72,
+            'months_total': 69,
             #'starting_tps': df_tps['tps'].iloc[-1],
             'starting_tps': 20,
             'annual_factor': 3,
@@ -288,12 +293,38 @@ def json_creation():
             }
         }
 
+        ## Target TPS Ethereum Mainnet
         df_target = df[['unix', 'target_tps']].copy()
 
         data_dict["data"]['target_tps']= {
             "monthly": {
                 "types": df_target.columns.tolist(),
                 "values": df_target.values.tolist()
+            }
+        }
+
+        ## Projected TPS Layer 2s
+        query_parameters = {
+            'start_day': '2025-10-01',
+            'months_total': 69,
+            #'starting_tps': df_tps['tps'].iloc[-1],
+            'starting_tps': 350,
+            'annual_factor': 4.1,
+        }
+        df = execute_jinja_query(db_connector, "api/select_tps_projected.sql.j2", query_parameters, return_df=True)
+        # Fix the 'month' column to proper datetime values before sorting
+        df['month'] = pd.to_datetime(df['month'], errors='coerce')
+        df = df.sort_values(by='month', ascending=True)
+
+        df['unix'] = df['month'].apply(lambda x: x.timestamp() * 1000)
+        df = df.drop(columns=['month'])
+
+        df_tps = df[['unix', 'tps']].copy()
+
+        data_dict["data"]['l2_projected_tps']= {
+            "monthly": {
+                "types": df_tps.columns.tolist(),
+                "values": df_tps.values.tolist()
             }
         }
 
