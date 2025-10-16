@@ -300,7 +300,7 @@ def json_creation():
         data_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         data_dict = fix_dict_nan(data_dict, 'ethereum-scaling')
 
-        upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/ethereum-scaling/data.json', data_dict, cf_distribution_id)
+        upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/ethereum-scaling/data', data_dict, cf_distribution_id)
     
     @task()
     def run_network_graph():
