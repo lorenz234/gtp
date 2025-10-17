@@ -17,11 +17,11 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Check against our Redis DB and alert via Discord/Telegram if new TPS all-time-highs are detected.',
     tags=['other', 'near-real-time'],
     start_date=datetime(2025,10,14),
-    schedule='01 * * * *'
+    schedule='*/30 * * * *' # run every 30 minutes
 )
 
 def run_dag():
-    @task()
+    @task(execution_timeout=timedelta(minutes=35))
     def run_tps_global():      
         import os
         import time
@@ -38,7 +38,7 @@ def run_dag():
         REDIS_DB = int(os.getenv("REDIS_DB", "0"))
         REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
 
-        REDIS_ZSET_KEY_TPS_HISTORY = "global:tps:history_24h"
+        REDIS_ZSET_KEY_TPS_HISTORY = "global:tps:history_24h" # for testing
         REDIS_ZSET_KEY_ATH_HISTORY = "global:tps:ath_history"
         CHECK_INTERVAL_SEC = 2
         COOLDOWN_AFTER_NEW_HIGH_SEC = 30
