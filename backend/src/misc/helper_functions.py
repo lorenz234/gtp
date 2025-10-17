@@ -14,6 +14,9 @@ import yaml
 from openai import OpenAI
 from web3 import Web3
 from playwright.sync_api import sync_playwright
+import mimetypes
+from typing import Optional, Union, List
+
 
 import dotenv
 dotenv.load_dotenv()
@@ -331,6 +334,75 @@ def send_discord_message(message, webhook_url=None):
     else:
         print(f"Error sending message: {response.text}")
         
+def send_discord_message(
+    message: str,
+    webhook_url: Optional[str] = None,
+    image_paths: Optional[Union[str, List[str]]] = None,
+    embed_first_image: bool = True,
+    timeout: int = 15,
+):
+    """
+    Send a message (and optional image attachments) to a Discord webhook.
+
+    - message: text content
+    - webhook_url: Discord webhook URL (falls back to env var DISCORD_ALERTS)
+    - image_paths: str or list[str] of local file paths to attach
+    - username: optional display name override for the webhook
+    - embed_first_image: if True, show the first attached image inline via an embed
+    - timeout: request timeout in seconds
+    """
+    if webhook_url is None:
+        webhook_url = os.getenv("DISCORD_ALERTS")
+    if not webhook_url:
+        raise ValueError("No webhook URL provided and DISCORD_ALERTS is not set.")
+
+    # Normalize image_paths to a list
+    paths: List[str] = []
+    if image_paths:
+        paths = [image_paths] if isinstance(image_paths, str) else list(image_paths)
+
+    # Base payload
+    payload = {"content": message}
+
+    # If we want to show the first image inline, point an embed to the uploaded attachment
+    if embed_first_image and paths:
+        first_name = os.path.basename(paths[0])
+        payload["embeds"] = [{"image": {"url": f"attachment://{first_name}"}}]
+
+    # If no files, send a simple JSON POST
+    if not paths:
+        resp = requests.post(webhook_url, json=payload, timeout=timeout)
+    else:
+        # Prepare multipart with files + payload_json
+        file_handles = []
+        files = {}
+        try:
+            for i, p in enumerate(paths):
+                fh = open(p, "rb")
+                file_handles.append(fh)
+                guessed = mimetypes.guess_type(p)[0] or "application/octet-stream"
+                # Discord accepts indexed keys like files[0], files[1], ...
+                files[f"files[{i}]"] = (os.path.basename(p), fh, guessed)
+
+            resp = requests.post(
+                webhook_url,
+                data={"payload_json": json.dumps(payload)},
+                files=files,
+                timeout=timeout,
+            )
+        finally:
+            for fh in file_handles:
+                try:
+                    fh.close()
+                except Exception:
+                    pass
+
+    if resp.status_code in (200, 204):
+        print("Message sent successfully")
+    else:
+        print(f"Error sending message ({resp.status_code}): {resp.text}")
+    return resp
+        
         
 def send_telegram_message(bot_token: str, chat_id: str, message: str, photo_url: str | None = None):
     """
@@ -378,39 +450,34 @@ def send_telegram_message(bot_token: str, chat_id: str, message: str, photo_url:
     else:
         print("✅ Message sent successfully!")
 
-async def generate_screenshot(url: str, filename: str):
-    # async with async_playwright() as p:
-    #     # Launch browser
-    #     browser = await p.chromium.launch(headless=True)
-    #     page = await browser.new_page()
-        
-    #     # Set viewport size for high quality charts
-    #     await page.set_viewport_size({"width": 1200, "height": 800})
-        
-    #     print(f"📸 Loading chart: {url}")
-    #     await page.goto(url, wait_until="networkidle", timeout=30000)
-        
-    #     # Wait a bit more for chart to fully render
-    #     await page.wait_for_timeout(4000)
-        
-    #     # Take screenshot
-    #     screenshot_path = f"generated_images/{filename}"
-    #     await page.screenshot(path=screenshot_path, full_page=False)
-        
-    #     await browser.close()
-    #     print(f"✅ Screenshot saved: {screenshot_path}")
-        
+def generate_screenshot(url: str, filename: str, height:int = 1600, wait_for_timeout: int = 3000, selector: str = None):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        page.set_viewport_size({"width": 1200, "height": 800})
+        page.set_viewport_size({"width": 1920, "height": height})
 
         print(f"📸 Loading chart: {url}")
-        page.goto(url, wait_until="networkidle", timeout=30000)
-        page.wait_for_timeout(4000)
+        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(wait_for_timeout) 
 
         screenshot_path = f"generated_images/{filename}"
-        page.screenshot(path=screenshot_path, full_page=False)
+        
+        if selector:
+            element = page.query_selector(selector)
+            if element:
+                box = element.bounding_box()
+                if box:
+                    clip_region = box
+                    page.screenshot(path=screenshot_path, clip=clip_region)
+                else:
+                    print(f"⚠️ Could not get bounding box for selector '{selector}'. Taking full page screenshot instead.")
+                    page.screenshot(path=screenshot_path, full_page=False)
+            else:
+                print(f"⚠️ Selector '{selector}' not found. Taking full page screenshot instead.")
+                page.screenshot(path=screenshot_path, full_page=False)
+        else:
+            page.screenshot(path=screenshot_path, full_page=False)
+            
         browser.close()
         print(f"✅ Screenshot saved: {screenshot_path}")
 
