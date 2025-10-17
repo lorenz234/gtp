@@ -219,8 +219,7 @@ def json_creation():
         
     @task()
     def run_ethereum_scaling():
-        ## TODO: load Dune data daily (add days param with 5 days default)
-        ## TODO: replace start day with real date, reduce months_total to dynamically, starting tps from last historical value (all for both Ethereum and L2s)
+        ## TODO: have projection update? but not guaranteed that we'll hit 10k TPS in same timeframe...
 
         import datetime
         import pandas as pd
@@ -243,7 +242,6 @@ def json_creation():
             }    
         }
         
-
         ## Historical TPS
         query_parameters = {
             'origin_key': 'ethereum'

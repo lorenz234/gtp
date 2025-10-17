@@ -68,62 +68,66 @@ def etl():
         # load
         ad.load(df)
 
-    @task()
-    def run_inscriptions():
-        import os
-        from src.db_connector import DbConnector
-        from src.adapters.adapter_dune import AdapterDune
+    # @task()
+    # def run_inscriptions():
+    #     import os
+    #     from src.db_connector import DbConnector
+    #     from src.adapters.adapter_dune import AdapterDune
 
-        adapter_params = {
-            'api_key' : os.getenv("DUNE_API")
-        }
-        load_params = {
-            'queries': [
-                {
-                    'name': 'inscriptions',
-                    'query_id': 3346613,
-                    'params': {'days': 1000}
-                }
-            ],
-            'prepare_df': 'prepare_df_incriptions',
-            'load_type': 'inscription_addresses'
-        }
+    #     adapter_params = {
+    #         'api_key' : os.getenv("DUNE_API")
+    #     }
+    #     load_params = {
+    #         'queries': [
+    #             {
+    #                 'name': 'inscriptions',
+    #                 'query_id': 3346613,
+    #                 'params': {'days': 1000}
+    #             }
+    #         ],
+    #         'prepare_df': 'prepare_df_incriptions',
+    #         'load_type': 'inscription_addresses'
+    #     }
 
-        # initialize adapter
-        db_connector = DbConnector()
-        ad = AdapterDune(adapter_params, db_connector)
-        # extract
-        df = ad.extract(load_params)
-        # load
-        ad.load(df)
+    #     # initialize adapter
+    #     db_connector = DbConnector()
+    #     ad = AdapterDune(adapter_params, db_connector)
+    #     # extract
+    #     df = ad.extract(load_params)
+    #     # load
+    #     ad.load(df)
 
     @task()
     def run_glo_holders():
         import os
         from src.db_connector import DbConnector
         from src.adapters.adapter_dune import AdapterDune
+        
+        ## if today is a sunday, run this
+        if datetime.weekday() == 6:
+            adapter_params = {
+                'api_key' : os.getenv("DUNE_API")
+            }
+            load_params = {
+                'queries': [
+                    {
+                        'name': 'glo_holders',
+                        'query_id': 3732844
+                    }
+                ],
+                'prepare_df': 'prepare_df_glo_holders',
+                'load_type': 'glo_holders'
+            }
 
-        adapter_params = {
-            'api_key' : os.getenv("DUNE_API")
-        }
-        load_params = {
-            'queries': [
-                {
-                    'name': 'glo_holders',
-                    'query_id': 3732844
-                }
-            ],
-            'prepare_df': 'prepare_df_glo_holders',
-            'load_type': 'glo_holders'
-        }
-
-        # initialize adapter
-        db_connector = DbConnector()
-        ad = AdapterDune(adapter_params, db_connector)
-        # extract
-        df = ad.extract(load_params)
-        # load
-        ad.load(df)
+            # initialize adapter
+            db_connector = DbConnector()
+            ad = AdapterDune(adapter_params, db_connector)
+            # extract
+            df = ad.extract(load_params)
+            # load
+            ad.load(df)
+        else:
+            print("Today is not Sunday, skipping GLO holders DAG run.")
 
     @task()
     def check_for_depreciated_L2_trx():
