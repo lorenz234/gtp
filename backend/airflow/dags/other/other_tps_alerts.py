@@ -21,7 +21,7 @@ from src.misc.airflow_utils import alert_via_webhook
 )
 
 def run_dag():
-    @task(execution_timeout=timedelta(minutes=35))
+    @task()
     def run_tps_global():      
         import os
         import time
@@ -30,6 +30,9 @@ def run_dag():
         import sys
         import redis
         from src.misc.helper_functions import  generate_screenshot, send_telegram_message, send_discord_message
+        
+        import time
+        start_time = time.time()
 
         # Redis constants
         REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
@@ -137,6 +140,10 @@ def run_dag():
                     continue
                 else:
                     print(f"ℹ️ No new TPS high. Current TPS: {current_tps:.2f}, ATH: {latest_ath:.2f}")
+            
+            if start_time + (31 * 60) < time.time():  # 27.5 minutes
+                print("⏰ Approaching task timeout, exiting loop to allow for graceful restart.")
+                break
 
             time.sleep(CHECK_INTERVAL_SEC)
 
