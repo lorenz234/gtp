@@ -404,7 +404,12 @@ def send_discord_message(
     return resp
         
         
-def send_telegram_message(bot_token: str, chat_id: str, message: str, photo_url: str | None = None):
+def send_telegram_message(
+    bot_token: str, 
+    chat_id: str, 
+    message: str, 
+    image_path: Optional[str] = None
+):
     """
     Sends a message to a Telegram channel or group.
 
@@ -412,14 +417,14 @@ def send_telegram_message(bot_token: str, chat_id: str, message: str, photo_url:
         bot_token: Telegram bot token from BotFather
         chat_id: Channel username (e.g. '@growthepie_alerts') or numeric chat ID
         message: Message text (supports Markdown)
-        photo_url: Optional URL of a photo to send with the message
+        image_path: Optional local file path or URL of an image to send with the message
     """
     
-    if photo_url:
+    if image_path:
         url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
         # If local file, open and send via multipart/form-data
-        if not photo_url.startswith("http"):
-            with open(photo_url, "rb") as photo_file:
+        if not image_path.startswith("http"):
+            with open(image_path, "rb") as photo_file:
                 files = {"photo": photo_file}
                 data = {
                     "chat_id": chat_id,
@@ -430,7 +435,7 @@ def send_telegram_message(bot_token: str, chat_id: str, message: str, photo_url:
         else:
             payload = {
                 "chat_id": chat_id,
-                "photo": photo_url,
+                "photo": image_path,
                 "caption": message,
                 "parse_mode": "Markdown"
             }
@@ -1070,6 +1075,7 @@ def highlights_prep(df, gtp_metrics):
             else:
                 ath_multiple = f"{ath_val:,}"
             highlight_text = f"New all-time high, surpassing {unit}{ath_multiple} for the first time"
+            header = 'All-Time High'
         elif highlight_type == 'ath_regular':
             prev_ath_val = int(row['ath_prior_max'])
             if prev_ath_val > 1_000_000_000:
@@ -1080,10 +1086,12 @@ def highlights_prep(df, gtp_metrics):
                 prev_ath = f"{prev_ath_val / 1_000:.1f}K"
             else:
                 prev_ath = f"{prev_ath_val:,}"
-            highlight_text = f"New all-time high, surpassing previous ATH of {unit}{prev_ath}"
+            highlight_text = f"New all-time high, surpassing previous All-Time High of {unit}{prev_ath}"
+            header = 'All-Time High'
         elif highlight_type.startswith('growth_'):
             period = highlight_type.split('_')[1]
             highlight_text = f"This metric grew by {row['growth_pct_growth']*100:.2f}% over the past {period} days"
+            header = 'Growth Highlight'
         else:
             highlight_text = "Wow!"
             
@@ -1105,6 +1113,7 @@ def highlights_prep(df, gtp_metrics):
             'metric_name': metric_config['name'] if metric_config else metric_id,
             'icon': metric_config['icon'] if metric_config else 'default_icon',
             'type': row['type'],
+            'header': header,
             'text': highlight_text,
             'value': value,
             'date': row['date'].strftime('%Y-%m-%d'),

@@ -72,17 +72,17 @@ def gtp_analyst():
 
         db_connector = DbConnector()
         main_config = get_main_config()
-        
+
         TG_BOT_TOKEN = os.getenv("GROWTHEPIE_BOT_TOKEN")
         TG_CHAT_ID = "@growthepie_alerts"
 
         origin_key = 'ethereum_ecosystem'
         name = 'Ethereum Ecosystem'
-        
+
         query_params = {
             "origin_key": origin_key,
-            "days" : 2,
-            "limit": 5
+            "days" : 10,
+            "limit": 2
         }
         df = execute_jinja_query(db_connector, 'api/select_highlights.sql.j2', query_params, return_df=True)
 
@@ -90,23 +90,20 @@ def gtp_analyst():
             highlights = highlights_prep(df, gtp_metrics_new)
 
             for highlight in highlights:
-                message = (
-                    f"**{highlight['type'].replace('_', ' ').title()} for {name}**\n"
-                    f"_{highlight['text']}_\n"
-                    f"**Metric:** {highlight['metric_name']}\n"
-                    f"**Date:** {highlight['date']}\n"
-                    f"**Value:** {highlight['value']}"
-                )
-                send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"))
-                #send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message)
-                
                 metric_key = highlight['metric_key']
                 metric_id = highlight['metric_id']
                 date = highlight['date']
                 metric_conf = gtp_metrics_new['chains'][metric_id]
                 metric_fe = metric_conf['url_path'].split('/')[-1]
                 
-                ## ecosyste-wide
+                message = (
+                    f"🥧 **{highlight['metric_name']} {highlight['header']} for {name}: {highlight['value']}**\n"
+                    f"_{highlight['text']}_\n"
+                    f"{highlight['date']}\n"
+                    f"[View on growthepie.com](https://www.growthepie.com/fundamentals/{metric_fe})"
+                )
+                
+                ## ecosystem-wide
                 chains_url = ''
                 for chain in main_config:
                     if chain.api_in_main and chain.api_deployment_flag == 'PROD' and metric_id not in chain.api_exclude_metrics:
@@ -123,8 +120,9 @@ def gtp_analyst():
 
                 filename = f"{date}_{metric_key}.png"
 
-                generate_screenshot(url, filename)
-                send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message, photo_url=f"generated_images/{filename}")
+                generate_screenshot(url, filename, height=1000)
+                send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"), image_paths=f"generated_images/{filename}")
+                send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message, image_path=f"generated_images/{filename}")
 
     run_analyst()
     run_highlights()
