@@ -220,11 +220,18 @@ rpc_config = {
         "calc_fees": False,
     },
 
-    # Non-EVM chains
+    # Starknet Stack chains
     "starknet": {
         "name": "Starknet",
         "processors": "starknet",
         "sleeper": 5,
         "calc_fees": False,
     },
+    "paradex": {
+        "name": "Paradex",
+        "processors": "starknet",
+        "sleeper": 5,
+        "calc_fees": False,
+    },
+    
 }
