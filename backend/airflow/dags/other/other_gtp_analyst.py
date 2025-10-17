@@ -97,9 +97,9 @@ def gtp_analyst():
                 metric_fe = metric_conf['url_path'].split('/')[-1]
                 
                 message = (
-                    f"🥧 **{highlight['metric_name']} {highlight['header']} for {name}: {highlight['value']}**\n"
+                    f"🥧 **{highlight['metric_name']} {highlight['header']} for {name}: {highlight['value']}**\n\n"
                     f"_{highlight['text']}_\n"
-                    f"{highlight['date']}\n"
+                    f"{highlight['date']}\n\n"
                     f"[View on growthepie.com](https://www.growthepie.com/fundamentals/{metric_fe})"
                 )
                 
