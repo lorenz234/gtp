@@ -1056,13 +1056,18 @@ def get_current_file_list(repo_name, file_path, github_token):
 def highlights_prep(df, gtp_metrics):
     highlights = []
     for index, row in df.iterrows():
+        prefix = ""
+        suffix = ""
         highlight_type = row['type']
         metric_key = row['metric_key']
         metric_id, metric_config = get_metric_config_from_metric_key(metric_key, gtp_metrics)
         
         is_currency = True if 'usd' in metric_config['units'] else False
         is_eth = True if metric_key[-3:] == 'eth' else False
-        unit = "ETH " if is_eth else "$ " if is_currency else ""
+        prefix = "ETH " if is_eth else "$" if is_currency else ""
+
+        if metric_key == 'gas_per_second':
+            suffix = "Mgas/s"
 
         if highlight_type == 'ath_multiple':
             ath_val = int(row['ath_next_threshold'])
@@ -1073,8 +1078,8 @@ def highlights_prep(df, gtp_metrics):
             elif ath_val > 1_000:
                 ath_multiple = f"{ath_val / 1_000:.1f}K"
             else:
-                ath_multiple = f"{ath_val:,}"
-            highlight_text = f"New all-time high, surpassing {unit}{ath_multiple} for the first time"
+                ath_multiple = f"{ath_val:,.2f}"
+            highlight_text = f"New all-time high, surpassing {prefix}{ath_multiple}{suffix} for the first time"
             header = 'All-Time High'
         elif highlight_type == 'ath_regular':
             prev_ath_val = int(row['ath_prior_max'])
@@ -1085,8 +1090,8 @@ def highlights_prep(df, gtp_metrics):
             elif prev_ath_val > 1_000:
                 prev_ath = f"{prev_ath_val / 1_000:.1f}K"
             else:
-                prev_ath = f"{prev_ath_val:,}"
-            highlight_text = f"New all-time high, surpassing previous All-Time High of {unit}{prev_ath}"
+                prev_ath = f"{prev_ath_val:,.2f}"
+            highlight_text = f"New all-time high, surpassing previous All-Time High of {prefix}{prev_ath}{suffix}"
             header = 'All-Time High'
         elif highlight_type.startswith('growth_'):
             period = highlight_type.split('_')[1]
@@ -1103,9 +1108,9 @@ def highlights_prep(df, gtp_metrics):
         elif value_val >= 1_000:
             value = f"{value_val / 1_000:.2f}K"
         else:
-            value = f"{value_val:,}"
+            value = f"{value_val:,.2f}"
 
-        value = f"{unit}{value}" if unit else value
+        value = f"{prefix}{value}{suffix}" if prefix or suffix else value
 
         highlight_dict = {
             'metric_id': metric_id,
