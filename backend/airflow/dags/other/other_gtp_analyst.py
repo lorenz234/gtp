@@ -81,8 +81,8 @@ def gtp_analyst():
 
         query_params = {
             "origin_key": origin_key,
-            "days" : 10,
-            "limit": 2
+            "days" : 2,
+            "limit": 5
         }
         df = execute_jinja_query(db_connector, 'api/select_highlights.sql.j2', query_params, return_df=True)
 
