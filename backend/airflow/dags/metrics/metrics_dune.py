@@ -104,7 +104,7 @@ def etl():
         from src.adapters.adapter_dune import AdapterDune
         
         ## if today is a sunday, run this
-        if datetime.weekday() == 6:
+        if datetime.now().weekday() == 6:
             adapter_params = {
                 'api_key' : os.getenv("DUNE_API")
             }
