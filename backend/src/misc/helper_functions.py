@@ -13,6 +13,10 @@ import numpy as np
 import yaml
 from openai import OpenAI
 from web3 import Web3
+from playwright.sync_api import sync_playwright
+import mimetypes
+from typing import Optional, Union, List
+
 
 import dotenv
 dotenv.load_dotenv()
@@ -308,6 +312,14 @@ def print_orchestration_raw_start(name:str):
 
 def print_orchestration_raw_end(name:str):
     print(f'Orchestration {name} RAW finished.')
+    
+ 
+# get metric config from metric key   
+def get_metric_config_from_metric_key(metric_key, gtp_metrics):
+    for metric_id in gtp_metrics['chains']:
+        if metric_key in gtp_metrics['chains'][metric_id]['metric_keys']:
+            metric_config = gtp_metrics['chains'][metric_id]
+            return metric_id, metric_config
 
 ## Discord functions
 def send_discord_message(message, webhook_url=None):
@@ -321,6 +333,158 @@ def send_discord_message(message, webhook_url=None):
         print("Message sent successfully")
     else:
         print(f"Error sending message: {response.text}")
+        
+def send_discord_message(
+    message: str,
+    webhook_url: Optional[str] = None,
+    image_paths: Optional[Union[str, List[str]]] = None,
+    embed_first_image: bool = True,
+    timeout: int = 15,
+):
+    """
+    Send a message (and optional image attachments) to a Discord webhook.
+
+    - message: text content
+    - webhook_url: Discord webhook URL (falls back to env var DISCORD_ALERTS)
+    - image_paths: str or list[str] of local file paths to attach
+    - username: optional display name override for the webhook
+    - embed_first_image: if True, show the first attached image inline via an embed
+    - timeout: request timeout in seconds
+    """
+    if webhook_url is None:
+        webhook_url = os.getenv("DISCORD_ALERTS")
+    if not webhook_url:
+        raise ValueError("No webhook URL provided and DISCORD_ALERTS is not set.")
+
+    # Normalize image_paths to a list
+    paths: List[str] = []
+    if image_paths:
+        paths = [image_paths] if isinstance(image_paths, str) else list(image_paths)
+
+    # Base payload
+    payload = {"content": message}
+
+    # If we want to show the first image inline, point an embed to the uploaded attachment
+    if embed_first_image and paths:
+        first_name = os.path.basename(paths[0])
+        payload["embeds"] = [{"image": {"url": f"attachment://{first_name}"}}]
+
+    # If no files, send a simple JSON POST
+    if not paths:
+        resp = requests.post(webhook_url, json=payload, timeout=timeout)
+    else:
+        # Prepare multipart with files + payload_json
+        file_handles = []
+        files = {}
+        try:
+            for i, p in enumerate(paths):
+                fh = open(p, "rb")
+                file_handles.append(fh)
+                guessed = mimetypes.guess_type(p)[0] or "application/octet-stream"
+                # Discord accepts indexed keys like files[0], files[1], ...
+                files[f"files[{i}]"] = (os.path.basename(p), fh, guessed)
+
+            resp = requests.post(
+                webhook_url,
+                data={"payload_json": json.dumps(payload)},
+                files=files,
+                timeout=timeout,
+            )
+        finally:
+            for fh in file_handles:
+                try:
+                    fh.close()
+                except Exception:
+                    pass
+
+    if resp.status_code in (200, 204):
+        print("Message sent successfully")
+    else:
+        print(f"Error sending message ({resp.status_code}): {resp.text}")
+    return resp
+        
+        
+def send_telegram_message(
+    bot_token: str, 
+    chat_id: str, 
+    message: str, 
+    image_path: Optional[str] = None
+):
+    """
+    Sends a message to a Telegram channel or group.
+
+    Args:
+        bot_token: Telegram bot token from BotFather
+        chat_id: Channel username (e.g. '@growthepie_alerts') or numeric chat ID
+        message: Message text (supports Markdown)
+        image_path: Optional local file path or URL of an image to send with the message
+    """
+    
+    if image_path:
+        url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+        # If local file, open and send via multipart/form-data
+        if not image_path.startswith("http"):
+            with open(image_path, "rb") as photo_file:
+                files = {"photo": photo_file}
+                data = {
+                    "chat_id": chat_id,
+                    "caption": message,
+                    "parse_mode": "Markdown"
+                }
+                response = requests.post(url, data=data, files=files)
+        else:
+            payload = {
+                "chat_id": chat_id,
+                "photo": image_path,
+                "caption": message,
+                "parse_mode": "Markdown"
+            }
+            response = requests.post(url, json=payload)
+    else:
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "Markdown",  # or "HTML"
+            "disable_web_page_preview": True
+        }
+        response = requests.post(url, json=payload)
+        
+    if response.status_code != 200:
+        print(f"Error sending message: {response.text}")
+    else:
+        print("✅ Message sent successfully!")
+
+def generate_screenshot(url: str, filename: str, height:int = 1600, wait_for_timeout: int = 3000, selector: str = None):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.set_viewport_size({"width": 1920, "height": height})
+
+        print(f"📸 Loading chart: {url}")
+        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(wait_for_timeout) 
+
+        screenshot_path = f"generated_images/{filename}"
+        
+        if selector:
+            element = page.query_selector(selector)
+            if element:
+                box = element.bounding_box()
+                if box:
+                    clip_region = box
+                    page.screenshot(path=screenshot_path, clip=clip_region)
+                else:
+                    print(f"⚠️ Could not get bounding box for selector '{selector}'. Taking full page screenshot instead.")
+                    page.screenshot(path=screenshot_path, full_page=False)
+            else:
+                print(f"⚠️ Selector '{selector}' not found. Taking full page screenshot instead.")
+                page.screenshot(path=screenshot_path, full_page=False)
+        else:
+            page.screenshot(path=screenshot_path, full_page=False)
+            
+        browser.close()
+        print(f"✅ Screenshot saved: {screenshot_path}")
 
 ## Binance functions
 def date_string_to_unix(date_string: str) -> int:
@@ -887,3 +1051,78 @@ def get_current_file_list(repo_name, file_path, github_token):
 
     df.set_index("name", inplace=True)
     return df
+
+
+def highlights_prep(df, gtp_metrics):
+    highlights = []
+    for index, row in df.iterrows():
+        prefix = ""
+        suffix = ""
+        highlight_type = row['type']
+        metric_key = row['metric_key']
+        metric_id, metric_config = get_metric_config_from_metric_key(metric_key, gtp_metrics)
+        
+        is_currency = True if 'usd' in metric_config['units'] else False
+        is_eth = True if metric_key[-3:] == 'eth' else False
+        prefix = "ETH " if is_eth else "$" if is_currency else ""
+
+        if metric_key == 'gas_per_second':
+            suffix = "Mgas/s"
+
+        if highlight_type == 'ath_multiple':
+            ath_val = int(row['ath_next_threshold'])
+            if ath_val > 1_000_000_000:
+                ath_multiple = f"{ath_val / 1_000_000_000:.1f}B"
+            elif ath_val > 1_000_000:
+                ath_multiple = f"{ath_val / 1_000_000:.1f}M"
+            elif ath_val > 1_000:
+                ath_multiple = f"{ath_val / 1_000:.1f}K"
+            else:
+                ath_multiple = f"{ath_val:,.2f}"
+            highlight_text = f"New all-time high, surpassing {prefix}{ath_multiple}{suffix} for the first time"
+            header = 'All-Time High'
+        elif highlight_type == 'ath_regular':
+            prev_ath_val = int(row['ath_prior_max'])
+            if prev_ath_val > 1_000_000_000:
+                prev_ath = f"{prev_ath_val / 1_000_000_000:.1f}B"
+            elif prev_ath_val > 1_000_000:
+                prev_ath = f"{prev_ath_val / 1_000_000:.1f}M"
+            elif prev_ath_val > 1_000:
+                prev_ath = f"{prev_ath_val / 1_000:.1f}K"
+            else:
+                prev_ath = f"{prev_ath_val:,.2f}"
+            highlight_text = f"New all-time high, surpassing previous All-Time High of {prefix}{prev_ath}{suffix}"
+            header = 'All-Time High'
+        elif highlight_type.startswith('growth_'):
+            period = highlight_type.split('_')[1]
+            highlight_text = f"This metric grew by {row['growth_pct_growth']*100:.2f}% over the past {period} days"
+            header = 'Growth Highlight'
+        else:
+            highlight_text = "Wow!"
+            
+        value_val = row['value']
+        if value_val >= 1_000_000_000:
+            value = f"{value_val / 1_000_000_000:.2f}B"
+        elif value_val >= 1_000_000:
+            value = f"{value_val / 1_000_000:.2f}M"
+        elif value_val >= 1_000:
+            value = f"{value_val / 1_000:.2f}K"
+        else:
+            value = f"{value_val:,.2f}"
+
+        value = f"{prefix}{value}{suffix}" if prefix or suffix else value
+
+        highlight_dict = {
+            'metric_id': metric_id,
+            'metric_key': metric_key,
+            'metric_name': metric_config['name'] if metric_config else metric_id,
+            'icon': metric_config['icon'] if metric_config else 'default_icon',
+            'type': row['type'],
+            'header': header,
+            'text': highlight_text,
+            'value': value,
+            'date': row['date'].strftime('%Y-%m-%d'),
+        }
+        highlights.append(highlight_dict)
+        
+    return highlights

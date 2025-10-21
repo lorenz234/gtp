@@ -1070,7 +1070,7 @@ class JSONCreation():
     ############################################################
     ##### Main Platfrom #####
     ############################################################
-    def create_master_json(self, df_data):
+    def create_master_json(self, df_data, private_access=None):
         exec_string = "SELECT category_id, category_name, main_category_id, main_category_name FROM vw_oli_category_mapping"
         df = pd.read_sql(exec_string, self.db_connector.engine.connect())
 
@@ -1104,6 +1104,9 @@ class JSONCreation():
             origin_key = chain.origin_key
             if chain.api_in_main == False:
                 print(f'..skipped: Master json export for {origin_key}. API is set to False')
+                continue
+            if chain.api_deployment_flag not in ['PROD', 'DEV'] and private_access != origin_key:
+                print(f'..skipped: Master json export for {origin_key}. Deployment flag is set to {chain.api_deployment_flag}')
                 continue
 
             url_key = chain.origin_key.replace('_', '-')
@@ -1140,6 +1143,7 @@ class JSONCreation():
                 'l2beat_id': chain.aliases_l2beat,
                 'raas': chain.metadata_raas,
                 'stack': chain.metadata_stack,
+                'excluded_metrics': chain.api_exclude_metrics,
                 
                 ## can be removed soon (see links)
                 'website': chain.links["website"] if chain.links and chain.links["website"] else None,
@@ -1177,10 +1181,18 @@ class JSONCreation():
         fees_types_api = {key: {sub_key: value for sub_key, value in sub_dict.items() if sub_key != 'metric_keys'} 
                                   for key, sub_dict in self.fees_types.items()}
 
+        default_selection = self.get_default_selection(df_data, top_n=5)
+        default_sorting = ['ethereum'] + self.get_default_selection(df_data, top_n=999)
+        if private_access:
+            # Ensure private_access is first in default_selection and default_sorting
+            default_selection = [private_access] + [c for c in default_selection if c != private_access]
+            default_selection = default_selection[:5]
+            default_sorting = [private_access] + [c for c in default_sorting if c != private_access]
+
         master_dict = {
             'current_version' : self.api_version,
-            'default_chain_selection' : self.get_default_selection(df_data, top_n=5),
-            'default_chain_sorting' : ['ethereum'] + self.get_default_selection(df_data, top_n=999),
+            'default_chain_selection' : default_selection,
+            'default_chain_sorting' : default_sorting,
             'chains' : chain_dict,
             'custom_logos' : self.get_custom_logos(),
             'da_layers' : da_dict,
@@ -1189,14 +1201,34 @@ class JSONCreation():
             'app_metrics' : self.app_metrics,
             'fee_metrics' : fees_types_api,
             'blockspace_categories' : {
-                'main_categories' : main_category_dict,
-                'sub_categories' : sub_category_dict,
-                'mapping' : mapping_dict,
+            'main_categories' : main_category_dict,
+            'sub_categories' : sub_category_dict,
+            'mapping' : mapping_dict,
             },
             'maturity_levels': self.maturity_levels,
             'main_chart_config': self.main_chart_config,
             'ethereum_events': self.ethereum_events['upgrades'],
         }
+        
+        ## enhance metrics_dict with supported chains info
+        for metric in master_dict['metrics']:
+            supported_chains = []
+            for chain in self.main_config:
+                if metric in chain.api_exclude_metrics or chain.api_in_main == False:
+                    continue
+                if self.api_version == 'v1' and chain.api_deployment_flag != 'PROD':
+                    continue
+                supported_chains.append(chain.origin_key)
+            master_dict['metrics'][metric]['supported_chains'] = supported_chains
+            
+        ## enhance chains dict with supported metrics info
+        for chain in master_dict['chains']:
+            supported_metrics = []
+            for metric in self.metrics:
+                if metric in master_dict['chains'][chain]["excluded_metrics"] or self.metrics[metric]['fundamental'] == False:
+                    continue
+                supported_metrics.append(metric)
+            master_dict['chains'][chain]['supported_metrics'] = supported_metrics
 
         master_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         master_dict = fix_dict_nan(master_dict, 'master')
@@ -1204,7 +1236,10 @@ class JSONCreation():
         if self.s3_bucket == None:
             self.save_to_json(master_dict, 'master')
         else:
-            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/master', master_dict, self.cf_distribution_id)
+            if private_access:
+                upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/master_{private_access}', master_dict, self.cf_distribution_id)
+            else:
+                upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/master', master_dict, self.cf_distribution_id)
 
         print(f'DONE -- master.json export')
 
@@ -1474,7 +1509,8 @@ class JSONCreation():
             print(f'DONE -- Metric details export for {metric}')
 
         ## after all metric jsons are created, invalidate the cache
-        empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/metrics/*')
+        if cache_control == None:
+            empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/metrics/*')
 
     def create_da_metric_details_jsons(self, df, metric_keys:list=None):
         if metric_keys != None:

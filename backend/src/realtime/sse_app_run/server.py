@@ -381,19 +381,28 @@ class RedisSSEServer:
             )
             await self._store_chain_tps_record(record)
 
-    async def _update_global_tps_records(self, current_tps: float, timestamp: str, chain_data: Dict[str, Any]):
-        """Update GLOBAL TPS ATH and 24hr high records."""
+    # In RedisSSEServer class
+
+    async def _update_global_tps_records(self, current_tps: float, timestamp: str, chain_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update GLOBAL TPS ATH and 24hr high records, and return the new values."""
         try:
             current_timestamp_ms = int(datetime.now().timestamp() * 1000)
             chain_breakdown = self._extract_chain_breakdown(chain_data)
-            is_new_ath = current_tps > self.tps_ath
+            
+            # Start with current values
+            new_ath = self.tps_ath
+            new_ath_timestamp = self.tps_ath_timestamp
+            new_24h_high = self.tps_24h_high
+            new_24h_high_timestamp = self.tps_24h_high_timestamp
 
+            is_new_ath = current_tps > self.tps_ath
             pipe = self.redis_client.pipeline()
 
             if is_new_ath:
                 old_ath = self.tps_ath
                 self.tps_ath = current_tps
                 self.tps_ath_timestamp = timestamp
+                new_ath, new_ath_timestamp = self.tps_ath, self.tps_ath_timestamp # Capture new values
 
                 pipe.hset(RedisKeys.GLOBAL_TPS_ATH, mapping={
                     "value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(current_timestamp_ms)
@@ -406,10 +415,13 @@ class RedisSSEServer:
             if current_tps > self.tps_24h_high:
                 self.tps_24h_high = current_tps
                 self.tps_24h_high_timestamp = timestamp
+                new_24h_high, new_24h_high_timestamp = self.tps_24h_high, self.tps_24h_high_timestamp # Capture new values
+
                 pipe.hset(RedisKeys.GLOBAL_TPS_24H, mapping={
                     "value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(current_timestamp_ms)
                 })
-                logger.info(f"📊 NEW GLOBAL 24HR TPS HIGH: {current_tps} TPS!")
+                if not is_new_ath: # Avoid redundant logging if it's already an ATH
+                    logger.info(f"📊 NEW GLOBAL 24HR TPS HIGH: {current_tps} TPS!")
             
             if pipe: await pipe.execute()
 
@@ -419,9 +431,26 @@ class RedisSSEServer:
                 active_chains=len(chain_breakdown), is_ath=is_new_ath
             )
             await self._store_global_tps_record(record)
+            
+            # Return a dictionary with the definitive values for this run
+            return {
+                "ath": new_ath,
+                "ath_timestamp": new_ath_timestamp,
+                "24h_high": new_24h_high,
+                "24h_high_timestamp": new_24h_high_timestamp,
+            }
 
         except Exception as e:
             logger.error(f"Error updating global TPS records: {str(e)}")
+            # Return current state on error
+            return {
+                "ath": self.tps_ath,
+                "ath_timestamp": self.tps_ath_timestamp,
+                "24h_high": self.tps_24h_high,
+                "24h_high_timestamp": self.tps_24h_high_timestamp,
+            }
+
+    # In RedisSSEServer class
 
     async def _calculate_global_metrics(self, chain_data: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate global metrics from chain data."""
@@ -432,8 +461,14 @@ class RedisSSEServer:
             total_tps = sum(tps_values)
             
             current_timestamp = datetime.now().isoformat()
+            
+            # Get the definitive record values for this calculation cycle
+            updated_records = {
+                "ath": self.tps_ath, "ath_timestamp": self.tps_ath_timestamp,
+                "24h_high": self.tps_24h_high, "24h_high_timestamp": self.tps_24h_high_timestamp
+            }
             if total_tps > 0:
-                await self._update_global_tps_records(total_tps, current_timestamp, chain_data)
+                updated_records = await self._update_global_tps_records(total_tps, current_timestamp, chain_data)
             
             highest_tps = max(tps_values, default=0)
             active_chains = sum(1 for tps in tps_values if tps > 0)
@@ -448,8 +483,11 @@ class RedisSSEServer:
                 "total_chains": len(chain_data), "active_chains": active_chains,
                 "ethereum_tx_cost_usd": ethereum_tx_cost_usd, "ethereum_tx_cost_eth": ethereum_tx_cost_eth,
                 "layer2s_tx_cost_usd": l2_metrics["avg_cost_usd"], "layer2s_tx_cost_eth": l2_metrics["avg_cost_eth"],
-                "total_tps_ath": round(self.tps_ath, 1), "total_tps_ath_timestamp": self.tps_ath_timestamp,
-                "total_tps_24h_high": round(self.tps_24h_high, 1), "total_tps_24h_high_timestamp": self.tps_24h_high_timestamp,
+                # Use the explicit values returned from the update function
+                "total_tps_ath": round(updated_records["ath"], 1),
+                "total_tps_ath_timestamp": updated_records["ath_timestamp"],
+                "total_tps_24h_high": round(updated_records["24h_high"], 1),
+                "total_tps_24h_high_timestamp": updated_records["24h_high_timestamp"],
                 "last_updated": current_timestamp
             }
         except Exception as e:

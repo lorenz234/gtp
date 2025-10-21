@@ -3,6 +3,7 @@
 
     Parameters:
     - origin_key: the specific origin key to filter the results.
+	- custom_gas: bool (optional)  e.g., true/false
 #}
 
 
@@ -12,13 +13,28 @@ with price_eth as (
 	select value
 	FROM public.fact_kpis_granular
 	where origin_key = 'ethereum' and metric_key = 'price_usd'
-	order by timestamp desc
+	order by "timestamp" desc
 	limit 1
+),
+custom_price AS (
+  SELECT value as price_eth
+  FROM public.fact_kpis
+  WHERE origin_key = '{{ origin_key }}'
+    AND metric_key = 'price_eth'
+  ORDER BY "date" DESC
+  LIMIT 1
 )
 
 select 
 	count(*) as txcount,
-	sum(tx_fee) as fees_paid_eth,
-	sum(tx_fee) * (select value from price_eth) as fees_paid_usd
+	CASE WHEN {{ custom_gas | default(false) }}
+		THEN SUM(tx_fee) * (SELECT price_eth FROM custom_price)
+		ELSE SUM(tx_fee)
+	END fees_paid_eth,
+
+	CASE WHEN {{ custom_gas | default(false) }}
+       THEN SUM(tx_fee) * (SELECT price_eth FROM custom_price) * (SELECT value FROM price_eth)
+	   ELSE SUM(tx_fee) * (SELECT value FROM price_eth)
+  END fees_paid_usd
 from {{ origin_key }}_tx
 where block_date = current_date

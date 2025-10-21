@@ -97,6 +97,8 @@ def etl():
         df = json_creator.get_all_data()
 
         json_creator.create_master_json(df)
+        json_creator.create_master_json(df, 'zircuit')  # private version for zircuit
+        
 
     @task()
     def run_create_fundamentals():

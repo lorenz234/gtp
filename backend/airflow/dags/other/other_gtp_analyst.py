@@ -61,7 +61,70 @@ def gtp_analyst():
             print(f"Processed {len(result.get('responses', []))} milestone responses")
         else:
             print("⚠️ Social media pipeline completed with no results or encountered errors")
+            
+    @task()
+    def run_highlights():
+        from src.db_connector import DbConnector
+        from src.misc.jinja_helper import execute_jinja_query
+        from src.config import gtp_metrics_new
+        from src.misc.helper_functions import highlights_prep, send_discord_message, send_telegram_message, generate_screenshot
+        from src.main_config import get_main_config
+
+        db_connector = DbConnector()
+        main_config = get_main_config()
+
+        TG_BOT_TOKEN = os.getenv("GROWTHEPIE_BOT_TOKEN")
+        TG_CHAT_ID = "@growthepie_alerts"
+
+        origin_key = 'ethereum_ecosystem'
+        name = 'Ethereum Ecosystem'
+
+        query_params = {
+            "origin_key": origin_key,
+            "days" : 2,
+            "limit": 5
+        }
+        df = execute_jinja_query(db_connector, 'api/select_highlights.sql.j2', query_params, return_df=True)
+
+        if not df.empty:
+            highlights = highlights_prep(df, gtp_metrics_new)
+
+            for highlight in highlights:
+                metric_key = highlight['metric_key']
+                metric_id = highlight['metric_id']
+                date = highlight['date']
+                metric_conf = gtp_metrics_new['chains'][metric_id]
+                metric_fe = metric_conf['url_path'].split('/')[-1]
+                
+                message = (
+                    f"🥧 **{highlight['metric_name']} {highlight['header']} for {name}: {highlight['value']}**\n\n"
+                    f"_{highlight['text']}_\n"
+                    f"{highlight['date']}\n\n"
+                    f"[View on growthepie.com](https://www.growthepie.com/fundamentals/{metric_fe})"
+                )
+                
+                ## ecosystem-wide
+                chains_url = ''
+                for chain in main_config:
+                    if chain.api_in_main and chain.api_deployment_flag == 'PROD' and metric_id not in chain.api_exclude_metrics:
+                        chains_url += f"{chain.origin_key}%2C"
+                chains_url = chains_url[:-3]  # remove last %2C
+                
+                if metric_conf['category'] in ['value-locked', 'market'] or metric_id in ['throughput', 'fully_diluted_valuation']:
+                    timespan = 'max'
+                else:
+                    timespan = '180d'
+
+                url = f"https://www.growthepie.com/embed/fundamentals/{metric_fe}?showUsd=true&theme=dark&timespan={timespan}&scale=stacked&interval=daily&showMainnet=true&chains={chains_url}&zoomed=false"
+                print(f"🌐 Chart URL: {url}")
+
+                filename = f"{date}_{metric_key}.png"
+
+                generate_screenshot(url, filename, height=1000)
+                send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"), image_paths=f"generated_images/{filename}")
+                send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message, image_path=f"generated_images/{filename}")
 
     run_analyst()
+    run_highlights()
 gtp_analyst()
     
