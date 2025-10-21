@@ -102,5 +102,5 @@ class AdapterYFinance(AbstractAdapter):
         Gets all robinhood stocks in a df from the database table robinhood_stock_list. Removed demo stocks.
         """
         df = self.db_connector.get_table('robinhood_stock_list')
-        df = df[~df['ticker'].str.contains('demo token')]
+        df = df[~df['ticker'].str.contains('demo token|GME.WS|OPAI|SPACEX')] # make sure to also adjust robinhood_merged_daily.sql.j2
         return df

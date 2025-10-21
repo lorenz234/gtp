@@ -11,7 +11,11 @@ all_stocks AS (
   WHERE contract_address IN (
     SELECT contract_address 
     FROM public.robinhood_stock_list 
-    WHERE ticker NOT ILIKE '%%demo token%%'
+    WHERE 
+      ticker NOT ILIKE '%demo token%'
+      AND ticker NOT ILIKE '%OPAI%'
+      AND ticker NOT ILIKE '%SPACEX%'
+      AND ticker NOT ILIKE '%GME.WS%'
   )
 ),
 complete_date_stock_grid AS (
@@ -85,7 +89,5 @@ SELECT
   cs.filled_close_price as close_price_used,
   cs.total_supply * cs.filled_close_price as total_market_value
 FROM cumulative_supply cs
-LEFT JOIN public.robinhood_stock_list rsl 
-  ON cs.contract_address = rsl.contract_address
-  AND rsl.ticker NOT ILIKE '%%demo token%%'
+LEFT JOIN public.robinhood_stock_list rsl ON cs.contract_address = rsl.contract_address
 ORDER BY cs.contract_address, cs.date;
