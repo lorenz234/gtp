@@ -1129,6 +1129,7 @@ class JSONCreation():
                 'description': chain.metadata_description,
                 'da_layer': chain.metadata_da_layer,
                 'symbol': chain.metadata_symbol,
+                'gas_token': chain.metadata_gas_token,
                 'bucket': chain.bucket,
                 'ecosystem': chain.ecosystem,
                 'colors': chain.colors,
