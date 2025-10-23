@@ -57,6 +57,7 @@ def etl():
             ## create new project.json file
             json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector)
             json_creator.create_projects_json()
+            json_creator.create_projects_filtered_json()
     
     run_app_logos()
 etl()
