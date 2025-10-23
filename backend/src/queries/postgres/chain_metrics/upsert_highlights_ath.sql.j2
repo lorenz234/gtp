@@ -1,0 +1,84 @@
+{#
+    This query identifies all-time highs (ATHs) for a given metric and origin within a specified lookback period.
+    For each ATH, it determines the next threshold that has not yet been crossed based on a provided list of thresholds.
+    The output includes whether the ATH has crossed the next threshold.
+    
+    Parameters:
+    -   origin_key: string
+    -   lookback_days: int (defaults to 7)
+    -   thresholds_by_metric: dict[str, list[numeric]]
+#}
+
+INSERT INTO highlights (date, origin_key, metric_key, type, value, ath_prior_max, ath_next_threshold)
+
+WITH thresholds_map AS (
+  {%- set keys = thresholds_by_metric.keys() | list -%}
+  {%- for mkey in keys -%}
+  SELECT '{{ mkey }}'::text AS metric_key,
+         unnest(ARRAY[
+           {%- for t in thresholds_by_metric[mkey] -%}
+             {{ t }}{{ ", " if not loop.last else "" }}
+           {%- endfor -%}
+         ]) AS threshold
+  {%- if not loop.last %} UNION ALL {% endif -%}
+  {%- endfor -%}
+),
+metric_keys AS (
+  SELECT DISTINCT metric_key FROM thresholds_map
+),
+ranked AS (
+  SELECT
+      date,
+      metric_key,
+      origin_key,
+      value::numeric AS value,
+      MAX(value::numeric) OVER (
+          PARTITION BY metric_key, origin_key
+          ORDER BY date
+          ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+      ) AS prior_max
+  FROM fact_kpis
+  WHERE origin_key = '{{ origin_key }}'
+    AND metric_key IN (SELECT metric_key FROM metric_keys)
+    AND date < current_date
+),
+aths AS (
+  -- ATHs that happened in the last {{ lookback_days|default(7) }} days
+  SELECT date, metric_key, origin_key, value, prior_max
+  FROM ranked
+  WHERE date >= CURRENT_DATE - INTERVAL '{{ lookback_days | default(7) }} days'
+    AND (prior_max IS NULL OR value > prior_max)
+),
+next_t AS (
+  SELECT
+    a.date,
+    a.metric_key,
+    a.origin_key,
+    a.value,
+    a.prior_max,
+    (
+      SELECT MIN(tm.threshold)
+      FROM thresholds_map tm
+      WHERE tm.metric_key = a.metric_key
+        AND tm.threshold > COALESCE(a.prior_max, -1e100)
+    ) AS next_threshold
+  FROM aths a
+)
+SELECT
+  date,
+  origin_key,
+  metric_key,
+  CASE
+    WHEN (next_threshold IS NOT NULL AND value >= next_threshold)
+      THEN 'ath_multiple' ELSE 'ath_regular'
+  END AS type,
+  value,
+  prior_max  AS ath_prior_max,
+  next_threshold AS ath_next_threshold
+FROM next_t
+ORDER BY date
+ON CONFLICT (date, origin_key, metric_key, type)
+DO UPDATE SET
+  value = EXCLUDED.value,
+  ath_prior_max = EXCLUDED.ath_prior_max,
+  ath_next_threshold = EXCLUDED.ath_next_threshold;

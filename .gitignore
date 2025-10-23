@@ -18,6 +18,7 @@ venv/
 backend/output/
 backend/local/
 screenshots/
+backend/generated_images/
 
 # Airflow stuff
 airflow.cfg
@@ -51,3 +52,4 @@ backend/da_conf.pkl
 node_modules
 backend/add_new_date_indx.py
 backend/add_new_date.py
+backend/test_screenshots.py

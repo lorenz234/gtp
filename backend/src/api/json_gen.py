@@ -11,7 +11,7 @@ from src.db_connector import DbConnector
 from src.config import gtp_units, gtp_metrics_new, levels_dict
 from src.main_config import MainConfig, get_main_config
 from src.da_config import get_da_config
-from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3, empty_cloudfront_cache
+from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3, empty_cloudfront_cache, highlights_prep
 from src.misc.jinja_helper import execute_jinja_query
 
 # --- Set up a proper logger ---
@@ -63,21 +63,15 @@ class JsonGen():
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df['metric_key'] = metric_key
-        return df
-
-    ## TODO: remove? not in use so far
-    def _get_raw_data_multi_oks(self, origin_keys: List[str], metric_key: str, days: Optional[int] = None) -> pd.DataFrame:
-        """Get fact kpis from the database for a specific metric key."""
-        logging.debug(f"Fetching raw data for origin_keys={origin_keys}, metric_key={metric_key}, days={days}")
-        query_parameters = {'origin_keys': origin_keys, 'metric_key': metric_key, 'days': days}
-        df = self.db_connector.execute_jinja("api/select_fact_kpis_multi_oks.sql.j2", query_parameters, load_into_df=True)
-
-        if df.empty:
-            return pd.DataFrame()
+        
+        if metric_key == 'gas_per_second':
+            # Convert gas_per_second from gas units to millions of gas units for easier readability
+            df['value'] = df['value'] / 1_000_000
             
-        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
-        df.sort_values(by=['date'], inplace=True, ascending=True)
-        df['metric_key'] = metric_key
+        if metric_key == 'da_data_posted_bytes':
+            # Convert da_data_posted_bytes from bytes to gigabytes for easier readability
+            df['value'] = df['value'] / 1024 / 1024 / 1024
+
         return df
 
     @staticmethod
@@ -445,6 +439,21 @@ class JsonGen():
             logging.info(f"CloudFront invalidation submitted for path: {invalidation_path}")
         else:
             logging.info("Skipping CloudFront invalidation (S3 bucket or Distribution ID not set).")
+            
+    def get_chain_highlights_dict(self, origin_key: str, days: int = 7, limit: int = 5) -> Dict:
+        query_params = {
+            "origin_key": origin_key,
+            "days" : days,
+            "limit": limit
+        }
+        df = execute_jinja_query(self.db_connector, 'api/select_highlights.sql.j2', query_params, return_df=True)
+        if not df.empty:
+            highlights = highlights_prep(df, gtp_metrics_new)
+        else:
+            highlights = []
+
+        return highlights
+
 
     def get_chain_rankings_data(self, origin_key, metric_id):
         ## Comparison chains (all that are not excluded for this metric and are in main and on prod in case it's not dev api)
@@ -710,7 +719,10 @@ class JsonGen():
 
         for chain in self.main_config:
             if chain.api_in_main and chain.origin_key not in ['imx', 'loopring']:
-                query_parameters = {'origin_key': chain.origin_key}
+                query_parameters = {
+                    'origin_key': chain.origin_key,
+                    'custom_gas': True if chain.origin_key in ['mantle', 'metis', 'gravity', 'plume', 'celo'] else False,
+                }
 
                 result_df = execute_jinja_query(
                     self.db_connector, 
@@ -747,6 +759,7 @@ class JsonGen():
             chains_dict["data"] = {
                 "chain_id": chain.origin_key,
                 "chain_name": chain.name,
+                "highlights": self.get_chain_highlights_dict(origin_key, days=7, limit=4),
                 "events": chain.events,
                 "ranking": self.get_chain_ranking_dict(origin_key),
                 "kpi_cards": self.get_kpi_cards_dict(chain),
