@@ -1070,6 +1070,42 @@ class JSONCreation():
     ############################################################
     ##### Main Platfrom #####
     ############################################################
+    def get_similar_chains(self, origin_key):
+        if origin_key in ['all_l2s', 'multiple']:
+            return []
+        
+        similar_chains = []
+
+        for proj in self.main_config:
+            if proj.origin_key == origin_key:
+                chain_metadata = proj
+                
+        stack = chain_metadata.metadata_stack
+        da = chain_metadata.metadata_da_layer
+
+        ## iterate over main_config to get similar chains
+        for proj in self.main_config:
+            if proj.origin_key != origin_key:
+                if proj.metadata_stack == stack:
+                    similar_chains.append(proj.origin_key)
+                    
+        ## if similar chains is less than 7, try to find by da_layer
+        if len(similar_chains) < 7:
+            for proj in self.main_config:
+                if proj.origin_key != origin_key:
+                    if proj.metadata_da_layer == da and proj.origin_key not in similar_chains:
+                        similar_chains.append(proj.origin_key)
+                        
+        ## if still less than 7, fill with random chains
+        import random
+        all_chains = [proj.origin_key for proj in self.main_config if proj.origin_key != origin_key and proj.origin_key not in similar_chains]
+        while len(similar_chains) < 7:
+            similar_chains.append(random.choice(all_chains))
+            
+        ## only keep first 7 chains
+        similar_chains = similar_chains[:7]
+        return similar_chains
+    
     def create_master_json(self, df_data, private_access=None):
         exec_string = "SELECT category_id, category_name, main_category_id, main_category_name FROM vw_oli_category_mapping"
         df = pd.read_sql(exec_string, self.db_connector.engine.connect())
@@ -1129,6 +1165,7 @@ class JSONCreation():
                 'description': chain.metadata_description,
                 'da_layer': chain.metadata_da_layer,
                 'symbol': chain.metadata_symbol,
+                'gas_token': chain.metadata_gas_token,
                 'bucket': chain.bucket,
                 'ecosystem': chain.ecosystem,
                 'colors': chain.colors,
@@ -1144,6 +1181,7 @@ class JSONCreation():
                 'raas': chain.metadata_raas,
                 'stack': chain.metadata_stack,
                 'excluded_metrics': chain.api_exclude_metrics,
+                'similar_chains': self.get_similar_chains(origin_key),
                 
                 ## can be removed soon (see links)
                 'website': chain.links["website"] if chain.links and chain.links["website"] else None,

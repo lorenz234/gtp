@@ -714,19 +714,19 @@ def get_files_df_from_s3(bucket_name, prefix):
     df.sort_values(by='last_modified', ascending=False, inplace=True)
     return df
 
-def upload_image_to_cf_s3(bucket, s3_path, local_path, cf_distribution_id, file_type):
+def upload_image_to_cf_s3(bucket, s3_path, local_path, cf_distribution_id, file_type, invalidate=True):
     """
-    Uploads an image (PNG or SVG) to an S3 bucket and invalidates the CloudFront cache.
+    Uploads an image (JPG, PNG or SVG) to an S3 bucket and invalidates the CloudFront cache.
     
     :param bucket: S3 bucket name
     :param s3_path: Destination path in S3 (without extension)
     :param local_path: Local file path (with extension)
     :param cf_distribution_id: CloudFront distribution ID
-    :param file_type: Image file type ('png' or 'svg')
+    :param file_type: Image file type ('png', 'svg', 'jpg' or 'jpeg')
     """
-    valid_types = {'png': 'image/png', 'svg': 'image/svg+xml'}
+    valid_types = {'png': 'image/png', 'svg': 'image/svg+xml', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg'}
     if file_type not in valid_types:
-        raise ValueError("Unsupported file type. Use 'png' or 'svg'.")
+        raise ValueError("Unsupported file type. Use 'png', 'svg', 'jpg' or 'jpeg'.")
 
     s3_key = f"{s3_path}.{file_type}"
     content_type = valid_types[file_type]
@@ -750,7 +750,8 @@ def upload_image_to_cf_s3(bucket, s3_path, local_path, cf_distribution_id, file_
     print(f'..uploaded to {s3_key}')
     
     # Invalidate CloudFront cache
-    empty_cloudfront_cache(cf_distribution_id, f'/{s3_key}')
+    if invalidate:
+        empty_cloudfront_cache(cf_distribution_id, f'/{s3_key}')
 
 
 def upload_parquet_to_cf_s3(bucket, path_name, df, cf_distribution_id):
@@ -1028,9 +1029,12 @@ def upload_app_logo_files_to_s3(repo, files_to_upload, cf_bucket_name, cf_distri
                 s3_path=f'v1/apps/logos/{file_name}', 
                 local_path=f'temp_img.{file_type}', 
                 cf_distribution_id = cf_distribution_id, 
-                file_type = file_type)
+                file_type = file_type,
+                invalidate=False)
         except Exception as e:
             print(f"Error uploading {file.filename} to S3: {str(e)}")
+            
+    empty_cloudfront_cache(cf_distribution_id, '/v1/apps/logos/*')
         
     print("All files uploaded to S3.")
 

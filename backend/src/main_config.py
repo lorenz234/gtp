@@ -48,6 +48,7 @@ class MainConfig(BaseModel):
     ## METADATA
     metadata_description: Optional[str] = Field(alias="metadata_description", default=None)
     metadata_symbol: Optional[str] = Field(alias="metadata_symbol", default=None)
+    metadata_gas_token: Optional[str] = Field(alias="metadata_gas_token", default=None)
     metadata_launch_date: Optional[str] = Field(alias="metadata_launch_date", default=None)
     metadata_da_layer: Optional[str] = Field(alias="metadata_da_layer", default=None)
     metadata_technology: Optional[str] = Field(alias="metadata_technology", default=None)
