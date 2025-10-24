@@ -1,18 +1,12 @@
-from web3 import Web3
 from src.adapters.abstract_adapters import AbstractAdapter
-from src.misc.helper_functions import print_init, print_extract
 
 class AdapterLogs(AbstractAdapter):
     """
-    adapter_params require the following fields
-        rpc_url:str - the RPC URL to connect to the blockchain
+    w3: Web3 instance connected to a blockchain node
     """
-    def __init__(self, adapter_params:dict):
-        super().__init__("adapter_logs", adapter_params, None)
-
-        self.w3 = Web3(Web3.HTTPProvider(self.adapter_params['rpc_url']))
-        
-        print_init(self.name, self.adapter_params)
+    def __init__(self, w3):
+        super().__init__("adapter_logs", None, None)
+        self.w3 = w3
 
     """
     extract_params require the following fields:
@@ -47,7 +41,6 @@ class AdapterLogs(AbstractAdapter):
             all_logs.extend(logs)
             #print(f"Fetched {len(logs)} logs from blocks {chunk_start} to {chunk_end}")
         
-        print_extract(self.name, extract_params, len(all_logs))
         return all_logs
 
     ## ----------------- Helper functions --------------------
