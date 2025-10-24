@@ -205,7 +205,14 @@ rpc_config = {
         "sleeper": 3,
         "calc_fees": False,
     },
-
+    
+    "jovay": {
+        "name": "Jovay",
+        "processors": "evm",
+        "sleeper": 2,
+        "calc_fees": False,
+    },
+    
     # Custom Gas EVM chains
     "mantle": {
         "name": "Mantle",

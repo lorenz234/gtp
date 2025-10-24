@@ -759,7 +759,7 @@ class JsonGen():
             chains_dict["data"] = {
                 "chain_id": chain.origin_key,
                 "chain_name": chain.name,
-                "highlights": self.get_chain_highlights_dict(origin_key, days=7, limit=4),
+                "highlights": self.get_chain_highlights_dict(origin_key, days=5, limit=4),
                 "events": chain.events,
                 "ranking": self.get_chain_ranking_dict(origin_key),
                 "kpi_cards": self.get_kpi_cards_dict(chain),
