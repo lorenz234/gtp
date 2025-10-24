@@ -1,11 +1,12 @@
 from src.adapters.adapter_logs import AdapterLogs
 from eth_abi.abi import decode
+from datetime import timezone
 from web3 import Web3
 import pandas as pd
 import json
 
 from src.adapters.abstract_adapters import AbstractAdapter
-from src.misc.helper_functions import print_init, print_load, print_extract, upsert_table
+from src.misc.helper_functions import print_init, print_load, print_extract
 
 class AdapterOLI(AbstractAdapter):
     """
@@ -32,15 +33,25 @@ class AdapterOLI(AbstractAdapter):
 
     """
     extract_params require the following fields:
+        contract_address: str - the contract address to extract logs from
+        from_block: int - the starting block number
+        to_block: int - the ending block number
+        topics: list - list of log topics to filter by
+        chunk_size: int - number of blocks to process in each chunk (default on most free rpcs: 1000)
+        check_if_valid: bool - check a second time through an rpc call onchain if the attestation is valid (default: False)
     """
     def extract(self, extract_params:dict = None) -> pd.DataFrame:
         # store extracted logs with input information in d
         d = []
         logs = self.adapter_logs.extract(extract_params)
+        print(f"Total logs extracted: {len(logs)}")
         for log in logs:
             uid = '0x' + log['data'].hex()
             # check if attestation is valid
-            is_valid = self.contract.functions.isAttestationValid(uid).call()
+            if extract_params.get('check_if_valid', False):
+                is_valid = self.contract.functions.isAttestationValid(uid).call()
+            else:
+                is_valid = True
             if is_valid:
                 # read onchain attestation
                 r = self.get_attestation_data(uid)
@@ -49,18 +60,18 @@ class AdapterOLI(AbstractAdapter):
                 # append to d
                 d.append({
                     'uid': uid,
-                    'time': r['time'],
+                    'time': pd.to_datetime(r['time'], unit='s').isoformat(),
                     'attester': r['attester'],
                     'recipient': r['recipient'],
                     'revoked': False,
                     'is_offchain': False,
                     'tx_id': '0x' + log['transactionHash'].hex(),
                     'ipfs_hash': None,
-                    'revocation_time': r['revocationTime'],
+                    'revocation_time': pd.to_datetime(r['revocationTime'], unit='s').isoformat(),
                     'chain_id': label_data['chain_id'],
                     'tags_json': label_data['tags_json'],
                     'raw': None,
-                    'last_updated_time': None,
+                    'last_updated_time': pd.Timestamp.now(tz=timezone.utc).replace(tzinfo=None).isoformat(),
                     'schema_info': str(self.schema_chain) + '_' + r['schema']
                 })
         df = pd.DataFrame(d)
@@ -68,12 +79,19 @@ class AdapterOLI(AbstractAdapter):
         return df
 
     """
-    load_params require the following fields:
-        table_name: str - the name of the table to load data into
+    table_name: str - the name of the table to load data into
     """
-    def load(self, df: pd.DataFrame, load_params:dict = None):
-        self.db_connector.upsert_table('attestations', df)
-        print_load(self.name, load_params, df.shape)
+    def load(self, df: pd.DataFrame, table_name: str = 'attestations'):
+        # add prefix \x to attester, recipient, tx_id, uid columns
+        df['attester'] = df['attester'].apply(lambda x: '\\x' + x[2:])
+        df['recipient'] = df['recipient'].apply(lambda x: '\\x' + x[2:])
+        df['tx_id'] = df['tx_id'].apply(lambda x: '\\x' + x[2:])
+        df['uid'] = df['uid'].apply(lambda x: '\\x' + x[2:])
+        # set index uid 
+        df = df.set_index('uid')
+        # upsert into database
+        self.db_connector.upsert_table(table_name, df)
+        print_load(self.name, {'table': table_name}, df.shape)
 
     ## ----------------- Helper functions --------------------
 
@@ -130,6 +148,8 @@ class AdapterOLI(AbstractAdapter):
         
         # Parse JSON string back to dict
         tags_json = json.loads(tags_json_str)
+        if not isinstance(tags_json, dict):  # do not index invalid jsons or spam
+            tags_json = {}
         
         return {
             'chain_id': chain_id,
