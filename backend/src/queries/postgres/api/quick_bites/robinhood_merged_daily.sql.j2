@@ -12,10 +12,10 @@ all_stocks AS (
     SELECT contract_address 
     FROM public.robinhood_stock_list 
     WHERE 
-      ticker NOT ILIKE '%demo token%'
-      AND ticker NOT ILIKE '%OPAI%'
-      AND ticker NOT ILIKE '%SPACEX%'
-      AND ticker NOT ILIKE '%GME.WS%'
+      ticker NOT ILIKE '%%demo token%%'
+      AND ticker NOT ILIKE '%%OPAI%%'
+      AND ticker NOT ILIKE '%%SPACEX%%'
+      AND ticker NOT ILIKE '%%GME.WS%%'
   )
 ),
 complete_date_stock_grid AS (
