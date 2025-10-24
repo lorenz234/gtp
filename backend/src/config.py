@@ -1496,17 +1496,17 @@ relative_growth_dict_activity = {
         'agg': 'sum',
         'thresholds': {
                 1: 0.50,
-                7: 0.50,
-                30: 0.50
+                7: 0.75,
+                30: 1.00
         }
 }
 
 relative_growth_dict_value_locked = {
         'agg': 'last',
         'thresholds': {
-                1: 0.30,
+                1: 0.20,
                 7: 0.30,
-                30: 0.30
+                30: 0.50
         }
 }
 
