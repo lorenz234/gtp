@@ -8,7 +8,7 @@ import json
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.helper_functions import print_init, print_load, print_extract
 
-class AdapterOLI(AbstractAdapter):
+class AdapterOLIOnchain(AbstractAdapter):
     """
     adapter_params require the following fields
         rpc_url:str - the RPC URL to connect to the blockchain
@@ -76,7 +76,7 @@ class AdapterOLI(AbstractAdapter):
                     'recipient': r['recipient'],
                     'revoked': True if extract_params.get('topics', [None])[0] == '0xf930a6e2523c9cc298691873087a740550b8fc85a0680830414c148ed927f615' or r['revocationTime'] > 0 else False,
                     'is_offchain': False,
-                    'tx_id': '0x' + log['transactionHash'].hex(),
+                    'tx_hash': '0x' + log['transactionHash'].hex(),
                     'ipfs_hash': None,
                     'revocation_time': pd.to_datetime(r['revocationTime'], unit='s').isoformat(),
                     'chain_id': label_data['chain_id'],
@@ -97,10 +97,10 @@ class AdapterOLI(AbstractAdapter):
         if df.empty:
             print(f"No data to load.")
             return
-        # add prefix \x to attester, recipient, tx_id, uid columns
+        # add prefix \x to attester, recipient, tx_hash, uid columns
         df['attester'] = df['attester'].apply(lambda x: '\\x' + x[2:])
         df['recipient'] = df['recipient'].apply(lambda x: '\\x' + x[2:])
-        df['tx_id'] = df['tx_id'].apply(lambda x: '\\x' + x[2:])
+        df['tx_hash'] = df['tx_hash'].apply(lambda x: '\\x' + x[2:])
         df['uid'] = df['uid'].apply(lambda x: '\\x' + x[2:])
         # set index uid 
         df = df.set_index('uid')

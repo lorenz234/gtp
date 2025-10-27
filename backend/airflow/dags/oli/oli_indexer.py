@@ -20,26 +20,30 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Indexes the OLI Label Pool from onchain and offchain sources',
     tags=['indexing', 'oli', 'raw'],
     start_date=datetime(2025, 10, 27),
-    schedule='*/2 * * * *',  # Runs every 2 minutes
+    schedule='*/30 * * * *',  # Runs every 30 minutes
     catchup=False  # Prevents backfilling
 )
 
 def main():
 
     @task()
-    def sync_onchain():
+    def sync():
 
-        from backend.src.adapters.adapter_oli_onchain import AdapterOLI
+        from backend.src.adapters.adapter_oli_onchain import AdapterOLIOnchain
+        from backend.src.adapters.adapter_oli_offchain import AdapterOLIOffchain
         from src.db_connector import DbConnector
         import pandas as pd
 
         adapter_params = {'rpc_url': 'https://base.gateway.tenderly.co'}
         db_connector = DbConnector(db_name='oli')
-        ad = AdapterOLI(adapter_params, db_connector)
+        ad_onchain = AdapterOLIOnchain(adapter_params, db_connector)
+        ad_offchain = AdapterOLIOffchain(adapter_params, db_connector)
+
+        # ----------------- Onchain sync -----------------
 
         extract_params = {
-            'from_block': -100,
-            'to_block': 'latest'
+            'from_block': -50,  # add last run block
+            'to_block': 'latest' 
         }
 
         attest_topics = [
@@ -57,16 +61,38 @@ def main():
 
         # extract onchain attestations
         extract_params['topics'] = attest_topics
-        df_attest = ad.extract(extract_params)
+        df_attest = ad_onchain.extract(extract_params)
 
-        # extract revocations of onchain attestations
+        # extract onchain revocations of onchain attestations
         extract_params['topics'] = revoke_topics
-        df_revokes = ad.extract(extract_params)
+        df_revokes = ad_onchain.extract(extract_params)
 
         # merge df_attest & df_revokes, if there are duplicate uid, then keep the one in df_revokes (overwrites tx_id)
         df = pd.concat([df_revokes, df_attest]).drop_duplicates(subset=['uid']).reset_index(drop=True)
-        ad.load(df, 'attestations')
 
-    sync_onchain()
+        # load onchain attestations & revocations
+        ad_onchain.load(df, 'attestations')
+
+        # ----------------- Offchain sync -----------------
+
+        extract_params = {
+            'from_block': -50,  # add last run block
+            'to_block': 'latest',
+            'topics': [
+                '0x92a1f7a41a7c585a8b09e25b195e225b1d43248daca46b0faf9e0792777a2229', # Revoke topic of offchain attestations
+                None,
+                None,
+                None
+            ]
+        }
+
+        # extract onchain revocations of offchain attestations
+        df_revokes = ad_offchain.extract(extract_params)
+
+        # load offchain revocations
+        ad_offchain.load(df_revokes, 'attestations')
+
+
+    sync()
 
 main()
