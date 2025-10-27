@@ -15,7 +15,7 @@ class AdapterOLI(AbstractAdapter):
         eas_address:str - the address of the EAS contract (optional)
     """
     def __init__(self, adapter_params:dict, db_connector):
-        super().__init__("OLIv2", adapter_params, db_connector)
+        super().__init__("OLI_onchain", adapter_params, db_connector)
 
         # setup web3
         self.w3 = Web3(Web3.HTTPProvider(self.adapter_params['rpc_url']))
@@ -33,18 +33,29 @@ class AdapterOLI(AbstractAdapter):
 
     """
     extract_params require the following fields:
-        contract_address: str - the contract address to extract logs from
-        from_block: int - the starting block number
-        to_block: int - the ending block number
+        contract_address: str - (optional) the contract address to extract logs from
+        from_block: int - the starting block number (negative for latest block - x)
+        to_block: int - the ending block number (or 'latest')
         topics: list - list of log topics to filter by
         chunk_size: int - number of blocks to process in each chunk (default on most free rpcs: 1000)
         check_if_valid: bool - check a second time through an rpc call onchain if the attestation is valid (default: False)
     """
     def extract(self, extract_params:dict = None) -> pd.DataFrame:
+
+        # get block range if 'latest' or negative number
+        if extract_params.get('to_block', None) == 'latest':
+            extract_params['to_block'] = self.w3.eth.block_number
+        if extract_params.get('from_block', 0) < 0:
+            extract_params['from_block'] = extract_params.get('to_block', 0) + extract_params['from_block']
+        if extract_params.get('from_block', 0) > extract_params.get('to_block', 0):
+            raise ValueError("'from_block' must be less than 'to_block' in extract_params")
+
         # store extracted logs with input information in d
         d = []
         logs = self.adapter_logs.extract(extract_params)
         print(f"Total logs extracted: {len(logs)}")
+
+        # process each log and add context
         for log in logs:
             uid = '0x' + log['data'].hex()
             # check if attestation is valid
@@ -63,7 +74,7 @@ class AdapterOLI(AbstractAdapter):
                     'time': pd.to_datetime(r['time'], unit='s').isoformat(),
                     'attester': r['attester'],
                     'recipient': r['recipient'],
-                    'revoked': False,
+                    'revoked': True if extract_params.get('topics', [None])[0] == '0xf930a6e2523c9cc298691873087a740550b8fc85a0680830414c148ed927f615' or r['revocationTime'] > 0 else False,
                     'is_offchain': False,
                     'tx_id': '0x' + log['transactionHash'].hex(),
                     'ipfs_hash': None,
@@ -76,6 +87,7 @@ class AdapterOLI(AbstractAdapter):
                 })
         df = pd.DataFrame(d)
         print_extract(self.name, extract_params, df.shape)
+
         return df
 
     """
