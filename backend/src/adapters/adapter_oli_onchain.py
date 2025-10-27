@@ -94,6 +94,9 @@ class AdapterOLI(AbstractAdapter):
     table_name: str - the name of the table to load data into
     """
     def load(self, df: pd.DataFrame, table_name: str = 'attestations'):
+        if df.empty:
+            print(f"No data to load.")
+            return
         # add prefix \x to attester, recipient, tx_id, uid columns
         df['attester'] = df['attester'].apply(lambda x: '\\x' + x[2:])
         df['recipient'] = df['recipient'].apply(lambda x: '\\x' + x[2:])
