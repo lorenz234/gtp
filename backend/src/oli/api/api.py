@@ -435,7 +435,7 @@ async def post_bulk_attestations(req: BulkAttestationRequest):
     # 1. verify in parallel (your threadpool version)
     t_verify_start = time.perf_counter()
     results = await asyncio.gather(*[
-        verify_and_build(att, idx) for idx, att in enumerate(req.attestations)
+        verify_and_build(att) for att in req.attestations
     ], return_exceptions=True)
     t_verify_end = time.perf_counter()
 
