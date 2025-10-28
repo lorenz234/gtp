@@ -562,7 +562,7 @@ async def get_tags(
             tag_value=r["tag_value"],
             chain_id=r["chain_id"],
             time=r["time"],
-            attester=r["attester"].hex() if isinstance(r["attester"], (bytes, bytearray)) else r["attester"],
+            attester="0x" + (r["attester"].hex() if isinstance(r["attester"], (bytes, bytearray)) else r["attester"]),
         )
         for r in rows
     ]
