@@ -53,3 +53,5 @@ node_modules
 backend/add_new_date_indx.py
 backend/add_new_date.py
 backend/test_screenshots.py
+
+backend/src/adapters/*.txt

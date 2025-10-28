@@ -34,7 +34,7 @@ class AdapterOLIOnchain(AbstractAdapter):
     """
     extract_params require the following fields:
         contract_address: str - (optional) the contract address to extract logs from
-        from_block: int - the starting block number (negative for latest block - x)
+        from_block: int - the starting block number (negative number for latest block - x or 'last_run_block')
         to_block: int - the ending block number (or 'latest')
         topics: list - list of log topics to filter by
         chunk_size: int - number of blocks to process in each chunk (default on most free rpcs: 1000)
@@ -42,10 +42,15 @@ class AdapterOLIOnchain(AbstractAdapter):
     """
     def extract(self, extract_params:dict = None) -> pd.DataFrame:
 
-        # get block range if 'latest' or negative number
+        # store schema info
+        self.schema_info = str(self.schema_chain) + '_' + extract_params.get('topics', '')[3]
+
+        # get block range if 'latest', 'last_run_block' or negative number
         if extract_params.get('to_block', None) == 'latest':
             extract_params['to_block'] = self.w3.eth.block_number
-        if extract_params.get('from_block', 0) < 0:
+        if extract_params.get('from_block', None) == 'last_run_block':
+            extract_params['from_block'] = self.get_last_run_block(self.schema_info)
+        elif extract_params.get('from_block', 0) < 0:
             extract_params['from_block'] = extract_params.get('to_block', 0) + extract_params['from_block']
         if extract_params.get('from_block', 0) > extract_params.get('to_block', 0):
             raise ValueError("'from_block' must be less than 'to_block' in extract_params")
@@ -53,7 +58,6 @@ class AdapterOLIOnchain(AbstractAdapter):
         # store extracted logs with input information in d
         d = []
         logs = self.adapter_logs.extract(extract_params)
-        print(f"Total logs extracted: {len(logs)}")
 
         # process each log and add context
         for log in logs:
@@ -66,6 +70,7 @@ class AdapterOLIOnchain(AbstractAdapter):
             if is_valid:
                 # read onchain attestation
                 r = self.get_attestation_data(uid)
+                self.schema_info = str(self.schema_chain) + '_' + r['schema']
                 # decode label data
                 label_data = self.decode_label_data(r['data'])
                 # append to d
@@ -83,10 +88,15 @@ class AdapterOLIOnchain(AbstractAdapter):
                     'tags_json': label_data['tags_json'],
                     'raw': None,
                     'last_updated_time': pd.Timestamp.now(tz=timezone.utc).replace(tzinfo=None).isoformat(),
-                    'schema_info': str(self.schema_chain) + '_' + r['schema']
+                    'schema_info': self.schema_info
                 })
         df = pd.DataFrame(d)
-        print_extract(self.name, extract_params, df.shape)
+
+        # print extract info only if there was data extracted
+        if not df.empty:
+            print_extract(self.name, extract_params, df.shape)
+
+        self.extract_params = extract_params  # store for later use in saving last run block
 
         return df
 
@@ -94,19 +104,24 @@ class AdapterOLIOnchain(AbstractAdapter):
     table_name: str - the name of the table to load data into
     """
     def load(self, df: pd.DataFrame, table_name: str = 'attestations'):
+        
         if df.empty:
             print(f"No data to load.")
-            return
-        # add prefix \x to attester, recipient, tx_hash, uid columns
-        df['attester'] = df['attester'].apply(lambda x: '\\x' + x[2:])
-        df['recipient'] = df['recipient'].apply(lambda x: '\\x' + x[2:])
-        df['tx_hash'] = df['tx_hash'].apply(lambda x: '\\x' + x[2:])
-        df['uid'] = df['uid'].apply(lambda x: '\\x' + x[2:])
-        # set index uid 
-        df = df.set_index('uid')
-        # upsert into database
-        self.db_connector.upsert_table(table_name, df)
-        print_load(self.name, {'table': table_name}, df.shape)
+        else:
+            # add prefix \x to attester, recipient, tx_hash, uid columns
+            df['attester'] = df['attester'].apply(lambda x: '\\x' + x[2:])
+            df['recipient'] = df['recipient'].apply(lambda x: '\\x' + x[2:])
+            df['tx_hash'] = df['tx_hash'].apply(lambda x: '\\x' + x[2:])
+            df['uid'] = df['uid'].apply(lambda x: '\\x' + x[2:])
+            # set index uid
+            df = df.set_index('uid')
+            # upsert into database
+            self.db_connector.upsert_table(table_name, df)
+            print_load(self.name, {'table': table_name}, df.shape)
+        
+        # save last run block
+        self.save_last_run_block(self.schema_info, self.extract_params['from_block'], self.extract_params['to_block'])
+
 
     ## ----------------- Helper functions --------------------
 
@@ -171,3 +186,32 @@ class AdapterOLIOnchain(AbstractAdapter):
             'tags_json': tags_json
         }
     
+    def get_last_run_block(self, schema_info) -> int:
+        """
+        Retrieve the last run block number based on the connected chain from a stored file.
+        
+        Returns:
+            int: The last run block number.
+        """
+        try:
+            with open(f'src/adapters/adapter_oli_onchain_last_run_{schema_info}.txt', 'r') as f:
+                content = f.read()
+                content = json.loads(content.replace("'", '"'))
+                return content.get('to_block', 0)
+        except FileNotFoundError:
+            return 0
+
+    def save_last_run_block(self, schema_info, from_block: int, to_block: int):
+        """
+        Save the last run block number based on the connected chain to a stored file.
+        
+        Args:
+            from_block (int): The last run from block number.
+            to_block (int): The last run to block number.
+        """
+        with open(f'src/adapters/adapter_oli_onchain_last_run_{schema_info}.txt', 'w') as f:
+            f.write(str(
+                {'timestamp': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'from_block': from_block, 
+                'to_block': to_block}
+            ))

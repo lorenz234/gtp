@@ -18,6 +18,7 @@ class AdapterOLIOffchain(AbstractAdapter):
 
         # setup web3
         self.w3 = Web3(Web3.HTTPProvider(self.adapter_params['rpc_url']))
+        self.schema_chain = self.w3.eth.chain_id # which chain we are extracting from
 
         # setup logs adapter
         self.adapter_logs = AdapterLogs(self.w3)
@@ -27,7 +28,7 @@ class AdapterOLIOffchain(AbstractAdapter):
     """
     extract_params require the following fields:
         contract_address: str - (optional) the contract address to extract logs from
-        from_block: int - the starting block number (negative for latest block - x)
+        from_block: int - the starting block number (negative for latest block - x or 'last_run_block')
         to_block: int - the ending block number (or 'latest')
         topics: list - list of log topics to filter by
         chunk_size: int - number of blocks to process in each chunk (default on most free rpcs: 1000)
@@ -37,7 +38,9 @@ class AdapterOLIOffchain(AbstractAdapter):
         # get block range if 'latest' or negative number
         if extract_params.get('to_block', None) == 'latest':
             extract_params['to_block'] = self.w3.eth.block_number
-        if extract_params.get('from_block', 0) < 0:
+        if extract_params.get('from_block', 0) == 'last_run_block':
+            extract_params['from_block'] = self.get_last_run_block(self.schema_chain)
+        elif extract_params.get('from_block', 0) < 0:
             extract_params['from_block'] = extract_params.get('to_block', 0) + extract_params['from_block']
         if extract_params.get('from_block', 0) > extract_params.get('to_block', 0):
             raise ValueError("'from_block' must be less than 'to_block' in extract_params")
@@ -57,8 +60,12 @@ class AdapterOLIOffchain(AbstractAdapter):
                 'revoker': '0x' + log['topics'][1].hex()[24:]
             })
         df = pd.DataFrame(d)
-        
-        print_extract(self.name, extract_params, df.shape)
+
+        # print extract info only if there was data extracted
+        if not df.empty:
+            print_extract(self.name, extract_params, df.shape)
+
+        self.extract_params = extract_params  # store for later use in saving last run block
 
         return df
 
@@ -69,26 +76,54 @@ class AdapterOLIOffchain(AbstractAdapter):
         
         if df.empty:
             print(f"No data to load.")
-            return
         
-        # turn revocation_time into ISO string
-        if 'revocation_time' in df.columns:
-            df['revocation_time'] = df['revocation_time'].apply(lambda x: pd.to_datetime(x, unit='s').strftime('%Y-%m-%d %H:%M:%S'))
+        else:
+            # turn revocation_time into ISO string
+            if 'revocation_time' in df.columns:
+                df['revocation_time'] = df['revocation_time'].apply(lambda x: pd.to_datetime(x, unit='s').strftime('%Y-%m-%d %H:%M:%S'))
+            for index, row in df.iterrows():
+                query = f"""
+                    UPDATE public.{table_name}
+                    SET
+                        revoked = true,
+                        revocation_time = '{row['revocation_time']}',
+                        tx_hash = decode('{row['tx_hash'][2:] if row['tx_hash'].startswith('0x') else row['tx_hash']}', 'hex'),
+                        last_updated_time = NOW()
+                    WHERE uid = decode('{row['uid'][2:] if row['uid'].startswith('0x') else row['uid']}', 'hex');
+                """
+                r = self.db_connector.execute_query(query)
+            print_load(self.name, {'table': table_name}, df.shape)
         
-        for index, row in df.iterrows():
-            query = f"""
-                UPDATE public.{table_name}
-                SET
-                    revoked = true,
-                    revocation_time = '{row['revocation_time']}',
-                    tx_hash = decode('{row['tx_hash'][2:] if row['tx_hash'].startswith('0x') else row['tx_hash']}', 'hex'),
-                    last_updated_time = NOW()
-                WHERE uid = decode('{row['uid'][2:] if row['uid'].startswith('0x') else row['uid']}', 'hex');
-            """
-            r = self.db_connector.execute_query(query)
-
-        print_load(self.name, {'table': table_name}, df.shape)
+        self.save_last_run_block(self.schema_chain, self.extract_params['from_block'], self.extract_params['to_block'])
 
     ## ----------------- Helper functions --------------------
 
-    
+    def get_last_run_block(self, schema_chain) -> int:
+        """
+        Retrieve the last run block number based on the connected chain from a stored file.
+        
+        Returns:
+            int: The last run block number.
+        """
+        try:
+            with open(f'src/adapters/adapter_oli_offchain_last_run_{schema_chain}.txt', 'r') as f:
+                content = f.read()
+                content = json.loads(content.replace("'", '"'))
+                return content.get('to_block', 0)
+        except FileNotFoundError:
+            return 0
+
+    def save_last_run_block(self, schema_chain, from_block: int, to_block: int):
+        """
+        Save the last run block number based on the connected chain to a stored file.
+        
+        Args:
+            from_block (int): The last run from block number.
+            to_block (int): The last run to block number.
+        """
+        with open(f'src/adapters/adapter_oli_offchain_last_run_{schema_chain}.txt', 'w') as f:
+            f.write(str(
+                {'timestamp': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'from_block': from_block, 
+                'to_block': to_block}
+            ))
