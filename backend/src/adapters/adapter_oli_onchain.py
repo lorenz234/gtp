@@ -106,7 +106,8 @@ class AdapterOLIOnchain(AbstractAdapter):
     def load(self, df: pd.DataFrame, table_name: str = 'attestations'):
         
         if df.empty:
-            print(f"No data to load.")
+            #print(f"No data to load.")
+            pass
         else:
             # add prefix \x to attester, recipient, tx_hash, uid columns
             df['attester'] = df['attester'].apply(lambda x: '\\x' + x[2:])

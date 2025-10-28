@@ -75,7 +75,8 @@ class AdapterOLIOffchain(AbstractAdapter):
     def load(self, df: pd.DataFrame, table_name: str = 'attestations'):
         
         if df.empty:
-            print(f"No data to load.")
+            #print(f"No data to load.")
+            pass
         
         else:
             # turn revocation_time into ISO string
