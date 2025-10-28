@@ -113,7 +113,8 @@ def etl():
         from src.db_connector import DbConnector
         from src.misc.jinja_helper import execute_jinja_query
         
-        execute_jinja_query(DbConnector(), "chain_metrics/upsert_fact_kpis_agg_ecosystem.sql.j2", {"days": 9999})
+        db_connector = DbConnector()
+        execute_jinja_query(db_connector, "chain_metrics/upsert_fact_kpis_agg_ecosystem.sql.j2", {"days": 9999})
 
     usd_to_eth = run_usd_to_eth()
     da = run_da_metrics()
