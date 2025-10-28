@@ -12,6 +12,11 @@ from eth_account.messages import encode_typed_data
 from eth_abi import decode as abi_decode
 import json
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
+executor = ThreadPoolExecutor(max_workers=4)
+
 USE_DOTENV = os.getenv("USE_DOTENV", "false").lower() == "true"
 if USE_DOTENV:
     import dotenv
@@ -45,10 +50,6 @@ def hex_to_bytes(value: str) -> bytes:
 def unix_str_to_datetime(value: str) -> datetime:
     ts_int = int(value)
     return datetime.fromtimestamp(ts_int, tz=timezone.utc)
-
-def _uint_to_be(value: int, num_bytes: int) -> bytes:
-    return value.to_bytes(num_bytes, byteorder="big", signed=False)
-
 
 #
 # MODELS (Pydantic v2 style)
@@ -418,30 +419,34 @@ async def post_single_attestation(payload: AttestationPayload):
     )
 
 
+async def verify_and_build(att: AttestationPayload):
+    # run verify_attestation(att) in a thread
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(executor, verify_attestation, att)
+    # if it didn't raise, build row
+    return build_row_from_payload(att)
+
 @app.post("/attestations/bulk", response_model=BulkAttestationResponse)
 async def post_bulk_attestations(req: BulkAttestationRequest):
-    valid_rows = []
-    failed_validation: List[Dict[str, Any]] = []
+    tasks = [verify_and_build(att) for att in req.attestations]
 
-    for idx, att in enumerate(req.attestations):
-        try:
-            verify_attestation(att)
-            row = build_row_from_payload(att)
-            valid_rows.append(row)
-        except HTTPException as e:
-            failed_validation.append({
-                "index": idx,
-                "reason": e.detail,
-            })
-        except Exception as e:
-            failed_validation.append({
-                "index": idx,
-                "reason": str(e),
-            })
+    valid_rows = []
+    failed_validation = []
+
+    # gather them all concurrently
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for idx, result in enumerate(results):
+        if isinstance(result, Exception):
+            if isinstance(result, HTTPException):
+                failed_validation.append({"index": idx, "reason": result.detail})
+            else:
+                failed_validation.append({"index": idx, "reason": str(result)})
+        else:
+            valid_rows.append(result)
 
     inserted = 0
     dupes = 0
-
     if valid_rows:
         async with app.state.db.acquire() as conn:
             async with conn.transaction():
