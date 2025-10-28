@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Any, Dict, Tuple
 from datetime import datetime, timezone
@@ -498,6 +498,79 @@ async def post_bulk_attestations(req: BulkAttestationRequest):
         duplicates=dupes,
         failed_validation=failed_validation,
         status="queued"
+    )
+    
+    
+### GET endpoints
+
+class TagItem(BaseModel):
+    tag_id: str
+    tag_value: str
+    chain_id: str
+    time: datetime
+    attester: Optional[str]
+
+class TagsResponse(BaseModel):
+    address: str
+    count: int
+    tags: List[TagItem]
+
+
+@app.get("/tags", response_model=TagsResponse)
+async def get_tags(
+    address: str = Query(..., description="Recipient address (0x...)"),
+    chain_id: Optional[str] = Query(None, description="Optional chain_id filter"),
+    limit: int = Query(100, le=1000, description="Max number of tags to return"),
+):
+    """Return all tags (key/value) for a given recipient address."""
+
+    async with app.state.db.acquire() as conn:
+        # normalize address (lowercase + 0x)
+        addr = address.lower()
+        if not addr.startswith("0x"):
+            addr = "0x" + addr
+
+        sql = """
+            SELECT
+                chain_id,
+                tag_id,
+                tag_value,
+                time,
+                attester
+            FROM public.labels
+            WHERE address = $1
+            {chain_filter}
+            ORDER BY time DESC
+            LIMIT $2;
+        """
+
+        chain_filter = ""
+        params = [hex_to_bytes(addr), limit]
+
+        if chain_id:
+            chain_filter = "AND chain_id = $2"
+            params = [chain_id, hex_to_bytes(addr), limit]  # reorder
+
+        # fill template
+        sql = sql.format(chain_filter=chain_filter)
+
+        rows = await conn.fetch(sql, *params)
+
+    tags = [
+        TagItem(
+            tag_id=r["tag_id"],
+            tag_value=r["tag_value"],
+            chain_id=r["chain_id"],
+            time=r["time"],
+            attester=r["attester"].hex() if isinstance(r["attester"], (bytes, bytearray)) else r["attester"],
+        )
+        for r in rows
+    ]
+
+    return TagsResponse(
+        address=address,
+        count=len(tags),
+        tags=tags,
     )
     
 if __name__ == "__main__":
