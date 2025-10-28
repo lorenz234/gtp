@@ -13,9 +13,10 @@ from eth_abi import decode as abi_decode
 import json
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
-executor = ThreadPoolExecutor(max_workers=4)
+# tune max_workers to match available CPUs in Cloud Run
+process_pool = ProcessPoolExecutor(max_workers=4)
 
 USE_DOTENV = os.getenv("USE_DOTENV", "false").lower() == "true"
 if USE_DOTENV:
@@ -419,34 +420,55 @@ async def post_single_attestation(payload: AttestationPayload):
     )
 
 
-async def verify_and_build(att: AttestationPayload):
-    # run verify_attestation(att) in a thread
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(executor, verify_attestation, att)
-    # if it didn't raise, build row
-    return build_row_from_payload(att)
+def verify_and_build_sync(att_dict: dict) -> dict:
+    # Recreate the object from plain data
+    payload = AttestationPayload.model_validate(att_dict)
+
+    # This will raise HTTPException(400) on bad sig
+    verify_attestation(payload)
+
+    # Build the row (no async inside here, just pure compute)
+    row = build_row_from_payload(payload)
+
+    return row
 
 import time
+import asyncio
+from fastapi import HTTPException
 
 @app.post("/attestations/bulk", response_model=BulkAttestationResponse)
 async def post_bulk_attestations(req: BulkAttestationRequest):
     t0 = time.perf_counter()
 
-    # 1. verify in parallel (your threadpool version)
+    # 1. schedule verify+build for each attestation in parallel across processes
     t_verify_start = time.perf_counter()
-    results = await asyncio.gather(*[
-        verify_and_build(att) for att in req.attestations
-    ], return_exceptions=True)
+
+    loop = asyncio.get_running_loop()
+    tasks = []
+    for att in req.attestations:
+        att_dict = att.model_dump(by_alias=True)  # plain dict for pickling
+        tasks.append(loop.run_in_executor(process_pool, verify_and_build_sync, att_dict))
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
     t_verify_end = time.perf_counter()
 
     valid_rows = []
     failed_validation: List[Dict[str, Any]] = []
+
     for idx, result in enumerate(results):
         if isinstance(result, Exception):
+            # If verify_attestation raised HTTPException, keep its reason
             if isinstance(result, HTTPException):
-                failed_validation.append({"index": idx, "reason": result.detail})
+                failed_validation.append({
+                    "index": idx,
+                    "reason": result.detail,
+                })
             else:
-                failed_validation.append({"index": idx, "reason": str(result)})
+                failed_validation.append({
+                    "index": idx,
+                    "reason": str(result),
+                })
         else:
             valid_rows.append(result)
 
@@ -461,11 +483,14 @@ async def post_bulk_attestations(req: BulkAttestationRequest):
     t_insert_end = time.perf_counter()
 
     t_done = time.perf_counter()
+
     print({
         "count": len(req.attestations),
         "verify_sec": t_verify_end - t_verify_start,
         "insert_sec": t_insert_end - t_insert_start,
         "total_sec": t_done - t0,
+        "accepted_after_verify": len(valid_rows),
+        "failed_validation": len(failed_validation),
     })
 
     return BulkAttestationResponse(
