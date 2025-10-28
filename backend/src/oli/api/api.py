@@ -426,16 +426,21 @@ async def verify_and_build(att: AttestationPayload):
     # if it didn't raise, build row
     return build_row_from_payload(att)
 
+import time
+
 @app.post("/attestations/bulk", response_model=BulkAttestationResponse)
 async def post_bulk_attestations(req: BulkAttestationRequest):
-    tasks = [verify_and_build(att) for att in req.attestations]
+    t0 = time.perf_counter()
+
+    # 1. verify in parallel (your threadpool version)
+    t_verify_start = time.perf_counter()
+    results = await asyncio.gather(*[
+        verify_and_build(att, idx) for idx, att in enumerate(req.attestations)
+    ], return_exceptions=True)
+    t_verify_end = time.perf_counter()
 
     valid_rows = []
-    failed_validation = []
-
-    # gather them all concurrently
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
+    failed_validation: List[Dict[str, Any]] = []
     for idx, result in enumerate(results):
         if isinstance(result, Exception):
             if isinstance(result, HTTPException):
@@ -445,12 +450,23 @@ async def post_bulk_attestations(req: BulkAttestationRequest):
         else:
             valid_rows.append(result)
 
+    # 2. insert
+    t_insert_start = time.perf_counter()
     inserted = 0
     dupes = 0
     if valid_rows:
         async with app.state.db.acquire() as conn:
             async with conn.transaction():
                 inserted, dupes = await insert_attestations(conn, valid_rows)
+    t_insert_end = time.perf_counter()
+
+    t_done = time.perf_counter()
+    print({
+        "count": len(req.attestations),
+        "verify_sec": t_verify_end - t_verify_start,
+        "insert_sec": t_insert_end - t_insert_start,
+        "total_sec": t_done - t0,
+    })
 
     return BulkAttestationResponse(
         accepted=inserted,
