@@ -190,14 +190,13 @@ class AttestationRecord(BaseModel):
     time: datetime
     chain_id: Optional[str]
     attester: str
-    recipient: str
+    recipient: Optional[str]  # <- was str
     revoked: bool
     is_offchain: bool
     ipfs_hash: Optional[str]
     schema_info: str
     tags_json: Optional[Dict[str, Any]]
-    raw: Dict[str, Any]
-
+    raw: Optional[Dict[str, Any]]
 
 class AttestationQueryResponse(BaseModel):
     count: int
@@ -584,27 +583,46 @@ def _bytes_to_hexmaybe(v: Any) -> Optional[str]:
         return None
     if isinstance(v, (bytes, bytearray)):
         return "0x" + v.hex()
-    return str(v)
+    # assume it's already string-ish
+    s = str(v)
+    # normalize to lower 0x... if it looks like hex without 0x
+    if s.startswith("0x") or s.startswith("0X"):
+        return s.lower()
+    # if it's 64-char hex without 0x, add it
+    if all(c in "0123456789abcdefABCDEF" for c in s) and len(s) in (40, 64):
+        return "0x" + s.lower()
+    return s.lower()
 
 def _row_to_attestation_record(r) -> AttestationRecord:
-    # uid, attester, recipient are bytea in DB
     uid_hex = _bytes_to_hexmaybe(r["uid"])
     attester_hex = _bytes_to_hexmaybe(r["attester"])
     recipient_hex = _bytes_to_hexmaybe(r["recipient"])
 
-    # tags_json is jsonb -> asyncpg returns it as dict already in most configs.
-    # raw is stored as json.dumps(...) string in our code, so we need to json.loads.
+    # tags_json handling:
     tags_val = r["tags_json"]
+    # If it's a string of JSON, parse it
+    if isinstance(tags_val, str):
+        try:
+            tags_val = json.loads(tags_val)
+        except Exception:
+            # fallback: leave as None if it failed
+            tags_val = None
+    # If it's None or already dict, fine.
+
+    # raw handling:
     raw_val = r["raw"]
     if isinstance(raw_val, str):
         try:
             raw_val = json.loads(raw_val)
         except Exception:
-            # fallback, shouldn't happen if we always stored json.dumps
-            raw_val = {"_unparsed": raw_val}
+            raw_val = None
+    # could also be already dict (asyncpg sometimes de-jsons jsonb automatically)
+    if raw_val is not None and not isinstance(raw_val, dict):
+        # last resort normalize
+        raw_val = None
 
     return AttestationRecord(
-        uid=uid_hex,
+        uid=uid_hex or "",
         time=r["time"],
         chain_id=r["chain_id"],
         attester=attester_hex,
