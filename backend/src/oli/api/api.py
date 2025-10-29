@@ -374,7 +374,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Attestation Ingest API",
+    title="Open Labels Initiative: Label Pool API",
     lifespan=lifespan,
 )
 
