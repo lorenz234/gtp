@@ -164,6 +164,7 @@ class BulkLabelsRequest(BaseModel):
         le=1000,
         description="Max labels to return per address in the response"
     )
+    include_all: bool = False
 
 class AddressLabels(BaseModel):
     address: str
@@ -383,7 +384,7 @@ app = FastAPI(
 # DB INSERT
 #
 
-async def insert_attestations(conn, rows: List[dict]) -> (int, int):
+async def insert_attestations(conn, rows: List[dict]):
     if not rows:
         return 0, 0
 
@@ -639,16 +640,16 @@ def _row_to_attestation_record(r) -> AttestationRecord:
 async def get_labels(
     address: str = Query(..., description="Address (0x...)"),
     chain_id: Optional[str] = Query(None, description="Optional chain_id filter"),
-    limit: int = Query(100, le=500, description="Max number of labels to return"),
+    limit: int = Query(100, le=1000, description="Max number of labels to return"),
+    include_all: bool = Query(False, description="If false (default), return only the latest label per (chain_id, attester, tag_id)"),
 ):
-    """Return all labels (key/value) for a given address."""
+    """Return labels (key/value) for a given address. By default, only the newest per (chain_id, attester, tag_id)."""
 
     # normalize address
     addr_norm = address.lower()
     if not addr_norm.startswith("0x"):
         addr_norm = "0x" + addr_norm
 
-    # We'll build WHERE ... step by step
     where_clauses = ["address = $1"]
     params = [hex_to_bytes(addr_norm)]
     next_param = 2
@@ -662,18 +663,35 @@ async def get_labels(
     limit_param_num = next_param
     params.append(int(limit))
 
-    sql = f"""
-        SELECT
-            chain_id,
-            tag_id,
-            tag_value,
-            time,
-            attester
-        FROM public.labels
-        WHERE {' AND '.join(where_clauses)}
-        ORDER BY time DESC
-        LIMIT ${limit_param_num};
-    """
+    if include_all:
+        # Return all label rows (no collapsing)
+        sql = f"""
+            SELECT
+                chain_id,
+                tag_id,
+                tag_value,
+                time,
+                attester
+            FROM public.labels
+            WHERE {' AND '.join(where_clauses)}
+            ORDER BY time DESC
+            LIMIT ${limit_param_num};
+        """
+    else:
+        # Return only latest per (chain_id, attester, tag_id)
+        # DISTINCT ON requires ORDER BY keys first, then time DESC
+        sql = f"""
+            SELECT DISTINCT ON (chain_id, attester, tag_id)
+                chain_id,
+                tag_id,
+                tag_value,
+                time,
+                attester
+            FROM public.labels
+            WHERE {' AND '.join(where_clauses)}
+            ORDER BY chain_id, attester, tag_id, time DESC
+            LIMIT ${limit_param_num};
+        """
 
     async with app.state.db.acquire() as conn:
         rows = await conn.fetch(sql, *params)
@@ -706,14 +724,11 @@ async def get_labels(
 async def get_labels_bulk(req: BulkLabelsRequest):
     # 1. normalize and dedupe input addresses
     normalized_addrs = [normalize_eth_address(a) for a in req.addresses]
-    # map original -> normalized (for nicer response)
-    # and keep insertion order stable
     orig_to_norm = {orig: normalize_eth_address(orig) for orig in req.addresses}
 
     # convert to bytes for DB match
     addr_bytes_list = [hex_to_bytes(a) for a in normalized_addrs]
 
-    # if caller somehow sends duplicates, we don't need to ask DB twice
     unique_addr_bytes_list = []
     seen = set()
     for b in addr_bytes_list:
@@ -721,27 +736,45 @@ async def get_labels_bulk(req: BulkLabelsRequest):
             seen.add(b)
             unique_addr_bytes_list.append(b)
 
-    # 2. build SQL dynamically based on optional chain_id
-    chain_filter_sql = ""
+    # 2. build SQL dynamically based on optional chain_id and include_all
     params = [unique_addr_bytes_list]
+    chain_filter_sql = ""
 
     if req.chain_id:
         chain_filter_sql = "AND l.chain_id = $2"
         params.append(req.chain_id)
 
-    sql = f"""
-        SELECT
-            l.address,
-            l.chain_id,
-            l.tag_id,
-            l.tag_value,
-            l."time",
-            l.attester
-        FROM public.labels AS l
-        WHERE l.address = ANY($1)
-        {chain_filter_sql}
-        ORDER BY l."time" DESC;
-    """
+    if req.include_all:
+        # No collapse: return all labels then enforce per-address limit in Python
+        sql = f"""
+            SELECT
+                l.address,
+                l.chain_id,
+                l.tag_id,
+                l.tag_value,
+                l."time",
+                l.attester
+            FROM public.labels AS l
+            WHERE l.address = ANY($1)
+            {chain_filter_sql}
+            ORDER BY l."time" DESC;
+        """
+    else:
+        # Collapse to latest per (address, chain_id, attester, tag_id)
+        # DISTINCT ON: order by those keys first, then time desc
+        sql = f"""
+            SELECT DISTINCT ON (l.address, l.chain_id, l.attester, l.tag_id)
+                l.address,
+                l.chain_id,
+                l.tag_id,
+                l.tag_value,
+                l."time",
+                l.attester
+            FROM public.labels AS l
+            WHERE l.address = ANY($1)
+            {chain_filter_sql}
+            ORDER BY l.address, l.chain_id, l.attester, l.tag_id, l."time" DESC;
+        """
 
     async with app.state.db.acquire() as conn:
         rows = await conn.fetch(sql, *params)
@@ -751,7 +784,6 @@ async def get_labels_bulk(req: BulkLabelsRequest):
 
     for r in rows:
         addr_bytes = r["address"]
-        # convert address bytes -> lower-hex "0x..."
         if isinstance(addr_bytes, (bytes, bytearray)):
             addr_hex = "0x" + addr_bytes.hex()
         else:
@@ -771,18 +803,14 @@ async def get_labels_bulk(req: BulkLabelsRequest):
             attester=attester_hex,
         )
 
-        if addr_hex not in grouped:
-            grouped[addr_hex] = []
-        grouped[addr_hex].append(item)
+        grouped.setdefault(addr_hex, []).append(item)
 
-    # 4. enforce per-address limit_per_address
-    # and return results in the same order as the user sent addresses
+    # 4. enforce per-address limit_per_address and keep original order
     results: List[AddressLabels] = []
     for orig in req.addresses:
-        norm = orig_to_norm[orig]  # normalized "0x..." lowercase
-        tags_for_addr = grouped.get(norm, [])
-        # apply limit
-        limited = tags_for_addr[: req.limit_per_address]
+        norm = orig_to_norm[orig]
+        labels_for_addr = grouped.get(norm, [])
+        limited = labels_for_addr[: req.limit_per_address]
         results.append(AddressLabels(address=norm, labels=limited))
 
     return BulkLabelsResponse(results=results)
