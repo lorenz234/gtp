@@ -639,55 +639,65 @@ def _row_to_attestation_record(r) -> AttestationRecord:
 async def get_labels(
     address: str = Query(..., description="Address (0x...)"),
     chain_id: Optional[str] = Query(None, description="Optional chain_id filter"),
-    limit: int = Query(100, le=1000, description="Max number of labels to return"),
+    limit: int = Query(100, le=500, description="Max number of labels to return"),
 ):
     """Return all labels (key/value) for a given address."""
 
+    # normalize address
+    addr_norm = address.lower()
+    if not addr_norm.startswith("0x"):
+        addr_norm = "0x" + addr_norm
+
+    # We'll build WHERE ... step by step
+    where_clauses = ["address = $1"]
+    params = [hex_to_bytes(addr_norm)]
+    next_param = 2
+
+    if chain_id:
+        where_clauses.append(f"chain_id = ${next_param}")
+        params.append(chain_id)
+        next_param += 1
+
+    # LIMIT is always the last param
+    limit_param_num = next_param
+    params.append(int(limit))
+
+    sql = f"""
+        SELECT
+            chain_id,
+            tag_id,
+            tag_value,
+            time,
+            attester
+        FROM public.labels
+        WHERE {' AND '.join(where_clauses)}
+        ORDER BY time DESC
+        LIMIT ${limit_param_num};
+    """
+
     async with app.state.db.acquire() as conn:
-        # normalize address (lowercase + 0x)
-        addr = address.lower()
-        if not addr.startswith("0x"):
-            addr = "0x" + addr
-
-        sql = """
-            SELECT
-                chain_id,
-                tag_id,
-                tag_value,
-                time,
-                attester
-            FROM public.labels
-            WHERE address = $1
-            {chain_filter}
-            ORDER BY time DESC
-            LIMIT $2;
-        """
-
-        chain_filter = ""
-        params = [hex_to_bytes(addr), int(limit)]
-
-        if chain_id:
-            chain_filter = "AND chain_id = $2"
-            params = [chain_id, hex_to_bytes(addr), int(limit)]  # reorder
-
-        # fill template
-        sql = sql.format(chain_filter=chain_filter)
-
         rows = await conn.fetch(sql, *params)
 
-    labels= [
-        LabelItem(
-            tag_id=r["tag_id"],
-            tag_value=r["tag_value"],
-            chain_id=r["chain_id"],
-            time=r["time"],
-            attester="0x" + (r["attester"].hex() if isinstance(r["attester"], (bytes, bytearray)) else r["attester"]),
+    labels = []
+    for r in rows:
+        attester_val = r["attester"]
+        if isinstance(attester_val, (bytes, bytearray)):
+            attester_hex = "0x" + attester_val.hex()
+        else:
+            attester_hex = attester_val
+
+        labels.append(
+            LabelItem(
+                tag_id=r["tag_id"],
+                tag_value=r["tag_value"],
+                chain_id=r["chain_id"],
+                time=r["time"],
+                attester=attester_hex,
+            )
         )
-        for r in rows
-    ]
 
     return LabelsResponse(
-        address=address,
+        address=addr_norm,
         count=len(labels),
         labels=labels,
     )
@@ -782,7 +792,7 @@ async def search_addresses_by_tag(
     tag_id: str = Query(..., description="The tag key, e.g. 'usage_category'"),
     tag_value: str = Query(..., description="The tag value, e.g. 'dex'"),
     chain_id: Optional[str] = Query(None, description="Optional chain_id filter, e.g. 'eip155:8453'"),
-    limit: int = Query(1000, ge=1, le=5000, description="Max number of addresses to return"),
+    limit: int = Query(100, ge=1, le=1000, description="Max number of addresses to return"),
 ):
     """
     Return all addresses that have a specific tag_id=tag_value pair.
@@ -863,9 +873,9 @@ async def get_attestations(
         description="Filter by schema_info (e.g. '8453__0xabc...')"
     ),
     limit: int = Query(
-        100,
+        30,
         ge=1,
-        le=1000,
+        le=100,
         description="Max number of attestations to return"
     ),
 ):
@@ -969,7 +979,7 @@ async def get_attester_analytics(
     chain_id: Optional[str] = Query(
         None, description="Optional chain_id filter, e.g. 'eip155:8453'"
     ),
-    limit: int = Query(100, ge=1, le=1000, description="Number of rows to return"),
+    limit: int = Query(20, ge=1, le=100, description="Number of rows to return"),
     order_by: str = Query(
         "tags",
         pattern="^(tags|attestations)$",
