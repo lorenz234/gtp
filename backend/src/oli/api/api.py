@@ -797,28 +797,35 @@ async def search_addresses_by_tag(
     """
     Return all addresses that have a specific tag_id=tag_value pair.
     """
-    sql = """
+
+    # Build WHERE dynamically
+    where_clauses = [
+        "l.tag_id = $1",
+        "l.tag_value = $2",
+    ]
+    params = [tag_id, tag_value]
+    next_param = 3
+
+    if chain_id:
+        where_clauses.append(f"l.chain_id = ${next_param}")
+        params.append(chain_id)
+        next_param += 1
+
+    # LIMIT is always the last parameter
+    limit_param_num = next_param
+    params.append(int(limit))
+
+    sql = f"""
         SELECT
             l.address,
             l.chain_id,
             l.time,
             l.attester
         FROM public.labels AS l
-        WHERE l.tag_id = $1
-          AND l.tag_value = $2
-          {chain_filter}
+        WHERE {' AND '.join(where_clauses)}
         ORDER BY l.time DESC
-        LIMIT $3;
+        LIMIT ${limit_param_num};
     """
-
-    chain_filter = ""
-    params = [tag_id, tag_value, int(limit)]
-
-    if chain_id:
-        chain_filter = "AND l.chain_id = $3"
-        params = [tag_id, tag_value, chain_id, int(limit)]
-
-    sql = sql.format(chain_filter=chain_filter)
 
     async with app.state.db.acquire() as conn:
         rows = await conn.fetch(sql, *params)
@@ -826,12 +833,14 @@ async def search_addresses_by_tag(
     results: List[AddressWithLabel] = []
 
     for r in rows:
+        # normalize address bytes → 0x...
         addr_bytes = r["address"]
         if isinstance(addr_bytes, (bytes, bytearray)):
             addr_hex = "0x" + addr_bytes.hex()
         else:
             addr_hex = str(addr_bytes).lower()
 
+        # normalize attester bytes → 0x...
         attester_val = r["attester"]
         if isinstance(attester_val, (bytes, bytearray)):
             attester_hex = "0x" + attester_val.hex()
@@ -866,7 +875,7 @@ async def get_attestations(
     ),
     recipient: Optional[str] = Query(
         None,
-        description="Filter by recipient address (0x...)"
+        description="Filter by address (0x...)"
     ),
     schema_info: Optional[str] = Query(
         None,
