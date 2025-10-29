@@ -646,11 +646,11 @@ async def get_labels(
         """
 
         chain_filter = ""
-        params = [hex_to_bytes(addr), limit]
+        params = [hex_to_bytes(addr), int(limit)]
 
         if chain_id:
             chain_filter = "AND chain_id = $2"
-            params = [chain_id, hex_to_bytes(addr), limit]  # reorder
+            params = [chain_id, hex_to_bytes(addr), int(limit)]  # reorder
 
         # fill template
         sql = sql.format(chain_filter=chain_filter)
@@ -784,11 +784,11 @@ async def search_addresses_by_tag(
     """
 
     chain_filter = ""
-    params = [tag_id, tag_value, limit]
+    params = [tag_id, tag_value, int(limit)]
 
     if chain_id:
         chain_filter = "AND l.chain_id = $3"
-        params = [tag_id, tag_value, chain_id, limit]
+        params = [tag_id, tag_value, chain_id, int(limit)]
 
     sql = sql.format(chain_filter=chain_filter)
 
@@ -935,7 +935,7 @@ async def get_attestations(
             LIMIT ${idx};
         """
 
-        params.append(limit)
+        params.append(int(limit))
 
         rows = await conn.fetch(sql, *params)
 
@@ -964,11 +964,11 @@ async def get_attester_analytics(
     order_column = "label_count" if order_by == "tags" else "unique_attestations"
 
     chain_filter = ""
-    params = [limit]
+    params = [int(limit)]
 
     if chain_id:
         chain_filter = "AND l.chain_id = $1"
-        params = [chain_id, limit]
+        params = [chain_id, int(limit)]
 
     sql = f"""
         SELECT
