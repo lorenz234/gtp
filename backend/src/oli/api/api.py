@@ -12,6 +12,7 @@ from eth_account.messages import encode_typed_data
 from eth_abi import decode as abi_decode
 import json
 
+import time
 import asyncio
 from concurrent.futures import ProcessPoolExecutor
 
@@ -139,6 +140,79 @@ class SingleAttestationResponse(BaseModel):
     uid: str
     status: str = "queued"
 
+class LabelItem(BaseModel):
+    tag_id: str
+    tag_value: str
+    chain_id: str
+    time: datetime
+    attester: Optional[str]
+
+class LabelsResponse(BaseModel):
+    address: str
+    count: int
+    labels: List[LabelItem]
+    
+class BulkLabelsRequest(BaseModel):
+    addresses: List[str] = Field(..., min_items=1, max_items=100)
+    chain_id: Optional[str] = Field(
+        None,
+        description="Optional chain_id filter, e.g. 'eip155:8453'"
+    )
+    limit_per_address: int = Field(
+        50,
+        ge=1,
+        le=1000,
+        description="Max labels to return per address in the response"
+    )
+
+class AddressLabels(BaseModel):
+    address: str
+    labels: List[LabelItem]
+
+class BulkLabelsResponse(BaseModel):
+    results: List[AddressLabels]
+    
+class AddressWithLabel(BaseModel):
+    address: str
+    chain_id: str
+    time: datetime
+    attester: Optional[str]
+
+
+class LabelSearchResponse(BaseModel):
+    tag_id: str
+    tag_value: str
+    count: int
+    results: List[AddressWithLabel]
+    
+class AttestationRecord(BaseModel):
+    uid: str
+    time: datetime
+    chain_id: Optional[str]
+    attester: str
+    recipient: str
+    revoked: bool
+    is_offchain: bool
+    ipfs_hash: Optional[str]
+    schema_info: str
+    tags_json: Optional[Dict[str, Any]]
+    raw: Dict[str, Any]
+
+
+class AttestationQueryResponse(BaseModel):
+    count: int
+    attestations: List[AttestationRecord]
+    
+    
+class AttesterAnalytics(BaseModel):
+    attester: str
+    label_count: int
+    unique_attestations: int
+
+
+class AttesterAnalyticsResponse(BaseModel):
+    count: int
+    results: List[AttesterAnalytics]
 
 #
 # CRYPTO / VERIFICATION
@@ -432,10 +506,6 @@ def verify_and_build_sync(att_dict: dict) -> dict:
 
     return row
 
-import time
-import asyncio
-from fastapi import HTTPException
-
 @app.post("/attestations/bulk", response_model=BulkAttestationResponse)
 async def post_bulk_attestations(req: BulkAttestationRequest):
     t0 = time.perf_counter()
@@ -503,26 +573,57 @@ async def post_bulk_attestations(req: BulkAttestationRequest):
     
 ### GET endpoints
 
-class TagItem(BaseModel):
-    tag_id: str
-    tag_value: str
-    chain_id: str
-    time: datetime
-    attester: Optional[str]
+def normalize_eth_address(addr: str) -> str:
+    a = addr.strip().lower()
+    if not a.startswith("0x"):
+        a = "0x" + a
+    return a
 
-class TagsResponse(BaseModel):
-    address: str
-    count: int
-    tags: List[TagItem]
+def _bytes_to_hexmaybe(v: Any) -> Optional[str]:
+    if v is None:
+        return None
+    if isinstance(v, (bytes, bytearray)):
+        return "0x" + v.hex()
+    return str(v)
 
+def _row_to_attestation_record(r) -> AttestationRecord:
+    # uid, attester, recipient are bytea in DB
+    uid_hex = _bytes_to_hexmaybe(r["uid"])
+    attester_hex = _bytes_to_hexmaybe(r["attester"])
+    recipient_hex = _bytes_to_hexmaybe(r["recipient"])
 
-@app.get("/tags", response_model=TagsResponse)
-async def get_tags(
-    address: str = Query(..., description="Recipient address (0x...)"),
+    # tags_json is jsonb -> asyncpg returns it as dict already in most configs.
+    # raw is stored as json.dumps(...) string in our code, so we need to json.loads.
+    tags_val = r["tags_json"]
+    raw_val = r["raw"]
+    if isinstance(raw_val, str):
+        try:
+            raw_val = json.loads(raw_val)
+        except Exception:
+            # fallback, shouldn't happen if we always stored json.dumps
+            raw_val = {"_unparsed": raw_val}
+
+    return AttestationRecord(
+        uid=uid_hex,
+        time=r["time"],
+        chain_id=r["chain_id"],
+        attester=attester_hex,
+        recipient=recipient_hex,
+        revoked=r["revoked"],
+        is_offchain=r["is_offchain"],
+        ipfs_hash=r["ipfs_hash"],
+        schema_info=r["schema_info"],
+        tags_json=tags_val,
+        raw=raw_val,
+    )
+
+@app.get("/labels", response_model=LabelsResponse)
+async def get_labels(
+    address: str = Query(..., description="Address (0x...)"),
     chain_id: Optional[str] = Query(None, description="Optional chain_id filter"),
-    limit: int = Query(100, le=1000, description="Max number of tags to return"),
+    limit: int = Query(100, le=1000, description="Max number of labels to return"),
 ):
-    """Return all tags (key/value) for a given recipient address."""
+    """Return all labels (key/value) for a given address."""
 
     async with app.state.db.acquire() as conn:
         # normalize address (lowercase + 0x)
@@ -556,8 +657,8 @@ async def get_tags(
 
         rows = await conn.fetch(sql, *params)
 
-    tags = [
-        TagItem(
+    labels= [
+        LabelItem(
             tag_id=r["tag_id"],
             tag_value=r["tag_value"],
             chain_id=r["chain_id"],
@@ -567,10 +668,342 @@ async def get_tags(
         for r in rows
     ]
 
-    return TagsResponse(
+    return LabelsResponse(
         address=address,
-        count=len(tags),
-        tags=tags,
+        count=len(labels),
+        labels=labels,
+    )
+    
+@app.post("/labels/bulk", response_model=BulkLabelsResponse)
+async def get_labels_bulk(req: BulkLabelsRequest):
+    # 1. normalize and dedupe input addresses
+    normalized_addrs = [normalize_eth_address(a) for a in req.addresses]
+    # map original -> normalized (for nicer response)
+    # and keep insertion order stable
+    orig_to_norm = {orig: normalize_eth_address(orig) for orig in req.addresses}
+
+    # convert to bytes for DB match
+    addr_bytes_list = [hex_to_bytes(a) for a in normalized_addrs]
+
+    # if caller somehow sends duplicates, we don't need to ask DB twice
+    unique_addr_bytes_list = []
+    seen = set()
+    for b in addr_bytes_list:
+        if b not in seen:
+            seen.add(b)
+            unique_addr_bytes_list.append(b)
+
+    # 2. build SQL dynamically based on optional chain_id
+    chain_filter_sql = ""
+    params = [unique_addr_bytes_list]
+
+    if req.chain_id:
+        chain_filter_sql = "AND l.chain_id = $2"
+        params.append(req.chain_id)
+
+    sql = f"""
+        SELECT
+            l.address,
+            l.chain_id,
+            l.tag_id,
+            l.tag_value,
+            l."time",
+            l.attester
+        FROM public.labels AS l
+        WHERE l.address = ANY($1)
+        {chain_filter_sql}
+        ORDER BY l."time" DESC;
+    """
+
+    async with app.state.db.acquire() as conn:
+        rows = await conn.fetch(sql, *params)
+
+    # 3. group rows by address
+    grouped: Dict[str, List[LabelItem]] = {}
+
+    for r in rows:
+        addr_bytes = r["address"]
+        # convert address bytes -> lower-hex "0x..."
+        if isinstance(addr_bytes, (bytes, bytearray)):
+            addr_hex = "0x" + addr_bytes.hex()
+        else:
+            addr_hex = str(addr_bytes).lower()
+
+        attester_val = r["attester"]
+        if isinstance(attester_val, (bytes, bytearray)):
+            attester_hex = "0x" + attester_val.hex()
+        else:
+            attester_hex = attester_val
+
+        item = LabelItem(
+            tag_id=r["tag_id"],
+            tag_value=r["tag_value"],
+            chain_id=r["chain_id"],
+            time=r["time"],
+            attester=attester_hex,
+        )
+
+        if addr_hex not in grouped:
+            grouped[addr_hex] = []
+        grouped[addr_hex].append(item)
+
+    # 4. enforce per-address limit_per_address
+    # and return results in the same order as the user sent addresses
+    results: List[AddressLabels] = []
+    for orig in req.addresses:
+        norm = orig_to_norm[orig]  # normalized "0x..." lowercase
+        tags_for_addr = grouped.get(norm, [])
+        # apply limit
+        limited = tags_for_addr[: req.limit_per_address]
+        results.append(AddressLabels(address=norm, labels=limited))
+
+    return BulkLabelsResponse(results=results)
+
+@app.get("/addresses/search", response_model=LabelSearchResponse)
+async def search_addresses_by_tag(
+    tag_id: str = Query(..., description="The tag key, e.g. 'usage_category'"),
+    tag_value: str = Query(..., description="The tag value, e.g. 'dex'"),
+    chain_id: Optional[str] = Query(None, description="Optional chain_id filter, e.g. 'eip155:8453'"),
+    limit: int = Query(1000, ge=1, le=5000, description="Max number of addresses to return"),
+):
+    """
+    Return all addresses that have a specific tag_id=tag_value pair.
+    """
+    sql = """
+        SELECT
+            l.address,
+            l.chain_id,
+            l.time,
+            l.attester
+        FROM public.labels AS l
+        WHERE l.tag_id = $1
+          AND l.tag_value = $2
+          {chain_filter}
+        ORDER BY l.time DESC
+        LIMIT $3;
+    """
+
+    chain_filter = ""
+    params = [tag_id, tag_value, limit]
+
+    if chain_id:
+        chain_filter = "AND l.chain_id = $3"
+        params = [tag_id, tag_value, chain_id, limit]
+
+    sql = sql.format(chain_filter=chain_filter)
+
+    async with app.state.db.acquire() as conn:
+        rows = await conn.fetch(sql, *params)
+
+    results: List[AddressWithLabel] = []
+
+    for r in rows:
+        addr_bytes = r["address"]
+        if isinstance(addr_bytes, (bytes, bytearray)):
+            addr_hex = "0x" + addr_bytes.hex()
+        else:
+            addr_hex = str(addr_bytes).lower()
+
+        attester_val = r["attester"]
+        if isinstance(attester_val, (bytes, bytearray)):
+            attester_hex = "0x" + attester_val.hex()
+        else:
+            attester_hex = attester_val
+
+        results.append(
+            AddressWithLabel(
+                address=addr_hex,
+                chain_id=r["chain_id"],
+                time=r["time"],
+                attester=attester_hex,
+            )
+        )
+
+    return LabelSearchResponse(
+        tag_id=tag_id,
+        tag_value=tag_value,
+        count=len(results),
+        results=results,
+    )
+    
+@app.get("/attestations", response_model=AttestationQueryResponse)
+async def get_attestations(
+    uid: Optional[str] = Query(
+        None,
+        description="Filter by specific attestation UID (0x...)"
+    ),
+    attester: Optional[str] = Query(
+        None,
+        description="Filter by attester address (0x...)"
+    ),
+    recipient: Optional[str] = Query(
+        None,
+        description="Filter by recipient address (0x...)"
+    ),
+    schema_info: Optional[str] = Query(
+        None,
+        description="Filter by schema_info (e.g. '8453__0xabc...')"
+    ),
+    limit: int = Query(
+        100,
+        ge=1,
+        le=1000,
+        description="Max number of attestations to return"
+    ),
+):
+    """
+    Return raw attestations from storage.
+
+    Behavior:
+    - If `uid` is provided: return only that attestation (ignore other filters, limit=1).
+    - Else: filter by any combination of {attester, recipient, schema_info}.
+    - Else: return latest attestations (ordered by time desc).
+    """
+
+    async with app.state.db.acquire() as conn:
+        # Case 1: uid lookup (fast path)
+        if uid:
+            uid_bytes = hex_to_bytes(uid)
+            row = await conn.fetchrow(
+                """
+                SELECT
+                    uid,
+                    time,
+                    chain_id,
+                    attester,
+                    recipient,
+                    revoked,
+                    is_offchain,
+                    ipfs_hash,
+                    schema_info,
+                    tags_json,
+                    raw
+                FROM public.attestations
+                WHERE uid = $1
+                LIMIT 1;
+                """,
+                uid_bytes,
+            )
+
+            if row is None:
+                return AttestationQueryResponse(count=0, attestations=[])
+
+            rec = _row_to_attestation_record(row)
+            return AttestationQueryResponse(count=1, attestations=[rec])
+
+        # Case 2: dynamic WHERE for filters
+        where_clauses = []
+        params = []
+        idx = 1
+
+        if attester:
+            where_clauses.append(f"attester = ${idx}")
+            params.append(hex_to_bytes(attester.lower()))
+            idx += 1
+
+        if recipient:
+            where_clauses.append(f"recipient = ${idx}")
+            params.append(hex_to_bytes(recipient.lower()))
+            idx += 1
+
+        if schema_info:
+            where_clauses.append(f"schema_info = ${idx}")
+            params.append(schema_info)
+            idx += 1
+
+        where_sql = ""
+        if where_clauses:
+            where_sql = "WHERE " + " AND ".join(where_clauses)
+
+        # Default ordering: newest first
+        sql = f"""
+            SELECT
+                uid,
+                time,
+                chain_id,
+                attester,
+                recipient,
+                revoked,
+                is_offchain,
+                ipfs_hash,
+                schema_info,
+                tags_json,
+                raw
+            FROM public.attestations
+            {where_sql}
+            ORDER BY time DESC
+            LIMIT ${idx};
+        """
+
+        params.append(limit)
+
+        rows = await conn.fetch(sql, *params)
+
+    attestations_out = [_row_to_attestation_record(r) for r in rows]
+
+    return AttestationQueryResponse(
+        count=len(attestations_out),
+        attestations=attestations_out,
+    )
+    
+@app.get("/analytics/attesters", response_model=AttesterAnalyticsResponse)
+async def get_attester_analytics(
+    chain_id: Optional[str] = Query(
+        None, description="Optional chain_id filter, e.g. 'eip155:8453'"
+    ),
+    limit: int = Query(100, ge=1, le=1000, description="Number of rows to return"),
+    order_by: str = Query(
+        "tags",
+        pattern="^(tags|attestations)$",
+        description="Order by 'tags' (default) or 'attestations'",
+    ),
+):
+    """
+    Analytics summary: group by attester, count number of labels and unique attestations.
+    """
+    order_column = "label_count" if order_by == "tags" else "unique_attestations"
+
+    chain_filter = ""
+    params = [limit]
+
+    if chain_id:
+        chain_filter = "AND l.chain_id = $1"
+        params = [chain_id, limit]
+
+    sql = f"""
+        SELECT
+            l.attester,
+            COUNT(*) AS label_count,
+            COUNT(DISTINCT l.uid) AS unique_attestations
+        FROM public.labels AS l
+        WHERE TRUE
+        {chain_filter}
+        GROUP BY l.attester
+        ORDER BY {order_column} DESC
+        LIMIT ${len(params)};
+    """
+
+    async with app.state.db.acquire() as conn:
+        rows = await conn.fetch(sql, *params)
+
+    results = []
+    for r in rows:
+        attester_val = r["attester"]
+        if isinstance(attester_val, (bytes, bytearray)):
+            attester_hex = "0x" + attester_val.hex()
+        else:
+            attester_hex = str(attester_val)
+        results.append(
+            AttesterAnalytics(
+                attester=attester_hex,
+                label_count=r["label_count"],
+                unique_attestations=r["unique_attestations"],
+            )
+        )
+
+    return AttesterAnalyticsResponse(
+        count=len(results),
+        results=results,
     )
     
 if __name__ == "__main__":
