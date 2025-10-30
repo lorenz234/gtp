@@ -197,7 +197,7 @@ class AttestationRecord(BaseModel):
     ipfs_hash: Optional[str]
     schema_info: str
     tags_json: Optional[Dict[str, Any]]
-    raw: Optional[Dict[str, Any]]
+    #raw: Optional[Dict[str, Any]]
 
 class AttestationQueryResponse(BaseModel):
     count: int
@@ -610,17 +610,17 @@ def _row_to_attestation_record(r) -> AttestationRecord:
             tags_val = None
     # If it's None or already dict, fine.
 
-    # raw handling:
-    raw_val = r["raw"]
-    if isinstance(raw_val, str):
-        try:
-            raw_val = json.loads(raw_val)
-        except Exception:
-            raw_val = None
-    # could also be already dict (asyncpg sometimes de-jsons jsonb automatically)
-    if raw_val is not None and not isinstance(raw_val, dict):
-        # last resort normalize
-        raw_val = None
+    # # raw handling:
+    # raw_val = r["raw"]
+    # if isinstance(raw_val, str):
+    #     try:
+    #         raw_val = json.loads(raw_val)
+    #     except Exception:
+    #         raw_val = None
+    # # could also be already dict (asyncpg sometimes de-jsons jsonb automatically)
+    # if raw_val is not None and not isinstance(raw_val, dict):
+    #     # last resort normalize
+    #     raw_val = None
 
     return AttestationRecord(
         uid=uid_hex or "",
@@ -633,7 +633,7 @@ def _row_to_attestation_record(r) -> AttestationRecord:
         ipfs_hash=r["ipfs_hash"],
         schema_info=r["schema_info"],
         tags_json=tags_val,
-        raw=raw_val,
+        #raw=raw_val,
     )
 
 @app.get("/labels", response_model=LabelsResponse)
@@ -941,8 +941,7 @@ async def get_attestations(
                     is_offchain,
                     ipfs_hash,
                     schema_info,
-                    tags_json,
-                    raw
+                    tags_json
                 FROM public.attestations
                 WHERE uid = $1
                 LIMIT 1;
@@ -992,8 +991,7 @@ async def get_attestations(
                 is_offchain,
                 ipfs_hash,
                 schema_info,
-                tags_json,
-                raw
+                tags_json
             FROM public.attestations
             {where_sql}
             ORDER BY time DESC
