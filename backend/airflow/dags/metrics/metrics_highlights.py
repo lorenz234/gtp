@@ -48,6 +48,15 @@ def etl():
                 }
 
                 execute_jinja_query(db_connector, 'chain_metrics/upsert_highlights_ath.sql.j2', query_params)
+                
+        query_params = {
+                    "origin_key": "ethereum_ecosystem",
+                    "lookback_days": days,
+                    "thresholds_by_metric": ath_thresholds
+                }
+        execute_jinja_query(db_connector, 'chain_metrics/upsert_highlights_ath.sql.j2', query_params)
+
+        
     
     @task()           
     def run_growth():
@@ -72,6 +81,12 @@ def etl():
                 }
 
                 execute_jinja_query(db_connector, 'chain_metrics/upsert_highlights_growth.sql.j2', query_params)
+                
+        query_params = {
+                    "metric_configs": growth_config,
+                    "origin_key": "ethereum_ecosystem",
+                }
+        execute_jinja_query(db_connector, 'chain_metrics/upsert_highlights_growth.sql.j2', query_params)
                 
     run_aths()
     run_growth()
