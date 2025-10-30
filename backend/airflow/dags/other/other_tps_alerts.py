@@ -141,7 +141,7 @@ def run_dag():
                 else:
                     print(f"ℹ️ No new TPS high. Current TPS: {current_tps:.2f}, ATH: {latest_ath:.2f}")
             
-            if start_time + (31 * 60) < time.time():  # 27.5 minutes
+            if start_time + (31 * 60) < time.time():  # 31 minutes
                 print("⏰ Approaching task timeout, exiting loop to allow for graceful restart.")
                 break
 
