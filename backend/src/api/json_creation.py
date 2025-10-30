@@ -2776,7 +2776,7 @@ class JSONCreation():
                 top_apps_list = ['tetherto', 'circlefin', 'velodrome', 'uniswap', 'mento-protocol']
             else:
                 query_parameters = {
-                    "origin_key": l2,
+                    "origin_keys": [l2],
                     "days": 7,
                     "limit": 5
                 }

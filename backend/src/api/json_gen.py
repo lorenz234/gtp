@@ -558,37 +558,35 @@ class JsonGen():
         return output_dict
 
 
-    def get_ecosystem_dict(self, chain:MainConfig):
-        if chain.api_in_apps:
-            ## get top 50 apps
-            query_parameters = {
-                "origin_key": chain.origin_key,
-                "days": 7,
-                "limit": 5000
-            }
-            top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", query_parameters, return_df=True)
-            top_apps['txcount'] = top_apps['txcount'].astype(int)
+    def get_ecosystem_dict(self, origin_keys: List[str]) -> dict:
+        ## get top 50 apps
+        query_parameters = {
+            "origin_keys": origin_keys,
+            "days": 7,
+            "limit": 5000
+        }
+        top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", query_parameters, return_df=True)
+        top_apps['txcount'] = top_apps['txcount'].astype(int)
 
-            ## get total number of apps
-            query_parameters = {
-                "origin_key": chain.origin_key,
-                "days": 7
-            }
-            active_apps = execute_jinja_query(self.db_connector, "api/select_count_apps.sql.j2", query_parameters, return_df=True)
-            active_apps_count = int(active_apps.values[0][0])
+        ## get total number of apps
+        query_parameters = {
+            "origin_keys": origin_keys,
+            "days": 7
+        }
+        active_apps = execute_jinja_query(self.db_connector, "api/select_count_apps.sql.j2", query_parameters, return_df=True)
+        active_apps_count = int(active_apps.values[0][0])
+        
+        output_dict = {
             
-            output_dict = {
-                
-                "active_apps": {
-                    "count": active_apps_count
-                },
-                "apps": {
-                    "types": top_apps.columns.tolist(),
-                    "data": top_apps.values.tolist()
-                },
-            }
-        else:
-            output_dict = {}
+            "active_apps": {
+                "count": active_apps_count
+            },
+            "apps": {
+                "types": top_apps.columns.tolist(),
+                "data": top_apps.values.tolist()
+            },
+        }
+
 
         return output_dict
     
@@ -768,7 +766,7 @@ class JsonGen():
                     "lifetime": self.get_lifetime_achievements_dict(origin_key),
                 },
                 "blockspace": self.get_blockspace_dict(chain),
-                "ecosystem": self.get_ecosystem_dict(chain)
+                "ecosystem": self.get_ecosystem_dict([chain.origin_key]) if chain.api_in_apps else {}
             }
 
         chains_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
@@ -868,3 +866,30 @@ class JsonGen():
         else:
             upload_json_to_cf_s3(self.s3_bucket, s3_path, output_dict, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60, s-maxage=900, stale-while-revalidate=60, stale-if-error=86400")
         logging.info(f"SUCCESS: Exported streaks_today JSON")
+        
+    def create_ecosystem_builders_json(self):
+        """
+        Generates and uploads the ecosystem_apps JSON.
+        """
+        logging.info("Generating ecosystem_apps JSON...")
+        origin_keys = [chain.origin_key for chain in self.main_config if chain.api_in_apps]
+        ecosystem_dict = self.get_ecosystem_dict(origin_keys)
+        
+        if not ecosystem_dict:
+            logging.warning("No data found for ecosystem_apps. Skipping upload.")
+            return
+        
+        output_dict = {
+            "data": {
+                "ecosystem": ecosystem_dict
+            },
+            'last_updated_utc': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        s3_path = f'{self.api_version}/ecosystem/builders'
+        if self.s3_bucket is None:
+            # Assuming local saving for testing still uses a similar path structure
+            self._save_to_json(output_dict, s3_path)
+        else:
+            upload_json_to_cf_s3(self.s3_bucket, s3_path, output_dict, self.cf_distribution_id, invalidate=True)
+        logging.info(f"SUCCESS: Exported ecosystem_apps JSON")
