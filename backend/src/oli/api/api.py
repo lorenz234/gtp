@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi import FastAPI, HTTPException, Query, Depends, Security, status
+from fastapi.security.api_key import APIKeyHeader
 from api_keys import require_api_key
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Any, Dict, Tuple
@@ -24,6 +25,24 @@ USE_DOTENV = os.getenv("USE_DOTENV", "false").lower() == "true"
 if USE_DOTENV:
     import dotenv
     dotenv.load_dotenv()
+    
+API_KEY_HEADER = "x-api-key"
+api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
+
+async def get_api_key(api_key: str = Security(api_key_header)):
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing API key",
+        )
+        
+    from api_keys import _matches_any_configured_key
+    if not _matches_any_configured_key(api_key):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key",
+        )
+    return api_key
 
 #
 # CONFIG
@@ -637,7 +656,12 @@ def _row_to_attestation_record(r) -> AttestationRecord:
         #raw=raw_val,
     )
 
-@app.get("/labels", response_model=LabelsResponse, dependencies=[Depends(require_api_key)])
+@app.get(
+    "/labels",
+    response_model=LabelsResponse,
+    dependencies=[Depends(get_api_key)],
+    tags=["Protected"],
+)
 async def get_labels(
     address: str = Query(..., description="Address (0x...)"),
     chain_id: Optional[str] = Query(None, description="Optional chain_id filter"),
@@ -721,7 +745,12 @@ async def get_labels(
         labels=labels,
     )
     
-@app.post("/labels/bulk", response_model=BulkLabelsResponse, dependencies=[Depends(require_api_key)])
+@app.post(
+    "/labels/bulk", 
+    response_model=BulkLabelsResponse, 
+    dependencies=[Depends(require_api_key)],
+    tags=["Protected"]
+    )
 async def get_labels_bulk(req: BulkLabelsRequest):
     # 1. normalize and dedupe input addresses
     normalized_addrs = [normalize_eth_address(a) for a in req.addresses]
@@ -816,7 +845,12 @@ async def get_labels_bulk(req: BulkLabelsRequest):
 
     return BulkLabelsResponse(results=results)
 
-@app.get("/addresses/search", response_model=LabelSearchResponse, dependencies=[Depends(require_api_key)])
+@app.get(
+    "/addresses/search", 
+    response_model=LabelSearchResponse, 
+    dependencies=[Depends(require_api_key)],
+    tags=["Protected"]
+    )
 async def search_addresses_by_tag(
     tag_id: str = Query(..., description="The tag key, e.g. 'usage_category'"),
     tag_value: str = Query(..., description="The tag value, e.g. 'dex'"),
@@ -895,7 +929,10 @@ async def search_addresses_by_tag(
 from typing import Literal
 from datetime import datetime, timezone
 
-@app.get("/attestations", response_model=AttestationQueryResponse)
+@app.get(
+    "/attestations", 
+    response_model=AttestationQueryResponse
+    )
 async def get_attestations(
     uid: Optional[str] = Query(
         None, description="Filter by specific attestation UID (0x...)"
@@ -1029,7 +1066,12 @@ async def get_attestations(
         attestations=attestations_out,
     )
     
-@app.get("/analytics/attesters", response_model=AttesterAnalyticsResponse, dependencies=[Depends(require_api_key)])
+@app.get(
+    "/analytics/attesters", 
+    response_model=AttesterAnalyticsResponse, 
+    dependencies=[Depends(require_api_key)],
+    tags=["Protected"]
+    )
 async def get_attester_analytics(
     chain_id: Optional[str] = Query(
         None, description="Optional chain_id filter, e.g. 'eip155:8453'"
