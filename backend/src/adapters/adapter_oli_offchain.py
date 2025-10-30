@@ -77,22 +77,44 @@ class AdapterOLIOffchain(AbstractAdapter):
         if df.empty:
             #print(f"No data to load.")
             pass
-        
+
         else:
             # turn revocation_time into ISO string
             if 'revocation_time' in df.columns:
                 df['revocation_time'] = df['revocation_time'].apply(lambda x: pd.to_datetime(x, unit='s').strftime('%Y-%m-%d %H:%M:%S'))
-            for index, row in df.iterrows():
+            
+            # Process in batches of 100
+            batch_size = 100
+            for i in range(0, len(df), batch_size):
+                batch_df = df.iloc[i:i+batch_size]
+                
+                # Build VALUES list for this batch
+                values_list = []
+                for _, row in batch_df.iterrows():
+                    uid_hex = row['uid'][2:] if row['uid'].startswith('0x') else row['uid']
+                    tx_hash_hex = row['tx_hash'][2:] if row['tx_hash'].startswith('0x') else row['tx_hash']
+                    values_list.append(
+                        f"(decode('{uid_hex}', 'hex'), '{row['revocation_time']}', decode('{tx_hash_hex}', 'hex'))"
+                    )
+                
+                values_str = ',\n            '.join(values_list)
+                
                 query = f"""
-                    UPDATE public.{table_name}
+                    UPDATE public.{table_name} AS t
                     SET
                         revoked = true,
-                        revocation_time = '{row['revocation_time']}',
-                        tx_hash = decode('{row['tx_hash'][2:] if row['tx_hash'].startswith('0x') else row['tx_hash']}', 'hex'),
+                        revocation_time = v.revocation_time::timestamp,
+                        tx_hash = v.tx_hash,
                         last_updated_time = NOW()
-                    WHERE uid = decode('{row['uid'][2:] if row['uid'].startswith('0x') else row['uid']}', 'hex');
+                    FROM (VALUES
+                        {values_str}
+                    ) AS v(uid, revocation_time, tx_hash)
+                    WHERE t.uid = v.uid;
                 """
+                
                 r = self.db_connector.execute_query(query)
+                print(f"Updated batch {i//batch_size + 1}: {len(batch_df)} rows")
+            
             print_load(self.name, {'table': table_name}, df.shape)
         
         self.save_last_run_block(self.schema_chain, self.extract_params['from_block'], self.extract_params['to_block'])
