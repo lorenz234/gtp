@@ -891,29 +891,33 @@ async def search_addresses_by_tag(
         results=results,
     )
     
+from typing import Literal
+from datetime import datetime, timezone
+
 @app.get("/attestations", response_model=AttestationQueryResponse)
 async def get_attestations(
     uid: Optional[str] = Query(
-        None,
-        description="Filter by specific attestation UID (0x...)"
+        None, description="Filter by specific attestation UID (0x...)"
     ),
     attester: Optional[str] = Query(
-        None,
-        description="Filter by attester address (0x...)"
+        None, description="Filter by attester address (0x...)"
     ),
     recipient: Optional[str] = Query(
-        None,
-        description="Filter by address (0x...)"
+        None, description="Filter by recipient address (0x...)"
     ),
     schema_info: Optional[str] = Query(
+        None, description="Filter by schema_info (e.g. '8453__0xabc...')"
+    ),
+    since: Optional[str] = Query(
         None,
-        description="Filter by schema_info (e.g. '8453__0xabc...')"
+        description="Return only attestations created after this timestamp (ISO8601 or Unix seconds)"
+    ),
+    order: Literal["asc", "desc"] = Query(
+        "desc",
+        description="Order results by attestation time (asc or desc). Default: desc"
     ),
     limit: int = Query(
-        30,
-        ge=1,
-        le=100,
-        description="Max number of attestations to return"
+        30, ge=1, le=100, description="Max number of attestations to return"
     ),
 ):
     """
@@ -921,12 +925,12 @@ async def get_attestations(
 
     Behavior:
     - If `uid` is provided: return only that attestation (ignore other filters, limit=1).
-    - Else: filter by any combination of {attester, recipient, schema_info}.
-    - Else: return latest attestations (ordered by time desc).
+    - Else: filter by any combination of {attester, recipient, schema_info, since}.
+    - Results ordered by time (desc by default).
     """
 
     async with app.state.db.acquire() as conn:
-        # Case 1: uid lookup (fast path)
+        # ---- Case 1: UID lookup ----
         if uid:
             uid_bytes = hex_to_bytes(uid)
             row = await conn.fetchrow(
@@ -948,14 +952,12 @@ async def get_attestations(
                 """,
                 uid_bytes,
             )
-
             if row is None:
                 return AttestationQueryResponse(count=0, attestations=[])
-
             rec = _row_to_attestation_record(row)
             return AttestationQueryResponse(count=1, attestations=[rec])
 
-        # Case 2: dynamic WHERE for filters
+        # ---- Case 2: Dynamic filters ----
         where_clauses = []
         params = []
         idx = 1
@@ -975,11 +977,29 @@ async def get_attestations(
             params.append(schema_info)
             idx += 1
 
+        # Parse optional `since`
+        if since:
+            try:
+                ts = float(since)
+                since_dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+            except ValueError:
+                since_dt = datetime.fromisoformat(since)
+                if since_dt.tzinfo is None:
+                    since_dt = since_dt.replace(tzinfo=timezone.utc)
+
+            where_clauses.append(f"time > ${idx}")
+            params.append(since_dt)
+            idx += 1
+
+        # Join WHERE clauses
         where_sql = ""
         if where_clauses:
             where_sql = "WHERE " + " AND ".join(where_clauses)
 
-        # Default ordering: newest first
+        # Enforce safe ordering (avoid SQL injection)
+        order = order.lower()
+        order_sql = "DESC" if order == "desc" else "ASC"
+
         sql = f"""
             SELECT
                 uid,
@@ -994,12 +1014,11 @@ async def get_attestations(
                 tags_json
             FROM public.attestations
             {where_sql}
-            ORDER BY time DESC
+            ORDER BY time {order_sql}
             LIMIT ${idx};
         """
 
         params.append(int(limit))
-
         rows = await conn.fetch(sql, *params)
 
     attestations_out = [_row_to_attestation_record(r) for r in rows]
