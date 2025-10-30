@@ -687,6 +687,32 @@ def upload_json_to_cf_s3(
     if invalidate:
         empty_cloudfront_cache(cf_distribution_id, f"/{path_name}.json")
 
+def upload_json_to_filebase_ipfs(bucket, path_name, json_data):
+    # Initialize S3 client with Filebase endpoint
+    s3 = boto3.client(
+        "s3",
+        endpoint_url='https://s3.filebase.com',
+        aws_access_key_id=os.getenv("FILEBASE_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("FILEBASE_SECRET_ACCESS_KEY")
+    )
+    
+    # Convert JSON to string
+    json_string = json.dumps(json_data, indent=2)
+    
+    # Upload the JSON data to Filebase
+    s3.put_object(
+        Bucket=bucket,
+        Key=path_name,
+        Body=json_string.encode('utf-8'),
+        ContentType='application/json'
+    )
+    
+    print(f'..uploaded to {path_name}')
+    
+    # Get the IPFS CID from object metadata
+    response = s3.head_object(Bucket=bucket, Key=path_name)
+    return response['Metadata'].get('cid')
+
 def remove_file_from_s3(bucket, path_name):
     s3 = boto3.resource(
         service_name='s3',
