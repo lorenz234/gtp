@@ -917,7 +917,7 @@ async def get_attestations(
         description="Order results by attestation time (asc or desc). Default: desc"
     ),
     limit: int = Query(
-        30, ge=1, le=100, description="Max number of attestations to return"
+        30, ge=1, le=1000, description="Max number of attestations to return"
     ),
 ):
     """
