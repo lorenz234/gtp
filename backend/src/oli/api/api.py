@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
+from api_keys import require_api_key
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Any, Dict, Tuple
 from datetime import datetime, timezone
@@ -636,7 +637,7 @@ def _row_to_attestation_record(r) -> AttestationRecord:
         #raw=raw_val,
     )
 
-@app.get("/labels", response_model=LabelsResponse)
+@app.get("/labels", response_model=LabelsResponse, dependencies=[Depends(require_api_key)])
 async def get_labels(
     address: str = Query(..., description="Address (0x...)"),
     chain_id: Optional[str] = Query(None, description="Optional chain_id filter"),
@@ -720,7 +721,7 @@ async def get_labels(
         labels=labels,
     )
     
-@app.post("/labels/bulk", response_model=BulkLabelsResponse)
+@app.post("/labels/bulk", response_model=BulkLabelsResponse, dependencies=[Depends(require_api_key)])
 async def get_labels_bulk(req: BulkLabelsRequest):
     # 1. normalize and dedupe input addresses
     normalized_addrs = [normalize_eth_address(a) for a in req.addresses]
@@ -815,7 +816,7 @@ async def get_labels_bulk(req: BulkLabelsRequest):
 
     return BulkLabelsResponse(results=results)
 
-@app.get("/addresses/search", response_model=LabelSearchResponse)
+@app.get("/addresses/search", response_model=LabelSearchResponse, dependencies=[Depends(require_api_key)])
 async def search_addresses_by_tag(
     tag_id: str = Query(..., description="The tag key, e.g. 'usage_category'"),
     tag_value: str = Query(..., description="The tag value, e.g. 'dex'"),
@@ -1028,7 +1029,7 @@ async def get_attestations(
         attestations=attestations_out,
     )
     
-@app.get("/analytics/attesters", response_model=AttesterAnalyticsResponse)
+@app.get("/analytics/attesters", response_model=AttesterAnalyticsResponse, dependencies=[Depends(require_api_key)])
 async def get_attester_analytics(
     chain_id: Optional[str] = Query(
         None, description="Optional chain_id filter, e.g. 'eip155:8453'"
