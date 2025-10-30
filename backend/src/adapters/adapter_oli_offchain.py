@@ -3,6 +3,7 @@ from eth_abi.abi import decode
 from datetime import timezone
 from web3 import Web3
 import pandas as pd
+import platform
 import json
 
 from src.adapters.abstract_adapters import AbstractAdapter
@@ -22,6 +23,8 @@ class AdapterOLIOffchain(AbstractAdapter):
 
         # setup logs adapter
         self.adapter_logs = AdapterLogs(self.w3)
+        # if this script is running on Linux, we are on the backend, then use 'backend/', else ''
+        self.additional_folder_structure = 'backend/' if platform.system() == 'Linux' else ''
 
         print_init(self.name, self.adapter_params)
 
@@ -129,7 +132,7 @@ class AdapterOLIOffchain(AbstractAdapter):
             int: The last run block number.
         """
         try:
-            with open(f'src/adapters/adapter_oli_offchain_last_run_{schema_chain}.txt', 'r') as f:
+            with open(f'{self.additional_folder_structure}src/adapters/adapter_oli_offchain_last_run_{schema_chain}.txt', 'r') as f:
                 content = f.read()
                 content = json.loads(content.replace("'", '"'))
                 return content.get('to_block', 0)
@@ -144,7 +147,7 @@ class AdapterOLIOffchain(AbstractAdapter):
             from_block (int): The last run from block number.
             to_block (int): The last run to block number.
         """
-        with open(f'src/adapters/adapter_oli_offchain_last_run_{schema_chain}.txt', 'w') as f:
+        with open(f'{self.additional_folder_structure}src/adapters/adapter_oli_offchain_last_run_{schema_chain}.txt', 'w') as f:
             f.write(str(
                 {'timestamp': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'from_block': from_block, 

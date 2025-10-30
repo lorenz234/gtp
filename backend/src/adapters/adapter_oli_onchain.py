@@ -3,6 +3,7 @@ from eth_abi.abi import decode
 from datetime import timezone
 from web3 import Web3
 import pandas as pd
+import platform
 import json
 
 from src.adapters.abstract_adapters import AbstractAdapter
@@ -23,6 +24,8 @@ class AdapterOLIOnchain(AbstractAdapter):
 
         # setup logs adapter
         self.adapter_logs = AdapterLogs(self.w3)
+        # if this script is running on Linux, we are on the backend, then use 'backend/', else ''
+        self.additional_folder_structure = 'backend/' if platform.system() == 'Linux' else ''
 
         # setup EAS contract instance (address might be different on other chains!)
         abi = [ { "inputs": [ { "internalType": "bytes32", "name": "uid", "type": "bytes32" } ], "name": "getAttestation", "outputs": [ { "components": [ { "internalType": "bytes32", "name": "uid", "type": "bytes32" }, { "internalType": "bytes32", "name": "schema", "type": "bytes32" }, { "internalType": "uint64", "name": "time", "type": "uint64" }, { "internalType": "uint64", "name": "expirationTime", "type": "uint64" }, { "internalType": "uint64", "name": "revocationTime", "type": "uint64" }, { "internalType": "bytes32", "name": "refUID", "type": "bytes32" }, { "internalType": "address", "name": "recipient", "type": "address" }, { "internalType": "address", "name": "attester", "type": "address" }, { "internalType": "bool", "name": "revocable", "type": "bool" }, { "internalType": "bytes", "name": "data", "type": "bytes" } ], "internalType": "struct Attestation", "name": "", "type": "tuple" } ], "stateMutability": "view", "type": "function" }, { "inputs": [ { "internalType": "address", "name": "revoker", "type": "address" }, { "internalType": "bytes32", "name": "data", "type": "bytes32" } ], "name": "getRevokeOffchain", "outputs": [ { "internalType": "uint64", "name": "", "type": "uint64" } ], "stateMutability": "view", "type": "function" }, { "inputs": [ { "internalType": "bytes32", "name": "uid", "type": "bytes32" } ], "name": "isAttestationValid", "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ], "stateMutability": "view", "type": "function" } ]
@@ -195,7 +198,7 @@ class AdapterOLIOnchain(AbstractAdapter):
             int: The last run block number.
         """
         try:
-            with open(f'src/adapters/adapter_oli_onchain_last_run_{schema_info}.txt', 'r') as f:
+            with open(f'{self.additional_folder_structure}src/adapters/adapter_oli_onchain_last_run_{schema_info}.txt', 'r') as f:
                 content = f.read()
                 content = json.loads(content.replace("'", '"'))
                 return content.get('to_block', 0)
@@ -210,7 +213,7 @@ class AdapterOLIOnchain(AbstractAdapter):
             from_block (int): The last run from block number.
             to_block (int): The last run to block number.
         """
-        with open(f'src/adapters/adapter_oli_onchain_last_run_{schema_info}.txt', 'w') as f:
+        with open(f'{self.additional_folder_structure}src/adapters/adapter_oli_onchain_last_run_{schema_info}.txt', 'w') as f:
             f.write(str(
                 {'timestamp': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'from_block': from_block, 
