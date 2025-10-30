@@ -564,14 +564,14 @@ class JsonGen():
             query_parameters = {
                 "origin_key": chain.origin_key,
                 "days": 7,
-                "limit": 50
+                "limit": 5000
             }
             top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", query_parameters, return_df=True)
             top_apps['txcount'] = top_apps['txcount'].astype(int)
 
             ## get total number of apps
             query_parameters = {
-                "origin_key": 'arbitrum',
+                "origin_key": chain.origin_key,
                 "days": 7
             }
             active_apps = execute_jinja_query(self.db_connector, "api/select_count_apps.sql.j2", query_parameters, return_df=True)
