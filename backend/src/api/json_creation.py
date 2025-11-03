@@ -3208,7 +3208,7 @@ class JSONCreation():
         print(f'DONE -- Fundamentals export done')
 
     
-    def create_fundamentals_full_json(self, df):
+    def create_fundamentals_internal_json(self, df):
         df = df[['metric_key', 'origin_key', 'date', 'value']].copy()
 
         ## only keep metrics that are also in the metrics_list (based on metrics dict)
@@ -3234,12 +3234,12 @@ class JSONCreation():
         ## put dataframe into a json string
         fundamentals_dict = df.to_dict(orient='records')
 
-        fundamentals_dict = fix_dict_nan(fundamentals_dict, 'fundamentals_full')
+        fundamentals_dict = fix_dict_nan(fundamentals_dict, 'fundamentals_internal')
 
         if self.s3_bucket == None:
-            self.save_to_json(fundamentals_dict, 'fundamentals_full')
+            self.save_to_json(fundamentals_dict, 'fundamentals_internal')
         else:
-            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/fundamentals_full', fundamentals_dict, self.cf_distribution_id)
+            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/fundamentals_internal', fundamentals_dict, self.cf_distribution_id)
 
     def create_da_fundamentals_json(self):
         metrics_user_string = "'" + "','".join(self.da_metrics_list) + "'"
@@ -3377,20 +3377,6 @@ class JSONCreation():
             self.save_to_json(glo_dict, 'GLO Dollar')
         else:
             upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/glo_dollar', glo_dict, self.cf_distribution_id)
-
-    def create_all_jsons(self):
-        df = self.get_all_data()
-        self.create_master_json(df)
-        self.create_landingpage_json(df)
-
-        self.create_chain_details_jsons(df)
-        self.create_metric_details_jsons(df)
-
-        self.create_economics_json(df)
-        
-        self.create_fundamentals_json(df)
-        self.create_fundamentals_full_json(df)
-        self.create_contracts_json()
 
     ## JSON removal
     ## connect to s3 bucket and output list of files
