@@ -15,7 +15,7 @@ class AdapterOLIOffchain(AbstractAdapter):
         rpc_url:str - the RPC URL to connect to the blockchain
     """
     def __init__(self, adapter_params:dict, db_connector):
-        super().__init__("OLI_onchain", adapter_params, db_connector)
+        super().__init__("OLI_offchain", adapter_params, db_connector)
 
         # setup web3
         self.w3 = Web3(Web3.HTTPProvider(self.adapter_params['rpc_url']))
