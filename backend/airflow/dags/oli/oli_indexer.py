@@ -81,6 +81,11 @@ def main():
 
 
             ## Onchain, attestations of trust lists & revocations of trust lists ##
+            extract_params_onchain = {
+                'from_block': 'last_run_block',  # add last run block
+                'to_block': 'latest',
+                'chunk_size': 100000
+            }
             attest_topics = [
                 '0x8bf46bf4cfd674fa735a3d63ec1c9ad4153f033c290341f3a588b75685141b35', # Attest topic
                 None,
