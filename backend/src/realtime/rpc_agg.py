@@ -349,125 +349,101 @@ class StarknetProcessor(BlockchainProcessor):
 class LighterProcessor(BlockchainProcessor):
     """
     Processor for Lighter (Elliot) explorer.
-    - Hits https://explorer.elliot.ai/api/blocks (latest 20 blocks).
-    - Computes TPS over the returned window: sum(block_size) / (Δtime).
-    - No fee calcs.
+    - Uses the backend API:
+        GET <base>/currentHeight           -> {"code":200,"height":83872906}
+        GET <base>/blocks?index=H&limit=20&sort=desc
+    - Returns a block-like dict; no fee calcs; TPS is computed by your rolling logic.
     """
 
     def __init__(self, backend: 'RtBackend'):
         self.backend = backend
 
     async def initialize_client(self, url: str) -> str:
-        # Same pattern as Starknet: just return the URL, use backend.http_session
+        # url should be the base API: e.g. "https://mainnet.zklighter.elliot.ai/api/v1"
         return url
 
     def supports_tx_costs(self) -> bool:
         return False
 
-    async def fetch_latest_block(self, url: str, chain_name: str, calc_fees: bool) -> Optional[Dict[str, Any]]:
+    ## TODO: once lighter supports per-block timestamps, we can improve TPS accuracy by using tps_override over the latest 20 blocks
+    async def fetch_latest_block(self, base_url: str, chain_name: str, calc_fees: bool) -> Optional[Dict[str, Any]]:
         try:
             if not self.backend.http_session:
                 logger.error("HTTP session not initialized")
                 return None
-            
-            # Headers ONLY for Lighter requests (don’t touch global session defaults)
-            BROWSER_UA = (
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
-            )
-            primary_headers = {
-                "User-Agent": BROWSER_UA,
-                "Accept": "application/json, text/plain, */*",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Referer": "https://explorer.elliot.ai/",
-                "Origin": "https://explorer.elliot.ai",
-                "Connection": "keep-alive",
-            }
-            # Some WAFs dislike Referer/Origin from non-browser contexts; try a fallback without them
-            fallback_headers = {
-                "User-Agent": BROWSER_UA,
-                "Accept": "application/json, text/plain, */*",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Connection": "keep-alive",
-            }
 
-            # Small retry: primary headers first, then fallback
-            data = None
-            for attempt, headers in enumerate((primary_headers, fallback_headers), start=1):
+            # 1) Get current height
+            height_url = f"{base_url.rstrip('/')}/currentHeight"
+            async with self.backend.http_session.get(height_url, timeout=10) as resp:
+                body = await resp.text()
+                if resp.status != 200:
+                    logger.error(f"[{chain_name}] HTTP {resp.status} {height_url}. Body: {body[:512]}")
+                    return None
                 try:
-                    async with self.backend.http_session.get(url, headers=headers, timeout=10) as resp:
-                        text = await resp.text()
-                        if resp.status == 200:
-                            try:
-                                data = await resp.json()
-                                break
-                            except Exception:
-                                logger.error(f"[{chain_name}] JSON parse error. Body (truncated): {text[:512]}")
-                                return None
-                        elif resp.status in (401, 403):
-                            logger.error(f"[{chain_name}] {resp.status} from Lighter API on attempt {attempt}. "
-                                         f"Resp headers: {dict(resp.headers)}; Body (truncated): {text[:512]}")
-                            # try fallback if available
-                        else:
-                            logger.warning(f"[{chain_name}] HTTP {resp.status} from Lighter API on attempt {attempt}. Retrying/fallback...")
-                except asyncio.TimeoutError:
-                    logger.warning(f"[{chain_name}] Timeout calling Lighter API on attempt {attempt}")
+                    hjson = await resp.json()
                 except Exception as e:
-                    logger.error(f"[{chain_name}] Error calling Lighter API on attempt {attempt}: {e}")
+                    logger.error(f"[{chain_name}] JSON parse error on currentHeight: {e}. Body: {body[:512]}")
+                    return None
 
-            if not data:
+            height = int(hjson.get("height", -1))
+            if height <= 0:
+                logger.error(f"[{chain_name}] Invalid height from currentHeight: {hjson}")
                 return None
 
-            if not isinstance(data, list) or not data:
-                logger.error(f"[{chain_name}] Lighter API returned no blocks or wrong shape")
-                return None
-
-            # Parse rows
-            rows: List[Dict[str, Any]] = []
-            for item in data:
+            # 2) Fetch latest 20 blocks by that index
+            blocks_url = f"{base_url.rstrip('/')}/blocks?index={height}&limit=10&sort=desc"
+            async with self.backend.http_session.get(blocks_url, timeout=10) as resp:
+                body = await resp.text()
+                if resp.status != 200:
+                    logger.error(f"[{chain_name}] HTTP {resp.status} {blocks_url}. Body: {body[:512]}")
+                    return None
                 try:
-                    height = int(item["block_height"])
-                    ts = datetime.fromisoformat(item["updated_at"].replace("Z", "+00:00"))
-                    size = int(item.get("block_size", 0))
-                    rows.append({"height": height, "ts": ts, "size": size})
+                    data = await resp.json()
+                except Exception as e:
+                    logger.error(f"[{chain_name}] JSON parse error on blocks: {e}. Body: {body[:512]}")
+                    return None
+
+            blocks = (data or {}).get("blocks", [])
+            if not isinstance(blocks, list) or not blocks:
+                logger.error(f"[{chain_name}] Blocks payload empty/wrong shape: {data}")
+                return None
+
+            # Parse (height, size); API says sort=desc, but sort defensively
+            rows = []
+            for b in blocks:
+                try:
+                    h = int(b["height"])
+                    sz = int(b.get("size", 0))
+                    rows.append((h, sz))
                 except Exception:
                     continue
-
             if not rows:
-                logger.error(f"[{chain_name}] All Lighter rows malformed")
+                logger.error(f"[{chain_name}] All blocks malformed")
                 return None
 
-            rows.sort(key=lambda r: r["ts"])  # oldest -> newest
-            total_txs = sum(r["size"] for r in rows)
-            t_start, t_end = rows[0]["ts"], rows[-1]["ts"]
-            window_seconds = max(1.0, (t_end - t_start).total_seconds())
-            tps = total_txs / window_seconds
+            rows.sort(key=lambda x: x[0])  # oldest -> newest
+            latest_height, latest_size = rows[-1]
+            now_unix = int(time.time())
 
-            latest = rows[-1]
-            latest_height = latest["height"]
-            latest_ts_unix = int(latest["ts"].timestamp())
-            latest_block_tx_count = latest["size"]
-
+            # Cache some window metadata (informational)
+            total_txs_window = sum(sz for _, sz in rows)
             self.backend.chain_data[chain_name].update({
-                "tps": tps,
-                "tps_window_seconds": window_seconds,
                 "tps_window_blocks": len(rows),
-                "tps_window_txs": total_txs,
+                "tps_window_txs": total_txs_window,
                 "latest_block_height": latest_height,
-                "last_updated_unix": latest_ts_unix,
+                "last_updated_unix": now_unix,
             })
 
+            # Return a block-like dict for your generic pipeline.
+            # We supply tx_count; your calculate_tps() already prefers it.
             return {
                 "number": hex(latest_height),
-                "timestamp": hex(latest_ts_unix),
-                "transactions": [],                 # endpoint doesn’t expose tx hashes
-                "tx_count": latest_block_tx_count,  # used by calculate_tps
+                "timestamp": hex(now_unix),   # API lacks per-block timestamps; use current time
+                "transactions": [],
+                "tx_count": latest_size,
                 "gasUsed": "N/A",
                 "gasLimit": "N/A",
-                "tps_override": tps,                # respected by your calculate_tps()
-                "tps_window_seconds": window_seconds,
-                "tps_window_txs": total_txs,
-                "tps_window_blocks": len(rows),
+                # no tps_override (no per-block timestamps available)
             }
 
         except asyncio.TimeoutError:
