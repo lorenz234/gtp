@@ -84,7 +84,7 @@ def run_dag():
             url = "https://www.growthepie.com/ethereum-ecosystem/metrics?tps=true"
             filename = f"/tps_global/{ts}_ecosystem.png"
             selector = "#content-panel > div > main > div > div.flex.flex-col.pt-\[15px\] > div.px-\[20px\].md\:pl-\[45px\].md\:pr-\[60px\].text-color-text-primary.z-\[1\] > div.grid.grid-cols-\[1fr\,1fr\,1fr\].gap-\[15px\].w-full.\@container > div.flex.flex-col.lg\:flex-row.gap-\[15px\].col-span-3.\@\[1040px\]\:col-span-2 > div:nth-child(1) > div > div"
-            generate_screenshot(url, filename, wait_for_timeout=2000, selector=selector)
+            generate_screenshot(url, filename, width=1200, wait_for_timeout=3000, selector=selector, clip_height=180)
 
             message = [
                 f"🥧 **New all-time high in Ecosystem TPS:** `{new_tps:.2f}`",

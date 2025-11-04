@@ -455,34 +455,57 @@ def send_telegram_message(
     else:
         print("✅ Message sent successfully!")
 
-def generate_screenshot(url: str, filename: str, height:int = 1600, wait_for_timeout: int = 3000, selector: str = None):
+def generate_screenshot(
+    url: str,
+    filename: str,
+    height: int = 1600,
+    width: int = 1920,
+    wait_for_timeout: int = 3000,
+    selector: str = None,
+    clip_height: int = None,
+):
+    from playwright.sync_api import sync_playwright
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        page.set_viewport_size({"width": 1920, "height": height})
+        page.set_viewport_size({"width": width, "height": height})
 
         print(f"📸 Loading chart: {url}")
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_timeout(wait_for_timeout) 
+        page.wait_for_timeout(wait_for_timeout)
 
         screenshot_path = f"generated_images/{filename}"
-        
+
         if selector:
             element = page.query_selector(selector)
             if element:
                 box = element.bounding_box()
                 if box:
                     clip_region = box
+                    if clip_height:
+                        clip_region["height"] = min(clip_height, box["height"])
                     page.screenshot(path=screenshot_path, clip=clip_region)
                 else:
-                    print(f"⚠️ Could not get bounding box for selector '{selector}'. Taking full page screenshot instead.")
-                    page.screenshot(path=screenshot_path, full_page=False)
+                    print(f"⚠️ Could not get bounding box for selector '{selector}'. Taking clipped page screenshot instead.")
+                    page.screenshot(
+                        path=screenshot_path,
+                        clip={"x": 0, "y": 0, "width": 1920, "height": clip_height or height},
+                    )
             else:
-                print(f"⚠️ Selector '{selector}' not found. Taking full page screenshot instead.")
-                page.screenshot(path=screenshot_path, full_page=False)
+                print(f"⚠️ Selector '{selector}' not found. Taking clipped page screenshot instead.")
+                page.screenshot(
+                    path=screenshot_path,
+                    clip={"x": 0, "y": 0, "width": 1920, "height": clip_height or height},
+                )
         else:
-            page.screenshot(path=screenshot_path, full_page=False)
-            
+            # take top N pixels only
+            if clip_height:
+                clip_region = {"x": 0, "y": 0, "width": 1920, "height": clip_height}
+                page.screenshot(path=screenshot_path, clip=clip_region)
+            else:
+                page.screenshot(path=screenshot_path, full_page=False)
+
         browser.close()
         print(f"✅ Screenshot saved: {screenshot_path}")
 
