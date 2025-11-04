@@ -93,6 +93,7 @@ def gtp_analyst():
                 metric_key = highlight['metric_key']
                 metric_id = highlight['metric_id']
                 date = highlight['date']
+                highlight_type = highlight['type']
                 metric_conf = gtp_metrics_new['chains'][metric_id]
                 metric_fe = metric_conf['url_path'].split('/')[-1]
                 
@@ -103,26 +104,28 @@ def gtp_analyst():
                     f"[View on growthepie.com](https://www.growthepie.com/fundamentals/{metric_fe})"
                 )
                 
-                ## ecosystem-wide
-                chains_url = ''
-                for chain in main_config:
-                    if chain.api_in_main and chain.api_deployment_flag == 'PROD' and metric_id not in chain.api_exclude_metrics:
-                        chains_url += f"{chain.origin_key}%2C"
-                chains_url = chains_url[:-3]  # remove last %2C
-                
-                if metric_conf['category'] in ['value-locked', 'market'] or metric_id in ['throughput', 'fully_diluted_valuation']:
-                    timespan = 'max'
+                if highlight_type != 'growth_1':
+                    ## Take screenshot of chart
+                    chains_url = ''
+                    for chain in main_config:
+                        if chain.api_in_main and chain.api_deployment_flag == 'PROD' and metric_id not in chain.api_exclude_metrics:
+                            chains_url += f"{chain.origin_key}%2C"
+                    chains_url = chains_url[:-3]  # remove last %2C
+                    
+                    if metric_conf['category'] in ['value-locked', 'market'] or metric_id in ['throughput', 'fully_diluted_valuation']:
+                        timespan = 'max'
+                    else:
+                        timespan = '180d'
+
+                    url = f"https://www.growthepie.com/embed/fundamentals/{metric_fe}?showUsd=true&theme=dark&timespan={timespan}&scale=stacked&interval=daily&showMainnet=true&chains={chains_url}&zoomed=false"
+                    print(f"🌐 Chart URL: {url}")
+                    filename = f"{date}_{metric_key}.png"
+                    generate_screenshot(url, filename, height=1000)
+                    send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"), image_paths=f"generated_images/{filename}")
+                    send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message, image_path=f"generated_images/{filename}")
                 else:
-                    timespan = '180d'
-
-                url = f"https://www.growthepie.com/embed/fundamentals/{metric_fe}?showUsd=true&theme=dark&timespan={timespan}&scale=stacked&interval=daily&showMainnet=true&chains={chains_url}&zoomed=false"
-                print(f"🌐 Chart URL: {url}")
-
-                filename = f"{date}_{metric_key}.png"
-
-                generate_screenshot(url, filename, height=1000)
-                send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"), image_paths=f"generated_images/{filename}")
-                send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message, image_path=f"generated_images/{filename}")
+                    send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"))
+                    send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message)
 
     run_analyst()
     run_highlights()

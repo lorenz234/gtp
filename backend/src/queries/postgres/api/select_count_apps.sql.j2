@@ -3,7 +3,7 @@
 
     Parameters:
     - days: default = 30; The time interval (in days) to consider for data extraction.
-    - origin_key: The origin_key to filter the data.
+    - origin_keys: The origin_keys to filter the data.
 #}
 
 {% set days = days | default(30) %}
@@ -11,5 +11,5 @@
 
 SELECT count(distinct owner_project) as active_apps
 FROM public.vw_apps_contract_level_materialized
-where origin_key = '{{origin_key}}'
+where origin_key IN ( '{{ origin_keys | join("', '") }}' )
     and date > current_date - interval '{{days}} days'
