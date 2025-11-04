@@ -369,22 +369,64 @@ class LighterProcessor(BlockchainProcessor):
             if not self.backend.http_session:
                 logger.error("HTTP session not initialized")
                 return None
+            
+            # Headers ONLY for Lighter requests (don’t touch global session defaults)
+            BROWSER_UA = (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+            )
+            primary_headers = {
+                "User-Agent": BROWSER_UA,
+                "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://explorer.elliot.ai/",
+                "Origin": "https://explorer.elliot.ai",
+                "Connection": "keep-alive",
+            }
+            # Some WAFs dislike Referer/Origin from non-browser contexts; try a fallback without them
+            fallback_headers = {
+                "User-Agent": BROWSER_UA,
+                "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Connection": "keep-alive",
+            }
 
-            async with self.backend.http_session.get(url, timeout=10) as resp:
-                if resp.status != 200:
-                    logger.error(f"Lighter API HTTP {resp.status} for {chain_name}")
-                    return None
-                data = await resp.json()
+            # Small retry: primary headers first, then fallback
+            data = None
+            for attempt, headers in enumerate((primary_headers, fallback_headers), start=1):
+                try:
+                    async with self.backend.http_session.get(url, headers=headers, timeout=10) as resp:
+                        text = await resp.text()
+                        if resp.status == 200:
+                            try:
+                                data = await resp.json()
+                                break
+                            except Exception:
+                                logger.error(f"[{chain_name}] JSON parse error. Body (truncated): {text[:512]}")
+                                return None
+                        elif resp.status in (401, 403):
+                            logger.error(f"[{chain_name}] {resp.status} from Lighter API on attempt {attempt}. "
+                                         f"Resp headers: {dict(resp.headers)}; Body (truncated): {text[:512]}")
+                            # try fallback if available
+                        else:
+                            logger.warning(f"[{chain_name}] HTTP {resp.status} from Lighter API on attempt {attempt}. Retrying/fallback...")
+                except asyncio.TimeoutError:
+                    logger.warning(f"[{chain_name}] Timeout calling Lighter API on attempt {attempt}")
+                except Exception as e:
+                    logger.error(f"[{chain_name}] Error calling Lighter API on attempt {attempt}: {e}")
 
-            if not isinstance(data, list) or not data:
-                logger.error(f"Lighter API returned no blocks for {chain_name}")
+            if not data:
                 return None
 
+            if not isinstance(data, list) or not data:
+                logger.error(f"[{chain_name}] Lighter API returned no blocks or wrong shape")
+                return None
+
+            # Parse rows
             rows: List[Dict[str, Any]] = []
             for item in data:
                 try:
                     height = int(item["block_height"])
-                    # parse RFC3339 with Z
                     ts = datetime.fromisoformat(item["updated_at"].replace("Z", "+00:00"))
                     size = int(item.get("block_size", 0))
                     rows.append({"height": height, "ts": ts, "size": size})
@@ -392,14 +434,12 @@ class LighterProcessor(BlockchainProcessor):
                     continue
 
             if not rows:
-                logger.error(f"Lighter API blocks malformed for {chain_name}")
+                logger.error(f"[{chain_name}] All Lighter rows malformed")
                 return None
 
             rows.sort(key=lambda r: r["ts"])  # oldest -> newest
-
             total_txs = sum(r["size"] for r in rows)
-            t_start = rows[0]["ts"]
-            t_end = rows[-1]["ts"]
+            t_start, t_end = rows[0]["ts"], rows[-1]["ts"]
             window_seconds = max(1.0, (t_end - t_start).total_seconds())
             tps = total_txs / window_seconds
 
@@ -408,7 +448,6 @@ class LighterProcessor(BlockchainProcessor):
             latest_ts_unix = int(latest["ts"].timestamp())
             latest_block_tx_count = latest["size"]
 
-            # Cache a few handy values
             self.backend.chain_data[chain_name].update({
                 "tps": tps,
                 "tps_window_seconds": window_seconds,
@@ -418,22 +457,18 @@ class LighterProcessor(BlockchainProcessor):
                 "last_updated_unix": latest_ts_unix,
             })
 
-            # Return a block-like dict:
-            # - Provide tx_count for your backend (so it doesn't need to build a huge list)
-            # - Provide tps_override so backend can trust the 20-block window TPS
-            block_dict = {
+            return {
                 "number": hex(latest_height),
                 "timestamp": hex(latest_ts_unix),
-                "transactions": [],          # Lighter API doesn't return tx hashes
-                "tx_count": latest_block_tx_count,
+                "transactions": [],                 # endpoint doesn’t expose tx hashes
+                "tx_count": latest_block_tx_count,  # used by calculate_tps
                 "gasUsed": "N/A",
                 "gasLimit": "N/A",
-                "tps_override": tps,         # <-- key your backend will honor
+                "tps_override": tps,                # respected by your calculate_tps()
                 "tps_window_seconds": window_seconds,
                 "tps_window_txs": total_txs,
                 "tps_window_blocks": len(rows),
             }
-            return block_dict
 
         except asyncio.TimeoutError:
             logger.error(f"Timeout fetching Lighter blocks for {chain_name}")
