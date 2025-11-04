@@ -1123,7 +1123,10 @@ def highlights_prep(df, gtp_metrics):
             header = 'All-Time High'
         elif highlight_type.startswith('growth_'):
             period = highlight_type.split('_')[1]
-            highlight_text = f"This metric grew by {row['growth_pct_growth']*100:.2f}% over the past {period} days"
+            if period == '1':
+                highlight_text = f"This metric grew by {row['growth_pct_growth']*100:.2f}% over the past day"
+            else:
+                highlight_text = f"This metric grew by {row['growth_pct_growth']*100:.2f}% over the past {period} days"
             header = 'Growth Highlight'
         else:
             highlight_text = "Wow!"
