@@ -19,19 +19,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger("redis_sse_server")
 
-def send_discord_message(message, webhook_url=None):
-    data = {"content": message}
-    if webhook_url is None:
-        webhook_url = os.getenv('DISCORD_COMMS')
-    try:
-        response = requests.post(webhook_url, json=data, timeout=10)
-        # Check the response status code
-        if response.status_code == 204:
-            print("Message sent successfully")
-        else:
-            print(f"Error sending message: {response.status_code} - {response.text}")
-    except requests.exceptions.RequestException as e:
-        print(f"Error sending Discord message: {e}")
+# def send_discord_message(message, webhook_url=None):
+#     data = {"content": message}
+#     if webhook_url is None:
+#         webhook_url = os.getenv('DISCORD_COMMS')
+#     try:
+#         response = requests.post(webhook_url, json=data, timeout=10)
+#         # Check the response status code
+#         if response.status_code == 204:
+#             print("Message sent successfully")
+#         else:
+#             print(f"Error sending message: {response.status_code} - {response.text}")
+#     except requests.exceptions.RequestException as e:
+#         print(f"Error sending Discord message: {e}")
 
 
 @dataclass
@@ -410,7 +410,7 @@ class RedisSSEServer:
                 logger.info(f"🚀 NEW GLOBAL TPS ALL-TIME HIGH: {current_tps} TPS! (Previous: {old_ath})")
                 ath_message = f"""🚀 NEW GLOBAL TPS ALL-TIME HIGH: {current_tps:.2f} TPS! (Previous: {old_ath:.2f})
                 \nTimestamp: {timestamp}\nActive Chains: {len(chain_breakdown)}\nChain Breakdown: {json.dumps(chain_breakdown, indent=2)}"""
-                send_discord_message(ath_message)
+                #send_discord_message(ath_message)
 
             if current_tps > self.tps_24h_high:
                 self.tps_24h_high = current_tps
