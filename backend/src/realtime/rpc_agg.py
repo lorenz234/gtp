@@ -436,14 +436,15 @@ class LighterProcessor(BlockchainProcessor):
 
             # Return a block-like dict for your generic pipeline.
             # We supply tx_count; your calculate_tps() already prefers it.
+            now_ms = int(time.time() * 1000)
             return {
                 "number": hex(latest_height),
-                "timestamp": hex(now_unix),   # API lacks per-block timestamps; use current time
+                "timestamp": hex(now_ms // 1000),  
+                "timestamp_ms": now_ms,            # <-- new high-res timestamp for TPS math
                 "transactions": [],
                 "tx_count": latest_size,
                 "gasUsed": "N/A",
                 "gasLimit": "N/A",
-                # no tps_override (no per-block timestamps available)
             }
 
         except asyncio.TimeoutError:
@@ -719,7 +720,11 @@ class RtBackend:
         chain = self.chain_data[chain_name]
 
         current_block_number = int(current_block["number"], 16)
-        current_timestamp = int(current_block["timestamp"], 16)
+        # Use ms if provided (Lighter), else fall back to seconds
+        if "timestamp_ms" in current_block:
+            current_timestamp = current_block["timestamp_ms"] / 1000.0  # float seconds
+        else:
+            current_timestamp = float(int(current_block["timestamp"], 16))
 
         # Prefer explicit tx_count if provided, else fall back to transactions list
         tx_count = current_block.get("tx_count")
@@ -740,7 +745,7 @@ class RtBackend:
 
             block_info = {
                 "number": current_block_number,
-                "timestamp": current_timestamp,
+                "timestamp": current_timestamp,  # float
                 "tx_count": tx_count,
                 "gas_used": gas_used,
                 "is_estimated": False
