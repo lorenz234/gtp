@@ -74,25 +74,50 @@ class AdapterOLIOnchain(AbstractAdapter):
                 # read onchain attestation
                 r = self.get_attestation_data(uid)
                 self.schema_info = str(self.schema_chain) + '_' + r['schema']
-                # decode label data
-                label_data = self.decode_label_data(r['data'])
-                # append to d
-                d.append({
-                    'uid': uid,
-                    'time': pd.to_datetime(r['time'], unit='s').isoformat(),
-                    'attester': r['attester'],
-                    'recipient': r['recipient'],
-                    'revoked': True if extract_params.get('topics', [None])[0] == '0xf930a6e2523c9cc298691873087a740550b8fc85a0680830414c148ed927f615' or r['revocationTime'] > 0 else False,
-                    'is_offchain': False,
-                    'tx_hash': '0x' + log['transactionHash'].hex(),
-                    'ipfs_hash': None,
-                    'revocation_time': pd.to_datetime(r['revocationTime'], unit='s').isoformat(),
-                    'chain_id': label_data['chain_id'],
-                    'tags_json': label_data['tags_json'],
-                    'raw': None,
-                    'last_updated_time': pd.Timestamp.now(tz=timezone.utc).replace(tzinfo=None).isoformat(),
-                    'schema_info': self.schema_info
-                })
+                # depending on which schema we are reading, process accordingly
+                if r['schema'] == '0xb763e62d940bed6f527dd82418e146a904e62a297b8fa765c9b3e1f0bc6fdd68':  # Labels
+                    # decode label data
+                    label_data = self.decode_label_data(r['data'])
+                    # append to d
+                    d.append({
+                        'uid': uid,
+                        'time': pd.to_datetime(r['time'], unit='s').isoformat(),
+                        'attester': r['attester'],
+                        'recipient': r['recipient'],
+                        'revoked': True if extract_params.get('topics', [None])[0] == '0xf930a6e2523c9cc298691873087a740550b8fc85a0680830414c148ed927f615' or r['revocationTime'] > 0 else False,
+                        'is_offchain': False,
+                        'tx_hash': '0x' + log['transactionHash'].hex(),
+                        'ipfs_hash': None,
+                        'revocation_time': pd.to_datetime(r['revocationTime'], unit='s').isoformat(),
+                        'raw': None,
+                        'last_updated_time': pd.Timestamp.now(tz=timezone.utc).replace(tzinfo=None).isoformat(),
+                        'schema_info': self.schema_info,
+                        # data fields
+                        'chain_id': label_data['chain_id'],
+                        'tags_json': label_data['tags_json']
+                    })
+                elif r['schema'] == '0x6d780a85bfad501090cd82868a0c773c09beafda609d54888a65c106898c363d':  # Trust Lists
+                    # decode trust list data
+                    trust_list_data = self.decode_trust_list_data(r['data'])
+                    # append to d
+                    d.append({
+                        'uid': uid,
+                        'time': pd.to_datetime(r['time'], unit='s').isoformat(),
+                        'attester': r['attester'],
+                        'recipient': r['recipient'],
+                        'revoked': True if extract_params.get('topics', [None])[0] == '0xf930a6e2523c9cc298691873087a740550b8fc85a0680830414c148ed927f615' or r['revocationTime'] > 0 else False,
+                        'is_offchain': False,
+                        'tx_hash': '0x' + log['transactionHash'].hex(),
+                        'ipfs_hash': None,
+                        'revocation_time': pd.to_datetime(r['revocationTime'], unit='s').isoformat(),
+                        'raw': None,
+                        'last_updated_time': pd.Timestamp.now(tz=timezone.utc).replace(tzinfo=None).isoformat(),
+                        'schema_info': self.schema_info,
+                        # data fields
+                        'owner_name': trust_list_data['owner_name'],
+                        'attesters': trust_list_data['attesters'],
+                        'attestations': trust_list_data['attestations']
+                    })
         df = pd.DataFrame(d)
 
         # print extract info only if there was data extracted
@@ -188,6 +213,50 @@ class AdapterOLIOnchain(AbstractAdapter):
         return {
             'chain_id': chain_id,
             'tags_json': tags_json
+        }
+    
+    def decode_trust_list_data(self, encoded_hex: str) -> dict:
+        """
+        Decode trust list data from the OLI format.
+        
+        Args:
+            encoded_hex (str): Encoded trust list data (with or without '0x' prefix)
+
+        Returns:
+            dict: Dictionary containing 'owner_name', 'attesters', and 'attestations'
+        """
+        # Remove '0x' prefix if present
+        if encoded_hex.startswith('0x'):
+            encoded_hex = encoded_hex[2:]
+        
+        # Convert hex string to bytes
+        encoded_bytes = bytes.fromhex(encoded_hex)
+        
+        # ABI decode the data
+        decoded_data = decode(['string', 'string', 'string'], encoded_bytes)
+        
+        owner_name = decoded_data[0]
+        attesters = decoded_data[1]
+        attestations = decoded_data[2]
+        
+        # parse JSON strings back to dicts/lists
+        try:
+            attesters = json.loads(attesters)
+            if not isinstance(attesters, list):
+                attesters = []
+        except:
+            attesters = []
+        try:
+            attestations = json.loads(attestations)
+            if not isinstance(attestations, list):
+                attestations = []
+        except:
+            attestations = []
+
+        return {
+            'owner_name': owner_name,
+            'attesters': attesters,
+            'attestations': attestations
         }
     
     def get_last_run_block(self, schema_info) -> int:

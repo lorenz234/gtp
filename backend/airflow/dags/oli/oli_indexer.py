@@ -45,7 +45,7 @@ def main():
 
         while True:
 
-            ## Onchain ##
+            ## Onchain, attestations of labels & revocations of labels ##
             extract_params_onchain = {
                 'from_block': 'last_run_block',  # add last run block
                 'to_block': 'latest',
@@ -80,7 +80,36 @@ def main():
             ad_onchain.load(df, 'attestations')
 
 
-            ## Offchain ##
+            ## Onchain, attestations of trust lists & revocations of trust lists ##
+            attest_topics = [
+                '0x8bf46bf4cfd674fa735a3d63ec1c9ad4153f033c290341f3a588b75685141b35', # Attest topic
+                None,
+                None,
+                '0x6d780a85bfad501090cd82868a0c773c09beafda609d54888a65c106898c363d' # Schema topic
+            ]
+            revoke_topics = [
+                '0xf930a6e2523c9cc298691873087a740550b8fc85a0680830414c148ed927f615', # Revoke topic of onchain attestations
+                None,
+                None,
+                '0x6d780a85bfad501090cd82868a0c773c09beafda609d54888a65c106898c363d' # Schema topic
+            ]
+
+            # extract onchain attestations
+            extract_params_onchain['topics'] = attest_topics
+            df_attest = ad_onchain.extract(extract_params_onchain)
+
+            # extract onchain revocations of onchain attestations
+            extract_params_onchain['topics'] = revoke_topics
+            df_revokes = ad_onchain.extract(extract_params_onchain)
+
+            # merge df_attest & df_revokes, if there are duplicate uid, then keep the one in df_revokes (overwrites tx_id)
+            df = pd.concat([df_revokes, df_attest]).drop_duplicates(subset=['uid']).reset_index(drop=True)
+
+            # load onchain attestations & revocations
+            ad_onchain.load(df, 'trust_lists')
+
+
+            ## Offchain, revocations of trust lists and labels ##
             extract_params_offchain = {
                 'from_block': 'last_run_block',  # add last run block
                 'to_block': 'latest',
@@ -97,7 +126,7 @@ def main():
             df_revokes = ad_offchain.extract(extract_params_offchain)
 
             # load offchain revocations
-            ad_offchain.load(df_revokes, 'attestations')
+            ad_offchain.load(df_revokes, table_names=['attestations', 'trust_lists'])
 
 
             ## break the loop if time reached ##

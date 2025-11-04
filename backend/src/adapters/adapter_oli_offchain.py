@@ -73,9 +73,9 @@ class AdapterOLIOffchain(AbstractAdapter):
         return df
 
     """
-    table_name: str - the name of the table to load data into
+    table_names: list - the names of the tables to load data into
     """
-    def load(self, df: pd.DataFrame, table_name: str = 'attestations'):
+    def load(self, df: pd.DataFrame, table_names: list = ['attestations', 'trust_lists']):
         
         if df.empty:
             #print(f"No data to load.")
@@ -100,25 +100,25 @@ class AdapterOLIOffchain(AbstractAdapter):
                         f"(decode('{uid_hex}', 'hex'), '{row['revocation_time']}', decode('{tx_hash_hex}', 'hex'))"
                     )
                 
-                values_str = ',\n            '.join(values_list)
-                
-                query = f"""
-                    UPDATE public.{table_name} AS t
-                    SET
-                        revoked = true,
-                        revocation_time = v.revocation_time::timestamp,
-                        tx_hash = v.tx_hash,
-                        last_updated_time = NOW()
-                    FROM (VALUES
-                        {values_str}
-                    ) AS v(uid, revocation_time, tx_hash)
-                    WHERE t.uid = v.uid;
-                """
-                
-                r = self.db_connector.execute_query(query)
-                print(f"Updated batch {i//batch_size + 1}: {len(batch_df)} rows")
+                # Update each table 
+                for table in table_names:
+                    values_str = ',\n            '.join(values_list)
+                    query = f"""
+                            UPDATE public.{table} AS t
+                            SET
+                                revoked = true,
+                            revocation_time = v.revocation_time::timestamp,
+                            tx_hash = v.tx_hash,
+                            last_updated_time = NOW()
+                        FROM (VALUES
+                            {values_str}
+                        ) AS v(uid, revocation_time, tx_hash)
+                        WHERE t.uid = v.uid;
+                    """
+                    r = self.db_connector.execute_query(query)
+                    print(f"Updated {table} batch {i//batch_size + 1}: {len(batch_df)} rows")
             
-            print_load(self.name, {'table': table_name}, df.shape)
+            print_load(self.name, {'table_names': table_names}, df.shape)
         
         self.save_last_run_block(self.schema_chain, self.extract_params['from_block'], self.extract_params['to_block'])
 
