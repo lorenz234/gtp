@@ -67,7 +67,7 @@ def main():
             def upload_row(row):
                 path_name = f'attestations/{row["schema_info"]}/{row["uid"]}.json'
                 cid = upload_json_to_filebase_ipfs(bucket, path_name, row['raw'])
-                print(f'Uploaded UID {row["uid"]}... to IPFS with CID: {cid}')
+                print(f'Uploaded UID {row["uid"]} to IPFS with CID: {cid}')
                 return {
                     'uid': row['uid'],
                     'cid': cid
