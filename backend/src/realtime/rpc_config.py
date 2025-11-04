@@ -241,4 +241,12 @@ rpc_config = {
         "calc_fees": False,
     },
     
+    # App Chains
+    "lighter": {
+        "name": "Lighter",
+        "processors": "lighter",
+        "calc_fees": False,
+        "sleeper": 2,
+    },
+    
 }

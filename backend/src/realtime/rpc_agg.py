@@ -12,6 +12,8 @@ from web3.middleware import ExtraDataToPOAMiddleware
 from src.db_connector import DbConnector
 from src.realtime.rpc_config import rpc_config
 
+from datetime import datetime, timezone
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -344,6 +346,104 @@ class StarknetProcessor(BlockchainProcessor):
             self.backend.chain_data[chain_name]["errors"] += 1
             return None
 
+class LighterProcessor(BlockchainProcessor):
+    """
+    Processor for Lighter (Elliot) explorer.
+    - Hits https://explorer.elliot.ai/api/blocks (latest 20 blocks).
+    - Computes TPS over the returned window: sum(block_size) / (Δtime).
+    - No fee calcs.
+    """
+
+    def __init__(self, backend: 'RtBackend'):
+        self.backend = backend
+
+    async def initialize_client(self, url: str) -> str:
+        # Same pattern as Starknet: just return the URL, use backend.http_session
+        return url
+
+    def supports_tx_costs(self) -> bool:
+        return False
+
+    async def fetch_latest_block(self, url: str, chain_name: str, calc_fees: bool) -> Optional[Dict[str, Any]]:
+        try:
+            if not self.backend.http_session:
+                logger.error("HTTP session not initialized")
+                return None
+
+            async with self.backend.http_session.get(url, timeout=10) as resp:
+                if resp.status != 200:
+                    logger.error(f"Lighter API HTTP {resp.status} for {chain_name}")
+                    return None
+                data = await resp.json()
+
+            if not isinstance(data, list) or not data:
+                logger.error(f"Lighter API returned no blocks for {chain_name}")
+                return None
+
+            rows: List[Dict[str, Any]] = []
+            for item in data:
+                try:
+                    height = int(item["block_height"])
+                    # parse RFC3339 with Z
+                    ts = datetime.fromisoformat(item["updated_at"].replace("Z", "+00:00"))
+                    size = int(item.get("block_size", 0))
+                    rows.append({"height": height, "ts": ts, "size": size})
+                except Exception:
+                    continue
+
+            if not rows:
+                logger.error(f"Lighter API blocks malformed for {chain_name}")
+                return None
+
+            rows.sort(key=lambda r: r["ts"])  # oldest -> newest
+
+            total_txs = sum(r["size"] for r in rows)
+            t_start = rows[0]["ts"]
+            t_end = rows[-1]["ts"]
+            window_seconds = max(1.0, (t_end - t_start).total_seconds())
+            tps = total_txs / window_seconds
+
+            latest = rows[-1]
+            latest_height = latest["height"]
+            latest_ts_unix = int(latest["ts"].timestamp())
+            latest_block_tx_count = latest["size"]
+
+            # Cache a few handy values
+            self.backend.chain_data[chain_name].update({
+                "tps": tps,
+                "tps_window_seconds": window_seconds,
+                "tps_window_blocks": len(rows),
+                "tps_window_txs": total_txs,
+                "latest_block_height": latest_height,
+                "last_updated_unix": latest_ts_unix,
+            })
+
+            # Return a block-like dict:
+            # - Provide tx_count for your backend (so it doesn't need to build a huge list)
+            # - Provide tps_override so backend can trust the 20-block window TPS
+            block_dict = {
+                "number": hex(latest_height),
+                "timestamp": hex(latest_ts_unix),
+                "transactions": [],          # Lighter API doesn't return tx hashes
+                "tx_count": latest_block_tx_count,
+                "gasUsed": "N/A",
+                "gasLimit": "N/A",
+                "tps_override": tps,         # <-- key your backend will honor
+                "tps_window_seconds": window_seconds,
+                "tps_window_txs": total_txs,
+                "tps_window_blocks": len(rows),
+            }
+            return block_dict
+
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout fetching Lighter blocks for {chain_name}")
+            self.backend.chain_data[chain_name]["errors"] += 1
+            return None
+        except Exception as e:
+            logger.error(f"Exception fetching Lighter blocks for {chain_name}: {str(e)}")
+            self.backend.chain_data[chain_name]["errors"] += 1
+            return None
+
 
 class RtBackend:
     """
@@ -362,8 +462,9 @@ class RtBackend:
         # Initialize blockchain processors
         self.processors = {
             "evm": EVMProcessor(self),
-            "evm_custom_gas": EVMProcessor(self),  # EVM but skip tx costs
+            "evm_custom_gas": EVMProcessor(self),
             "starknet": StarknetProcessor(self),
+            "lighter": LighterProcessor(self), 
         }
 
         # Initialize clients for each endpoint (will be populated in initialize_async)
@@ -603,23 +704,54 @@ class RtBackend:
         return chain["block_time"]
 
     def calculate_tps(self, chain_name: str, current_block: Dict[str, Any]) -> float:
-        """Calculate TPS for a chain based on the current block and last 3 blocks."""
+        """Calculate TPS for a chain; processors may provide a tps_override (e.g., Lighter)."""
         chain = self.chain_data[chain_name]
-        
+
         current_block_number = int(current_block["number"], 16)
         current_timestamp = int(current_block["timestamp"], 16)
-        tx_count = len(current_block["transactions"])
+
+        # Prefer explicit tx_count if provided, else fall back to transactions list
+        tx_count = current_block.get("tx_count")
+        if tx_count is None:
+            tx_count = len(current_block.get("transactions", []))
+
         gas_used = int(current_block["gasUsed"], 16) if current_block["gasUsed"] != "N/A" else 0
-        
-        # Check if this is a new block (prevent duplicates)
+
+        # Skip duplicate/old blocks
         if chain["last_block_number"] is not None and current_block_number <= chain["last_block_number"]:
-            #logger.debug(f"{chain_name}: Skipping duplicate/old block {current_block_number}")
             return chain["tps"]
-        
-        # Calculate block time before handling missed blocks
+
+        # If a processor provides a stable window TPS, honor it and still keep history consistent
+        tps_override = current_block.get("tps_override")
+        if tps_override is not None:
+            # maintain block_time history (so UI doesn't break)
+            block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp)
+
+            block_info = {
+                "number": current_block_number,
+                "timestamp": current_timestamp,
+                "tx_count": tx_count,
+                "gas_used": gas_used,
+                "is_estimated": False
+            }
+            chain["block_history"].append(block_info)
+            if len(chain["block_history"]) > 3:
+                chain["block_history"] = chain["block_history"][-3:]
+
+            # Update chain data directly with override
+            self._update_chain_data(chain_name, current_block_number, current_timestamp, tx_count, float(tps_override))
+
+            # Publish to Redis
+            asyncio.create_task(
+                self._publish_chain_update(
+                    chain_name, current_block_number, tx_count, gas_used, float(tps_override), block_time
+                )
+            )
+            return float(tps_override)
+
+        # --- normal calculation (no override) ---
         block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp)
-        
-        # Handle missed blocks with estimation
+
         blocks_missed = 0
         if chain["last_block_number"] is not None:
             blocks_missed = current_block_number - chain["last_block_number"] - 1
@@ -627,8 +759,7 @@ class RtBackend:
                 self._add_estimated_blocks(chain, blocks_missed, current_block_number, current_timestamp, tx_count)
                 if blocks_missed > 5:
                     logger.warning(f"{chain_name}: Missed {blocks_missed} blocks between {chain['last_block_number']} and {current_block_number}")
-        
-        # Create block info for current block
+
         block_info = {
             "number": current_block_number,
             "timestamp": current_timestamp,
@@ -636,22 +767,13 @@ class RtBackend:
             "gas_used": gas_used,
             "is_estimated": False
         }
-        
         chain["block_history"].append(block_info)
-        
-        # Keep only last 3 blocks
         if len(chain["block_history"]) > 3:
             chain["block_history"] = chain["block_history"][-3:]
-        
-        # Calculate TPS based on available blocks
+
         tps = self._calculate_tps_from_history(chain["block_history"])
-        
-        # Update chain data
         self._update_chain_data(chain_name, current_block_number, current_timestamp, tx_count, tps)
-        
-        # Publish to Redis
         asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, tps, block_time))
-        
         return tps
 
     async def _publish_chain_update(self, chain_name: str, block_number: int, tx_count: int, gas_used: int, tps: float, block_time: float) -> None:
