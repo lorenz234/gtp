@@ -3,8 +3,7 @@ import pandas as pd
 
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.main_config import get_main_config
-from src.misc.helper_functions import api_get_call, return_projects_to_load, check_projects_to_load, upsert_to_kpis
-from src.misc.helper_functions import print_init, print_load, print_extract
+from src.misc.helper_functions import api_get_call, return_projects_to_load, check_projects_to_load, upsert_to_kpis, print_init, print_load, print_extract, send_discord_message
 
 class AdapterDefillama(AbstractAdapter):
     """
@@ -60,6 +59,11 @@ class AdapterDefillama(AbstractAdapter):
             url = f'{self.base_url}overview/fees/{alias}?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=false&dataType=dailyFees'
             print(f'..fetching: {url}')
             response_json = api_get_call(url)
+            
+            if not response_json:
+                print(f'...API call failed for {origin_key} with alias {alias}. Skipping...')
+                send_discord_message(f"DefiLlama App Fees: API call failed for DefiLlama app fees for {origin_key} with alias {alias}.")
+                continue
 
             # Build a list of dicts, then create the DataFrame at once (avoiding deprecated .append)
             if len(response_json['totalDataChartBreakdown']) == 0:

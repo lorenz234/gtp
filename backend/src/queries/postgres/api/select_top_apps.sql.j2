@@ -3,7 +3,7 @@
 
     Parameters:
     - days: default = 30; The time interval (in days) to consider for data extraction.
-    - origin_key: The origin_key to filter the data.
+    - origin_keys: A list of origin keys to consider for data extraction.
     - limit: The maximum number of apps to return (default is 2).
 #}
 
@@ -12,7 +12,7 @@
 
 SELECT owner_project, sum(txcount) as txcount
 FROM public.vw_apps_contract_level_materialized
-where origin_key = '{{origin_key}}'
+where origin_key IN ( '{{ origin_keys | join("', '") }}' )
     and date > current_date - interval '{{days}} days'
 group by 1
 order by 2 desc

@@ -48,8 +48,20 @@ def run():
         json_gen = JsonGen(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
         json_gen.create_chains_jsons()
         
+    @task()
+    def run_create_ecosystem_jsons():    
+        import os
+        from src.api.json_gen import JsonGen
+        from src.db_connector import DbConnector
+        
+        db_connector = DbConnector()
+
+        json_gen = JsonGen(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
+        json_gen.create_ecosystem_builders_json()
+        
     
     run_create_metrics_per_chain_jsons()
     run_create_chain_jsons()
+    run_create_ecosystem_jsons()
     
 run()

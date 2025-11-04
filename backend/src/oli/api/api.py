@@ -1,21 +1,15 @@
+import os, json, hashlib, asyncpg, time, asyncio
 from fastapi import FastAPI, HTTPException, Query, Depends, Security, status
 from fastapi.security.api_key import APIKeyHeader
-from api_keys import require_api_key
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Any, Dict, Tuple
 from datetime import datetime, timezone
-import asyncpg
-import os
 from contextlib import asynccontextmanager
 
 from eth_utils import to_normalized_address
 from eth_account import Account
 from eth_account.messages import encode_typed_data
 from eth_abi import decode as abi_decode
-import json
-
-import time
-import asyncio
 from concurrent.futures import ProcessPoolExecutor
 
 # tune max_workers to match available CPUs in Cloud Run
@@ -25,27 +19,57 @@ USE_DOTENV = os.getenv("USE_DOTENV", "false").lower() == "true"
 if USE_DOTENV:
     import dotenv
     dotenv.load_dotenv()
-    
+
+#
+#   API KEY Setup
+#
+
 API_KEY_HEADER = "x-api-key"
 api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
+
+# Accept either plaintext keys or SHA256 hex strings in API_KEYS_JSON
+# Example: {"partnerA":"<plaintext or sha256hex>", ...}
+_KEYS = json.loads(os.getenv("OLI_API_KEYS_JSON", "{}"))
+
+def _sha256_hex(s: str) -> str:
+    return hashlib.sha256(s.encode()).hexdigest()
+
+def _const_eq(a: str, b: str) -> bool:
+    # constant-time compare to avoid timing leaks
+    if len(a) != len(b):
+        return False
+    res = 0
+    for x, y in zip(a.encode(), b.encode()):
+        res |= x ^ y
+    return res == 0
+
+def _matches_any_configured_key(presented: str) -> bool:
+    if not _KEYS:
+        return False
+    presented_sha = _sha256_hex(presented)
+    for _, stored in _KEYS.items():
+        s = stored.strip()
+        # match plaintext or sha256
+        if _const_eq(presented, s) or _const_eq(presented_sha, s):
+            return True
+    return False
 
 async def get_api_key(api_key: str = Security(api_key_header)):
     if not api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing API key",
+            detail="Missing API key - Please provide a key for this endpoint",
         )
         
-    from api_keys import _matches_any_configured_key
     if not _matches_any_configured_key(api_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key",
+            detail="Invalid API key - The provided key is not valid",
         )
     return api_key
 
 #
-# CONFIG
+# DB CONFIG
 #
 
 db_user = os.getenv("DB_USERNAME")
@@ -748,7 +772,7 @@ async def get_labels(
 @app.post(
     "/labels/bulk", 
     response_model=BulkLabelsResponse, 
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(get_api_key)],
     tags=["Protected"]
     )
 async def get_labels_bulk(req: BulkLabelsRequest):
@@ -848,7 +872,7 @@ async def get_labels_bulk(req: BulkLabelsRequest):
 @app.get(
     "/addresses/search", 
     response_model=LabelSearchResponse, 
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(get_api_key)],
     tags=["Protected"]
     )
 async def search_addresses_by_tag(
@@ -1069,7 +1093,7 @@ async def get_attestations(
 @app.get(
     "/analytics/attesters", 
     response_model=AttesterAnalyticsResponse, 
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(get_api_key)],
     tags=["Protected"]
     )
 async def get_attester_analytics(

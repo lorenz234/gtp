@@ -183,9 +183,9 @@ class SocialMediaAutomation:
         self.chain_social_handles = {}  # Cache for social handles
         
         # Configuration constants (non-secret)
-        self.data_url = "https://api.growthepie.xyz/v1/fundamentals_full.json"
+        self.data_url = "https://api.growthepie.xyz/v1/fundamentals_internal.json"
         self.master_url = "https://api.growthepie.xyz/v1/master.json" 
-        self.local_filename = "fundamentals_full.json"
+        self.local_filename = "fundamentals_internal.json"
         self.master_filename = "master.json"
         
         print(f"🔧 Loaded webhook URL from env: {self.webhook_url[:50] + '...' + self.webhook_url[-10:] if self.webhook_url else 'None'}")
