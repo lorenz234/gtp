@@ -344,6 +344,116 @@ class StarknetProcessor(BlockchainProcessor):
             self.backend.chain_data[chain_name]["errors"] += 1
             return None
 
+class LighterProcessor(BlockchainProcessor):
+    """
+    Processor for Lighter (Elliot) explorer.
+    - Uses the backend API:
+        GET <base>/currentHeight           -> {"code":200,"height":83872906}
+        GET <base>/blocks?index=H&limit=20&sort=desc
+    - Returns a block-like dict; no fee calcs; TPS is computed by your rolling logic.
+    """
+
+    def __init__(self, backend: 'RtBackend'):
+        self.backend = backend
+
+    async def initialize_client(self, url: str) -> str:
+        # url should be the base API: e.g. "https://mainnet.zklighter.elliot.ai/api/v1"
+        return url
+
+    def supports_tx_costs(self) -> bool:
+        return False
+
+    ## TODO: once lighter supports per-block timestamps, we can improve TPS accuracy by using tps_override over the latest 20 blocks
+    async def fetch_latest_block(self, base_url: str, chain_name: str, calc_fees: bool) -> Optional[Dict[str, Any]]:
+        try:
+            if not self.backend.http_session:
+                logger.error("HTTP session not initialized")
+                return None
+
+            # 1) Get current height
+            height_url = f"{base_url.rstrip('/')}/currentHeight"
+            async with self.backend.http_session.get(height_url, timeout=10) as resp:
+                body = await resp.text()
+                if resp.status != 200:
+                    logger.error(f"[{chain_name}] HTTP {resp.status} {height_url}. Body: {body[:512]}")
+                    return None
+                try:
+                    hjson = await resp.json()
+                except Exception as e:
+                    logger.error(f"[{chain_name}] JSON parse error on currentHeight: {e}. Body: {body[:512]}")
+                    return None
+
+            height = int(hjson.get("height", -1))
+            if height <= 0:
+                logger.error(f"[{chain_name}] Invalid height from currentHeight: {hjson}")
+                return None
+
+            # 2) Fetch latest 20 blocks by that index
+            blocks_url = f"{base_url.rstrip('/')}/blocks?index={height}&limit=20&sort=desc"
+            async with self.backend.http_session.get(blocks_url, timeout=10) as resp:
+                body = await resp.text()
+                if resp.status != 200:
+                    logger.error(f"[{chain_name}] HTTP {resp.status} {blocks_url}. Body: {body[:512]}")
+                    return None
+                try:
+                    data = await resp.json()
+                except Exception as e:
+                    logger.error(f"[{chain_name}] JSON parse error on blocks: {e}. Body: {body[:512]}")
+                    return None
+
+            blocks = (data or {}).get("blocks", [])
+            if not isinstance(blocks, list) or not blocks:
+                logger.error(f"[{chain_name}] Blocks payload empty/wrong shape: {data}")
+                return None
+
+            # Parse (height, size); API says sort=desc, but sort defensively
+            rows = []
+            for b in blocks:
+                try:
+                    h = int(b["height"])
+                    sz = int(b.get("size", 0))
+                    rows.append((h, sz))
+                except Exception:
+                    continue
+            if not rows:
+                logger.error(f"[{chain_name}] All blocks malformed")
+                return None
+
+            rows.sort(key=lambda x: x[0])  # oldest -> newest
+            latest_height, latest_size = rows[-1]
+            now_unix = int(time.time())
+
+            # Cache some window metadata (informational)
+            total_txs_window = sum(sz for _, sz in rows)
+            self.backend.chain_data[chain_name].update({
+                "tps_window_blocks": len(rows),
+                "tps_window_txs": total_txs_window,
+                "latest_block_height": latest_height,
+                "last_updated_unix": now_unix,
+            })
+
+            # Return a block-like dict for your generic pipeline.
+            # We supply tx_count; your calculate_tps() already prefers it.
+            now_ms = int(time.time() * 1000)
+            return {
+                "number": hex(latest_height),
+                "timestamp": hex(now_ms // 1000),  
+                "timestamp_ms": now_ms,            # <-- new high-res timestamp for TPS math
+                "transactions": [],
+                "tx_count": latest_size,
+                "gasUsed": "N/A",
+                "gasLimit": "N/A",
+            }
+
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout fetching Lighter blocks for {chain_name}")
+            self.backend.chain_data[chain_name]["errors"] += 1
+            return None
+        except Exception as e:
+            logger.error(f"Exception fetching Lighter blocks for {chain_name}: {str(e)}")
+            self.backend.chain_data[chain_name]["errors"] += 1
+            return None
+
 
 class RtBackend:
     """
@@ -362,8 +472,9 @@ class RtBackend:
         # Initialize blockchain processors
         self.processors = {
             "evm": EVMProcessor(self),
-            "evm_custom_gas": EVMProcessor(self),  # EVM but skip tx costs
+            "evm_custom_gas": EVMProcessor(self),
             "starknet": StarknetProcessor(self),
+            "lighter": LighterProcessor(self), 
         }
 
         # Initialize clients for each endpoint (will be populated in initialize_async)
@@ -603,55 +714,67 @@ class RtBackend:
         return chain["block_time"]
 
     def calculate_tps(self, chain_name: str, current_block: Dict[str, Any]) -> float:
-        """Calculate TPS for a chain based on the current block and last 3 blocks."""
         chain = self.chain_data[chain_name]
-        
+        history_len = self.RPC_ENDPOINTS.get(chain_name, {}).get("block_history_len", 3)
+
         current_block_number = int(current_block["number"], 16)
-        current_timestamp = int(current_block["timestamp"], 16)
-        tx_count = len(current_block["transactions"])
+
+        # Prefer ms if present (so you don’t hit 1-second quantization)
+        if "timestamp_ms" in current_block:
+            current_timestamp = current_block["timestamp_ms"] / 1000.0  # float seconds
+        else:
+            current_timestamp = float(int(current_block["timestamp"], 16))
+
+        tx_count = current_block.get("tx_count")
+        if tx_count is None:
+            tx_count = len(current_block.get("transactions", []))
+
         gas_used = int(current_block["gasUsed"], 16) if current_block["gasUsed"] != "N/A" else 0
-        
-        # Check if this is a new block (prevent duplicates)
+
         if chain["last_block_number"] is not None and current_block_number <= chain["last_block_number"]:
-            #logger.debug(f"{chain_name}: Skipping duplicate/old block {current_block_number}")
             return chain["tps"]
-        
-        # Calculate block time before handling missed blocks
-        block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp)
-        
-        # Handle missed blocks with estimation
-        blocks_missed = 0
+
+        tps_override = current_block.get("tps_override")
+        if tps_override is not None:
+            block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
+
+            chain["block_history"].append({
+                "number": current_block_number,
+                "timestamp": current_timestamp,  # float seconds
+                "tx_count": tx_count,
+                "gas_used": gas_used,
+                "is_estimated": False
+            })
+            if len(chain["block_history"]) > history_len:
+                chain["block_history"] = chain["block_history"][-history_len:]
+
+            self._update_chain_data(chain_name, current_block_number, int(current_timestamp), tx_count, float(tps_override))
+            asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, float(tps_override), block_time))
+            return float(tps_override)
+
+        # --- normal path (no override) ---
+        block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
+
         if chain["last_block_number"] is not None:
             blocks_missed = current_block_number - chain["last_block_number"] - 1
             if blocks_missed > 0:
-                self._add_estimated_blocks(chain, blocks_missed, current_block_number, current_timestamp, tx_count)
+                self._add_estimated_blocks(chain, blocks_missed, current_block_number, int(current_timestamp), tx_count)
                 if blocks_missed > 5:
                     logger.warning(f"{chain_name}: Missed {blocks_missed} blocks between {chain['last_block_number']} and {current_block_number}")
-        
-        # Create block info for current block
-        block_info = {
+
+        chain["block_history"].append({
             "number": current_block_number,
-            "timestamp": current_timestamp,
+            "timestamp": current_timestamp,  # float seconds
             "tx_count": tx_count,
             "gas_used": gas_used,
             "is_estimated": False
-        }
-        
-        chain["block_history"].append(block_info)
-        
-        # Keep only last 3 blocks
-        if len(chain["block_history"]) > 3:
-            chain["block_history"] = chain["block_history"][-3:]
-        
-        # Calculate TPS based on available blocks
+        })
+        if len(chain["block_history"]) > history_len:
+            chain["block_history"] = chain["block_history"][-history_len:]
+
         tps = self._calculate_tps_from_history(chain["block_history"])
-        
-        # Update chain data
-        self._update_chain_data(chain_name, current_block_number, current_timestamp, tx_count, tps)
-        
-        # Publish to Redis
+        self._update_chain_data(chain_name, current_block_number, int(current_timestamp), tx_count, tps)
         asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, tps, block_time))
-        
         return tps
 
     async def _publish_chain_update(self, chain_name: str, block_number: int, tx_count: int, gas_used: int, tps: float, block_time: float) -> None:
@@ -692,58 +815,37 @@ class RtBackend:
         last_timestamp = last_block["timestamp"]
         last_tx_count = last_block["tx_count"]
         
-        time_diff = current_timestamp - last_timestamp
-        avg_block_time = time_diff / (blocks_missed + 1)
+        time_diff = current_timestamp - last_timestamp  # both floats
+        avg_block_time = time_diff / (blocks_missed + 1)    
         avg_tx_per_block = (last_tx_count + current_tx_count) / 2
         avg_gas_per_block = (last_block["gas_used"] + 0) / 2
         
         for i in range(1, blocks_missed + 1):
             estimated_block = {
                 "number": last_block["number"] + i,
-                "timestamp": int(last_timestamp + (avg_block_time * i)),
+                "timestamp": last_timestamp + (avg_block_time * i),  # keep float, no int()
                 "tx_count": int(avg_tx_per_block),
                 "gas_used": int(avg_gas_per_block),
                 "is_estimated": True
             }
-            
             chain["block_history"].append(estimated_block)
             #logger.debug(f"{estimated_block['number']}: Estimated block with {estimated_block['tx_count']} tx")
 
     def _calculate_tps_from_history(self, block_history: List[Dict[str, Any]]) -> float:
-        """Calculate TPS based on block history (up to last 3 blocks)."""
-        if len(block_history) < 2:
-            return 0
-        
-        if len(block_history) == 2:
-            oldest_block = block_history[0]
-            newest_block = block_history[1]
-            
-            time_diff = newest_block["timestamp"] - oldest_block["timestamp"]
-            if time_diff <= 0:
-                return 0
-                
-            total_tx = oldest_block["tx_count"] + newest_block["tx_count"]
-            return total_tx / (time_diff * 2) # 2 blocks, so multiply time_diff by 2
-            
-        if len(block_history) == 3:  # 3 blocks available
-            oldest_block = block_history[0]
-            newest_block = block_history[2]
-            
-            time_diff = newest_block["timestamp"] - oldest_block["timestamp"]
-            if time_diff <= 0:
-                return 0
-            time_diff += time_diff / 2  # it's a 3-block average, so add half the time diff
-                
-            total_tx = sum(block["tx_count"] for block in block_history)
-            
-            # estimated_blocks = sum(1 for block in block_history if block.get("is_estimated", False))
-            # if estimated_blocks > 0:
-            #     logger.debug(f"TPS calculation using {estimated_blocks} estimated blocks out of {len(block_history)}")
-            
-            return total_tx / time_diff
-        else:
-            logger.error(f"Unexpected block history length: {len(block_history)}")
-            return 0  # Should not happen, but just in case
+        n = len(block_history)
+        if n < 2:
+            return 0.0
+
+        t0 = float(block_history[0]["timestamp"])
+        t1 = float(block_history[-1]["timestamp"])
+        span = t1 - t0
+        if span <= 0:
+            return 0.0
+
+        total_tx = sum(b["tx_count"] for b in block_history)
+        # Bias correction: there are (n-1) observed intervals for n blocks
+        effective_span = span * (n / (n - 1))
+        return total_tx / effective_span
         
     def _update_chain_data(self, chain_name: str, block_number: int, timestamp: int, 
                           tx_count: int, tps: float) -> None:

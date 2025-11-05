@@ -1,10 +1,12 @@
-import os, json, hashlib, asyncpg, time, asyncio
-from fastapi import FastAPI, HTTPException, Query, Depends, Security, status
+import os, json, hashlib, asyncpg, time, asyncio, base64, secrets
+from fastapi import FastAPI, HTTPException, Query, Depends, Security, status, Request, Header
 from fastapi.security.api_key import APIKeyHeader
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Any, Dict, Tuple
+from typing import List, Optional, Any, Dict, Tuple, Literal
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
+from collections import OrderedDict
 
 from eth_utils import to_normalized_address
 from eth_account import Account
@@ -19,6 +21,19 @@ USE_DOTENV = os.getenv("USE_DOTENV", "false").lower() == "true"
 if USE_DOTENV:
     import dotenv
     dotenv.load_dotenv()
+    
+# Environment variables
+API_KEY_PEPPER = os.getenv("OLI_KEY_PEPPER")   
+ADMIN_BEARER = os.getenv("OLI_ADMIN_BEARER")
+db_user = os.getenv("DB_USERNAME")
+db_passwd = os.getenv("DB_PASSWORD")
+db_host = os.getenv("DB_HOST")
+db_name = 'oli'
+
+if not API_KEY_PEPPER:
+    raise RuntimeError("OLI_KEY_PEPPER env var must be set")
+if not ADMIN_BEARER:
+    raise RuntimeError("OLI_ADMIN_BEARER env var must be set")
 
 #
 #   API KEY Setup
@@ -27,55 +42,112 @@ if USE_DOTENV:
 API_KEY_HEADER = "x-api-key"
 api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
 
-# Accept either plaintext keys or SHA256 hex strings in API_KEYS_JSON
-# Example: {"partnerA":"<plaintext or sha256hex>", ...}
-_KEYS = json.loads(os.getenv("OLI_API_KEYS_JSON", "{}"))
+## Key generation / hashing
+API_KEY_PREFIX_NS = "oli_" 
 
-def _sha256_hex(s: str) -> str:
-    return hashlib.sha256(s.encode()).hexdigest()
+def _rand_b32(nbytes: int) -> str:
+    # URL-safe, no padding, short and neat
+    return base64.urlsafe_b64encode(secrets.token_bytes(nbytes)).decode().rstrip("=")
 
-def _const_eq(a: str, b: str) -> bool:
-    # constant-time compare to avoid timing leaks
-    if len(a) != len(b):
-        return False
+def make_key() -> tuple[str, str, str]:
+    """
+    Returns (display_key, prefix, key_hash).
+    display_key is what you show the user ONCE.
+    """
+    prefix = _rand_b32(9)   # ~12 chars
+    secret = _rand_b32(24)  # ~32-33 chars
+    display = f"{API_KEY_PREFIX_NS}{prefix}.{secret}"
+    key_hash = hashlib.sha256((f"{prefix}.{secret}{API_KEY_PEPPER}").encode()).hexdigest()
+    return display, prefix, key_hash
+
+def hash_presented_key(presented: str) -> Optional[tuple[str, str]]:
+    if not presented.startswith(API_KEY_PREFIX_NS):
+        return None
+    try:
+        rest = presented[len(API_KEY_PREFIX_NS):]
+        prefix, secret = rest.split(".", 1)
+    except ValueError:
+        return None
+    h = hashlib.sha256((f"{prefix}.{secret}{API_KEY_PEPPER}").encode()).hexdigest()
+    return prefix, h
+
+def consteq(a: str, b: str) -> bool:
+    if len(a) != len(b): return False
     res = 0
     for x, y in zip(a.encode(), b.encode()):
         res |= x ^ y
     return res == 0
 
-def _matches_any_configured_key(presented: str) -> bool:
-    if not _KEYS:
-        return False
-    presented_sha = _sha256_hex(presented)
-    for _, stored in _KEYS.items():
-        s = stored.strip()
-        # match plaintext or sha256
-        if _const_eq(presented, s) or _const_eq(presented_sha, s):
-            return True
-    return False
+## Key validation against configured keys
+class ApiKeyMeta(BaseModel):
+    id: str
+    owner_id: str
+    prefix: str
 
-async def get_api_key(api_key: str = Security(api_key_header)):
+async def get_api_key(
+    request: Request,
+    api_key: Optional[str] = Security(api_key_header),
+) -> ApiKeyMeta:
     if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing API key - Please provide a key for this endpoint",
-        )
-        
-    if not _matches_any_configured_key(api_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key - The provided key is not valid",
-        )
-    return api_key
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing API key - Please provide x-api-key header")
+
+    parsed = hash_presented_key(api_key)
+    if not parsed:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bad API key format - Please provide a valid x-api-key header")
+
+    prefix, presented_hash = parsed
+
+    async with request.app.state.db.acquire() as conn:
+        row = await _lookup_key_by_prefix(conn, prefix)
+    if not row or row["revoked_at"] is not None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or revoked API key")
+
+    stored_hash = row["key_hash"]
+    if not consteq(stored_hash, presented_hash):
+        # do not reveal which part failed
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or revoked API key")
+
+    request.state.api_key_id = str(row["id"])
+    request.state.api_key_prefix = row["prefix"]
+    request.state.api_key_owner = row["owner_id"]
+    return ApiKeyMeta(id=str(row["id"]), owner_id=row["owner_id"], prefix=row["prefix"])
+
+
+## Simple in-memory LRU cache with TTL for API key lookups
+class LRUCacheTTL:
+    def __init__(self, maxsize=20000, ttl=120):
+        self.maxsize, self.ttl = maxsize, ttl
+        self.data = OrderedDict()
+    def get(self, k):
+        v = self.data.get(k)
+        if not v: return None
+        exp, val = v
+        if exp < time.time():
+            self.data.pop(k, None); return None
+        self.data.move_to_end(k); return val
+    def set(self, k, val):
+        self.data[k] = (time.time() + self.ttl, val); self.data.move_to_end(k)
+        if len(self.data) > self.maxsize: self.data.popitem(last=False)
+
+_key_cache = LRUCacheTTL()
+_neg_cache = LRUCacheTTL(ttl=5, maxsize=50000)
+
+async def _lookup_key_by_prefix(conn, prefix:str):
+    if _neg_cache.get(prefix) is True: return None
+    cached = _key_cache.get(prefix)
+    if cached is not None: return cached
+    row = await conn.fetchrow("""
+        SELECT id, owner_id, prefix, key_hash, revoked_at
+          FROM public.api_keys WHERE prefix = $1
+    """, prefix)
+    if not row:
+        _neg_cache.set(prefix, True); return None
+    rec = dict(row); _key_cache.set(prefix, rec); return rec
 
 #
 # DB CONFIG
 #
 
-db_user = os.getenv("DB_USERNAME")
-db_passwd = os.getenv("DB_PASSWORD")
-db_host = os.getenv("DB_HOST")
-db_name = 'oli'
 
 DB_DSN = f"postgresql://{db_user}:{db_passwd}@{db_host}/{db_name}"
 
@@ -83,8 +155,8 @@ DB_DSN = f"postgresql://{db_user}:{db_passwd}@{db_host}/{db_name}"
 # UTILS
 #
 
-def hex_to_bytes(value: str) -> bytes:
-    if value is None:
+def hex_to_bytes(value: Optional[str]) -> Optional[bytes]:
+    if not value:
         return None
     v = value.lower()
     if v.startswith("0x"):
@@ -257,7 +329,28 @@ class AttesterAnalytics(BaseModel):
 class AttesterAnalyticsResponse(BaseModel):
     count: int
     results: List[AttesterAnalytics]
+    
+class TrustListRecord(BaseModel):
+    uid: str
+    time: datetime
+    attester: Optional[str]
+    recipient: Optional[str]
+    revoked: bool
+    is_offchain: bool
+    ipfs_hash: Optional[str]
+    schema_info: Optional[str]
+    owner_name: Optional[str]
+    attesters: Optional[Any]
+    attestations: Optional[Any]
 
+class TrustListQueryResponse(BaseModel):
+    count: int
+    trust_lists: List[TrustListRecord]
+
+class TrustListPostResponse(BaseModel):
+    uid: str
+    status: str = "queued"
+    
 #
 # CRYPTO / VERIFICATION
 #
@@ -391,12 +484,48 @@ def recover_signer_address(payload: AttestationPayload) -> str:
 
 
 def verify_attestation(payload: AttestationPayload) -> None:
-    # Step 1: Signature check
+    if payload.sig.primaryType != "Attest":
+        raise HTTPException(status_code=400, detail="Expected primaryType=Attest")
     recovered_addr = recover_signer_address(payload)
+    if recovered_addr != to_normalized_address(payload.signer):
+        raise HTTPException(status_code=400, detail="Signature invalid or signer mismatch")
+    
     claimed_addr = to_normalized_address(payload.signer)
-
     if recovered_addr != claimed_addr:
         raise HTTPException(status_code=400, detail="Signature invalid or signer mismatch")
+    
+# ---- TRUST LIST via EAS schema support ----
+
+TRUST_LIST_SCHEMA = "0x6d780a85bfad501090cd82868a0c773c09beafda609d54888a65c106898c363d"
+
+def decode_trust_list_data(msg: AttestationMessage) -> Tuple[Optional[str], Optional[Any], Optional[Any]]:
+    """
+    For schema TRUST_LIST_SCHEMA, message.data is expected to decode as:
+        (string owner_name, string attesters_json, string attestations_json)
+    Returns: (owner_name, attesters_obj, attestations_obj)
+    """
+    if not isinstance(msg.data, str) or not msg.data.startswith("0x"):
+        return (None, None, None)
+
+    raw_bytes = hex_to_bytes(msg.data)
+    try:
+        # adjust types to match your actual ABI encoder
+        owner_name, attesters_json, attestations_json = abi_decode(
+            ['string', 'string', 'string'],
+            raw_bytes
+        )
+    except Exception:
+        return (None, None, None)
+
+    def _parse(s):
+        if not s:
+            return None
+        try:
+            return json.loads(s)
+        except Exception:
+            return None
+
+    return (owner_name, _parse(attesters_json), _parse(attestations_json))
 
 #
 # LIFESPAN (replaces @app.on_event start/stop)
@@ -404,17 +533,12 @@ def verify_attestation(payload: AttestationPayload) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # startup
-    pool = await asyncpg.create_pool(
-        dsn=DB_DSN,
-        min_size=1,
-        max_size=10,
-    )
+    pool = await asyncpg.create_pool(dsn=DB_DSN, min_size=1, max_size=10)
     app.state.db = pool
     try:
         yield
     finally:
-        # shutdown
+        process_pool.shutdown(wait=True)
         await pool.close()
 
 
@@ -422,6 +546,15 @@ app = FastAPI(
     title="Open Labels Initiative: Label Pool API",
     lifespan=lifespan,
 )
+
+# from fastapi.middleware.cors import CORSMiddleware
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["https://www.growthepie.com"],  # or env-driven
+#     allow_methods=["GET","POST","OPTIONS"],
+#     allow_headers=["*"],
+#     expose_headers=[],
+# )
 
 
 #
@@ -475,6 +608,27 @@ async def insert_attestations(conn, rows: List[dict]):
 
     return inserted_count, duplicate_count
 
+async def insert_trust_list(conn, row: dict) -> bool:
+    sql = """
+        INSERT INTO public.trust_lists (
+            uid, "time", attester, recipient, revoked, is_offchain,
+            tx_hash, ipfs_hash, revocation_time, raw, last_updated_time,
+            schema_info, owner_name, attesters, attestations
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6,
+            $7, $8, $9, $10::jsonb, $11,
+            $12, $13, $14::jsonb, $15::jsonb
+        )
+        ON CONFLICT (uid) DO NOTHING
+        RETURNING uid;
+    """
+    r = await conn.fetchrow(sql,
+        row["uid"], row["time"], row["attester"], row["recipient"], row["revoked"], row["is_offchain"],
+        row["tx_hash"], row["ipfs_hash"], row["revocation_time"], row["raw"], row["last_updated_time"],
+        row["schema_info"], row["owner_name"], row["attesters"], row["attestations"]
+    )
+    return r is not None
+
 
 def build_row_from_payload(att: AttestationPayload):
     sig = att.sig
@@ -515,12 +669,167 @@ def build_row_from_payload(att: AttestationPayload):
 
     return row
 
+def _parse_optional_ts(v: Optional[str]) -> Optional[datetime]:
+    if not v:
+        return None
+    try:
+        return datetime.fromtimestamp(float(v), tz=timezone.utc)
+    except ValueError:
+        dt = datetime.fromisoformat(v)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+
+def build_trust_list_row_from_eas(att: AttestationPayload) -> dict:
+    sig = att.sig
+    msg = sig.message
+    domain = sig.domain
+
+    # sanity: ensure schema matches our trust-list schema
+    if msg.schema_id.lower() != TRUST_LIST_SCHEMA:
+        raise HTTPException(status_code=400, detail="Wrong schema for trust list payload")
+
+    owner_name, attesters_obj, attestations_obj = decode_trust_list_data(msg)
+    if owner_name is None and attesters_obj is None and attestations_obj is None:
+        raise HTTPException(status_code=400, detail="Trust list data could not be decoded")
+
+    # signer == attester policy (optional but recommended)
+    signer_norm = to_normalized_address(att.signer)
+    # EAS Attest does not carry 'attester' in the message; attester is the signer.
+    attester_bytes = hex_to_bytes(signer_norm)
+
+    # uid / recipient / tx fields
+    uid_bytes       = hex_to_bytes(sig.uid)
+    recipient_bytes = hex_to_bytes(msg.recipient) if msg.recipient else None
+    tx_hash_bytes   = None  # offchain (set if you later include onchain TLs)
+
+    # times
+    time_dt = unix_str_to_datetime(msg.time)
+    rev_dt  = None
+
+    return {
+        "uid": uid_bytes,
+        "time": time_dt,
+        "attester": attester_bytes,
+        "recipient": recipient_bytes,
+        "revoked": False,
+        "is_offchain": True,                      # TL via EAS offchain
+        "tx_hash": tx_hash_bytes,
+        "ipfs_hash": None,                        # fill if you pin
+        "revocation_time": rev_dt,
+        "raw": json.dumps(att.model_dump(by_alias=True)),
+        "last_updated_time": datetime.now(timezone.utc),
+        "schema_info": f"{domain.chainId}__{msg.schema_id}",
+        "owner_name": owner_name,
+        "attesters": json.dumps(attesters_obj) if attesters_obj is not None else None,
+        "attestations": json.dumps(attestations_obj) if attestations_obj is not None else None,
+    }
+def _row_to_trust_list_record(r) -> TrustListRecord:
+    uid_hex       = _bytes_to_hexmaybe(r["uid"])
+    attester_hex  = _bytes_to_hexmaybe(r["attester"]) if r["attester"] is not None else None
+    recipient_hex = _bytes_to_hexmaybe(r["recipient"]) if r["recipient"] is not None else None
+
+    # JSONB decoding (in case driver returns text)
+    def _jsonify(v):
+        if v is None: return None
+        if isinstance(v, (dict, list)): return v
+        try:
+            return json.loads(v)
+        except Exception:
+            return None
+
+    return TrustListRecord(
+        uid=uid_hex or "",
+        time=r["time"],
+        attester=attester_hex,
+        recipient=recipient_hex,
+        revoked=r["revoked"],
+        is_offchain=r["is_offchain"],
+        ipfs_hash=r["ipfs_hash"],
+        schema_info=r["schema_info"],
+        owner_name=r["owner_name"],
+        attesters=_jsonify(r["attesters"]),
+        attestations=_jsonify(r["attestations"]),
+    )
+
+#
+# USAGE LOGGING
+#
+
+MAX_BODY_BYTES = 10 * 1024 * 1024  # 10MB
+
+@app.middleware("http")
+async def max_body_guard(request: Request, call_next):
+    cl = request.headers.get("content-length")
+    if cl and cl.isdigit() and int(cl) > MAX_BODY_BYTES:
+        return JSONResponse({"detail": "Payload too large"}, status_code=413)
+    return await call_next(request)
+
+@app.middleware("http")
+async def usage_logger(request: Request, call_next):
+    response = await call_next(request)
+
+    key_id = getattr(request.state, "api_key_id", None)
+    # Case A: authenticated route (dependency ran) -> we already know the key_id
+    if key_id:
+        async with app.state.db.acquire() as conn:
+            await conn.execute("""
+                UPDATE public.api_keys
+                   SET usage_count = usage_count + 1, last_used_at = now()
+                 WHERE id = $1
+            """, key_id)
+            await conn.execute("""
+                INSERT INTO public.api_key_usage(key_id, endpoint, status_code, ip)
+                VALUES ($1, $2, $3, $4::inet)
+            """, key_id, request.url.path, response.status_code,
+               (request.client.host if request.client else None))
+        return response
+
+    # Case B (optional): public route — best-effort log if a plausible key header is present
+    api_key = request.headers.get(API_KEY_HEADER)
+    if api_key:
+        parsed = hash_presented_key(api_key)
+        if parsed:
+            prefix, _ = parsed
+            # IMPORTANT: we are not authenticating here, just trying to attribute usage.
+            # Use the L1 cache-backed lookup to avoid extra DB reads when warm.
+            async with app.state.db.acquire() as conn:
+                row = await _lookup_key_by_prefix(conn, prefix)  # uses LRU TTL cache internally
+                if row and not row.get("revoked_at"):
+                    await conn.execute("""
+                        UPDATE public.api_keys
+                           SET usage_count = usage_count + 1, last_used_at = now()
+                         WHERE id = $1
+                    """, row["id"])
+                    await conn.execute("""
+                        INSERT INTO public.api_key_usage(key_id, endpoint, status_code, ip)
+                        VALUES ($1, $2, $3, $4::inet)
+                    """, row["id"], request.url.path, response.status_code,
+                       (request.client.host if request.client else None))
+
+    return response
 
 #
 # ROUTES
 #
 
-@app.post("/attestation", response_model=SingleAttestationResponse)
+
+@app.get("/healthz")
+async def healthz():
+    return {"ok": True, "ts": datetime.now(timezone.utc).isoformat()}
+
+@app.get("/readyz")
+async def readyz():
+    try:
+        async with app.state.db.acquire() as conn:
+            await conn.execute("SELECT 1;")
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+## Attestation endpoints
+
+@app.post("/attestation", response_model=SingleAttestationResponse, tags=["Attestation: Labels"])
 async def post_single_attestation(payload: AttestationPayload):
     # Full cryptographic verification
     verify_attestation(payload)
@@ -550,7 +859,7 @@ def verify_and_build_sync(att_dict: dict) -> dict:
 
     return row
 
-@app.post("/attestations/bulk", response_model=BulkAttestationResponse)
+@app.post("/attestations/bulk", response_model=BulkAttestationResponse, tags=["Attestation: Labels"])
 async def post_bulk_attestations(req: BulkAttestationRequest):
     t0 = time.perf_counter()
 
@@ -614,348 +923,10 @@ async def post_bulk_attestations(req: BulkAttestationRequest):
         status="queued"
     )
     
-    
-### GET endpoints
-
-def normalize_eth_address(addr: str) -> str:
-    a = addr.strip().lower()
-    if not a.startswith("0x"):
-        a = "0x" + a
-    return a
-
-def _bytes_to_hexmaybe(v: Any) -> Optional[str]:
-    if v is None:
-        return None
-    if isinstance(v, (bytes, bytearray)):
-        return "0x" + v.hex()
-    # assume it's already string-ish
-    s = str(v)
-    # normalize to lower 0x... if it looks like hex without 0x
-    if s.startswith("0x") or s.startswith("0X"):
-        return s.lower()
-    # if it's 64-char hex without 0x, add it
-    if all(c in "0123456789abcdefABCDEF" for c in s) and len(s) in (40, 64):
-        return "0x" + s.lower()
-    return s.lower()
-
-def _row_to_attestation_record(r) -> AttestationRecord:
-    uid_hex = _bytes_to_hexmaybe(r["uid"])
-    attester_hex = _bytes_to_hexmaybe(r["attester"])
-    recipient_hex = _bytes_to_hexmaybe(r["recipient"])
-
-    # tags_json handling:
-    tags_val = r["tags_json"]
-    # If it's a string of JSON, parse it
-    if isinstance(tags_val, str):
-        try:
-            tags_val = json.loads(tags_val)
-        except Exception:
-            # fallback: leave as None if it failed
-            tags_val = None
-    # If it's None or already dict, fine.
-
-    # # raw handling:
-    # raw_val = r["raw"]
-    # if isinstance(raw_val, str):
-    #     try:
-    #         raw_val = json.loads(raw_val)
-    #     except Exception:
-    #         raw_val = None
-    # # could also be already dict (asyncpg sometimes de-jsons jsonb automatically)
-    # if raw_val is not None and not isinstance(raw_val, dict):
-    #     # last resort normalize
-    #     raw_val = None
-
-    return AttestationRecord(
-        uid=uid_hex or "",
-        time=r["time"],
-        chain_id=r["chain_id"],
-        attester=attester_hex,
-        recipient=recipient_hex,
-        revoked=r["revoked"],
-        is_offchain=r["is_offchain"],
-        ipfs_hash=r["ipfs_hash"],
-        schema_info=r["schema_info"],
-        tags_json=tags_val,
-        #raw=raw_val,
-    )
-
-@app.get(
-    "/labels",
-    response_model=LabelsResponse,
-    dependencies=[Depends(get_api_key)],
-    tags=["Protected"],
-)
-async def get_labels(
-    address: str = Query(..., description="Address (0x...)"),
-    chain_id: Optional[str] = Query(None, description="Optional chain_id filter"),
-    limit: int = Query(100, le=1000, description="Max number of labels to return"),
-    include_all: bool = Query(False, description="If false (default), return only the latest label per (chain_id, attester, tag_id)"),
-):
-    """Return labels (key/value) for a given address. By default, only the newest per (chain_id, attester, tag_id)."""
-
-    # normalize address
-    addr_norm = address.lower()
-    if not addr_norm.startswith("0x"):
-        addr_norm = "0x" + addr_norm
-
-    where_clauses = ["address = $1"]
-    params = [hex_to_bytes(addr_norm)]
-    next_param = 2
-
-    if chain_id:
-        where_clauses.append(f"chain_id = ${next_param}")
-        params.append(chain_id)
-        next_param += 1
-
-    # LIMIT is always the last param
-    limit_param_num = next_param
-    params.append(int(limit))
-
-    if include_all:
-        # Return all label rows (no collapsing)
-        sql = f"""
-            SELECT
-                chain_id,
-                tag_id,
-                tag_value,
-                time,
-                attester
-            FROM public.labels
-            WHERE {' AND '.join(where_clauses)}
-            ORDER BY time DESC
-            LIMIT ${limit_param_num};
-        """
-    else:
-        # Return only latest per (chain_id, attester, tag_id)
-        # DISTINCT ON requires ORDER BY keys first, then time DESC
-        sql = f"""
-            SELECT DISTINCT ON (chain_id, attester, tag_id)
-                chain_id,
-                tag_id,
-                tag_value,
-                time,
-                attester
-            FROM public.labels
-            WHERE {' AND '.join(where_clauses)}
-            ORDER BY chain_id, attester, tag_id, time DESC
-            LIMIT ${limit_param_num};
-        """
-
-    async with app.state.db.acquire() as conn:
-        rows = await conn.fetch(sql, *params)
-
-    labels = []
-    for r in rows:
-        attester_val = r["attester"]
-        if isinstance(attester_val, (bytes, bytearray)):
-            attester_hex = "0x" + attester_val.hex()
-        else:
-            attester_hex = attester_val
-
-        labels.append(
-            LabelItem(
-                tag_id=r["tag_id"],
-                tag_value=r["tag_value"],
-                chain_id=r["chain_id"],
-                time=r["time"],
-                attester=attester_hex,
-            )
-        )
-
-    return LabelsResponse(
-        address=addr_norm,
-        count=len(labels),
-        labels=labels,
-    )
-    
-@app.post(
-    "/labels/bulk", 
-    response_model=BulkLabelsResponse, 
-    dependencies=[Depends(get_api_key)],
-    tags=["Protected"]
-    )
-async def get_labels_bulk(req: BulkLabelsRequest):
-    # 1. normalize and dedupe input addresses
-    normalized_addrs = [normalize_eth_address(a) for a in req.addresses]
-    orig_to_norm = {orig: normalize_eth_address(orig) for orig in req.addresses}
-
-    # convert to bytes for DB match
-    addr_bytes_list = [hex_to_bytes(a) for a in normalized_addrs]
-
-    unique_addr_bytes_list = []
-    seen = set()
-    for b in addr_bytes_list:
-        if b not in seen:
-            seen.add(b)
-            unique_addr_bytes_list.append(b)
-
-    # 2. build SQL dynamically based on optional chain_id and include_all
-    params = [unique_addr_bytes_list]
-    chain_filter_sql = ""
-
-    if req.chain_id:
-        chain_filter_sql = "AND l.chain_id = $2"
-        params.append(req.chain_id)
-
-    if req.include_all:
-        # No collapse: return all labels then enforce per-address limit in Python
-        sql = f"""
-            SELECT
-                l.address,
-                l.chain_id,
-                l.tag_id,
-                l.tag_value,
-                l."time",
-                l.attester
-            FROM public.labels AS l
-            WHERE l.address = ANY($1)
-            {chain_filter_sql}
-            ORDER BY l."time" DESC;
-        """
-    else:
-        # Collapse to latest per (address, chain_id, attester, tag_id)
-        # DISTINCT ON: order by those keys first, then time desc
-        sql = f"""
-            SELECT DISTINCT ON (l.address, l.chain_id, l.attester, l.tag_id)
-                l.address,
-                l.chain_id,
-                l.tag_id,
-                l.tag_value,
-                l."time",
-                l.attester
-            FROM public.labels AS l
-            WHERE l.address = ANY($1)
-            {chain_filter_sql}
-            ORDER BY l.address, l.chain_id, l.attester, l.tag_id, l."time" DESC;
-        """
-
-    async with app.state.db.acquire() as conn:
-        rows = await conn.fetch(sql, *params)
-
-    # 3. group rows by address
-    grouped: Dict[str, List[LabelItem]] = {}
-
-    for r in rows:
-        addr_bytes = r["address"]
-        if isinstance(addr_bytes, (bytes, bytearray)):
-            addr_hex = "0x" + addr_bytes.hex()
-        else:
-            addr_hex = str(addr_bytes).lower()
-
-        attester_val = r["attester"]
-        if isinstance(attester_val, (bytes, bytearray)):
-            attester_hex = "0x" + attester_val.hex()
-        else:
-            attester_hex = attester_val
-
-        item = LabelItem(
-            tag_id=r["tag_id"],
-            tag_value=r["tag_value"],
-            chain_id=r["chain_id"],
-            time=r["time"],
-            attester=attester_hex,
-        )
-
-        grouped.setdefault(addr_hex, []).append(item)
-
-    # 4. enforce per-address limit_per_address and keep original order
-    results: List[AddressLabels] = []
-    for orig in req.addresses:
-        norm = orig_to_norm[orig]
-        labels_for_addr = grouped.get(norm, [])
-        limited = labels_for_addr[: req.limit_per_address]
-        results.append(AddressLabels(address=norm, labels=limited))
-
-    return BulkLabelsResponse(results=results)
-
-@app.get(
-    "/addresses/search", 
-    response_model=LabelSearchResponse, 
-    dependencies=[Depends(get_api_key)],
-    tags=["Protected"]
-    )
-async def search_addresses_by_tag(
-    tag_id: str = Query(..., description="The tag key, e.g. 'usage_category'"),
-    tag_value: str = Query(..., description="The tag value, e.g. 'dex'"),
-    chain_id: Optional[str] = Query(None, description="Optional chain_id filter, e.g. 'eip155:8453'"),
-    limit: int = Query(100, ge=1, le=1000, description="Max number of addresses to return"),
-):
-    """
-    Return all addresses that have a specific tag_id=tag_value pair.
-    """
-
-    # Build WHERE dynamically
-    where_clauses = [
-        "l.tag_id = $1",
-        "l.tag_value = $2",
-    ]
-    params = [tag_id, tag_value]
-    next_param = 3
-
-    if chain_id:
-        where_clauses.append(f"l.chain_id = ${next_param}")
-        params.append(chain_id)
-        next_param += 1
-
-    # LIMIT is always the last parameter
-    limit_param_num = next_param
-    params.append(int(limit))
-
-    sql = f"""
-        SELECT
-            l.address,
-            l.chain_id,
-            l.time,
-            l.attester
-        FROM public.labels AS l
-        WHERE {' AND '.join(where_clauses)}
-        ORDER BY l.time DESC
-        LIMIT ${limit_param_num};
-    """
-
-    async with app.state.db.acquire() as conn:
-        rows = await conn.fetch(sql, *params)
-
-    results: List[AddressWithLabel] = []
-
-    for r in rows:
-        # normalize address bytes → 0x...
-        addr_bytes = r["address"]
-        if isinstance(addr_bytes, (bytes, bytearray)):
-            addr_hex = "0x" + addr_bytes.hex()
-        else:
-            addr_hex = str(addr_bytes).lower()
-
-        # normalize attester bytes → 0x...
-        attester_val = r["attester"]
-        if isinstance(attester_val, (bytes, bytearray)):
-            attester_hex = "0x" + attester_val.hex()
-        else:
-            attester_hex = attester_val
-
-        results.append(
-            AddressWithLabel(
-                address=addr_hex,
-                chain_id=r["chain_id"],
-                time=r["time"],
-                attester=attester_hex,
-            )
-        )
-
-    return LabelSearchResponse(
-        tag_id=tag_id,
-        tag_value=tag_value,
-        count=len(results),
-        results=results,
-    )
-    
-from typing import Literal
-from datetime import datetime, timezone
-
 @app.get(
     "/attestations", 
-    response_model=AttestationQueryResponse
+    response_model=AttestationQueryResponse,
+    tags=["Attestation: Labels"]
     )
 async def get_attestations(
     uid: Optional[str] = Query(
@@ -1090,11 +1061,409 @@ async def get_attestations(
         attestations=attestations_out,
     )
     
+## Trust List endpoints
+@app.post("/trust-list", response_model=TrustListPostResponse, tags=["Attestation: Trust Lists"])
+async def post_trust_list(payload: AttestationPayload):
+    """
+    Accept a Trust List attestation encoded as a standard EAS Attest typed-data,
+    signed by the trust-list issuer.
+    """
+    # 1) Verify EIP-712 signature (already battle-tested for /attestation)
+    verify_attestation(payload)
+
+    # 2) Build DB row from the EAS message for the TL schema
+    row = build_trust_list_row_from_eas(payload)
+
+    # 3) Insert
+    async with app.state.db.acquire() as conn:
+        async with conn.transaction():
+            await insert_trust_list(conn, row)
+
+    return TrustListPostResponse(uid=payload.sig.uid, status="queued")
+
+
+@app.get("/trust-lists", response_model=TrustListQueryResponse, tags=["Attestation: Trust Lists"])
+async def get_trust_lists(
+    uid: Optional[str] = Query(None, description="Filter by specific trust list UID (0x...)"),
+    attester: Optional[str] = Query(None, description="Filter by attester address (0x...)"),
+    order: Literal["asc","desc"] = Query("desc", description="Order by time (default: desc)"),
+    limit: int = Query(10, ge=1, le=1000, description="Max number of rows to return (default 10)"),
+):
+    async with app.state.db.acquire() as conn:
+        # Case 1: direct UID lookup
+        if uid:
+            row = await conn.fetchrow(
+                """
+                SELECT uid, "time", attester, recipient, revoked, is_offchain,
+                       tx_hash, ipfs_hash, revocation_time, raw, last_updated_time,
+                       schema_info, owner_name, attesters, attestations
+                  FROM public.trust_lists
+                 WHERE uid = $1
+                 LIMIT 1;
+                """,
+                hex_to_bytes(uid),
+            )
+            if not row:
+                return TrustListQueryResponse(count=0, trust_lists=[])
+            return TrustListQueryResponse(count=1, trust_lists=[_row_to_trust_list_record(row)])
+
+        # Case 2: filtered listing (latest by default)
+        where, params = [], []
+        i = 1
+        if attester:
+            where.append(f"attester = ${i}")
+            params.append(hex_to_bytes(attester.lower()))
+            i += 1
+
+        where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+        order_sql = "DESC" if order.lower() == "desc" else "ASC"
+
+        sql = f"""
+            SELECT uid, "time", attester, recipient, revoked, is_offchain,
+                   tx_hash, ipfs_hash, revocation_time, raw, last_updated_time,
+                   schema_info, owner_name, attesters, attestations
+              FROM public.trust_lists
+              {where_sql}
+             ORDER BY "time" {order_sql}
+             LIMIT ${i};
+        """
+        params.append(int(limit))
+        rows = await conn.fetch(sql, *params)
+
+    out = [_row_to_trust_list_record(r) for r in rows]
+    return TrustListQueryResponse(count=len(out), trust_lists=out)
+
+
+### Labels endpoints
+
+def normalize_eth_address(addr: str) -> str:
+    a = addr.strip().lower()
+    if not a.startswith("0x"):
+        a = "0x" + a
+    return a
+
+def _bytes_to_hexmaybe(v: Any) -> Optional[str]:
+    if v is None:
+        return None
+    if isinstance(v, (bytes, bytearray)):
+        return "0x" + v.hex()
+    # assume it's already string-ish
+    s = str(v)
+    # normalize to lower 0x... if it looks like hex without 0x
+    if s.startswith("0x") or s.startswith("0X"):
+        return s.lower()
+    # if it's 64-char hex without 0x, add it
+    if all(c in "0123456789abcdefABCDEF" for c in s) and len(s) in (40, 64):
+        return "0x" + s.lower()
+    return s.lower()
+
+def _row_to_attestation_record(r) -> AttestationRecord:
+    uid_hex = _bytes_to_hexmaybe(r["uid"])
+    attester_hex = _bytes_to_hexmaybe(r["attester"])
+    recipient_hex = _bytes_to_hexmaybe(r["recipient"])
+
+    # tags_json handling:
+    tags_val = r["tags_json"]
+    # If it's a string of JSON, parse it
+    if isinstance(tags_val, str):
+        try:
+            tags_val = json.loads(tags_val)
+        except Exception:
+            # fallback: leave as None if it failed
+            tags_val = None
+    # If it's None or already dict, fine.
+
+    return AttestationRecord(
+        uid=uid_hex or "",
+        time=r["time"],
+        chain_id=r["chain_id"],
+        attester=attester_hex,
+        recipient=recipient_hex,
+        revoked=r["revoked"],
+        is_offchain=r["is_offchain"],
+        ipfs_hash=r["ipfs_hash"],
+        schema_info=r["schema_info"],
+        tags_json=tags_val,
+        #raw=raw_val,
+    )
+
+@app.get(
+    "/labels",
+    response_model=LabelsResponse,
+    dependencies=[Depends(get_api_key)],
+    tags=["Labels"],
+)
+async def get_labels(
+    address: str = Query(..., description="Address (0x...)"),
+    chain_id: Optional[str] = Query(None, description="Optional chain_id filter"),
+    limit: int = Query(100, le=1000, description="Max number of labels to return"),
+    include_all: bool = Query(False, description="If false (default), return only the latest label per (chain_id, attester, tag_id)"),
+):
+    """Return labels (key/value) for a given address. By default, only the newest per (chain_id, attester, tag_id)."""
+
+    # normalize address
+    addr_norm = address.lower()
+    if not addr_norm.startswith("0x"):
+        addr_norm = "0x" + addr_norm
+
+    where_clauses = ["address = $1"]
+    params = [hex_to_bytes(addr_norm)]
+    next_param = 2
+
+    if chain_id:
+        where_clauses.append(f"chain_id = ${next_param}")
+        params.append(chain_id)
+        next_param += 1
+
+    # LIMIT is always the last param
+    limit_param_num = next_param
+    params.append(int(limit))
+
+    if include_all:
+        # Return all label rows (no collapsing)
+        sql = f"""
+            SELECT
+                chain_id,
+                tag_id,
+                tag_value,
+                time,
+                attester
+            FROM public.labels
+            WHERE {' AND '.join(where_clauses)}
+            ORDER BY time DESC
+            LIMIT ${limit_param_num};
+        """
+    else:
+        # Return only latest per (chain_id, attester, tag_id)
+        # DISTINCT ON requires ORDER BY keys first, then time DESC
+        sql = f"""
+            SELECT DISTINCT ON (chain_id, attester, tag_id)
+                chain_id,
+                tag_id,
+                tag_value,
+                time,
+                attester
+            FROM public.labels
+            WHERE {' AND '.join(where_clauses)}
+            ORDER BY chain_id, attester, tag_id, time DESC
+            LIMIT ${limit_param_num};
+        """
+
+    async with app.state.db.acquire() as conn:
+        await conn.execute("SET LOCAL statement_timeout = '5s'")
+        rows = await conn.fetch(sql, *params)
+
+    labels = []
+    for r in rows:
+        attester_val = r["attester"]
+        if isinstance(attester_val, (bytes, bytearray)):
+            attester_hex = "0x" + attester_val.hex()
+        else:
+            attester_hex = attester_val
+
+        labels.append(
+            LabelItem(
+                tag_id=r["tag_id"],
+                tag_value=r["tag_value"],
+                chain_id=r["chain_id"],
+                time=r["time"],
+                attester=attester_hex,
+            )
+        )
+
+    return LabelsResponse(
+        address=addr_norm,
+        count=len(labels),
+        labels=labels,
+    )
+    
+@app.post(
+    "/labels/bulk", 
+    response_model=BulkLabelsResponse, 
+    dependencies=[Depends(get_api_key)],
+    tags=["Labels"]
+    )
+async def get_labels_bulk(req: BulkLabelsRequest):
+    # 1. normalize and dedupe input addresses
+    normalized_addrs = [normalize_eth_address(a) for a in req.addresses]
+    orig_to_norm = {orig: normalize_eth_address(orig) for orig in req.addresses}
+
+    # convert to bytes for DB match
+    addr_bytes_list = [hex_to_bytes(a) for a in normalized_addrs]
+
+    unique_addr_bytes_list = []
+    seen = set()
+    for b in addr_bytes_list:
+        if b not in seen:
+            seen.add(b)
+            unique_addr_bytes_list.append(b)
+
+    # 2. build SQL dynamically based on optional chain_id and include_all
+    params = [unique_addr_bytes_list]
+    chain_filter_sql = ""
+
+    if req.chain_id:
+        chain_filter_sql = "AND l.chain_id = $2"
+        params.append(req.chain_id)
+
+    if req.include_all:
+        # No collapse: return all labels then enforce per-address limit in Python
+        sql = f"""
+            SELECT
+                l.address,
+                l.chain_id,
+                l.tag_id,
+                l.tag_value,
+                l."time",
+                l.attester
+            FROM public.labels AS l
+            WHERE l.address = ANY($1)
+            {chain_filter_sql}
+            ORDER BY l."time" DESC;
+        """
+    else:
+        # Collapse to latest per (address, chain_id, attester, tag_id)
+        # DISTINCT ON: order by those keys first, then time desc
+        sql = f"""
+            SELECT DISTINCT ON (l.address, l.chain_id, l.attester, l.tag_id)
+                l.address,
+                l.chain_id,
+                l.tag_id,
+                l.tag_value,
+                l."time",
+                l.attester
+            FROM public.labels AS l
+            WHERE l.address = ANY($1)
+            {chain_filter_sql}
+            ORDER BY l.address, l.chain_id, l.attester, l.tag_id, l."time" DESC;
+        """
+
+    async with app.state.db.acquire() as conn:
+        rows = await conn.fetch(sql, *params)
+
+    # 3. group rows by address
+    grouped: Dict[str, List[LabelItem]] = {}
+
+    for r in rows:
+        addr_bytes = r["address"]
+        if isinstance(addr_bytes, (bytes, bytearray)):
+            addr_hex = "0x" + addr_bytes.hex()
+        else:
+            addr_hex = str(addr_bytes).lower()
+
+        attester_val = r["attester"]
+        if isinstance(attester_val, (bytes, bytearray)):
+            attester_hex = "0x" + attester_val.hex()
+        else:
+            attester_hex = attester_val
+
+        item = LabelItem(
+            tag_id=r["tag_id"],
+            tag_value=r["tag_value"],
+            chain_id=r["chain_id"],
+            time=r["time"],
+            attester=attester_hex,
+        )
+
+        grouped.setdefault(addr_hex, []).append(item)
+
+    # 4. enforce per-address limit_per_address and keep original order
+    results: List[AddressLabels] = []
+    for orig in req.addresses:
+        norm = orig_to_norm[orig]
+        labels_for_addr = grouped.get(norm, [])
+        limited = labels_for_addr[: req.limit_per_address]
+        results.append(AddressLabels(address=norm, labels=limited))
+
+    return BulkLabelsResponse(results=results)
+
+@app.get(
+    "/addresses/search", 
+    response_model=LabelSearchResponse, 
+    dependencies=[Depends(get_api_key)],
+    tags=["Labels"]
+    )
+async def search_addresses_by_tag(
+    tag_id: str = Query(..., description="The tag key, e.g. 'usage_category'"),
+    tag_value: str = Query(..., description="The tag value, e.g. 'dex'"),
+    chain_id: Optional[str] = Query(None, description="Optional chain_id filter, e.g. 'eip155:8453'"),
+    limit: int = Query(100, ge=1, le=1000, description="Max number of addresses to return"),
+):
+    """
+    Return all addresses that have a specific tag_id=tag_value pair.
+    """
+
+    # Build WHERE dynamically
+    where_clauses = [
+        "l.tag_id = $1",
+        "l.tag_value = $2",
+    ]
+    params = [tag_id, tag_value]
+    next_param = 3
+
+    if chain_id:
+        where_clauses.append(f"l.chain_id = ${next_param}")
+        params.append(chain_id)
+        next_param += 1
+
+    # LIMIT is always the last parameter
+    limit_param_num = next_param
+    params.append(int(limit))
+
+    sql = f"""
+        SELECT
+            l.address,
+            l.chain_id,
+            l.time,
+            l.attester
+        FROM public.labels AS l
+        WHERE {' AND '.join(where_clauses)}
+        ORDER BY l.time DESC
+        LIMIT ${limit_param_num};
+    """
+
+    async with app.state.db.acquire() as conn:
+        await conn.execute("SET LOCAL statement_timeout = '5s'")
+        rows = await conn.fetch(sql, *params)
+
+    results: List[AddressWithLabel] = []
+
+    for r in rows:
+        # normalize address bytes → 0x...
+        addr_bytes = r["address"]
+        if isinstance(addr_bytes, (bytes, bytearray)):
+            addr_hex = "0x" + addr_bytes.hex()
+        else:
+            addr_hex = str(addr_bytes).lower()
+
+        # normalize attester bytes → 0x...
+        attester_val = r["attester"]
+        if isinstance(attester_val, (bytes, bytearray)):
+            attester_hex = "0x" + attester_val.hex()
+        else:
+            attester_hex = attester_val
+
+        results.append(
+            AddressWithLabel(
+                address=addr_hex,
+                chain_id=r["chain_id"],
+                time=r["time"],
+                attester=attester_hex,
+            )
+        )
+
+    return LabelSearchResponse(
+        tag_id=tag_id,
+        tag_value=tag_value,
+        count=len(results),
+        results=results,
+    )
+    
 @app.get(
     "/analytics/attesters", 
     response_model=AttesterAnalyticsResponse, 
     dependencies=[Depends(get_api_key)],
-    tags=["Protected"]
+    tags=["Analytics"]
     )
 async def get_attester_analytics(
     chain_id: Optional[str] = Query(
@@ -1133,6 +1502,7 @@ async def get_attester_analytics(
     """
 
     async with app.state.db.acquire() as conn:
+        await conn.execute("SET LOCAL statement_timeout = '5s'")
         rows = await conn.fetch(sql, *params)
 
     results = []
@@ -1154,6 +1524,47 @@ async def get_attester_analytics(
         count=len(results),
         results=results,
     )
+    
+## ADMIN
+
+class CreateKeyRequest(BaseModel):
+    owner_id: str
+    metadata: Optional[Dict] = None
+
+class CreateKeyResponse(BaseModel):
+    api_key: str      # show once
+    id: str
+
+def require_admin(authz: Optional[str] = Header(None, alias="Authorization")):
+    if not authz or not authz.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing Authorization")
+    token = authz.split(" ", 1)[1]
+    if not consteq(token, ADMIN_BEARER):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+@app.post("/keys", response_model=CreateKeyResponse, tags=["Admin"])
+async def create_api_key(req: CreateKeyRequest, _: None = Depends(require_admin)):
+    display, prefix, key_hash = make_key()
+    async with app.state.db.acquire() as conn:
+        metadata = json.dumps(req.metadata) if req.metadata is not None else None
+        row = await conn.fetchrow(
+            """
+            INSERT INTO public.api_keys (owner_id, prefix, key_hash, metadata)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id
+            """,
+            req.owner_id, prefix, key_hash, metadata
+        )
+    return CreateKeyResponse(api_key=display, id=str(row["id"]))
+
+@app.post("/keys/{key_id}/revoke", tags=["Admin"])
+async def revoke_key(key_id: str, _: None = Depends(require_admin)):
+    async with app.state.db.acquire() as conn:
+        await conn.execute(
+            "UPDATE public.api_keys SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL",
+            key_id
+        )
+    return {"status": "ok"}
     
 if __name__ == "__main__":
     import uvicorn
