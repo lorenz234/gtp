@@ -1222,7 +1222,6 @@ class CreateKeyRequest(BaseModel):
 
 class CreateKeyResponse(BaseModel):
     api_key: str      # show once
-    prefix: str
     id: str
 
 def require_admin(authz: Optional[str] = Header(None, alias="Authorization")):
@@ -1245,7 +1244,7 @@ async def create_api_key(req: CreateKeyRequest, _: None = Depends(require_admin)
             """,
             req.owner_id, prefix, key_hash, metadata
         )
-    return CreateKeyResponse(api_key=display, prefix=prefix, id=str(row["id"]))
+    return CreateKeyResponse(api_key=display, id=str(row["id"]))
 
 @app.post("/keys/{key_id}/revoke", tags=["Admin"])
 async def revoke_key(key_id: str, _: None = Depends(require_admin)):
