@@ -1,5 +1,5 @@
-import os, json, hashlib, asyncpg, time, asyncio
-from fastapi import FastAPI, HTTPException, Query, Depends, Security, status
+import os, json, hashlib, asyncpg, time, asyncio, base64, secrets
+from fastapi import FastAPI, HTTPException, Query, Depends, Security, status, Request, Header
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Any, Dict, Tuple
@@ -19,6 +19,14 @@ USE_DOTENV = os.getenv("USE_DOTENV", "false").lower() == "true"
 if USE_DOTENV:
     import dotenv
     dotenv.load_dotenv()
+    
+# Environment variables
+API_KEY_PEPPER = os.getenv("OLI_KEY_PEPPER")   
+ADMIN_BEARER = os.getenv("OLI_ADMIN_BEARER")
+db_user = os.getenv("DB_USERNAME")
+db_passwd = os.getenv("DB_PASSWORD")
+db_host = os.getenv("DB_HOST")
+db_name = 'oli'
 
 #
 #   API KEY Setup
@@ -27,55 +35,106 @@ if USE_DOTENV:
 API_KEY_HEADER = "x-api-key"
 api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
 
-# Accept either plaintext keys or SHA256 hex strings in API_KEYS_JSON
-# Example: {"partnerA":"<plaintext or sha256hex>", ...}
-_KEYS = json.loads(os.getenv("OLI_API_KEYS_JSON", "{}"))
+## Key generation / hashing
+API_KEY_PREFIX_NS = "oli_" 
 
-def _sha256_hex(s: str) -> str:
-    return hashlib.sha256(s.encode()).hexdigest()
+def _rand_b32(nbytes: int) -> str:
+    # URL-safe, no padding, short and neat
+    return base64.urlsafe_b64encode(secrets.token_bytes(nbytes)).decode().rstrip("=")
 
-def _const_eq(a: str, b: str) -> bool:
-    # constant-time compare to avoid timing leaks
-    if len(a) != len(b):
-        return False
+def make_key() -> tuple[str, str, str]:
+    """
+    Returns (display_key, prefix, key_hash).
+    display_key is what you show the user ONCE.
+    """
+    prefix = _rand_b32(9)   # ~12 chars
+    secret = _rand_b32(24)  # ~32-33 chars
+    display = f"{API_KEY_PREFIX_NS}{prefix}.{secret}"
+    key_hash = hashlib.sha256((f"{prefix}.{secret}{API_KEY_PEPPER}").encode()).hexdigest()
+    return display, prefix, key_hash
+
+def hash_presented_key(presented: str) -> Optional[tuple[str, str]]:
+    # expects gtp_live_<prefix>.<secret>
+    if not presented.startswith(API_KEY_PREFIX_NS):
+        return None
+    try:
+        rest = presented[len(API_KEY_PREFIX_NS):]
+        prefix, secret = rest.split(".", 1)
+    except ValueError:
+        return None
+    h = hashlib.sha256((f"{prefix}.{secret}{API_KEY_PEPPER}").encode()).hexdigest()
+    return prefix, h
+
+def consteq(a: str, b: str) -> bool:
+    if len(a) != len(b): return False
     res = 0
     for x, y in zip(a.encode(), b.encode()):
         res |= x ^ y
     return res == 0
 
-def _matches_any_configured_key(presented: str) -> bool:
-    if not _KEYS:
-        return False
-    presented_sha = _sha256_hex(presented)
-    for _, stored in _KEYS.items():
-        s = stored.strip()
-        # match plaintext or sha256
-        if _const_eq(presented, s) or _const_eq(presented_sha, s):
-            return True
-    return False
+## Key validation against configured keys
+class ApiKeyMeta(BaseModel):
+    id: str
+    owner_id: str
+    prefix: str
 
-async def get_api_key(api_key: str = Security(api_key_header)):
+async def get_api_key(
+    request: Request,
+    api_key: Optional[str] = Security(api_key_header),
+) -> ApiKeyMeta:
     if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing API key - Please provide a key for this endpoint",
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing API key - Please provide x-api-key header")
+
+    parsed = hash_presented_key(api_key)
+    if not parsed:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bad API key format - Please provide a valid x-api-key header")
+
+    prefix, presented_hash = parsed
+
+    async with request.app.state.db.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id, owner_id, prefix, key_hash, revoked_at
+            FROM public.api_keys
+            WHERE prefix = $1
+            """,
+            prefix,
         )
-        
-    if not _matches_any_configured_key(api_key):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key - The provided key is not valid",
-        )
-    return api_key
+    if not row or row["revoked_at"] is not None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or revoked API key")
+
+    stored_hash = row["key_hash"]
+    if not consteq(stored_hash, presented_hash):
+        # do not reveal which part failed
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or revoked API key")
+
+    # (nice to have) async fire-and-forget update of usage metadata
+    # you can queue this in background tasks
+    try:
+        ip = request.client.host if request.client else None
+        endpoint = request.url.path
+    except Exception:
+        ip, endpoint = None, None
+
+    # lightweight updates (don’t block request path if you’re sensitive to latency)
+    async with request.app.state.db.acquire() as conn:
+        await conn.execute("""
+            UPDATE public.api_keys
+               SET usage_count = usage_count + 1, last_used_at = now()
+             WHERE id = $1
+        """, row["id"])
+        await conn.execute("""
+            INSERT INTO public.api_key_usage(key_id, endpoint, status_code, ip)
+            VALUES ($1, $2, 200, $3::inet)
+        """, row["id"], endpoint, ip)
+
+    return ApiKeyMeta(id=str(row["id"]), owner_id=row["owner_id"], prefix=row["prefix"])
+
 
 #
 # DB CONFIG
 #
 
-db_user = os.getenv("DB_USERNAME")
-db_passwd = os.getenv("DB_PASSWORD")
-db_host = os.getenv("DB_HOST")
-db_name = 'oli'
 
 DB_DSN = f"postgresql://{db_user}:{db_passwd}@{db_host}/{db_name}"
 
@@ -1154,6 +1213,47 @@ async def get_attester_analytics(
         count=len(results),
         results=results,
     )
+    
+## ADMIN
+
+class CreateKeyRequest(BaseModel):
+    owner_id: str
+    notes: Optional[str] = None
+
+class CreateKeyResponse(BaseModel):
+    api_key: str      # show once
+    prefix: str
+    id: str
+
+def require_admin(authz: Optional[str] = Header(None, alias="Authorization")):
+    if not authz or not authz.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing Authorization")
+    token = authz.split(" ", 1)[1]
+    if not consteq(token, ADMIN_BEARER):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+@app.post("/keys", response_model=CreateKeyResponse, tags=["Admin"])
+async def create_api_key(req: CreateKeyRequest, _: None = Depends(require_admin)):
+    display, prefix, key_hash = make_key()
+    async with app.state.db.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO public.api_keys (owner_id, prefix, key_hash, notes)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id
+            """,
+            req.owner_id, prefix, key_hash, req.notes
+        )
+    return CreateKeyResponse(api_key=display, prefix=prefix, id=str(row["id"]))
+
+@app.post("/keys/{key_id}/revoke", tags=["Admin"])
+async def revoke_key(key_id: str, _: None = Depends(require_admin)):
+    async with app.state.db.acquire() as conn:
+        await conn.execute(
+            "UPDATE public.api_keys SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL",
+            key_id
+        )
+    return {"status": "ok"}
     
 if __name__ == "__main__":
     import uvicorn
