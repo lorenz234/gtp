@@ -1218,7 +1218,7 @@ async def get_attester_analytics(
 
 class CreateKeyRequest(BaseModel):
     owner_id: str
-    notes: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 class CreateKeyResponse(BaseModel):
     api_key: str      # show once
@@ -1238,11 +1238,11 @@ async def create_api_key(req: CreateKeyRequest, _: None = Depends(require_admin)
     async with app.state.db.acquire() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO public.api_keys (owner_id, prefix, key_hash, notes)
+            INSERT INTO public.api_keys (owner_id, prefix, key_hash, metadata)
             VALUES ($1, $2, $3, $4)
             RETURNING id
             """,
-            req.owner_id, prefix, key_hash, req.notes
+            req.owner_id, prefix, key_hash, req.metadata
         )
     return CreateKeyResponse(api_key=display, prefix=prefix, id=str(row["id"]))
 
