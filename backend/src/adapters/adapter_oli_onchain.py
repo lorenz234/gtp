@@ -88,7 +88,7 @@ class AdapterOLIOnchain(AbstractAdapter):
                         'is_offchain': False,
                         'tx_hash': '0x' + log['transactionHash'].hex(),
                         'ipfs_hash': None,
-                        'revocation_time': pd.to_datetime(r['revocationTime'], unit='s').isoformat(),
+                        'revocation_time': pd.to_datetime(r['revocationTime'], unit='s').isoformat() if r['revocationTime'] > 0 else None,
                         'raw': None,
                         'last_updated_time': pd.Timestamp.now(tz=timezone.utc).replace(tzinfo=None).isoformat(),
                         'schema_info': self.schema_info,
