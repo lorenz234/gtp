@@ -1034,7 +1034,7 @@ async def get_attestations(
     )
     
 ## Trust List endpoints
-@app.post("/trust-lists", response_model=TrustListPostResponse, tags=["Attestation: Trust Lists"])
+@app.post("/trust-list", response_model=TrustListPostResponse, tags=["Attestation: Trust Lists"])
 async def post_trust_list(req: TrustListPostRequest):
     row = build_trust_list_row(req)
     async with app.state.db.acquire() as conn:
