@@ -155,8 +155,8 @@ DB_DSN = f"postgresql://{db_user}:{db_passwd}@{db_host}/{db_name}"
 # UTILS
 #
 
-def hex_to_bytes(value: str) -> bytes:
-    if value is None:
+def hex_to_bytes(value: Optional[str]) -> Optional[bytes]:
+    if not value:
         return None
     v = value.lower()
     if v.startswith("0x"):
@@ -330,23 +330,6 @@ class AttesterAnalyticsResponse(BaseModel):
     count: int
     results: List[AttesterAnalytics]
     
-
-class TrustListPostRequest(BaseModel):
-    uid: str                              # 0x...
-    time: str                             # unix seconds or ISO8601
-    attester: Optional[str] = None        # 0x...
-    recipient: Optional[str] = None       # 0x...
-    revoked: bool = False
-    is_offchain: bool = True
-    tx_hash: Optional[str] = None         # 0x...
-    ipfs_hash: Optional[str] = None
-    revocation_time: Optional[str] = None # unix/ISO or None
-    schema_info: Optional[str] = None
-    owner_name: Optional[str] = None
-    attesters: Optional[Any] = None       # dict or list; stored as jsonb
-    attestations: Optional[Any] = None    # dict or list; stored as jsonb
-    raw: Optional[Any] = None             # if not provided, we’ll store the whole request
-
 class TrustListRecord(BaseModel):
     uid: str
     time: datetime
@@ -368,66 +351,6 @@ class TrustListPostResponse(BaseModel):
     uid: str
     status: str = "queued"
     
-class TrustListMessage(BaseModel):
-    uid: str                 # 0x...
-    time: str                # unix seconds or ISO8601
-    attester: Optional[str] = None
-    recipient: Optional[str] = None
-    revoked: bool = False
-    is_offchain: bool = True
-    tx_hash: Optional[str] = None
-    ipfs_hash: Optional[str] = None
-    revocation_time: Optional[str] = None
-    schema_info: Optional[str] = None
-    owner_name: Optional[str] = None
-    attesters: Optional[Any] = None       # dict/list JSON
-    attestations: Optional[Any] = None    # dict/list JSON
-    raw: Optional[Any] = None             # optional, for storage
-
-class TrustListDomain(BaseModel):
-    name: str
-    chainId: str
-    version: str
-    verifyingContract: str
-
-class TrustListTypesField(BaseModel):
-    name: str
-    type: str
-
-class TrustListTypes(BaseModel):
-    TrustList: List[TrustListTypesField]
-
-class TrustListSignatureFields(BaseModel):
-    r: str
-    s: str
-    v: int
-
-class TrustListSig(BaseModel):
-    types: TrustListTypes
-    domain: TrustListDomain
-    message: TrustListMessage
-    primaryType: str  # should be "TrustList"
-    signature: TrustListSignatureFields
-
-class TrustListPayload(BaseModel):
-    sig: TrustListSig
-    signer: str
-
-    @field_validator("sig")
-    @classmethod
-    def check_sig(cls, v: TrustListSig):
-        m, d = v.message, v.domain
-        # basic hex / numeric sanity (no crypto)
-        hex_to_bytes(m.uid)
-        if m.attester:  hex_to_bytes(m.attester)
-        if m.recipient: hex_to_bytes(m.recipient)
-        if m.tx_hash:   hex_to_bytes(m.tx_hash)
-        int(d.chainId)  # must parse
-        # time-ish sanity
-        _ = int(float(m.time)) if m.time else 0
-        if m.revocation_time: _ = int(float(m.revocation_time))
-        return v
-
 #
 # CRYPTO / VERIFICATION
 #
@@ -561,97 +484,48 @@ def recover_signer_address(payload: AttestationPayload) -> str:
 
 
 def verify_attestation(payload: AttestationPayload) -> None:
-    # Step 1: Signature check
+    if payload.sig.primaryType != "Attest":
+        raise HTTPException(status_code=400, detail="Expected primaryType=Attest")
     recovered_addr = recover_signer_address(payload)
+    if recovered_addr != to_normalized_address(payload.signer):
+        raise HTTPException(status_code=400, detail="Signature invalid or signer mismatch")
+    
     claimed_addr = to_normalized_address(payload.signer)
-
     if recovered_addr != claimed_addr:
         raise HTTPException(status_code=400, detail="Signature invalid or signer mismatch")
+    
+# ---- TRUST LIST via EAS schema support ----
 
-def _tl_left_pad_to_32(b: bytes) -> bytes:
-    if len(b) > 32: raise ValueError("signature component longer than 32 bytes")
-    return b if len(b) == 32 else (b"\x00" * (32 - len(b)) + b)
+TRUST_LIST_SCHEMA = "0x6d780a85bfad501090cd82868a0c773c09beafda609d54888a65c106898c363d"
 
-def recover_trust_list_signer(payload: TrustListPayload) -> str:
-    sig = payload.sig
-    msg = sig.message
-    dom = sig.domain
+def decode_trust_list_data(msg: AttestationMessage) -> Tuple[Optional[str], Optional[Any], Optional[Any]]:
+    """
+    For schema TRUST_LIST_SCHEMA, message.data is expected to decode as:
+        (string owner_name, string attesters_json, string attestations_json)
+    Returns: (owner_name, attesters_obj, attestations_obj)
+    """
+    if not isinstance(msg.data, str) or not msg.data.startswith("0x"):
+        return (None, None, None)
 
-    # Build the typed data exactly as wallets see it
-    typed_data = {
-        "types": {
-            "EIP712Domain": [
-                {"name":"name","type":"string"},
-                {"name":"version","type":"string"},
-                {"name":"chainId","type":"uint256"},
-                {"name":"verifyingContract","type":"address"},
-            ],
-            sig.primaryType: [
-                {"name": "uid",              "type": "bytes32"},
-                {"name": "time",             "type": "uint256"},
-                {"name": "attester",         "type": "address"},
-                {"name": "recipient",        "type": "address"},
-                {"name": "revoked",          "type": "bool"},
-                {"name": "is_offchain",      "type": "bool"},
-                {"name": "tx_hash",          "type": "bytes32"},
-                {"name": "ipfs_hash",        "type": "string"},
-                {"name": "revocation_time",  "type": "uint256"},
-                {"name": "schema_info",      "type": "string"},
-                {"name": "owner_name",       "type": "string"},
-                {"name": "attesters",        "type": "string"},     # JSON string
-                {"name": "attestations",     "type": "string"},     # JSON string
-            ],
-        },
-        "domain": {
-            "name": dom.name,
-            "version": dom.version,
-            "chainId": int(dom.chainId),
-            "verifyingContract": dom.verifyingContract,
-        },
-        "primaryType": sig.primaryType,  # "TrustList"
-        "message": {
-            # bytes32 fields must be 32-byte values; we accept hex and pad if needed
-            "uid": hex_to_bytes(msg.uid) if msg.uid else b"\x00"*32,
-            "time": int(float(msg.time)) if msg.time else 0,
-            "attester": (msg.attester or "0x0000000000000000000000000000000000000000"),
-            "recipient": (msg.recipient or "0x0000000000000000000000000000000000000000"),
-            "revoked": bool(msg.revoked),
-            "is_offchain": bool(msg.is_offchain),
-            "tx_hash": hex_to_bytes(msg.tx_hash) if msg.tx_hash else b"\x00"*32,
-            "ipfs_hash": msg.ipfs_hash or "",
-            "revocation_time": int(float(msg.revocation_time)) if msg.revocation_time else 0,
-            "schema_info": msg.schema_info or "",
-            "owner_name": msg.owner_name or "",
-            "attesters": json.dumps(msg.attesters) if msg.attesters is not None else "",
-            "attestations": json.dumps(msg.attestations) if msg.attestations is not None else "",
-        },
-    }
-
-    encoded = encode_typed_data(full_message=typed_data)
-
-    r = _tl_left_pad_to_32(hex_to_bytes(payload.sig.signature.r))
-    s = _tl_left_pad_to_32(hex_to_bytes(payload.sig.signature.s))
-    v = payload.sig.signature.v
-    if v in (0, 1): v += 27
-    signature = r + s + bytes([v])
-
+    raw_bytes = hex_to_bytes(msg.data)
     try:
-        recovered = Account.recover_message(encoded, signature=signature)
+        # adjust types to match your actual ABI encoder
+        owner_name, attesters_json, attestations_json = abi_decode(
+            ['string', 'string', 'string'],
+            raw_bytes
+        )
     except Exception:
-        h = encoded.hash_structured_data() if hasattr(encoded, "hash_structured_data") else getattr(encoded, "hash", None)
-        if h is None: raise
-        recovered = Account.recover_hash(h, signature=signature)
+        return (None, None, None)
 
-    return to_normalized_address(recovered)
+    def _parse(s):
+        if not s:
+            return None
+        try:
+            return json.loads(s)
+        except Exception:
+            return None
 
-def verify_trust_list(payload: TrustListPayload) -> None:
-    recovered = recover_trust_list_signer(payload)
-    claimed   = to_normalized_address(payload.signer)
-    if recovered != claimed:
-        raise HTTPException(status_code=400, detail="Trust list signature invalid or signer mismatch")
-    msg_att = payload.sig.message.attester
-    if not msg_att or to_normalized_address(msg_att) != claimed:
-        raise HTTPException(status_code=400, detail="Signer must equal message.attester")
+    return (owner_name, _parse(attesters_json), _parse(attestations_json))
 
 #
 # LIFESPAN (replaces @app.on_event start/stop)
@@ -806,40 +680,50 @@ def _parse_optional_ts(v: Optional[str]) -> Optional[datetime]:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
 
-def build_trust_list_row_from_signed(p: TrustListPayload) -> dict:
-    m = p.sig.message
-    uid_bytes       = hex_to_bytes(m.uid)
-    attester_bytes  = hex_to_bytes(m.attester) if m.attester else None
-    recipient_bytes = hex_to_bytes(m.recipient) if m.recipient else None
-    tx_hash_bytes   = hex_to_bytes(m.tx_hash) if m.tx_hash else None
+def build_trust_list_row_from_eas(att: AttestationPayload) -> dict:
+    sig = att.sig
+    msg = sig.message
+    domain = sig.domain
 
-    time_dt = _parse_optional_ts(m.time)
-    rev_dt  = _parse_optional_ts(m.revocation_time)
+    # sanity: ensure schema matches our trust-list schema
+    if msg.schema_id.lower() != TRUST_LIST_SCHEMA:
+        raise HTTPException(status_code=400, detail="Wrong schema for trust list payload")
 
-    attesters_json    = json.dumps(m.attesters) if m.attesters is not None else None
-    attestations_json = json.dumps(m.attestations) if m.attestations is not None else None
+    owner_name, attesters_obj, attestations_obj = decode_trust_list_data(msg)
+    if owner_name is None and attesters_obj is None and attestations_obj is None:
+        raise HTTPException(status_code=400, detail="Trust list data could not be decoded")
 
-    raw_obj  = m.raw if m.raw is not None else m.model_dump()
-    raw_json = json.dumps(raw_obj)
+    # signer == attester policy (optional but recommended)
+    signer_norm = to_normalized_address(att.signer)
+    # EAS Attest does not carry 'attester' in the message; attester is the signer.
+    attester_bytes = hex_to_bytes(signer_norm)
+
+    # uid / recipient / tx fields
+    uid_bytes       = hex_to_bytes(sig.uid)
+    recipient_bytes = hex_to_bytes(msg.recipient) if msg.recipient else None
+    tx_hash_bytes   = None  # offchain (set if you later include onchain TLs)
+
+    # times
+    time_dt = unix_str_to_datetime(msg.time)
+    rev_dt  = None
 
     return {
         "uid": uid_bytes,
         "time": time_dt,
         "attester": attester_bytes,
         "recipient": recipient_bytes,
-        "revoked": bool(m.revoked),
-        "is_offchain": bool(m.is_offchain),
+        "revoked": False,
+        "is_offchain": True,                      # TL via EAS offchain
         "tx_hash": tx_hash_bytes,
-        "ipfs_hash": m.ipfs_hash,
+        "ipfs_hash": None,                        # fill if you pin
         "revocation_time": rev_dt,
-        "raw": raw_json,
+        "raw": json.dumps(att.model_dump(by_alias=True)),
         "last_updated_time": datetime.now(timezone.utc),
-        "schema_info": m.schema_info,
-        "owner_name": m.owner_name,
-        "attesters": attesters_json,
-        "attestations": attestations_json,
+        "schema_info": f"{domain.chainId}__{msg.schema_id}",
+        "owner_name": owner_name,
+        "attesters": json.dumps(attesters_obj) if attesters_obj is not None else None,
+        "attestations": json.dumps(attestations_obj) if attestations_obj is not None else None,
     }
-
 def _row_to_trust_list_record(r) -> TrustListRecord:
     uid_hex       = _bytes_to_hexmaybe(r["uid"])
     attester_hex  = _bytes_to_hexmaybe(r["attester"]) if r["attester"] is not None else None
@@ -1179,20 +1063,23 @@ async def get_attestations(
     
 ## Trust List endpoints
 @app.post("/trust-list", response_model=TrustListPostResponse, tags=["Attestation: Trust Lists"])
-async def post_trust_list(payload: TrustListPayload):
-    # 1) cryptographic verification
-    verify_trust_list(payload)
+async def post_trust_list(payload: AttestationPayload):
+    """
+    Accept a Trust List attestation encoded as a standard EAS Attest typed-data,
+    signed by the trust-list issuer.
+    """
+    # 1) Verify EIP-712 signature (already battle-tested for /attestation)
+    verify_attestation(payload)
 
-    # 2) build DB row from the signed message
-    row = build_trust_list_row_from_signed(payload)
+    # 2) Build DB row from the EAS message for the TL schema
+    row = build_trust_list_row_from_eas(payload)
 
-    # 3) insert
+    # 3) Insert
     async with app.state.db.acquire() as conn:
         async with conn.transaction():
             await insert_trust_list(conn, row)
 
-    # The canonical uid comes from the signed message
-    return TrustListPostResponse(uid=payload.sig.message.uid, status="queued")
+    return TrustListPostResponse(uid=payload.sig.uid, status="queued")
 
 
 @app.get("/trust-lists", response_model=TrustListQueryResponse, tags=["Attestation: Trust Lists"])
