@@ -46,7 +46,7 @@ class AdapterOLIOnchain(AbstractAdapter):
     def extract(self, extract_params:dict = None) -> pd.DataFrame:
 
         # store schema info
-        self.schema_info = str(self.schema_chain) + '_' + extract_params.get('topics', '')[3]
+        self.schema_info = str(self.schema_chain) + '__' + extract_params.get('topics', '')[3]
 
         # get block range if 'latest', 'last_run_block' or negative number
         if extract_params.get('to_block', None) == 'latest':
@@ -73,7 +73,7 @@ class AdapterOLIOnchain(AbstractAdapter):
             if is_valid:
                 # read onchain attestation
                 r = self.get_attestation_data(uid)
-                self.schema_info = str(self.schema_chain) + '_' + r['schema']
+                self.schema_info = str(self.schema_chain) + '__' + r['schema']
                 # depending on which schema we are reading, process accordingly
                 if r['schema'] == '0xb763e62d940bed6f527dd82418e146a904e62a297b8fa765c9b3e1f0bc6fdd68':  # Labels
                     # decode label data
