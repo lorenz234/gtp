@@ -367,6 +367,66 @@ class TrustListQueryResponse(BaseModel):
 class TrustListPostResponse(BaseModel):
     uid: str
     status: str = "queued"
+    
+class TrustListMessage(BaseModel):
+    uid: str                 # 0x...
+    time: str                # unix seconds or ISO8601
+    attester: Optional[str] = None
+    recipient: Optional[str] = None
+    revoked: bool = False
+    is_offchain: bool = True
+    tx_hash: Optional[str] = None
+    ipfs_hash: Optional[str] = None
+    revocation_time: Optional[str] = None
+    schema_info: Optional[str] = None
+    owner_name: Optional[str] = None
+    attesters: Optional[Any] = None       # dict/list JSON
+    attestations: Optional[Any] = None    # dict/list JSON
+    raw: Optional[Any] = None             # optional, for storage
+
+class TrustListDomain(BaseModel):
+    name: str
+    chainId: str
+    version: str
+    verifyingContract: str
+
+class TrustListTypesField(BaseModel):
+    name: str
+    type: str
+
+class TrustListTypes(BaseModel):
+    TrustList: List[TrustListTypesField]
+
+class TrustListSignatureFields(BaseModel):
+    r: str
+    s: str
+    v: int
+
+class TrustListSig(BaseModel):
+    types: TrustListTypes
+    domain: TrustListDomain
+    message: TrustListMessage
+    primaryType: str  # should be "TrustList"
+    signature: TrustListSignatureFields
+
+class TrustListPayload(BaseModel):
+    sig: TrustListSig
+    signer: str
+
+    @field_validator("sig")
+    @classmethod
+    def check_sig(cls, v: TrustListSig):
+        m, d = v.message, v.domain
+        # basic hex / numeric sanity (no crypto)
+        hex_to_bytes(m.uid)
+        if m.attester:  hex_to_bytes(m.attester)
+        if m.recipient: hex_to_bytes(m.recipient)
+        if m.tx_hash:   hex_to_bytes(m.tx_hash)
+        int(d.chainId)  # must parse
+        # time-ish sanity
+        _ = int(float(m.time)) if m.time else 0
+        if m.revocation_time: _ = int(float(m.revocation_time))
+        return v
 
 #
 # CRYPTO / VERIFICATION
@@ -507,6 +567,91 @@ def verify_attestation(payload: AttestationPayload) -> None:
 
     if recovered_addr != claimed_addr:
         raise HTTPException(status_code=400, detail="Signature invalid or signer mismatch")
+
+def _tl_left_pad_to_32(b: bytes) -> bytes:
+    if len(b) > 32: raise ValueError("signature component longer than 32 bytes")
+    return b if len(b) == 32 else (b"\x00" * (32 - len(b)) + b)
+
+def recover_trust_list_signer(payload: TrustListPayload) -> str:
+    sig = payload.sig
+    msg = sig.message
+    dom = sig.domain
+
+    # Build the typed data exactly as wallets see it
+    typed_data = {
+        "types": {
+            "EIP712Domain": [
+                {"name":"name","type":"string"},
+                {"name":"version","type":"string"},
+                {"name":"chainId","type":"uint256"},
+                {"name":"verifyingContract","type":"address"},
+            ],
+            sig.primaryType: [
+                {"name": "uid",              "type": "bytes32"},
+                {"name": "time",             "type": "uint256"},
+                {"name": "attester",         "type": "address"},
+                {"name": "recipient",        "type": "address"},
+                {"name": "revoked",          "type": "bool"},
+                {"name": "is_offchain",      "type": "bool"},
+                {"name": "tx_hash",          "type": "bytes32"},
+                {"name": "ipfs_hash",        "type": "string"},
+                {"name": "revocation_time",  "type": "uint256"},
+                {"name": "schema_info",      "type": "string"},
+                {"name": "owner_name",       "type": "string"},
+                {"name": "attesters",        "type": "string"},     # JSON string
+                {"name": "attestations",     "type": "string"},     # JSON string
+            ],
+        },
+        "domain": {
+            "name": dom.name,
+            "version": dom.version,
+            "chainId": int(dom.chainId),
+            "verifyingContract": dom.verifyingContract,
+        },
+        "primaryType": sig.primaryType,  # "TrustList"
+        "message": {
+            # bytes32 fields must be 32-byte values; we accept hex and pad if needed
+            "uid": hex_to_bytes(msg.uid) if msg.uid else b"\x00"*32,
+            "time": int(float(msg.time)) if msg.time else 0,
+            "attester": (msg.attester or "0x0000000000000000000000000000000000000000"),
+            "recipient": (msg.recipient or "0x0000000000000000000000000000000000000000"),
+            "revoked": bool(msg.revoked),
+            "is_offchain": bool(msg.is_offchain),
+            "tx_hash": hex_to_bytes(msg.tx_hash) if msg.tx_hash else b"\x00"*32,
+            "ipfs_hash": msg.ipfs_hash or "",
+            "revocation_time": int(float(msg.revocation_time)) if msg.revocation_time else 0,
+            "schema_info": msg.schema_info or "",
+            "owner_name": msg.owner_name or "",
+            "attesters": json.dumps(msg.attesters) if msg.attesters is not None else "",
+            "attestations": json.dumps(msg.attestations) if msg.attestations is not None else "",
+        },
+    }
+
+    encoded = encode_typed_data(full_message=typed_data)
+
+    r = _tl_left_pad_to_32(hex_to_bytes(payload.sig.signature.r))
+    s = _tl_left_pad_to_32(hex_to_bytes(payload.sig.signature.s))
+    v = payload.sig.signature.v
+    if v in (0, 1): v += 27
+    signature = r + s + bytes([v])
+
+    try:
+        recovered = Account.recover_message(encoded, signature=signature)
+    except Exception:
+        h = encoded.hash_structured_data() if hasattr(encoded, "hash_structured_data") else getattr(encoded, "hash", None)
+        if h is None: raise
+        recovered = Account.recover_hash(h, signature=signature)
+
+    return to_normalized_address(recovered)
+
+def verify_trust_list(payload: TrustListPayload) -> None:
+    recovered = recover_trust_list_signer(payload)
+    claimed   = to_normalized_address(payload.signer)
+    if recovered != claimed:
+        raise HTTPException(status_code=400, detail="Trust list signature invalid or signer mismatch")
+    msg_att = payload.sig.message.attester
+    if not msg_att or to_normalized_address(msg_att) != claimed:
+        raise HTTPException(status_code=400, detail="Signer must equal message.attester")
 
 #
 # LIFESPAN (replaces @app.on_event start/stop)
@@ -661,21 +806,20 @@ def _parse_optional_ts(v: Optional[str]) -> Optional[datetime]:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
 
-def build_trust_list_row(req: TrustListPostRequest) -> dict:
-    uid_bytes = hex_to_bytes(req.uid)
-    attester_bytes = hex_to_bytes(req.attester) if req.attester else None
-    recipient_bytes = hex_to_bytes(req.recipient) if req.recipient else None
-    tx_hash_bytes = hex_to_bytes(req.tx_hash) if req.tx_hash else None
+def build_trust_list_row_from_signed(p: TrustListPayload) -> dict:
+    m = p.sig.message
+    uid_bytes       = hex_to_bytes(m.uid)
+    attester_bytes  = hex_to_bytes(m.attester) if m.attester else None
+    recipient_bytes = hex_to_bytes(m.recipient) if m.recipient else None
+    tx_hash_bytes   = hex_to_bytes(m.tx_hash) if m.tx_hash else None
 
-    time_dt = _parse_optional_ts(req.time)  # required
-    rev_dt  = _parse_optional_ts(req.revocation_time)
+    time_dt = _parse_optional_ts(m.time)
+    rev_dt  = _parse_optional_ts(m.revocation_time)
 
-    # JSONB fields (stringify explicitly for asyncpg unless you registered codecs)
-    attesters_json     = json.dumps(req.attesters) if req.attesters is not None else None
-    attestations_json  = json.dumps(req.attestations) if req.attestations is not None else None
+    attesters_json    = json.dumps(m.attesters) if m.attesters is not None else None
+    attestations_json = json.dumps(m.attestations) if m.attestations is not None else None
 
-    # raw: if caller didn’t provide, persist the full request payload
-    raw_obj = req.raw if req.raw is not None else req.model_dump()
+    raw_obj  = m.raw if m.raw is not None else m.model_dump()
     raw_json = json.dumps(raw_obj)
 
     return {
@@ -683,15 +827,15 @@ def build_trust_list_row(req: TrustListPostRequest) -> dict:
         "time": time_dt,
         "attester": attester_bytes,
         "recipient": recipient_bytes,
-        "revoked": bool(req.revoked),
-        "is_offchain": bool(req.is_offchain),
+        "revoked": bool(m.revoked),
+        "is_offchain": bool(m.is_offchain),
         "tx_hash": tx_hash_bytes,
-        "ipfs_hash": req.ipfs_hash,
+        "ipfs_hash": m.ipfs_hash,
         "revocation_time": rev_dt,
         "raw": raw_json,
         "last_updated_time": datetime.now(timezone.utc),
-        "schema_info": req.schema_info,
-        "owner_name": req.owner_name,
+        "schema_info": m.schema_info,
+        "owner_name": m.owner_name,
         "attesters": attesters_json,
         "attestations": attestations_json,
     }
@@ -727,6 +871,15 @@ def _row_to_trust_list_record(r) -> TrustListRecord:
 #
 # USAGE LOGGING
 #
+
+MAX_BODY_BYTES = 10 * 1024 * 1024  # 10MB
+
+@app.middleware("http")
+async def max_body_guard(request: Request, call_next):
+    cl = request.headers.get("content-length")
+    if cl and cl.isdigit() and int(cl) > MAX_BODY_BYTES:
+        return JSONResponse({"detail": "Payload too large"}, status_code=413)
+    return await call_next(request)
 
 @app.middleware("http")
 async def usage_logger(request: Request, call_next):
@@ -771,15 +924,6 @@ async def usage_logger(request: Request, call_next):
                        (request.client.host if request.client else None))
 
     return response
-
-MAX_BODY_BYTES = 10 * 1024 * 1024  # 10MB
-
-@app.middleware("http")
-async def max_body_guard(request: Request, call_next):
-    cl = request.headers.get("content-length")
-    if cl and cl.isdigit() and int(cl) > MAX_BODY_BYTES:
-        return JSONResponse({"detail": "Payload too large"}, status_code=413)
-    return await call_next(request)
 
 #
 # ROUTES
@@ -1035,12 +1179,20 @@ async def get_attestations(
     
 ## Trust List endpoints
 @app.post("/trust-list", response_model=TrustListPostResponse, tags=["Attestation: Trust Lists"])
-async def post_trust_list(req: TrustListPostRequest):
-    row = build_trust_list_row(req)
+async def post_trust_list(payload: TrustListPayload):
+    # 1) cryptographic verification
+    verify_trust_list(payload)
+
+    # 2) build DB row from the signed message
+    row = build_trust_list_row_from_signed(payload)
+
+    # 3) insert
     async with app.state.db.acquire() as conn:
         async with conn.transaction():
             await insert_trust_list(conn, row)
-    return TrustListPostResponse(uid=req.uid, status="queued")
+
+    # The canonical uid comes from the signed message
+    return TrustListPostResponse(uid=payload.sig.message.uid, status="queued")
 
 
 @app.get("/trust-lists", response_model=TrustListQueryResponse, tags=["Attestation: Trust Lists"])
