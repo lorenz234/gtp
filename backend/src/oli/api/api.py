@@ -1236,13 +1236,14 @@ def require_admin(authz: Optional[str] = Header(None, alias="Authorization")):
 async def create_api_key(req: CreateKeyRequest, _: None = Depends(require_admin)):
     display, prefix, key_hash = make_key()
     async with app.state.db.acquire() as conn:
+        metadata = json.dumps(req.metadata) if req.metadata is not None else None
         row = await conn.fetchrow(
             """
             INSERT INTO public.api_keys (owner_id, prefix, key_hash, metadata)
             VALUES ($1, $2, $3, $4)
             RETURNING id
             """,
-            req.owner_id, prefix, key_hash, req.metadata
+            req.owner_id, prefix, key_hash, metadata
         )
     return CreateKeyResponse(api_key=display, prefix=prefix, id=str(row["id"]))
 
