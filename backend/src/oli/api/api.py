@@ -1218,7 +1218,7 @@ async def get_attester_analytics(
 
 class CreateKeyRequest(BaseModel):
     owner_id: str
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict] = None
 
 class CreateKeyResponse(BaseModel):
     api_key: str      # show once
