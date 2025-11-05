@@ -247,6 +247,7 @@ rpc_config = {
         "processors": "lighter",
         "calc_fees": False,
         "sleeper": 1.5,
+        "block_history_len": 20, 
     },
     
 }

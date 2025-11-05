@@ -12,8 +12,6 @@ from web3.middleware import ExtraDataToPOAMiddleware
 from src.db_connector import DbConnector
 from src.realtime.rpc_config import rpc_config
 
-from datetime import datetime, timezone
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -391,7 +389,7 @@ class LighterProcessor(BlockchainProcessor):
                 return None
 
             # 2) Fetch latest 20 blocks by that index
-            blocks_url = f"{base_url.rstrip('/')}/blocks?index={height}&limit=10&sort=desc"
+            blocks_url = f"{base_url.rstrip('/')}/blocks?index={height}&limit=20&sort=desc"
             async with self.backend.http_session.get(blocks_url, timeout=10) as resp:
                 body = await resp.text()
                 if resp.status != 200:
@@ -716,79 +714,66 @@ class RtBackend:
         return chain["block_time"]
 
     def calculate_tps(self, chain_name: str, current_block: Dict[str, Any]) -> float:
-        """Calculate TPS for a chain; processors may provide a tps_override (e.g., Lighter)."""
         chain = self.chain_data[chain_name]
+        history_len = self.RPC_ENDPOINTS.get(chain_name, {}).get("block_history_len", 3)
 
         current_block_number = int(current_block["number"], 16)
-        # Use ms if provided (Lighter), else fall back to seconds
+
+        # Prefer ms if present (so you don’t hit 1-second quantization)
         if "timestamp_ms" in current_block:
             current_timestamp = current_block["timestamp_ms"] / 1000.0  # float seconds
         else:
             current_timestamp = float(int(current_block["timestamp"], 16))
 
-        # Prefer explicit tx_count if provided, else fall back to transactions list
         tx_count = current_block.get("tx_count")
         if tx_count is None:
             tx_count = len(current_block.get("transactions", []))
 
         gas_used = int(current_block["gasUsed"], 16) if current_block["gasUsed"] != "N/A" else 0
 
-        # Skip duplicate/old blocks
         if chain["last_block_number"] is not None and current_block_number <= chain["last_block_number"]:
             return chain["tps"]
 
-        # If a processor provides a stable window TPS, honor it and still keep history consistent
         tps_override = current_block.get("tps_override")
         if tps_override is not None:
-            # maintain block_time history (so UI doesn't break)
-            block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp)
+            block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
 
-            block_info = {
+            chain["block_history"].append({
                 "number": current_block_number,
-                "timestamp": current_timestamp,  # float
+                "timestamp": current_timestamp,  # float seconds
                 "tx_count": tx_count,
                 "gas_used": gas_used,
                 "is_estimated": False
-            }
-            chain["block_history"].append(block_info)
-            if len(chain["block_history"]) > 3:
-                chain["block_history"] = chain["block_history"][-3:]
+            })
+            if len(chain["block_history"]) > history_len:
+                chain["block_history"] = chain["block_history"][-history_len:]
 
-            # Update chain data directly with override
-            self._update_chain_data(chain_name, current_block_number, current_timestamp, tx_count, float(tps_override))
-
-            # Publish to Redis
-            asyncio.create_task(
-                self._publish_chain_update(
-                    chain_name, current_block_number, tx_count, gas_used, float(tps_override), block_time
-                )
-            )
+            self._update_chain_data(chain_name, current_block_number, int(current_timestamp), tx_count, float(tps_override))
+            asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, float(tps_override), block_time))
             return float(tps_override)
 
-        # --- normal calculation (no override) ---
-        block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp)
+        # --- normal path (no override) ---
+        block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
 
-        blocks_missed = 0
         if chain["last_block_number"] is not None:
             blocks_missed = current_block_number - chain["last_block_number"] - 1
             if blocks_missed > 0:
-                self._add_estimated_blocks(chain, blocks_missed, current_block_number, current_timestamp, tx_count)
+                self._add_estimated_blocks(chain, blocks_missed, current_block_number, int(current_timestamp), tx_count)
                 if blocks_missed > 5:
                     logger.warning(f"{chain_name}: Missed {blocks_missed} blocks between {chain['last_block_number']} and {current_block_number}")
 
-        block_info = {
+        chain["block_history"].append({
             "number": current_block_number,
-            "timestamp": current_timestamp,
+            "timestamp": current_timestamp,  # float seconds
             "tx_count": tx_count,
             "gas_used": gas_used,
             "is_estimated": False
-        }
-        chain["block_history"].append(block_info)
-        if len(chain["block_history"]) > 3:
-            chain["block_history"] = chain["block_history"][-3:]
+        })
+        if len(chain["block_history"]) > history_len:
+            chain["block_history"] = chain["block_history"][-history_len:]
 
         tps = self._calculate_tps_from_history(chain["block_history"])
-        self._update_chain_data(chain_name, current_block_number, current_timestamp, tx_count, tps)
+        self._update_chain_data(chain_name, current_block_number, int(current_timestamp), tx_count, tps)
         asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, tps, block_time))
         return tps
 
@@ -830,58 +815,37 @@ class RtBackend:
         last_timestamp = last_block["timestamp"]
         last_tx_count = last_block["tx_count"]
         
-        time_diff = current_timestamp - last_timestamp
-        avg_block_time = time_diff / (blocks_missed + 1)
+        time_diff = current_timestamp - last_timestamp  # both floats
+        avg_block_time = time_diff / (blocks_missed + 1)    
         avg_tx_per_block = (last_tx_count + current_tx_count) / 2
         avg_gas_per_block = (last_block["gas_used"] + 0) / 2
         
         for i in range(1, blocks_missed + 1):
             estimated_block = {
                 "number": last_block["number"] + i,
-                "timestamp": int(last_timestamp + (avg_block_time * i)),
+                "timestamp": last_timestamp + (avg_block_time * i),  # keep float, no int()
                 "tx_count": int(avg_tx_per_block),
                 "gas_used": int(avg_gas_per_block),
                 "is_estimated": True
             }
-            
             chain["block_history"].append(estimated_block)
             #logger.debug(f"{estimated_block['number']}: Estimated block with {estimated_block['tx_count']} tx")
 
     def _calculate_tps_from_history(self, block_history: List[Dict[str, Any]]) -> float:
-        """Calculate TPS based on block history (up to last 3 blocks)."""
-        if len(block_history) < 2:
-            return 0
-        
-        if len(block_history) == 2:
-            oldest_block = block_history[0]
-            newest_block = block_history[1]
-            
-            time_diff = newest_block["timestamp"] - oldest_block["timestamp"]
-            if time_diff <= 0:
-                return 0
-                
-            total_tx = oldest_block["tx_count"] + newest_block["tx_count"]
-            return total_tx / (time_diff * 2) # 2 blocks, so multiply time_diff by 2
-            
-        if len(block_history) == 3:  # 3 blocks available
-            oldest_block = block_history[0]
-            newest_block = block_history[2]
-            
-            time_diff = newest_block["timestamp"] - oldest_block["timestamp"]
-            if time_diff <= 0:
-                return 0
-            time_diff += time_diff / 2  # it's a 3-block average, so add half the time diff
-                
-            total_tx = sum(block["tx_count"] for block in block_history)
-            
-            # estimated_blocks = sum(1 for block in block_history if block.get("is_estimated", False))
-            # if estimated_blocks > 0:
-            #     logger.debug(f"TPS calculation using {estimated_blocks} estimated blocks out of {len(block_history)}")
-            
-            return total_tx / time_diff
-        else:
-            logger.error(f"Unexpected block history length: {len(block_history)}")
-            return 0  # Should not happen, but just in case
+        n = len(block_history)
+        if n < 2:
+            return 0.0
+
+        t0 = float(block_history[0]["timestamp"])
+        t1 = float(block_history[-1]["timestamp"])
+        span = t1 - t0
+        if span <= 0:
+            return 0.0
+
+        total_tx = sum(b["tx_count"] for b in block_history)
+        # Bias correction: there are (n-1) observed intervals for n blocks
+        effective_span = span * (n / (n - 1))
+        return total_tx / effective_span
         
     def _update_chain_data(self, chain_name: str, block_number: int, timestamp: int, 
                           tx_count: int, tps: float) -> None:
