@@ -1152,7 +1152,7 @@ def _row_to_attestation_record(r) -> AttestationRecord:
     "/labels",
     response_model=LabelsResponse,
     dependencies=[Depends(get_api_key)],
-    tags=["Protected"],
+    tags=["Labels"],
 )
 async def get_labels(
     address: str = Query(..., description="Address (0x...)"),
@@ -1242,7 +1242,7 @@ async def get_labels(
     "/labels/bulk", 
     response_model=BulkLabelsResponse, 
     dependencies=[Depends(get_api_key)],
-    tags=["Protected"]
+    tags=["Labels"]
     )
 async def get_labels_bulk(req: BulkLabelsRequest):
     # 1. normalize and dedupe input addresses
@@ -1342,7 +1342,7 @@ async def get_labels_bulk(req: BulkLabelsRequest):
     "/addresses/search", 
     response_model=LabelSearchResponse, 
     dependencies=[Depends(get_api_key)],
-    tags=["Protected"]
+    tags=["Labels"]
     )
 async def search_addresses_by_tag(
     tag_id: str = Query(..., description="The tag key, e.g. 'usage_category'"),
@@ -1424,7 +1424,7 @@ async def search_addresses_by_tag(
     "/analytics/attesters", 
     response_model=AttesterAnalyticsResponse, 
     dependencies=[Depends(get_api_key)],
-    tags=["Protected"]
+    tags=["Analytics"]
     )
 async def get_attester_analytics(
     chain_id: Optional[str] = Query(
