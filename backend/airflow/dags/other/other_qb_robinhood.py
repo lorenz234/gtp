@@ -61,21 +61,6 @@ def run_dag():
         db_connector = DbConnector()
         ad = AdapterDune(adapter_params, db_connector)
 
-        # first load new daily values for all tokenized assets
-        load_params = {
-            'queries': [
-                {
-                    'name': 'Robinhood_stock_daily',
-                    'query_id': 5435746,
-                    'params': {'days': 3}
-                }
-            ],
-            'prepare_df': 'prepare_robinhood_daily',
-            'load_type': 'robinhood_daily'
-        }
-        df = ad.extract(load_params)
-        ad.load(df)
-
         # update list of tokenized assets from Dune
         load_params2 = {
                 'queries': [
@@ -89,6 +74,21 @@ def run_dag():
                 'load_type': 'robinhood_stock_list'
             }
         df = ad.extract(load_params2)
+        ad.load(df)
+
+        # load new daily values for all tokenized assets (requires tokenized asset dune table to be up to date)
+        load_params = {
+            'queries': [
+                {
+                    'name': 'Robinhood_stock_daily',
+                    'query_id': 5435746,
+                    'params': {'days': 3}
+                }
+            ],
+            'prepare_df': 'prepare_robinhood_daily',
+            'load_type': 'robinhood_daily'
+        }
+        df = ad.extract(load_params)
         ad.load(df)
 
     @task()

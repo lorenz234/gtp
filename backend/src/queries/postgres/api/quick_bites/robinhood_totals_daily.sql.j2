@@ -6,23 +6,19 @@ WITH date_range AS (
   )::date as date
 ),
 all_stocks AS (
-  SELECT DISTINCT contract_address 
-  FROM public.robinhood_daily
-  WHERE contract_address IN (
-    SELECT contract_address 
-    FROM public.robinhood_stock_list 
-    WHERE ticker NOT ILIKE '%%demo token%%'
-  )
+  SELECT contract_address
+  FROM public.robinhood_stock_list
+  WHERE ticker NOT IN ('demo token 1', 'SPACEX', 'OPAI')
 ),
 complete_date_stock_grid AS (
-  SELECT 
+  SELECT
     s.contract_address,
     d.date
   FROM all_stocks s
   CROSS JOIN date_range d
 ),
 daily_metrics AS (
-  SELECT 
+  SELECT
     contract_address,
     date,
     SUM(CASE WHEN metric_key = 'total_minted' THEN value ELSE 0 END) -
@@ -33,7 +29,7 @@ daily_metrics AS (
   GROUP BY contract_address, date
 ),
 complete_data AS (
-  SELECT 
+  SELECT
     g.contract_address,
     g.date,
     COALESCE(dm.net_change, 0) as net_change,
@@ -42,7 +38,7 @@ complete_data AS (
   LEFT JOIN daily_metrics dm ON g.contract_address = dm.contract_address AND g.date = dm.date
 ),
 prices_with_fill AS (
-  SELECT 
+  SELECT
     contract_address,
     date,
     net_change,
@@ -55,25 +51,25 @@ prices_with_fill AS (
   FROM complete_data
 ),
 cumulative_supply AS (
-  SELECT 
+  SELECT
     contract_address,
     date,
     filled_close_price,
     SUM(net_change) OVER (
-      PARTITION BY contract_address 
-      ORDER BY date 
+      PARTITION BY contract_address
+      ORDER BY date
       ROWS UNBOUNDED PRECEDING
     ) as total_supply
   FROM prices_with_fill
 ),
 daily_market_values AS (
-  SELECT 
+  SELECT
     date,
     total_supply * filled_close_price as total_market_value
   FROM cumulative_supply
-  WHERE filled_close_price IS NOT NULL
+  WHERE filled_close_price IS NOT null
 )
-SELECT 
+SELECT
   date,
   SUM(total_market_value) as total_market_value_sum
 FROM daily_market_values
