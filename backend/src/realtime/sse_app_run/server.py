@@ -196,6 +196,41 @@ class RedisSSEServer:
                 redundant_payload = cache.pop()["payload"]
         cache.append({"v": value, "ms": timestamp_ms, "payload": payload})
         return redundant_payload
+
+    async def _confirm_global_ath(self, candidate_value: float) -> bool:
+        if candidate_value <= self.tps_ath:
+            return False
+        try:
+            value, ts, ts_ms = await self.redis_client.hmget(
+                RedisKeys.GLOBAL_TPS_ATH, "value", "timestamp", "timestamp_ms"
+            )
+        except Exception as e:
+            logger.warning(f"Could not verify global ATH against Redis, skipping update: {e}")
+            return False
+        stored_value = self._safe_float(value, self.tps_ath)
+        if stored_value > self.tps_ath:
+            self.tps_ath = stored_value
+            self.tps_ath_timestamp = ts or self.tps_ath_timestamp
+            self.tps_ath_timestamp_ms = self._safe_int(ts_ms, self.tps_ath_timestamp_ms)
+        return candidate_value > self.tps_ath
+
+    async def _confirm_chain_ath(self, chain_name: str, candidate_value: float, metrics: Dict[str, Any]) -> bool:
+        baseline = metrics.get("ath", 0)
+        if candidate_value <= baseline:
+            return False
+        try:
+            value, ts, ts_ms = await self.redis_client.hmget(
+                RedisKeys.chain_tps_ath(chain_name), "value", "timestamp", "timestamp_ms"
+            )
+        except Exception as e:
+            logger.warning(f"Could not verify ATH for chain {chain_name}, skipping update: {e}")
+            return False
+        stored_value = self._safe_float(value, baseline)
+        if stored_value > baseline:
+            metrics["ath"] = stored_value
+            metrics["ath_timestamp"] = ts or metrics.get("ath_timestamp", "")
+            metrics["ath_timestamp_ms"] = self._safe_int(ts_ms, metrics.get("ath_timestamp_ms", 0))
+        return candidate_value > metrics.get("ath", 0)
         
     async def initialize(self):
         """Initialize Redis connection and load existing TPS records."""
@@ -420,6 +455,8 @@ class RedisSSEServer:
             })
             
             is_new_ath = current_tps > metrics.get("ath", 0)
+            if is_new_ath:
+                is_new_ath = await self._confirm_chain_ath(chain_name, current_tps, metrics)
             
             # Check if 24h high is expired or a new high
             is_new_24h_high = False
@@ -483,7 +520,7 @@ class RedisSSEServer:
             new_24h_high = self.tps_24h_high
             new_24h_high_timestamp = self.tps_24h_high_timestamp
 
-            is_new_ath = current_tps > self.tps_ath
+            is_new_ath = await self._confirm_global_ath(current_tps)
             pipe = self.redis_client.pipeline()
 
             if is_new_ath:
