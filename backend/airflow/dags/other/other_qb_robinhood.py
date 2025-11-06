@@ -29,7 +29,7 @@ def run_dag():
 
     @task.branch(task_id="decide_branch")
     def decide_branch():
-        """Decide which branch to execute based on the day of the week"""
+        """Decide which branch to execute based on the day of the week. We pull in data from Dune only on certain days."""
         # Use current UTC time
         current_utc = datetime.now(timezone.utc)
         day_of_week = current_utc.weekday()
@@ -61,7 +61,22 @@ def run_dag():
         db_connector = DbConnector()
         ad = AdapterDune(adapter_params, db_connector)
 
-        # first load new daily values for all tokenized assets
+        # update list of tokenized assets from Dune
+        load_params2 = {
+                'queries': [
+                    {
+                        'name': 'Robinhood_stock_list',
+                        'query_id': 5429585,
+                        'params': {'days': 3}
+                    }
+                ],
+                'prepare_df': 'prepare_robinhood_list',
+                'load_type': 'robinhood_stock_list'
+            }
+        df = ad.extract(load_params2)
+        ad.load(df)
+
+        # load new daily values for all tokenized assets (requires tokenized asset dune table to be up to date)
         load_params = {
             'queries': [
                 {
@@ -75,39 +90,6 @@ def run_dag():
         }
         df = ad.extract(load_params)
         ad.load(df)
-
-        # load list of known tokenized assets from db
-        current_list = db_connector.get_table('robinhood_stock_list')
-
-        # find any unknown tokenized assets based on the contract_address unique identifier
-        unknown = (
-                df.reset_index()['contract_address']
-                .drop_duplicates()
-                .to_frame()
-                .merge(current_list[['contract_address']], 
-                        on='contract_address', 
-                        how='left', 
-                        indicator=True)
-                .query("_merge == 'left_only'")
-            )
-
-        if not unknown.empty:
-            print(f"Found {unknown.shape[0]} unknown tokenized assets. Fetching updated stock list from Dune...")
-
-            # load list of new tokenized assets from Dune
-            load_params2 = {
-                    'queries': [
-                        {
-                            'name': 'Robinhood_stock_list',
-                            'query_id': 5429585,
-                            'params': {'days': 90}
-                        }
-                    ],
-                    'prepare_df': 'prepare_robinhood_list',
-                    'load_type': 'robinhood_stock_list'
-                }
-            df = ad.extract(load_params2)
-            ad.load(df)
 
     @task()
     def pull_data_from_yfinance():
@@ -263,6 +245,7 @@ def run_dag():
             "contract_address",
             "ticker", 
             "name",
+            "tokenization_date",
             "usd_outstanding",
             "stocks_tokenized",
             "stocks_tokenized_7d_change_pct",
@@ -272,6 +255,7 @@ def run_dag():
         types = [
             "string",
             "string", 
+            "string",
             "string",
             "number",
             "number",

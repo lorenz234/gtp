@@ -6,13 +6,8 @@ WITH date_range AS (
     )::date as date
 ),
 all_stocks AS (
-    SELECT DISTINCT contract_address
-    FROM public.robinhood_daily
-    WHERE contract_address IN (
-        SELECT contract_address
-        FROM public.robinhood_stock_list
-        WHERE ticker NOT ILIKE '%%demo token%%'
-    )
+    SELECT contract_address
+    FROM public.robinhood_stock_list
 ),
 complete_date_stock_grid AS (
     SELECT
@@ -79,9 +74,12 @@ daily_supply_data AS (
         total_supply,
         close_price as original_close_price,
         filled_close_price as close_price_used,
-        total_supply * filled_close_price as usd_outstanding
+        CASE
+            WHEN filled_close_price IS NOT NULL
+            THEN total_supply * filled_close_price
+            ELSE NULL
+        END as usd_outstanding
     FROM cumulative_supply
-    WHERE filled_close_price IS NOT NULL
 ),
 latest_data AS (
     SELECT
@@ -107,23 +105,24 @@ SELECT
     ld.contract_address,
     rsl.ticker,
     rsl.name,
+    rsl.block_time::date::text as tokenization_date,
     ld.usd_outstanding,
     ld.total_supply AS stocks_tokenized,
     ld.close_price_used AS usd_stock_price,
-    CASE 
-        WHEN sda.total_supply_7d_ago IS NOT NULL AND sda.total_supply_7d_ago > 0 
+    CASE
+        WHEN sda.total_supply_7d_ago IS NOT NULL AND sda.total_supply_7d_ago > 0
         THEN ROUND(
-            ((ld.total_supply - sda.total_supply_7d_ago) / sda.total_supply_7d_ago * 100)::numeric, 
+            ((ld.total_supply - sda.total_supply_7d_ago) / sda.total_supply_7d_ago * 100)::numeric,
             2
         )
-        ELSE NULL 
+        ELSE NULL
     END AS stocks_tokenized_7d_change_pct
 FROM latest_data ld
 LEFT JOIN public.robinhood_stock_list rsl
     ON ld.contract_address = rsl.contract_address
-    AND rsl.ticker NOT ILIKE '%%demo token%%'
 LEFT JOIN seven_days_ago_data sda
     ON ld.contract_address = sda.contract_address
     AND sda.rn_7d = 1
 WHERE ld.rn = 1
-ORDER BY ld.usd_outstanding DESC;
+    AND rsl.ticker NOT IN ('demo token 1', 'SPACEX', 'OPAI')
+ORDER BY ld.usd_outstanding DESC NULLS LAST;
