@@ -2,10 +2,11 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Set, Optional
+from typing import Dict, List, Any, Set, Optional, Deque
 from dataclasses import dataclass, field
 import requests
 import os
+from collections import deque
 
 import redis.asyncio as aioredis
 from aiohttp import web
@@ -116,8 +117,10 @@ class RedisSSEServer:
         # Global TPS tracking
         self.tps_ath: float = 0.0
         self.tps_ath_timestamp: str = ""
+        self.tps_ath_timestamp_ms: int = 0
         self.tps_24h_high: float = 0.0
         self.tps_24h_high_timestamp: str = ""
+        self.tps_24h_high_timestamp_ms: int = 0
         
         # Per-chain TPS tracking
         self.chain_metrics: Dict[str, Dict[str, Any]] = {}
@@ -127,6 +130,8 @@ class RedisSSEServer:
         self._cache_ttl = 60
         
         self.chain_clients = {}  # Track clients per chain
+        self._history_cache: Dict[str, Deque[Dict[str, Any]]] = {}
+        self._trend_epsilon = 1e-3
 
     def _safe_float(self, value, default=0.0):
         try: return float(value) if value is not None else default
@@ -135,6 +140,62 @@ class RedisSSEServer:
     def _safe_int(self, value, default=0):
         try: return int(value) if value is not None else default
         except (ValueError, TypeError): return default
+
+    def _format_timestamp(self, ts_ms: int) -> str:
+        if not ts_ms:
+            return ""
+        try:
+            return datetime.fromtimestamp(ts_ms / 1000).isoformat()
+        except (OverflowError, OSError, ValueError):
+            return ""
+
+    def _encode_history_entry(self, value: float, timestamp_ms: int, is_ath: bool) -> str:
+        entry = {"v": round(value, 3), "ms": timestamp_ms}
+        if is_ath:
+            entry["a"] = 1
+        return json.dumps(entry, separators=(",", ":"))
+
+    def _decode_history_entry(self, raw_entry: str) -> Dict[str, Any]:
+        try:
+            data = json.loads(raw_entry)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+        if "v" in data:  # compact format
+            ts_ms = self._safe_int(data.get("ms", 0))
+            return {
+                "tps": self._safe_float(data.get("v", 0)),
+                "timestamp_ms": ts_ms,
+                "timestamp": self._format_timestamp(ts_ms),
+                "is_ath": bool(data.get("a", 0)),
+            }
+        # legacy format
+        ts_ms = self._safe_int(data.get("timestamp_ms", 0))
+        timestamp = data.get("timestamp") or self._format_timestamp(ts_ms)
+        return {
+            "tps": self._safe_float(data.get("tps", data.get("value", 0))),
+            "timestamp_ms": ts_ms,
+            "timestamp": timestamp,
+            "is_ath": bool(data.get("is_ath", data.get("isATH", False))),
+        }
+
+    def _trend_direction(self, first: float, second: float) -> int:
+        delta = second - first
+        if abs(delta) <= self._trend_epsilon:
+            return 0
+        return 1 if delta > 0 else -1
+
+    def _register_history_point(self, key: str, value: float, timestamp_ms: int, payload: str) -> Optional[str]:
+        cache = self._history_cache.setdefault(key, deque(maxlen=3))
+        redundant_payload = None
+        if len(cache) >= 2:
+            prev = cache[-1]
+            prev_prev = cache[-2]
+            prev_dir = self._trend_direction(prev_prev["v"], prev["v"])
+            new_dir = self._trend_direction(prev["v"], value)
+            if prev_dir != 0 and prev_dir == new_dir:
+                redundant_payload = cache.pop()["payload"]
+        cache.append({"v": value, "ms": timestamp_ms, "payload": payload})
+        return redundant_payload
         
     async def initialize(self):
         """Initialize Redis connection and load existing TPS records."""
@@ -173,11 +234,13 @@ class RedisSSEServer:
             if ath_data:
                 self.tps_ath = self._safe_float(ath_data.get("value", 0))
                 self.tps_ath_timestamp = ath_data.get("timestamp", "")
+                self.tps_ath_timestamp_ms = self._safe_int(ath_data.get("timestamp_ms", 0))
                 logger.info(f"📈 Loaded Global TPS ATH: {self.tps_ath}")
             
             if h24_data:
                 self.tps_24h_high = self._safe_float(h24_data.get("value", 0))
                 self.tps_24h_high_timestamp = h24_data.get("timestamp", "")
+                self.tps_24h_high_timestamp_ms = self._safe_int(h24_data.get("timestamp_ms", 0))
                 logger.info(f"📊 Loaded Global 24hr TPS High: {self.tps_24h_high}")
             
             await self._cleanup_24h_history()
@@ -200,8 +263,10 @@ class RedisSSEServer:
                 self.chain_metrics[chain_name] = {
                     "ath": self._safe_float(ath_data.get("value", 0)) if ath_data else 0,
                     "ath_timestamp": ath_data.get("timestamp", "") if ath_data else "",
+                    "ath_timestamp_ms": self._safe_int(ath_data.get("timestamp_ms", 0)) if ath_data else 0,
                     "24h_high": self._safe_float(h24_data.get("value", 0)) if h24_data else 0,
-                    "24h_high_timestamp": h24_data.get("timestamp", "") if h24_data else ""
+                    "24h_high_timestamp": h24_data.get("timestamp", "") if h24_data else "",
+                    "24h_high_timestamp_ms": self._safe_int(h24_data.get("timestamp_ms", 0)) if h24_data else 0
                 }
             except Exception as e:
                 logger.warning(f"Could not load metrics for chain {chain_name}: {e}")
@@ -213,16 +278,22 @@ class RedisSSEServer:
     async def _cleanup_24h_history(self):
         """Remove TPS history entries older than 24 hours for global and all chains."""
         try:
-            cutoff_time = int((datetime.now() - timedelta(hours=12)).timestamp() * 1000)
+            now_ms = int(datetime.now().timestamp() * 1000)
+            cutoff_time = now_ms - (24 * 60 * 60 * 1000)
+            high_cutoff = self.tps_24h_high_timestamp_ms - 1 if self.tps_24h_high_timestamp_ms else 0
+            global_cutoff = max(cutoff_time, high_cutoff)
             
             pipe = self.redis_client.pipeline()
             # Global cleanup
-            pipe.zremrangebyscore(RedisKeys.TPS_HISTORY_24H, 0, cutoff_time)
+            pipe.zremrangebyscore(RedisKeys.TPS_HISTORY_24H, 0, global_cutoff)
             
             # Per-chain cleanup
             chains = await self._get_all_chains()
             for chain_name in chains:
-                pipe.zremrangebyscore(RedisKeys.chain_tps_history_24h(chain_name), 0, cutoff_time)
+                metrics = self.chain_metrics.get(chain_name, {})
+                chain_high_ts = self._safe_int(metrics.get("24h_high_timestamp_ms", 0))
+                chain_cutoff = max(cutoff_time, chain_high_ts - 1) if chain_high_ts else cutoff_time
+                pipe.zremrangebyscore(RedisKeys.chain_tps_history_24h(chain_name), 0, chain_cutoff)
 
             results = await pipe.execute()
             removed_global = results[0]
@@ -246,7 +317,9 @@ class RedisSSEServer:
             max_entry = None
             for raw in entries:
                 try:
-                    data = json.loads(raw)
+                    data = self._decode_history_entry(raw)
+                    if not data:
+                        continue
                     tps = self._safe_float(data.get("tps", 0))
                     if tps > max_tps:
                         max_tps = tps
@@ -260,6 +333,7 @@ class RedisSSEServer:
                 })
                 self.tps_24h_high = max_tps
                 self.tps_24h_high_timestamp = max_entry["timestamp"]
+                self.tps_24h_high_timestamp_ms = self._safe_int(max_entry.get("timestamp_ms", 0))
 
             # Cleanup
             await self._cleanup_24h_history()
@@ -290,17 +364,15 @@ class RedisSSEServer:
                 "is_ath": record.is_ath
             }
             pipe = self.redis_client.pipeline()
-            entry_json = json.dumps(history_entry)
             if record.is_ath:
+                entry_json = json.dumps(history_entry)
                 pipe.zadd(RedisKeys.ATH_HISTORY, {entry_json: record.timestamp_ms})
 
-            ## remove chain_breakdown, total_chains, active_chains from history to save space
-            history_entry.pop("chain_breakdown", None)
-            history_entry.pop("total_chains", None)
-            history_entry.pop("active_chains", None)
-            entry_json = json.dumps(history_entry)
-
-            pipe.zadd(RedisKeys.TPS_HISTORY_24H, {entry_json: record.timestamp_ms})
+            compact_entry = self._encode_history_entry(record.value, record.timestamp_ms, record.is_ath)
+            redundant = self._register_history_point(RedisKeys.TPS_HISTORY_24H, record.value, record.timestamp_ms, compact_entry)
+            pipe.zadd(RedisKeys.TPS_HISTORY_24H, {compact_entry: record.timestamp_ms})
+            if redundant:
+                pipe.zrem(RedisKeys.TPS_HISTORY_24H, redundant)
             await pipe.execute()
         except Exception as e:
             logger.error(f"Error storing global TPS record: {str(e)}")
@@ -316,13 +388,17 @@ class RedisSSEServer:
             }
             pipe = self.redis_client.pipeline()
             key_history = RedisKeys.chain_tps_history_24h(record.chain_name)
-            entry_json = json.dumps(history_entry)
             
             if record.is_ath:
+                entry_json = json.dumps(history_entry)
                 key_ath_history = RedisKeys.chain_ath_history(record.chain_name)
                 pipe.zadd(key_ath_history, {entry_json: record.timestamp_ms})
 
-            pipe.zadd(key_history, {entry_json: record.timestamp_ms})
+            compact_entry = self._encode_history_entry(record.value, record.timestamp_ms, record.is_ath)
+            redundant = self._register_history_point(key_history, record.value, record.timestamp_ms, compact_entry)
+            pipe.zadd(key_history, {compact_entry: record.timestamp_ms})
+            if redundant:
+                pipe.zrem(key_history, redundant)
             await pipe.execute()
         except Exception as e:
             logger.error(f"Error storing TPS record for chain {record.chain_name}: {str(e)}")
@@ -339,7 +415,8 @@ class RedisSSEServer:
                 continue
 
             metrics = self.chain_metrics.setdefault(chain_name, {
-                "ath": 0, "ath_timestamp": "", "24h_high": 0, "24h_high_timestamp": ""
+                "ath": 0, "ath_timestamp": "", "ath_timestamp_ms": 0,
+                "24h_high": 0, "24h_high_timestamp": "", "24h_high_timestamp_ms": 0
             })
             
             is_new_ath = current_tps > metrics.get("ath", 0)
@@ -353,6 +430,8 @@ class RedisSSEServer:
                     if (now - last_24h_dt) > timedelta(hours=24):
                        is_new_24h_high = True # Expired, so this is the new high
                        metrics["24h_high"] = 0
+                       metrics["24h_high_timestamp"] = ""
+                       metrics["24h_high_timestamp_ms"] = 0
                 except ValueError:
                     is_new_24h_high = True # Invalid timestamp format
             else: # No previous 24h high
@@ -366,6 +445,7 @@ class RedisSSEServer:
             if is_new_ath:
                 metrics["ath"] = current_tps
                 metrics["ath_timestamp"] = timestamp
+                metrics["ath_timestamp_ms"] = timestamp_ms
                 pipe.hset(RedisKeys.chain_tps_ath(chain_name), mapping={
                     "value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(timestamp_ms)
                 })
@@ -374,6 +454,7 @@ class RedisSSEServer:
             if is_new_24h_high:
                 metrics["24h_high"] = current_tps
                 metrics["24h_high_timestamp"] = timestamp
+                metrics["24h_high_timestamp_ms"] = timestamp_ms
                 pipe.hset(RedisKeys.chain_tps_24h(chain_name), mapping={
                     "value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(timestamp_ms)
                 })
@@ -409,6 +490,7 @@ class RedisSSEServer:
                 old_ath = self.tps_ath
                 self.tps_ath = current_tps
                 self.tps_ath_timestamp = timestamp
+                self.tps_ath_timestamp_ms = current_timestamp_ms
                 new_ath, new_ath_timestamp = self.tps_ath, self.tps_ath_timestamp # Capture new values
 
                 pipe.hset(RedisKeys.GLOBAL_TPS_ATH, mapping={
@@ -422,6 +504,7 @@ class RedisSSEServer:
             if current_tps > self.tps_24h_high:
                 self.tps_24h_high = current_tps
                 self.tps_24h_high_timestamp = timestamp
+                self.tps_24h_high_timestamp_ms = current_timestamp_ms
                 new_24h_high, new_24h_high_timestamp = self.tps_24h_high, self.tps_24h_high_timestamp # Capture new values
 
                 pipe.hset(RedisKeys.GLOBAL_TPS_24H, mapping={
@@ -869,7 +952,8 @@ class RedisSSEServer:
             raw_entries = await self.redis_client.zrevrangebyscore(
                 RedisKeys.TPS_HISTORY_24H, now_ms, min_ts, start=0, num=limit
             )
-            history = [json.loads(raw_entry) for raw_entry in raw_entries]
+            history = [self._decode_history_entry(raw_entry) for raw_entry in raw_entries]
+            history = [entry for entry in history if entry]
             
             avg_tps = max_tps = min_tps = 0
             if history:
@@ -929,7 +1013,8 @@ class RedisSSEServer:
             raw_entries = await self.redis_client.zrevrangebyscore(
                 key, now_ms, min_ts, start=0, num=limit
             )
-            history = [json.loads(entry) for entry in raw_entries]
+            history = [self._decode_history_entry(entry) for entry in raw_entries]
+            history = [entry for entry in history if entry]
             return web.json_response({"history": history, "timestamp": datetime.now().isoformat()})
 
         except ValueError as e:
