@@ -245,6 +245,7 @@ def run_dag():
             "contract_address",
             "ticker", 
             "name",
+            "tokenization_date",
             "usd_outstanding",
             "stocks_tokenized",
             "stocks_tokenized_7d_change_pct",
@@ -254,6 +255,7 @@ def run_dag():
         types = [
             "string",
             "string", 
+            "string",
             "string",
             "number",
             "number",
