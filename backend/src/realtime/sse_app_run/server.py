@@ -298,6 +298,7 @@ class RedisSSEServer:
             history_entry.pop("chain_breakdown", None)
             history_entry.pop("total_chains", None)
             history_entry.pop("active_chains", None)
+            entry_json = json.dumps(history_entry)
 
             pipe.zadd(RedisKeys.TPS_HISTORY_24H, {entry_json: record.timestamp_ms})
             await pipe.execute()
