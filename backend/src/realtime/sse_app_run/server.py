@@ -213,7 +213,7 @@ class RedisSSEServer:
     async def _cleanup_24h_history(self):
         """Remove TPS history entries older than 24 hours for global and all chains."""
         try:
-            cutoff_time = int((datetime.now() - timedelta(hours=24)).timestamp() * 1000)
+            cutoff_time = int((datetime.now() - timedelta(hours=12)).timestamp() * 1000)
             
             pipe = self.redis_client.pipeline()
             # Global cleanup
@@ -293,11 +293,17 @@ class RedisSSEServer:
             entry_json = json.dumps(history_entry)
             if record.is_ath:
                 pipe.zadd(RedisKeys.ATH_HISTORY, {entry_json: record.timestamp_ms})
+
+            ## remove chain_breakdown, total_chains, active_chains from history to save space
+            history_entry.pop("chain_breakdown", None)
+            history_entry.pop("total_chains", None)
+            history_entry.pop("active_chains", None)
+
             pipe.zadd(RedisKeys.TPS_HISTORY_24H, {entry_json: record.timestamp_ms})
             await pipe.execute()
         except Exception as e:
             logger.error(f"Error storing global TPS record: {str(e)}")
-    
+            
     async def _store_chain_tps_record(self, record: TPSRecord):
         """Store a CHAIN-SPECIFIC TPS record in Redis."""
         if not record.chain_name:
@@ -512,25 +518,30 @@ class RedisSSEServer:
     async def _get_all_chains(self) -> List[str]:
         """Get all chain names from Redis with caching."""
         now = datetime.now()
-        
-        if (self._chain_cache and self._chain_cache_time and 
+
+        if (self._chain_cache and self._chain_cache_time and
             (now - self._chain_cache_time).total_seconds() < self._cache_ttl):
             return self._chain_cache
-        
+
         try:
             chains = set()
-            cursor = '0'
-            while cursor != 0:
-                cursor, keys = await self.redis_client.scan(cursor=cursor, match="chain:*", count=1000)
+            cursor = 0
+            pattern = "chain:*"
+            while True:
+                cursor, keys = await self.redis_client.scan(cursor=cursor, match=pattern, count=1000)
                 for key in keys:
-                    if ":tps:" in key: continue # Filter out metric keys
-                    chain_name = key.split(':')[1]
-                    chains.add(chain_name)
-            
+                    if ":tps:" in key:
+                        continue  # Filter out metric keys
+                    parts = key.split(':', 2)
+                    if len(parts) >= 2:
+                        chains.add(parts[1])
+                if cursor == 0:
+                    break
+
             self._chain_cache = sorted(list(chains))
             self._chain_cache_time = now
             return self._chain_cache
-            
+
         except Exception as e:
             logger.error(f"Error getting chain keys: {str(e)}")
             return self._chain_cache or []
