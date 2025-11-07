@@ -322,7 +322,6 @@ class AttestationQueryResponse(BaseModel):
     
 class AttesterAnalytics(BaseModel):
     attester: str
-    label_count: int
     unique_attestations: int
 
 
@@ -1508,7 +1507,6 @@ async def get_attester_analytics(
         results.append(
             AttesterAnalytics(
                 attester=attester_hex,
-                label_count=r["label_count"],
                 unique_attestations=r["unique_attestations"],
             )
         )
