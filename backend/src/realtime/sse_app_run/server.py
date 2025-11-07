@@ -1,15 +1,25 @@
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Set, Optional
-from dataclasses import dataclass, field
-import requests
 import os
+import sys
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Any, Set, Optional
 
 import redis.asyncio as aioredis
-from aiohttp import web
 import aiohttp_cors
+from aiohttp import web
+import requests
+
+# Ensure the repo root (which contains the `src` package) is importable.
+PROJECT_ROOT = Path(__file__).resolve()
+for _ in range(4):
+    PROJECT_ROOT = PROJECT_ROOT.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from src.realtime.history_utils import (
     HistoryCompressor,
     decode_history_entry,
