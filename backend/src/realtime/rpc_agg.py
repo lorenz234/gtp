@@ -848,6 +848,8 @@ class RtBackend:
             return
         if tps <= 0:
             return
+        if not hasattr(self, "chain_metrics"):
+            self.chain_metrics = {}
         metrics = self.chain_metrics.setdefault(chain_name, {
             "ath": 0.0,
             "ath_timestamp": "",
