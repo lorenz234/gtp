@@ -485,8 +485,8 @@ class RtBackend:
 
         # Initialize chain data storage
         self.chain_data: Dict[str, Dict[str, Any]] = {}
-        self._initialize_chain_data()
         self.chain_metrics: Dict[str, Dict[str, Any]] = {}
+        self._initialize_chain_data()
         self.history_compressor = HistoryCompressor()
         
         # Initialize ETH price tracking
