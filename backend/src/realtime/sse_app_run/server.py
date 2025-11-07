@@ -2,15 +2,20 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Set, Optional, Deque
+from typing import Dict, List, Any, Set, Optional
 from dataclasses import dataclass, field
 import requests
 import os
-from collections import deque
 
 import redis.asyncio as aioredis
 from aiohttp import web
 import aiohttp_cors
+from src.realtime.history_utils import (
+    HistoryCompressor,
+    decode_history_entry,
+    encode_history_entry,
+)
+from src.realtime.redis_keys import RedisKeys
 
 # Configure logging
 logging.basicConfig(
@@ -74,36 +79,6 @@ class TPSRecord:
     is_ath: bool = False
     chain_name: Optional[str] = None
 
-class RedisKeys:
-    """Redis key constants."""
-    # Global keys
-    GLOBAL_TPS_ATH = "global:tps:ath"
-    GLOBAL_TPS_24H = "global:tps:24h_high"
-    TPS_HISTORY_24H = "global:tps:history_24h"
-    ATH_HISTORY = "global:tps:ath_history"
-
-    @staticmethod
-    def chain_stream(chain_name: str) -> str:
-        return f"chain:{chain_name}"
-
-    # Chain-specific metric keys
-    @staticmethod
-    def chain_tps_ath(chain_name: str) -> str:
-        return f"chain:{chain_name}:tps:ath"
-
-    @staticmethod
-    def chain_tps_24h(chain_name: str) -> str:
-        return f"chain:{chain_name}:tps:24h_high"
-    
-    @staticmethod
-    def chain_tps_history_24h(chain_name: str) -> str:
-        return f"chain:{chain_name}:tps:history_24h"
-    
-    @staticmethod
-    def chain_ath_history(chain_name: str) -> str:
-        return f"chain:{chain_name}:tps:ath_history"
-
-
 class RedisSSEServer:
     """SSE Server that reads blockchain data from Redis streams."""
     
@@ -130,8 +105,7 @@ class RedisSSEServer:
         self._cache_ttl = 60
         
         self.chain_clients = {}  # Track clients per chain
-        self._history_cache: Dict[str, Deque[Dict[str, Any]]] = {}
-        self._trend_epsilon = 1e-3
+        self.history_compressor = HistoryCompressor()
 
     def _safe_float(self, value, default=0.0):
         try: return float(value) if value is not None else default
@@ -140,62 +114,6 @@ class RedisSSEServer:
     def _safe_int(self, value, default=0):
         try: return int(value) if value is not None else default
         except (ValueError, TypeError): return default
-
-    def _format_timestamp(self, ts_ms: int) -> str:
-        if not ts_ms:
-            return ""
-        try:
-            return datetime.fromtimestamp(ts_ms / 1000).isoformat()
-        except (OverflowError, OSError, ValueError):
-            return ""
-
-    def _encode_history_entry(self, value: float, timestamp_ms: int, is_ath: bool) -> str:
-        entry = {"v": round(value, 3), "ms": timestamp_ms}
-        if is_ath:
-            entry["a"] = 1
-        return json.dumps(entry, separators=(",", ":"))
-
-    def _decode_history_entry(self, raw_entry: str) -> Dict[str, Any]:
-        try:
-            data = json.loads(raw_entry)
-        except (json.JSONDecodeError, TypeError):
-            return {}
-        if "v" in data:  # compact format
-            ts_ms = self._safe_int(data.get("ms", 0))
-            return {
-                "tps": self._safe_float(data.get("v", 0)),
-                "timestamp_ms": ts_ms,
-                "timestamp": self._format_timestamp(ts_ms),
-                "is_ath": bool(data.get("a", 0)),
-            }
-        # legacy format
-        ts_ms = self._safe_int(data.get("timestamp_ms", 0))
-        timestamp = data.get("timestamp") or self._format_timestamp(ts_ms)
-        return {
-            "tps": self._safe_float(data.get("tps", data.get("value", 0))),
-            "timestamp_ms": ts_ms,
-            "timestamp": timestamp,
-            "is_ath": bool(data.get("is_ath", data.get("isATH", False))),
-        }
-
-    def _trend_direction(self, first: float, second: float) -> int:
-        delta = second - first
-        if abs(delta) <= self._trend_epsilon:
-            return 0
-        return 1 if delta > 0 else -1
-
-    def _register_history_point(self, key: str, value: float, timestamp_ms: int, payload: str) -> Optional[str]:
-        cache = self._history_cache.setdefault(key, deque(maxlen=3))
-        redundant_payload = None
-        if len(cache) >= 2:
-            prev = cache[-1]
-            prev_prev = cache[-2]
-            prev_dir = self._trend_direction(prev_prev["v"], prev["v"])
-            new_dir = self._trend_direction(prev["v"], value)
-            if prev_dir != 0 and prev_dir == new_dir:
-                redundant_payload = cache.pop()["payload"]
-        cache.append({"v": value, "ms": timestamp_ms, "payload": payload})
-        return redundant_payload
 
     async def _confirm_global_ath(self, candidate_value: float) -> bool:
         if candidate_value <= self.tps_ath:
@@ -214,23 +132,29 @@ class RedisSSEServer:
             self.tps_ath_timestamp_ms = self._safe_int(ts_ms, self.tps_ath_timestamp_ms)
         return candidate_value > self.tps_ath
 
-    async def _confirm_chain_ath(self, chain_name: str, candidate_value: float, metrics: Dict[str, Any]) -> bool:
-        baseline = metrics.get("ath", 0)
-        if candidate_value <= baseline:
-            return False
+    async def _refresh_chain_ath_cache(self, chain_names: List[str]):
+        if not chain_names:
+            return
         try:
-            value, ts, ts_ms = await self.redis_client.hmget(
-                RedisKeys.chain_tps_ath(chain_name), "value", "timestamp", "timestamp_ms"
-            )
+            if not self.redis_client:
+                return
+            pipe = self.redis_client.pipeline()
+            for chain_name in chain_names:
+                pipe.hgetall(RedisKeys.chain_tps_ath(chain_name))
+            results = await pipe.execute()
+            for chain_name, data in zip(chain_names, results):
+                metrics = self.chain_metrics.setdefault(chain_name, {
+                    "ath": 0, "ath_timestamp": "", "ath_timestamp_ms": 0,
+                    "24h_high": 0, "24h_high_timestamp": "", "24h_high_timestamp_ms": 0
+                })
+                if data:
+                    metrics["ath"] = self._safe_float(data.get("value", metrics["ath"]))
+                    metrics["ath_timestamp"] = data.get("timestamp", metrics.get("ath_timestamp", ""))
+                    metrics["ath_timestamp_ms"] = self._safe_int(
+                        data.get("timestamp_ms", metrics.get("ath_timestamp_ms", 0))
+                    )
         except Exception as e:
-            logger.warning(f"Could not verify ATH for chain {chain_name}, skipping update: {e}")
-            return False
-        stored_value = self._safe_float(value, baseline)
-        if stored_value > baseline:
-            metrics["ath"] = stored_value
-            metrics["ath_timestamp"] = ts or metrics.get("ath_timestamp", "")
-            metrics["ath_timestamp_ms"] = self._safe_int(ts_ms, metrics.get("ath_timestamp_ms", 0))
-        return candidate_value > metrics.get("ath", 0)
+            logger.warning(f"Failed to refresh chain ATH cache: {e}")
         
     async def initialize(self):
         """Initialize Redis connection and load existing TPS records."""
@@ -352,7 +276,7 @@ class RedisSSEServer:
             max_entry = None
             for raw in entries:
                 try:
-                    data = self._decode_history_entry(raw)
+                    data = decode_history_entry(raw)
                     if not data:
                         continue
                     tps = self._safe_float(data.get("tps", 0))
@@ -403,8 +327,10 @@ class RedisSSEServer:
                 entry_json = json.dumps(history_entry)
                 pipe.zadd(RedisKeys.ATH_HISTORY, {entry_json: record.timestamp_ms})
 
-            compact_entry = self._encode_history_entry(record.value, record.timestamp_ms, record.is_ath)
-            redundant = self._register_history_point(RedisKeys.TPS_HISTORY_24H, record.value, record.timestamp_ms, compact_entry)
+            compact_entry = encode_history_entry(record.value, record.timestamp_ms, record.is_ath)
+            redundant = self.history_compressor.register(
+                RedisKeys.TPS_HISTORY_24H, record.value, record.timestamp_ms, compact_entry
+            )
             pipe.zadd(RedisKeys.TPS_HISTORY_24H, {compact_entry: record.timestamp_ms})
             if redundant:
                 pipe.zrem(RedisKeys.TPS_HISTORY_24H, redundant)
@@ -412,37 +338,13 @@ class RedisSSEServer:
         except Exception as e:
             logger.error(f"Error storing global TPS record: {str(e)}")
             
-    async def _store_chain_tps_record(self, record: TPSRecord):
-        """Store a CHAIN-SPECIFIC TPS record in Redis."""
-        if not record.chain_name:
-            return
-        try:
-            history_entry = {
-                "tps": record.value, "timestamp": record.timestamp,
-                "timestamp_ms": record.timestamp_ms, "is_ath": record.is_ath
-            }
-            pipe = self.redis_client.pipeline()
-            key_history = RedisKeys.chain_tps_history_24h(record.chain_name)
-            
-            if record.is_ath:
-                entry_json = json.dumps(history_entry)
-                key_ath_history = RedisKeys.chain_ath_history(record.chain_name)
-                pipe.zadd(key_ath_history, {entry_json: record.timestamp_ms})
-
-            compact_entry = self._encode_history_entry(record.value, record.timestamp_ms, record.is_ath)
-            redundant = self._register_history_point(key_history, record.value, record.timestamp_ms, compact_entry)
-            pipe.zadd(key_history, {compact_entry: record.timestamp_ms})
-            if redundant:
-                pipe.zrem(key_history, redundant)
-            await pipe.execute()
-        except Exception as e:
-            logger.error(f"Error storing TPS record for chain {record.chain_name}: {str(e)}")
-
     async def _update_all_chain_records(self, chain_data: Dict[str, Any]):
-        """Update ATH and 24h high records for each individual chain."""
+        """Update 24h high records for each individual chain."""
         now = datetime.now()
         timestamp = now.isoformat()
         timestamp_ms = int(now.timestamp() * 1000)
+
+        await self._refresh_chain_ath_cache(list(chain_data.keys()))
 
         for chain_name, data in chain_data.items():
             current_tps = self._safe_float(data.get("tps", 0))
@@ -453,10 +355,6 @@ class RedisSSEServer:
                 "ath": 0, "ath_timestamp": "", "ath_timestamp_ms": 0,
                 "24h_high": 0, "24h_high_timestamp": "", "24h_high_timestamp_ms": 0
             })
-            
-            is_new_ath = current_tps > metrics.get("ath", 0)
-            if is_new_ath:
-                is_new_ath = await self._confirm_chain_ath(chain_name, current_tps, metrics)
             
             # Check if 24h high is expired or a new high
             is_new_24h_high = False
@@ -478,15 +376,6 @@ class RedisSSEServer:
                 is_new_24h_high = True
             
             pipe = self.redis_client.pipeline()
-            
-            if is_new_ath:
-                metrics["ath"] = current_tps
-                metrics["ath_timestamp"] = timestamp
-                metrics["ath_timestamp_ms"] = timestamp_ms
-                pipe.hset(RedisKeys.chain_tps_ath(chain_name), mapping={
-                    "value": str(current_tps), "timestamp": timestamp, "timestamp_ms": str(timestamp_ms)
-                })
-                logger.info(f"🚀 NEW CHAIN ATH for {chain_name}: {current_tps} TPS!")
 
             if is_new_24h_high:
                 metrics["24h_high"] = current_tps
@@ -498,13 +387,6 @@ class RedisSSEServer:
 
             if pipe:
                 await pipe.execute()
-            
-            # Store history record for the chain
-            record = TPSRecord(
-                chain_name=chain_name, value=current_tps, timestamp=timestamp,
-                timestamp_ms=timestamp_ms, is_ath=is_new_ath
-            )
-            await self._store_chain_tps_record(record)
 
     # In RedisSSEServer class
 
@@ -989,7 +871,7 @@ class RedisSSEServer:
             raw_entries = await self.redis_client.zrevrangebyscore(
                 RedisKeys.TPS_HISTORY_24H, now_ms, min_ts, start=0, num=limit
             )
-            history = [self._decode_history_entry(raw_entry) for raw_entry in raw_entries]
+            history = [decode_history_entry(raw_entry) for raw_entry in raw_entries]
             history = [entry for entry in history if entry]
             
             avg_tps = max_tps = min_tps = 0
@@ -1050,7 +932,7 @@ class RedisSSEServer:
             raw_entries = await self.redis_client.zrevrangebyscore(
                 key, now_ms, min_ts, start=0, num=limit
             )
-            history = [self._decode_history_entry(entry) for entry in raw_entries]
+            history = [decode_history_entry(entry) for entry in raw_entries]
             history = [entry for entry in history if entry]
             return web.json_response({"history": history, "timestamp": datetime.now().isoformat()})
 

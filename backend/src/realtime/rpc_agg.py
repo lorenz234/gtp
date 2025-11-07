@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 import asyncio
@@ -11,6 +12,8 @@ from web3 import AsyncWeb3, AsyncHTTPProvider
 from web3.middleware import ExtraDataToPOAMiddleware
 from src.db_connector import DbConnector
 from src.realtime.rpc_config import rpc_config
+from src.realtime.history_utils import HistoryCompressor, encode_history_entry, iso_from_ms
+from src.realtime.redis_keys import RedisKeys
 
 # Configure logging
 logging.basicConfig(
@@ -483,6 +486,8 @@ class RtBackend:
         # Initialize chain data storage
         self.chain_data: Dict[str, Dict[str, Any]] = {}
         self._initialize_chain_data()
+        self.chain_metrics: Dict[str, Dict[str, Any]] = {}
+        self.history_compressor = HistoryCompressor()
         
         # Initialize ETH price tracking
         self.eth_price_usd: float = 0.0
@@ -528,6 +533,8 @@ class RtBackend:
             logger.error(f"Failed to connect to Redis at {REDIS_HOST}:{REDIS_PORT}: {str(e)}")
             raise
         
+        await self._load_chain_ath_metrics()
+
         # Initialize blockchain clients
         await self._initialize_blockchain_clients()
         
@@ -600,6 +607,35 @@ class RtBackend:
                 "block_time": 0,  # Average block time in seconds
                 "block_time_history": [],  # Store last 10 block times for averaging
             }
+            self.chain_metrics[chain_name] = {
+                "ath": 0.0,
+                "ath_timestamp": "",
+                "ath_timestamp_ms": 0,
+            }
+
+    async def _load_chain_ath_metrics(self) -> None:
+        if not self.redis_client:
+            return
+        chains = list(self.chain_data.keys())
+        if not chains:
+            return
+        try:
+            pipe = self.redis_client.pipeline()
+            for chain_name in chains:
+                pipe.hgetall(RedisKeys.chain_tps_ath(chain_name))
+            results = await pipe.execute()
+            for chain_name, data in zip(chains, results):
+                metrics = self.chain_metrics.setdefault(chain_name, {
+                    "ath": 0.0,
+                    "ath_timestamp": "",
+                    "ath_timestamp_ms": 0,
+                })
+                if data:
+                    metrics["ath"] = float(data.get("value", metrics["ath"]))
+                    metrics["ath_timestamp"] = data.get("timestamp", metrics["ath_timestamp"])
+                    metrics["ath_timestamp_ms"] = int(data.get("timestamp_ms", metrics["ath_timestamp_ms"]) or 0)
+        except Exception as exc:
+            logger.warning(f"Failed to load chain ATH metrics: {exc}")
 
     async def update_eth_price(self) -> None:
         """Update the ETH price from CoinGecko API."""
@@ -780,9 +816,10 @@ class RtBackend:
     async def _publish_chain_update(self, chain_name: str, block_number: int, tx_count: int, gas_used: int, tps: float, block_time: float) -> None:
         """Publish chain update to Redis stream."""
         chain_data = self.chain_data[chain_name]
+        timestamp_ms = int(time.time() * 1000)
         
         publish_data = {
-            "timestamp": str(int(time.time() * 1000)),
+            "timestamp": str(timestamp_ms),
             "display_name": chain_data.get("display_name", chain_name),
             "block_number": block_number,
             "tps": round(tps, 1),
@@ -804,6 +841,51 @@ class RtBackend:
         }
         
         await self.publish_to_redis(chain_name, publish_data)
+        await self._record_chain_metrics(chain_name, float(tps), timestamp_ms)
+
+    async def _record_chain_metrics(self, chain_name: str, tps: float, timestamp_ms: int) -> None:
+        if not self.redis_client:
+            return
+        if tps <= 0:
+            return
+        metrics = self.chain_metrics.setdefault(chain_name, {
+            "ath": 0.0,
+            "ath_timestamp": "",
+            "ath_timestamp_ms": 0,
+        })
+        timestamp_iso = iso_from_ms(timestamp_ms)
+        is_new_ath = tps > metrics.get("ath", 0.0)
+        pipe = self.redis_client.pipeline()
+
+        if is_new_ath:
+            metrics["ath"] = tps
+            metrics["ath_timestamp"] = timestamp_iso
+            metrics["ath_timestamp_ms"] = timestamp_ms
+            pipe.hset(RedisKeys.chain_tps_ath(chain_name), mapping={
+                "value": str(tps),
+                "timestamp": timestamp_iso,
+                "timestamp_ms": str(timestamp_ms),
+            })
+            history_entry = json.dumps({
+                "tps": tps,
+                "timestamp": timestamp_iso,
+                "timestamp_ms": timestamp_ms,
+                "is_ath": True,
+            })
+            pipe.zadd(RedisKeys.chain_ath_history(chain_name), {history_entry: timestamp_ms})
+            logger.info(f"🚀 NEW CHAIN ATH for {chain_name}: {tps} TPS!")
+
+        history_key = RedisKeys.chain_tps_history_24h(chain_name)
+        compact_entry = encode_history_entry(tps, timestamp_ms, is_new_ath)
+        redundant = self.history_compressor.register(history_key, tps, timestamp_ms, compact_entry)
+        pipe.zadd(history_key, {compact_entry: timestamp_ms})
+        if redundant:
+            pipe.zrem(history_key, redundant)
+
+        try:
+            await pipe.execute()
+        except Exception as exc:
+            logger.error(f"Failed to persist metrics for {chain_name}: {exc}")
         
     def _add_estimated_blocks(self, chain: Dict[str, Any], blocks_missed: int, 
                              current_block_number: int, current_timestamp: int, current_tx_count: int) -> None:
