@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY server.py .
+COPY history_utils.py redis_keys.py /app/
 
 # Expose port
 EXPOSE 8080

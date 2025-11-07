@@ -12,8 +12,8 @@ from web3 import AsyncWeb3, AsyncHTTPProvider
 from web3.middleware import ExtraDataToPOAMiddleware
 from src.db_connector import DbConnector
 from src.realtime.rpc_config import rpc_config
-from src.realtime.history_utils import HistoryCompressor, encode_history_entry, iso_from_ms
-from src.realtime.redis_keys import RedisKeys
+from src.realtime.sse_app_run.history_utils import HistoryCompressor, encode_history_entry, iso_from_ms
+from src.realtime.sse_app_run.redis_keys import RedisKeys
 
 # Configure logging
 logging.basicConfig(
