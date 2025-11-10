@@ -322,7 +322,6 @@ class AttestationQueryResponse(BaseModel):
     
 class AttesterAnalytics(BaseModel):
     attester: str
-    label_count: int
     unique_attestations: int
 
 
@@ -1470,34 +1469,27 @@ async def get_attester_analytics(
         None, description="Optional chain_id filter, e.g. 'eip155:8453'"
     ),
     limit: int = Query(20, ge=1, le=100, description="Number of rows to return"),
-    order_by: str = Query(
-        "tags",
-        pattern="^(tags|attestations)$",
-        description="Order by 'tags' (default) or 'attestations'",
-    ),
 ):
     """
     Analytics summary: group by attester, count number of labels and unique attestations.
     """
-    order_column = "label_count" if order_by == "tags" else "unique_attestations"
 
     chain_filter = ""
     params = [int(limit)]
 
     if chain_id:
-        chain_filter = "AND l.chain_id = $1"
+        chain_filter = "AND chain_id = $1"
         params = [chain_id, int(limit)]
 
     sql = f"""
         SELECT
-            l.attester,
-            COUNT(*) AS label_count,
-            COUNT(DISTINCT l.uid) AS unique_attestations
-        FROM public.labels AS l
+            attester,
+            COUNT(*) AS unique_attestations
+        FROM public.attestations
         WHERE TRUE
         {chain_filter}
-        GROUP BY l.attester
-        ORDER BY {order_column} DESC
+        GROUP BY attester
+        ORDER BY unique_attestations DESC
         LIMIT ${len(params)};
     """
 
@@ -1515,7 +1507,6 @@ async def get_attester_analytics(
         results.append(
             AttesterAnalytics(
                 attester=attester_hex,
-                label_count=r["label_count"],
                 unique_attestations=r["unique_attestations"],
             )
         )
