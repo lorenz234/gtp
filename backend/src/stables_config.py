@@ -344,6 +344,17 @@ stables_metadata = {
             "ethereum": "0xaca92e438df0b2401ff60da7e4337b687a2435da"
         }
     },
+    "usda": {                             # USDA
+        "name": "Avalon Labs USDa",
+        "symbol": "USDa",
+        "decimals": 18,
+        "coingecko_id": "usda-2",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x8A60E489004Ca22d775C5F2c657598278d17D9c2"
+        }
+    },
 
     # Non-USD Stablecoins
     "euro-coin": {                       # EURC
@@ -1039,4 +1050,29 @@ stables_mapping = {
             },
         }
     },
+    "zircut": {
+        "bridged": {
+            "ethereum": [
+                "0x386B76D9cA5F5Fb150B6BFB35CF5379B22B26dd8",  
+            ]
+        },
+        "direct": {
+            "usdc": {
+                "token_address": "0x3b952c8C9C44e8Fe201e2b26F6B2200203214cfF",
+                "method_name": "totalSupply"
+            },
+            "tether": {
+                "token_address": "0x46dDa6a5a559d861c06EC9a95Fb395f5C3Db0742",
+                "method_name": "totalSupply"
+            },
+            "ethena-usde": {
+                "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply"
+            },
+            "usda": {
+                "token_address": "0xff12470a969Dd362EB6595FFB44C82c959Fe9ACc",
+                "method_name": "totalSupply"
+            }
+        }
+    }
 }
