@@ -264,6 +264,7 @@ sql_queries = [
         # Others Non-EVM
         ## IMX
         ,SQLQuery(metric_key = "txcount", origin_key = "imx", jinja_path='chain_metrics/custom/imx_select_txcount.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "imx", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = "imx", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "imx", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = "imx", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
