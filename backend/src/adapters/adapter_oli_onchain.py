@@ -206,8 +206,12 @@ class AdapterOLIOnchain(AbstractAdapter):
         tags_json_str = decoded_data[1]
         
         # Parse JSON string back to dict
-        tags_json = json.loads(tags_json_str)
-        if not isinstance(tags_json, dict):  # do not index invalid jsons or spam
+        print(f"Decoding tags_json: {tags_json_str}")
+        try:
+            tags_json = json.loads(tags_json_str)
+            if not isinstance(tags_json, dict):  # do not index invalid jsons or spam
+                tags_json = {}
+        except json.JSONDecodeError:
             tags_json = {}
         
         return {

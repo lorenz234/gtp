@@ -25,7 +25,7 @@ class AdapterLogs(AbstractAdapter):
         chunk_size = extract_params.get('chunk_size', 1000)
         
         all_logs = []
-        
+
         # Loop through block range in chunks
         for chunk_start in range(from_block, to_block + 1, chunk_size):
             chunk_end = min(chunk_start + chunk_size - 1, to_block)
