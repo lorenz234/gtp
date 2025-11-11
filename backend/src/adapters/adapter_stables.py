@@ -658,6 +658,10 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
                 for i in range(len(df)-1, -1, -1):  # Go backwards in time
                     date = df['date'].iloc[i]
+                    ## if data < 2024-11-23, skip (multicall deployment date)
+                    if date < pd.Timestamp('2024-11-23'):
+                        print(f"Date {date} is before multicall deployment date for Ethereum, skipping")
+                        break
                     if first_block_date and date < first_block_date:
                         print(f"Reached first block date ({first_block_date}) for {chain}, stopping")
                         break  # Stop if we reach the first block date
