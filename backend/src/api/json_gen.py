@@ -602,8 +602,13 @@ class JsonGen():
                 metric_keys[mk] = metric
 
         # Query and process standard metrics
+        metric_keys_list = list(metric_keys.keys())
+        ##replace txcount with txcount_plain
+        metric_keys_list = [mk.replace('txcount', 'txcount_plain') for mk in metric_keys_list]
+        
+        
         query_parameters = {
-            'metric_keys': list(metric_keys.keys()),
+            'metric_keys': metric_keys_list,
             'origin_key': chain,
         }
         result_df = execute_jinja_query(
@@ -612,6 +617,9 @@ class JsonGen():
             query_parameters, 
             return_df=True
         )
+        
+        ## in result_df in column metric_key replace txcount_plain with txcount
+        result_df['metric_key'] = result_df['metric_key'].str.replace('txcount_plain', 'txcount')
         
         for row in result_df.to_dict(orient='records'):
             metric_key = row['metric_key']
