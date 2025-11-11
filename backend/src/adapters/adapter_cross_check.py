@@ -120,10 +120,10 @@ class AdapterCrossCheck(AbstractAdapter):
             with temp as (
             SELECT 
                 origin_key,
-                SUM(case when metric_key = 'txcount_raw' then value end) as raw,
+                SUM(case when metric_key = 'txcount_comparison' then value end) as raw,
                 SUM(case when metric_key = 'txcount_explorer' then value end) as explorer
             FROM fact_kpis 
-            WHERE metric_key in ('txcount_raw', 'txcount_explorer')
+            WHERE metric_key in ('txcount_comparison', 'txcount_explorer')
             and date < date_trunc('day', NOW()) 
             and date >= date_trunc('day',now()) - interval '3 days' 
             and origin_key in ('"""+ "', '".join(origin_keys) + """')

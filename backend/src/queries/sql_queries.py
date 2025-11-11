@@ -20,8 +20,9 @@ class SQLQuery():
 
 def standard_evm_queries(origin_key: str): ## op-stack and others
      return [
-                SQLQuery(metric_key = "txcount_raw", origin_key = origin_key, jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+                SQLQuery(metric_key = "txcount_comparison", origin_key = origin_key, jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
                 ,SQLQuery(metric_key = "txcount", origin_key = origin_key, jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+                ,SQLQuery(metric_key = "txcount_plain", origin_key = origin_key, jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
                 ,SQLQuery(metric_key = "daa", origin_key = origin_key, jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
                 ,SQLQuery(metric_key = "waa", origin_key = origin_key, jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
                 ,SQLQuery(metric_key = "maa", origin_key = origin_key, jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -41,8 +42,9 @@ sql_queries = [
         
         # --- Layer 1 ---
         # Ethereum
-        ,SQLQuery(metric_key = "txcount_raw", origin_key = "ethereum", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_comparison", origin_key = "ethereum", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = "ethereum", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "ethereum", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = "ethereum", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "ethereum", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = "ethereum", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -67,8 +69,9 @@ sql_queries = [
         # Arbitrum Orbit
         # Different filter col on txcounts (gas_used instead of gas_price)
         ## Arbitrum (some data pulled via Dune)
-        ,SQLQuery(metric_key = "txcount_raw", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_comparison", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = "arbitrum", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "arbitrum", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = "arbitrum", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -83,8 +86,9 @@ sql_queries = [
         ,SQLQuery(metric_key = "txcount_type4", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
 
         ## Arbitrum Nova
-        ,SQLQuery(metric_key = "txcount_raw", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_comparison", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -134,9 +138,10 @@ sql_queries = [
         ,*standard_evm_queries("zksync_era")
 
         # Polygon zkStack
-        ## Polygon zkEVM - standard but txcount_raw is plain txcount
-        ,SQLQuery(metric_key = "txcount_raw", origin_key = "polygon_zkevm", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
+        ## Polygon zkEVM - standard but txcount_comparison is plain txcount
+        ,SQLQuery(metric_key = "txcount_comparison", origin_key = "polygon_zkevm", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = "polygon_zkevm", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "polygon_zkevm", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = "polygon_zkevm", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "polygon_zkevm", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = "polygon_zkevm", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -166,8 +171,9 @@ sql_queries = [
         ,*standard_evm_queries("lisk")
 
         ## Zircuit
-        ,SQLQuery(metric_key = "txcount_raw", origin_key = "zircuit", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_comparison", origin_key = "zircuit", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = 'zircuit', jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = 'zircuit', jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = 'zircuit', jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "zircuit", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = 'zircuit', jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -181,8 +187,9 @@ sql_queries = [
 
         # Others EVM Custom Gas Token
         ## Mantle (also custom gas query)
-        ,SQLQuery(metric_key = "txcount_raw", origin_key = "mantle", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_comparison", origin_key = "mantle", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = "mantle", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "mantle", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = "mantle", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "mantle", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = "mantle", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -195,8 +202,9 @@ sql_queries = [
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "mantle", jinja_path='chain_metrics/select_txcosts_median_custom_gas.sql.j2')
 
         ## Metis
-        ,SQLQuery(metric_key = "txcount_raw", origin_key = "metis", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_comparison", origin_key = "metis", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = "metis", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "metis", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = "metis", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "metis", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = "metis", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -209,8 +217,9 @@ sql_queries = [
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "metis", jinja_path='chain_metrics/select_txcosts_median_custom_gas.sql.j2')
 
         ## Gravity (Orbit tx filter, also custom gas query)
-        ,SQLQuery(metric_key = "txcount_raw", origin_key = "gravity", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_comparison", origin_key = "gravity", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = "gravity", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "gravity", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = "gravity", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "gravity", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = "gravity", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -223,8 +232,9 @@ sql_queries = [
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "gravity", jinja_path='chain_metrics/select_txcosts_median_custom_gas.sql.j2')
         
         ##Plume
-        ,SQLQuery(metric_key = "txcount_raw", origin_key = "plume", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_comparison", origin_key = "plume", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = "plume", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "plume", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = "plume", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "plume", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = "plume", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -237,8 +247,9 @@ sql_queries = [
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "plume", jinja_path='chain_metrics/select_txcosts_median_custom_gas.sql.j2')
 
         ## Celo (op stack but CELO gas token and only data available start March 26th when L2 went live)
-        ,SQLQuery(metric_key = "txcount_raw", origin_key = "celo", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_comparison", origin_key = "celo", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = "celo", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "celo", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = "celo", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "celo", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = "celo", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -253,6 +264,7 @@ sql_queries = [
         # Others Non-EVM
         ## IMX
         ,SQLQuery(metric_key = "txcount", origin_key = "imx", jinja_path='chain_metrics/custom/imx_select_txcount.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "imx", jinja_path='chain_metrics/custom/imx_select_txcount.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = "imx", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "imx", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = "imx", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -262,8 +274,9 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "imx", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
 
         ## Loopring
-        ,SQLQuery(metric_key = "txcount_raw", origin_key = "loopring", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_comparison", origin_key = "loopring", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = "loopring", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "loopring", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "daa", origin_key = "loopring", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "waa", origin_key = "loopring", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "maa", origin_key = "loopring", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
@@ -273,8 +286,9 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "loopring", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
 
         ## Starknet
-        ,SQLQuery(metric_key = "txcount_raw", origin_key = "starknet", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_comparison", origin_key = "starknet", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "txcount", origin_key = "starknet", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_plain", origin_key = "starknet", jinja_path='chain_metrics/select_txcount_plain.sql.j2', currency_dependent = False)
         #,SQLQuery(metric_key = "daa", origin_key = "starknet", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
         #,SQLQuery(metric_key = "maa", origin_key = "starknet", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
         #,SQLQuery(metric_key = "aa_last7d", origin_key = "starknet", jinja_path='chain_metrics/select_aa_lastXXd.sql.j2', query_parameters={"timerange" : 7}, currency_dependent = False)
