@@ -44,7 +44,7 @@ def run_dag():
         REDIS_ZSET_KEY_TPS_HISTORY = "global:tps:history_24h" # for testing
         REDIS_ZSET_KEY_ATH_HISTORY = "global:tps:ath_history"
         CHECK_INTERVAL_SEC = 2
-        COOLDOWN_AFTER_NEW_HIGH_SEC = 30
+        COOLDOWN_AFTER_NEW_HIGH_SEC = 300
 
         TG_BOT_TOKEN = os.getenv("GROWTHEPIE_BOT_TOKEN")
         TG_CHAT_ID = "@growthepie_alerts"
