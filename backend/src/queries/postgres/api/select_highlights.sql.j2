@@ -41,7 +41,7 @@ ranked AS (
     c.*,
     ROW_NUMBER() OVER (
       PARTITION BY origin_key, metric_key
-      ORDER BY prio, growth_pct_growth desc, date DESC
+      ORDER BY date desc, prio asc, growth_pct_growth desc
     ) AS rn
   FROM combined c
 )
