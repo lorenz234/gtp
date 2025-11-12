@@ -664,6 +664,7 @@ def build_row_from_payload(att: AttestationPayload):
         "raw": json.dumps(att.model_dump(by_alias=True)),     # full original payload
         "schema_info": f"{domain.chainId}__{msg.schema_id}",
         "last_updated_time": datetime.now(timezone.utc),
+        "source": "oli_api"
     }
 
     return row

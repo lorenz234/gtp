@@ -94,6 +94,7 @@ class JSONCreation():
         self.chains_list_in_api = [chain.origin_key for chain in self.main_config if chain.api_in_main == True]
         #only chains that are in the api output and deployment is "PROD"
         self.chains_list_in_api_prod = [chain.origin_key for chain in self.main_config if chain.api_in_main == True and chain.api_deployment_flag=='PROD']
+        self.chains_list_in_api_prod_and_custom = [chain.origin_key for chain in self.main_config if chain.api_in_main == True and chain.api_deployment_flag!='DEV']
         #only chains that are in the api output and deployment is "PROD" and in_labels_api is True
         self.chains_list_in_api_labels = [chain.origin_key for chain in self.main_config if chain.api_in_main == True and chain.api_in_labels == True]
         #only chains that are in the api output and deployment is "PROD" and in_labels_api is True
@@ -187,7 +188,7 @@ class JSONCreation():
 
         ## if not dev api endpoint, filter out chains that are not on prod
         if self.api_version != 'dev':
-            df_tmp = df_tmp.loc[(df_tmp.origin_key.isin(self.chains_list_in_api_prod))]
+            df_tmp = df_tmp.loc[(df_tmp.origin_key.isin(self.chains_list_in_api_prod_and_custom))]
 
         ## filter out ethereum if filter_ethereum is True
         if filter_ethereum:
