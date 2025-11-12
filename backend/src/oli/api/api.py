@@ -820,20 +820,6 @@ async def usage_logger(request: Request, call_next):
 # ROUTES
 #
 
-
-@app.get("/healthz")
-async def healthz():
-    return {"ok": True, "ts": datetime.now(timezone.utc).isoformat()}
-
-@app.get("/readyz")
-async def readyz():
-    try:
-        async with app.state.db.acquire() as conn:
-            await conn.execute("SELECT 1;")
-        return {"ok": True}
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
-
 ## Attestation endpoints
 
 @app.post("/attestation", response_model=SingleAttestationResponse, tags=["Attestation: Labels"])
