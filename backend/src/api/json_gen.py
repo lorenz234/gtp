@@ -272,7 +272,7 @@ class JsonGen():
             monthly_df = self._get_prepared_timeseries_df(origin_key, [METRIC_MAA], start_date, metric_dict.get('max_date_fill', False))
             quarterly_df = self._get_prepared_timeseries_df(origin_key, [METRIC_MAA], start_date, metric_dict.get('max_date_fill', False))
         else:
-            weekly_df = daily_df.resample('W-MON').agg(agg_method)
+            weekly_df = daily_df.resample('W-MON', label='left', closed='left').agg(agg_method)
             monthly_df = daily_df.resample('MS').agg(agg_method)
             quarterly_df = daily_df.resample('QS').agg(agg_method)
 
@@ -298,7 +298,7 @@ class JsonGen():
 
         # --- CHANGES CALCULATION ---
         daily_periods = {'1d': 1, '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
-        weekly_periods = {'7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
+        weekly_periods = {'1w': 7, '4w': 28, '12w': 84, '52w': 365}
         monthly_periods = {'30d': 30, '90d': 90, '180d': 180, '365d': 365}
 
         daily_changes = self._create_changes_dict(daily_df, metric_id, level, daily_periods, agg_window=1, agg_method=AGG_METHOD_LAST)
@@ -354,7 +354,7 @@ class JsonGen():
         Worker function to process and save/upload a single metric-chain combination.
         This is designed to be called by the ThreadPoolExecutor.
         """
-        logging.info(f"Processing: {origin_key} - {metric_id}")
+        #logging.info(f"Processing: {origin_key} - {metric_id}")
         
         metric_dict = self.create_metric_per_chain_dict(origin_key, metric_id, level, start_date)
 
