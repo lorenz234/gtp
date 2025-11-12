@@ -1,4 +1,7 @@
+import pandas as pd
+from hexbytes import HexBytes
 from src.adapters.abstract_adapters import AbstractAdapter
+from web3 import Web3
 
 class AdapterLogs(AbstractAdapter):
     """
@@ -29,7 +32,7 @@ class AdapterLogs(AbstractAdapter):
         # Loop through block range in chunks
         for chunk_start in range(from_block, to_block + 1, chunk_size):
             chunk_end = min(chunk_start + chunk_size - 1, to_block)
-            
+
             # extract logs for this chunk
             logs = self.get_logs(
                 start_block=chunk_start,
@@ -93,4 +96,26 @@ class AdapterLogs(AbstractAdapter):
         logs = self.w3.eth.get_logs(filter_params)
         
         return logs
+
+    def turn_logs_into_df(self, logs):
+        """
+        Convert a list of Web3 log AttributeDicts into a pandas DataFrame.
+
+        Each log field becomes a column; HexBytes and nested iterables are converted
+        into native Python types for readability.
+        """
+        if not logs:
+            return pd.DataFrame()
+
+        def _convert(value):
+            if isinstance(value, HexBytes):
+                return '0x' + value.hex()
+            if isinstance(value, (list, tuple)):
+                return [_convert(v) for v in value]
+            if isinstance(value, dict):
+                return {k: _convert(v) for k, v in value.items()}
+            return value
+
+        normalized_logs = [{k: _convert(v) for k, v in dict(log).items()} for log in logs]
+        return pd.DataFrame(normalized_logs)
     

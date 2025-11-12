@@ -2336,3 +2336,20 @@ class DbConnector:
                         raise ValueError(f"No block found for the date {date_str} in table {table_name}.")
                 
                 return block_number
+        
+        def get_first_block_of_the_day(self, chain:str, date:datetime='today'):
+                if date == 'today':
+                        date = datetime.today().date()
+                query = f"""
+                        SELECT value
+                        FROM public.fact_kpis
+                        where 
+                                metric_key = 'first_block_of_day'
+                                and origin_key = '{chain}'
+                                and "date" = '{date.strftime('%Y-%m-%d')}';
+                        """
+                with self.engine.connect() as connection:
+                        result = connection.execute(query)
+                        for row in result:
+                                block_number = row['value']
+                return int(block_number)
