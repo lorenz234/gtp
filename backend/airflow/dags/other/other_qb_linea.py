@@ -149,6 +149,7 @@ def run_dag():
             return
 
         db_connector.upsert_table("fact_kpis", formatted_df)
+        print(f"{len(formatted_df)} invoice logs processed and upserted successfully.")
 
     @task(task_id="process_burn_bridge_logs")
     def process_burn_bridge_logs():
@@ -176,6 +177,7 @@ def run_dag():
             return
 
         db_connector.upsert_table("fact_kpis", formatted_df)
+        print(f"{len(formatted_df)} burn logs processed and upserted successfully.")
 
     process_invoice_logs() >> process_burn_bridge_logs()
 
