@@ -1050,7 +1050,7 @@ stables_mapping = {
             },
         }
     },
-    "zircut": {
+    "zircuit": {
         "bridged": {
             "ethereum": [
                 "0x386B76D9cA5F5Fb150B6BFB35CF5379B22B26dd8",  
