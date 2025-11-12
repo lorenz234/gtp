@@ -7,4 +7,4 @@ eth-abi
 eth-utils
 python-dotenv
 oli-python==2.0.2
-networkx==3.5
+networkx==3.4.2
