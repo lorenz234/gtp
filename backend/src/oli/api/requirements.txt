@@ -6,3 +6,4 @@ eth-account
 eth-abi
 eth-utils
 python-dotenv
+oli-python==2.0.2
