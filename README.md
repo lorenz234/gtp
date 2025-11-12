@@ -3,7 +3,7 @@
 [growthepie](https://growthepie.xyz/) improves transparency across the Ethereum ecosystem by curating onchain, offchain, and community-sourced signals into actionable metrics, dashboards, and research.
 
 <p align="center">
-  <img src="https://github.com/growthepie/.github/assets/90760534/ca2ca39f-657b-4f79-8550-242b4ee9c4ec" alt="Sublime's custom image"/>
+  <img src="https://github.com/growthepie/.github/assets/90760534/ca2ca39f-657b-4f79-8550-242b4ee9c4ec" alt="growthepie logo"/>
 </p>
 
 ## What This Repo Does
