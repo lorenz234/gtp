@@ -4,6 +4,7 @@
     Parameters:
     - metric_keys: List of metric keys to consider for data extraction.
     - origin_key: List of origin keys to consider for data extraction.
+    - days (optional): Number of days to look back from the current date. If not provided, all historical data is considered.
 #}
 
 select 
@@ -12,4 +13,9 @@ select
 from fact_kpis
 where metric_key in ( '{{ metric_keys | join("', '") }}' )
 	and origin_key = '{{ origin_key }}'
+    {% if days is defined %}
+    and date < current_date - interval '{{ days }} days'
+    {% else %}
+    and date < current_date
+    {% endif %}
 group by 1
