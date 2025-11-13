@@ -1,0 +1,39 @@
+SELECT
+    base.date,
+    base.value AS gas_fee_income,
+    op.value AS operating_costs,
+    l1.value AS operating_costs_L1,
+    op.value - l1.value AS operating_costs_infrastructure,
+    base.value - op.value AS amount_for_burn,
+    -- USD conversions
+    base.value * price.value AS gas_fee_income_usd,
+    op.value * price.value AS operating_costs_usd,
+    l1.value * price.value AS operating_costs_L1_usd,
+    (op.value - l1.value) * price.value AS operating_costs_infrastructure_usd,
+    (base.value - op.value) * price.value AS amount_for_burn_usd
+FROM (
+    SELECT "date", value
+    FROM public.fact_kpis
+    WHERE origin_key = 'linea'
+        AND metric_key = 'profit_eth'
+        AND "date" > '2025-09-10'
+) base
+LEFT JOIN (
+    SELECT "date", value
+    FROM public.fact_kpis
+    WHERE origin_key = 'linea'
+        AND metric_key = 'qb_amountRequested_eth'
+) op ON base.date = op.date
+LEFT JOIN (
+    SELECT "date", value
+    FROM public.fact_kpis
+    WHERE origin_key = 'linea'
+        AND metric_key = 'costs_total_eth'
+) l1 ON base.date = l1.date
+LEFT JOIN (
+    SELECT "date", value
+    FROM public.fact_kpis
+    WHERE metric_key = 'price_usd'
+        AND origin_key = 'ethereum'
+) price ON base.date = price.date
+ORDER BY base.date DESC
