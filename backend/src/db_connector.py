@@ -1693,7 +1693,6 @@ class DbConnector:
 
         ## This function is used to get all active projects from the OLI directory for json creation
         def get_active_projects(self, add_category=False, filtered_by_chains=[]):
-                # If filtered is True, only return projects that have more than 30 tx alltime (same filter as for app overview page)
                 if len(filtered_by_chains) >0:
                         chains_str = ', '.join([f"'{chain}'" for chain in filtered_by_chains])
                         exec_string = f"""
@@ -1710,7 +1709,6 @@ class DbConnector:
                                 WHERE fact.origin_key IN ({chains_str})
                                         AND ood.active = true
                                 GROUP BY 1,2,3,4,5,6,7
-                                HAVING SUM(txcount) > 30
                                 """       
                 else:
                         exec_string = """
