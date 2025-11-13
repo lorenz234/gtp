@@ -163,6 +163,7 @@ def etl():
                 db_connector.upsert_table('fact_kpis', result_df)
                 
             #TODO: create highlights based on the lifetime metrics - on nov 13th not enough data yet to trial this though. Sample code below
+            #TODO: send messages for these lifetime highlights as well
             
             # from src.db_connector import DbConnector
             # from src.misc.jinja_helper import execute_jinja_query
