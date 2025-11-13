@@ -17,7 +17,6 @@ from web3 import Web3
 RPC_URL = "https://linea.drpc.org"
 CHAIN_NAME = "linea"
 CHUNK_SIZE = 10_000
-ORIGIN_KEY = "linea"
 
 INVOICE_TOPIC = "0xc6da70dbb809f46821a66136527962f1e93ac500c61f1878c39417b2fa8c35a6"
 BURN_TOPIC = "0x0e2419f2e998f267b7ebbe863f0c8144b9bd6741dafa3386eae42e2a460f0167"
@@ -50,7 +49,7 @@ def _format_invoice_logs(raw_df: pd.DataFrame) -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["date"], unit="s").dt.strftime("%Y-%m-%d")
     df["qb_amountPaid_eth"] = df["data"].apply(lambda x: int(x[:66], 16) / 10**18)
     df["qb_amountRequested_eth"] = df["data"].apply(lambda x: int(x[66:], 16) / 10**18)
-    df["origin_key"] = ORIGIN_KEY
+    df["origin_key"] = CHAIN_NAME
 
     melted = df[["origin_key", "date", "qb_amountPaid_eth", "qb_amountRequested_eth"]].melt(
         id_vars=["origin_key", "date"],
@@ -84,7 +83,7 @@ def _format_burn_logs(raw_df: pd.DataFrame, w3: Web3) -> pd.DataFrame:
     df["qb_ethBurnt_eth"] = df["data"].apply(lambda x: int(x[:66], 16) / 10**18)
     df["qb_lineaTokensBridged_linea"] = df["data"].apply(lambda x: int(x[66:], 16) / 10**18)
     df["date"] = _block_numbers_to_dates(df["blockNumber"], w3)
-    df["origin_key"] = ORIGIN_KEY
+    df["origin_key"] = CHAIN_NAME
 
     grouped = (
         df[["origin_key", "date", "qb_ethBurnt_eth", "qb_lineaTokensBridged_linea"]]
@@ -179,7 +178,127 @@ def run_dag():
         db_connector.upsert_table("fact_kpis", formatted_df)
         print(f"{len(formatted_df)} burn logs processed and upserted successfully.")
 
-    process_invoice_logs() >> process_burn_bridge_logs()
+    @task(task_id="create_json_files")
+    def create_json_files():
+        import os
+        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan, empty_cloudfront_cache
+        from src.db_connector import DbConnector
+        from src.misc.jinja_helper import execute_jinja_query
+
+        db_connector = DbConnector()
+        s3_bucket = os.getenv("S3_CF_BUCKET")
+        cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
+
+        ### Load profit calculation data
+        df_profit = execute_jinja_query(
+            db_connector, 
+            "api/quick_bites/linea_profit_calculation.sql.j2", 
+            query_parameters={}, 
+            return_df=True
+        )
+        
+        if not df_profit.empty:
+            # Convert date to unix timestamp
+            df_profit['unix_timestamp'] = pd.to_datetime(df_profit['date']).astype(int) // 10**6
+            
+            # Sort by date
+            df_profit = df_profit.sort_values('date').reset_index(drop=True)
+            
+            # Create data structure for profit calculation
+            profit_dict = {
+                "data": {
+                    "daily": {
+                        "types": ["unix", "gas_fee_income", "operating_costs", "operating_costs_L1", 
+                                 "operating_costs_infrastructure", "amount_for_burn",
+                                 "gas_fee_income_usd", "operating_costs_usd", "operating_costs_L1_usd",
+                                 "operating_costs_infrastructure_usd", "amount_for_burn_usd"],
+                        "values": [
+                            [
+                                row['unix_timestamp'],
+                                row['gas_fee_income'],
+                                row['operating_costs'],
+                                row['operating_costs_L1'],
+                                row['operating_costs_infrastructure'],
+                                row['amount_for_burn'],
+                                row['gas_fee_income_usd'],
+                                row['operating_costs_usd'],
+                                row['operating_costs_L1_usd'],
+                                row['operating_costs_infrastructure_usd'],
+                                row['amount_for_burn_usd']
+                            ]
+                            for _, row in df_profit.iterrows()
+                        ]
+                    }
+                }
+            }
+            
+            profit_dict = fix_dict_nan(profit_dict, 'linea_profit_calculation')
+            upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/linea/profit_calculation', profit_dict, cf_distribution_id, invalidate=False)
+            print("Profit calculation JSON uploaded successfully.")
+
+        ### Load burn data
+        df_burn = execute_jinja_query(
+            db_connector,
+            "api/quick_bites/linea_burn.sql.j2",
+            query_parameters={},
+            return_df=True
+        )
+        
+        if not df_burn.empty:
+            # Convert date to unix timestamp
+            df_burn['unix_timestamp'] = pd.to_datetime(df_burn['date']).astype(int) // 10**6
+            
+            # Sort by date
+            df_burn = df_burn.sort_values('date').reset_index(drop=True)
+            
+            # Create data structure for burn data
+            burn_dict = {
+                "data": {
+                    "daily": {
+                        "types": ["unix", "lineaTokensBridged_linea", "ethBurnt_eth",
+                                 "lineaTokensBridged_usd", "ethBurnt_usd"],
+                        "values": [
+                            [
+                                row['unix_timestamp'],
+                                row['lineaTokensBridged_linea'],
+                                row['ethBurnt_eth'],
+                                row['lineaTokensBridged_usd'],
+                                row['ethBurnt_usd']
+                            ]
+                            for _, row in df_burn.iterrows()
+                        ]
+                    }
+                }
+            }
+            
+            burn_dict = fix_dict_nan(burn_dict, 'linea_burn')
+            upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/linea/burn', burn_dict, cf_distribution_id, invalidate=False)
+            print("Burn data JSON uploaded successfully.")
+
+        ### Load burn KPIs (totals)
+        df_kpis = execute_jinja_query(
+            db_connector,
+            "api/quick_bites/linea_burn_kpis.sql.j2",
+            query_parameters={},
+            return_df=True
+        )
+        
+        if not df_kpis.empty:
+            # Assuming the KPIs query returns a single row with totals
+            kpis_dict = {
+                "data": df_kpis.iloc[0].to_dict()
+            }
+            
+            kpis_dict = fix_dict_nan(kpis_dict, 'linea_burn_kpis')
+            upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/linea/kpis', kpis_dict, cf_distribution_id, invalidate=False)
+            print("Burn KPIs JSON uploaded successfully.")
+
+        ### Empty CloudFront cache
+        empty_cloudfront_cache(cf_distribution_id, '/v1/quick-bites/linea/*')
+        print("CloudFront cache invalidated for Linea data.")
+
+    # Define task dependencies
+    process_invoice_logs() >> process_burn_bridge_logs() >> create_json_files()
 
 
 run_dag()

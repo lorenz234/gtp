@@ -1,0 +1,31 @@
+SELECT
+    base."date",
+    base.lineaTokensBridged_linea,
+    base.ethBurnt_eth,
+    base.lineaTokensBridged_linea * linea_price.value AS lineaTokensBridged_usd,
+    base.ethBurnt_eth * eth_price.value AS ethBurnt_usd
+FROM (
+    SELECT
+        "date",
+        origin_key,
+        MAX(CASE WHEN metric_key = 'qb_lineaTokensBridged_linea' THEN value END) AS lineaTokensBridged_linea,
+        MAX(CASE WHEN metric_key = 'qb_ethBurnt_eth' THEN value END) AS ethBurnt_eth
+    FROM public.fact_kpis
+    WHERE
+        (metric_key = 'qb_lineaTokensBridged_linea' OR metric_key = 'qb_ethBurnt_eth')
+        AND origin_key = 'linea'
+    GROUP BY "date", origin_key
+) base
+LEFT JOIN (
+    SELECT "date", value
+    FROM public.fact_kpis
+    WHERE metric_key = 'price_usd'
+        AND origin_key = 'linea'
+) linea_price ON base.date = linea_price.date
+LEFT JOIN (
+    SELECT "date", value
+    FROM public.fact_kpis
+    WHERE metric_key = 'price_usd'
+        AND origin_key = 'ethereum'
+) eth_price ON base.date = eth_price.date
+ORDER BY base.date DESC

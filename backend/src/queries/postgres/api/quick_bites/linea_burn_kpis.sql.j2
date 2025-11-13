@@ -1,0 +1,88 @@
+WITH linea_tokens_eth AS (
+    SELECT
+        base."date",
+        base.lineaTokensBridged_linea,
+        base.ethBurnt_eth,
+        base.lineaTokensBridged_linea * linea_price.value AS lineaTokensBridged_usd,
+        base.ethBurnt_eth * eth_price.value AS ethBurnt_usd
+    FROM (
+        SELECT
+            "date",
+            origin_key,
+            MAX(CASE WHEN metric_key = 'qb_lineaTokensBridged_linea' THEN value END) AS lineaTokensBridged_linea,
+            MAX(CASE WHEN metric_key = 'qb_ethBurnt_eth' THEN value END) AS ethBurnt_eth
+        FROM public.fact_kpis
+        WHERE
+            (metric_key = 'qb_lineaTokensBridged_linea' OR metric_key = 'qb_ethBurnt_eth')
+            AND origin_key = 'linea'
+        GROUP BY "date", origin_key
+    ) base
+    LEFT JOIN (
+        SELECT "date", value
+        FROM public.fact_kpis
+        WHERE metric_key = 'price_usd'
+            AND origin_key = 'linea'
+    ) linea_price ON base.date = linea_price.date
+    LEFT JOIN (
+        SELECT "date", value
+        FROM public.fact_kpis
+        WHERE metric_key = 'price_usd'
+            AND origin_key = 'ethereum'
+    ) eth_price ON base.date = eth_price.date
+),
+gas_operating_costs AS (
+    SELECT
+        base.date,
+        base.value AS gas_fee_income,
+        op.value AS operating_costs,
+        l1.value AS operating_costs_L1,
+        op.value - l1.value AS operating_costs_infrastructure,
+        base.value - op.value AS amount_for_burn,
+        base.value * price.value AS gas_fee_income_usd,
+        op.value * price.value AS operating_costs_usd,
+        l1.value * price.value AS operating_costs_L1_usd,
+        (op.value - l1.value) * price.value AS operating_costs_infrastructure_usd,
+        (base.value - op.value) * price.value AS amount_for_burn_usd
+    FROM (
+        SELECT "date", value
+        FROM public.fact_kpis
+        WHERE origin_key = 'linea'
+            AND metric_key = 'profit_eth'
+            AND "date" > '2025-09-10'
+    ) base
+    LEFT JOIN (
+        SELECT "date", value
+        FROM public.fact_kpis
+        WHERE origin_key = 'linea'
+            AND metric_key = 'qb_amountRequested_eth'
+    ) op ON base.date = op.date
+    LEFT JOIN (
+        SELECT "date", value
+        FROM public.fact_kpis
+        WHERE origin_key = 'linea'
+            AND metric_key = 'costs_total_eth'
+    ) l1 ON base.date = l1.date
+    LEFT JOIN (
+        SELECT "date", value
+        FROM public.fact_kpis
+        WHERE metric_key = 'price_usd'
+            AND origin_key = 'ethereum'
+    ) price ON base.date = price.date
+)
+SELECT
+    SUM(lineaTokensBridged_linea) AS totals_lineaTokensBridged_linea,
+    SUM(ethBurnt_eth) AS totals_ethBurnt_eth,
+    SUM(lineaTokensBridged_usd) AS totals_lineaTokensBridged_usd,
+    SUM(ethBurnt_usd) AS totals_ethBurnt_usd,
+    SUM(gas_fee_income) AS totals_gas_fee_income,
+    SUM(operating_costs) AS totals_operating_costs,
+    SUM(operating_costs_L1) AS totals_operating_costs_L1,
+    SUM(operating_costs_infrastructure) AS totals_operating_costs_infrastructure,
+    SUM(amount_for_burn) AS totals_amount_for_burn,
+    SUM(gas_fee_income_usd) AS totals_gas_fee_income_usd,
+    SUM(operating_costs_usd) AS totals_operating_costs_usd,
+    SUM(operating_costs_L1_usd) AS totals_operating_costs_L1_usd,
+    SUM(operating_costs_infrastructure_usd) AS totals_operating_costs_infrastructure_usd,
+    SUM(amount_for_burn_usd) AS totals_amount_for_burn_usd
+FROM linea_tokens_eth
+FULL OUTER JOIN gas_operating_costs ON linea_tokens_eth.date = gas_operating_costs.date
