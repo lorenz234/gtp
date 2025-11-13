@@ -1,5 +1,5 @@
 # 1. Build stage (optional but nice for speed); we’ll keep it single-stage for simplicity first.
-FROM python:3.10-slim
+FROM python:3.13-slim
 
 # 2. Set workdir
 WORKDIR /app

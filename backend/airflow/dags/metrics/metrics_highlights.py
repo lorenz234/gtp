@@ -87,7 +87,114 @@ def etl():
                     "origin_key": "ethereum_ecosystem",
                 }
         execute_jinja_query(db_connector, 'chain_metrics/upsert_highlights_growth.sql.j2', query_params)
+        
+    @task()
+    def run_lifetime():
+        from src.db_connector import DbConnector
+        from src.misc.jinja_helper import execute_jinja_query
+        from src.main_config import get_main_config
+        from src.config import gtp_metrics_new
+        from datetime import datetime
+        import pandas as pd
+
+        db_connector = DbConnector()
+        main_config = get_main_config()
+
+        days_back = 3
+
+        for chain_conf in main_config:
+            chain = chain_conf.origin_key
+
+            # Create a list of all metric keys we need to query
+            metrics_sum = ['txcount', 'fees', 'profit', 'rent_paid']
+            metric_keys = {}
+            for metric in metrics_sum:
+                for mk in gtp_metrics_new['chains'][metric]['metric_keys']:
+                    metric_keys[mk] = metric
+
+            # Query and process standard metrics
+            metric_keys_list = list(metric_keys.keys())
+            ##replace txcount with txcount_plain
+            metric_keys_list = [mk.replace('txcount', 'txcount_plain') for mk in metric_keys_list]
+
+            for i in range(0, days_back):
+                print(f"Processing {chain} for day offset {i}")
+                query_parameters = {
+                    'metric_keys': metric_keys_list,
+                    'origin_key': chain,
+                    'days': i
+                }
+                result_df = execute_jinja_query(
+                    db_connector, 
+                    "api/select_fact_kpis_achievements.sql.j2", 
+                    query_parameters, 
+                    return_df=True
+                )
+
+                result_df['metric_key'] = result_df['metric_key'].str.replace('txcount_plain', 'txcount')
+                result_df.rename(columns={'total_value': 'value'}, inplace=True)
+                
+                
+                if chain_conf.runs_aggregate_addresses:
+                    # Query and process DAA metric separately
+                    query_parameters = {
+                        'origin_key': chain,
+                        'days': i
+                    }
+                    result_df_daa = execute_jinja_query(
+                        db_connector, 
+                        "api/select_total_aa.sql.j2", 
+                        query_parameters, 
+                        return_df=True
+                    )
+                    result_df_daa['metric_key'] = 'daa'
+                    
+                    ## combine dfs
+                    result_df = pd.concat([result_df, result_df_daa], ignore_index=True)
+
+                # prep df for upload
+                ## add date column and set to yesterday
+                result_df['date'] = datetime.today() - pd.Timedelta(days=i+1)
+                result_df['date'] = result_df['date'].dt.date
+                result_df['metric_key'] = 'lifetime_' + result_df['metric_key']
+                result_df['origin_key'] = chain
+
+                result_df.set_index(['origin_key', 'metric_key', 'date'], inplace=True)
+                db_connector.upsert_table('fact_kpis', result_df)
+                
+            #TODO: create highlights based on the lifetime metrics - on nov 13th not enough data yet to trial this though. Sample code below
+            #TODO: send messages for these lifetime highlights as well
+            
+            # from src.db_connector import DbConnector
+            # from src.misc.jinja_helper import execute_jinja_query
+            # from src.main_config import get_main_config
+            # from src.config import levels_dict
+
+            # db_connector = DbConnector()
+            # main_config = get_main_config()
+            # days = 5
+
+            # ## for each key in levels_dict, create a list of values in the dict
+            # level_thresholds = {}
+            # for level_key in levels_dict:
+            #     values = list(levels_dict[level_key].values())
+            #     level_key = 'lifetime_' + level_key
+            #     level_thresholds[level_key] = values
+
+            # for chain in main_config:
+            #     if chain.api_in_main:
+            #         print(f'Processing chain for Lifetime level highlights: {chain.origin_key}')
+                    
+            #         query_params = {
+            #             "origin_key": chain.origin_key,
+            #             "lookback_days": days,
+            #             "thresholds_by_metric": level_thresholds
+            #         }
+
+            #         execute_jinja_query(db_connector, 'chain_metrics/upsert_highlights_lifetime.sql.j2', query_params)
+        
                 
     run_aths()
     run_growth()
+    run_lifetime()
 etl()
