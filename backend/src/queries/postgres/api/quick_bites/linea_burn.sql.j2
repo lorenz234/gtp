@@ -1,10 +1,11 @@
-SELECT
-    base."date",
-    base.lineaTokensBridged_linea,
-    base.ethBurnt_eth,
-    base.lineaTokensBridged_linea * linea_price.value AS lineaTokensBridged_usd,
-    base.ethBurnt_eth * eth_price.value AS ethBurnt_usd
-FROM (
+WITH date_spine AS (
+    SELECT generate_series(
+        '2025-09-11'::date,
+        CURRENT_DATE - INTERVAL '1 day',
+        '1 day'::interval
+    )::date AS "date"
+),
+metrics AS (
     SELECT
         "date",
         origin_key,
@@ -14,18 +15,38 @@ FROM (
     WHERE
         (metric_key = 'qb_lineaTokensBridged_linea' OR metric_key = 'qb_ethBurnt_eth')
         AND origin_key = 'linea'
+        AND "date" >= '2025-09-11'
+        AND "date" < CURRENT_DATE
     GROUP BY "date", origin_key
-) base
-LEFT JOIN (
+),
+linea_price AS (
     SELECT "date", value
     FROM public.fact_kpis
     WHERE metric_key = 'price_usd'
         AND origin_key = 'linea'
-) linea_price ON base.date = linea_price.date
-LEFT JOIN (
+        AND "date" >= '2025-09-11'
+        AND "date" < CURRENT_DATE
+),
+eth_price AS (
     SELECT "date", value
     FROM public.fact_kpis
     WHERE metric_key = 'price_usd'
         AND origin_key = 'ethereum'
-) eth_price ON base.date = eth_price.date
-ORDER BY base.date DESC
+        AND "date" >= '2025-09-11'
+        AND "date" < CURRENT_DATE
+)
+SELECT
+    ds."date",
+    m.lineaTokensBridged_linea,
+    m.ethBurnt_eth,
+    m.lineaTokensBridged_linea * lp.value AS lineaTokensBridged_usd,
+    m.ethBurnt_eth * ep.value AS ethBurnt_usd,
+    SUM(COALESCE(m.lineaTokensBridged_linea, 0)) OVER (ORDER BY ds."date") AS cum_lineaTokensBridged_linea,
+    SUM(COALESCE(m.ethBurnt_eth, 0)) OVER (ORDER BY ds."date") AS cum_ethBurnt_eth,
+    SUM(COALESCE(m.lineaTokensBridged_linea * lp.value, 0)) OVER (ORDER BY ds."date") AS cum_lineaTokensBridged_usd,
+    SUM(COALESCE(m.ethBurnt_eth * ep.value, 0)) OVER (ORDER BY ds."date") AS cum_ethBurnt_usd
+FROM date_spine ds
+LEFT JOIN metrics m ON ds.date = m.date
+LEFT JOIN linea_price lp ON ds.date = lp.date
+LEFT JOIN eth_price ep ON ds.date = ep.date
+ORDER BY ds.date ASC
