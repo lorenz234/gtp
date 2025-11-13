@@ -17,6 +17,7 @@ from web3 import Web3
 RPC_URL = "https://linea.drpc.org"
 CHAIN_NAME = "linea"
 CHUNK_SIZE = 10_000
+ORIGIN_KEY = "linea"
 
 INVOICE_TOPIC = "0xc6da70dbb809f46821a66136527962f1e93ac500c61f1878c39417b2fa8c35a6"
 BURN_TOPIC = "0x0e2419f2e998f267b7ebbe863f0c8144b9bd6741dafa3386eae42e2a460f0167"
@@ -49,7 +50,7 @@ def _format_invoice_logs(raw_df: pd.DataFrame) -> pd.DataFrame:
     df["date"] = pd.to_datetime(df["date"], unit="s").dt.strftime("%Y-%m-%d")
     df["qb_amountPaid_eth"] = df["data"].apply(lambda x: int(x[:66], 16) / 10**18)
     df["qb_amountRequested_eth"] = df["data"].apply(lambda x: int(x[66:], 16) / 10**18)
-    df["origin_key"] = CHAIN_NAME
+    df["origin_key"] = ORIGIN_KEY
 
     melted = df[["origin_key", "date", "qb_amountPaid_eth", "qb_amountRequested_eth"]].melt(
         id_vars=["origin_key", "date"],
@@ -83,7 +84,7 @@ def _format_burn_logs(raw_df: pd.DataFrame, w3: Web3) -> pd.DataFrame:
     df["qb_ethBurnt_eth"] = df["data"].apply(lambda x: int(x[:66], 16) / 10**18)
     df["qb_lineaTokensBridged_linea"] = df["data"].apply(lambda x: int(x[66:], 16) / 10**18)
     df["date"] = _block_numbers_to_dates(df["blockNumber"], w3)
-    df["origin_key"] = CHAIN_NAME
+    df["origin_key"] = ORIGIN_KEY
 
     grouped = (
         df[["origin_key", "date", "qb_ethBurnt_eth", "qb_lineaTokensBridged_linea"]]
@@ -204,28 +205,16 @@ def run_dag():
             # Sort by date
             df_profit = df_profit.sort_values('date').reset_index(drop=True)
             
+            # Get column names (handling potential lowercase conversion)
+            cols = df_profit.columns.tolist()
+            
             # Create data structure for profit calculation
             profit_dict = {
                 "data": {
                     "daily": {
-                        "types": ["unix", "gas_fee_income", "operating_costs", "operating_costs_L1", 
-                                 "operating_costs_infrastructure", "amount_for_burn",
-                                 "gas_fee_income_usd", "operating_costs_usd", "operating_costs_L1_usd",
-                                 "operating_costs_infrastructure_usd", "amount_for_burn_usd"],
+                        "types": ["unix"] + [col for col in cols if col not in ['date', 'unix_timestamp']],
                         "values": [
-                            [
-                                row['unix_timestamp'],
-                                row['gas_fee_income'],
-                                row['operating_costs'],
-                                row['operating_costs_L1'],
-                                row['operating_costs_infrastructure'],
-                                row['amount_for_burn'],
-                                row['gas_fee_income_usd'],
-                                row['operating_costs_usd'],
-                                row['operating_costs_L1_usd'],
-                                row['operating_costs_infrastructure_usd'],
-                                row['amount_for_burn_usd']
-                            ]
+                            [row['unix_timestamp']] + [row[col] for col in cols if col not in ['date', 'unix_timestamp']]
                             for _, row in df_profit.iterrows()
                         ]
                     }
@@ -251,20 +240,16 @@ def run_dag():
             # Sort by date
             df_burn = df_burn.sort_values('date').reset_index(drop=True)
             
+            # Get column names
+            cols = df_burn.columns.tolist()
+            
             # Create data structure for burn data
             burn_dict = {
                 "data": {
                     "daily": {
-                        "types": ["unix", "lineaTokensBridged_linea", "ethBurnt_eth",
-                                 "lineaTokensBridged_usd", "ethBurnt_usd"],
+                        "types": ["unix"] + [col for col in cols if col not in ['date', 'unix_timestamp']],
                         "values": [
-                            [
-                                row['unix_timestamp'],
-                                row['lineaTokensBridged_linea'],
-                                row['ethBurnt_eth'],
-                                row['lineaTokensBridged_usd'],
-                                row['ethBurnt_usd']
-                            ]
+                            [row['unix_timestamp']] + [row[col] for col in cols if col not in ['date', 'unix_timestamp']]
                             for _, row in df_burn.iterrows()
                         ]
                     }
