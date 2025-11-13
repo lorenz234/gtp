@@ -221,7 +221,7 @@ def run_dag():
                 }
             }
             
-            profit_dict = fix_dict_nan(profit_dict, 'linea_profit_calculation')
+            profit_dict = fix_dict_nan(profit_dict, 'linea_profit_calculation', send_notification=False)
             upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/linea/profit_calculation', profit_dict, cf_distribution_id, invalidate=False)
             print("Profit calculation JSON uploaded successfully.")
 
@@ -256,7 +256,7 @@ def run_dag():
                 }
             }
             
-            burn_dict = fix_dict_nan(burn_dict, 'linea_burn')
+            burn_dict = fix_dict_nan(burn_dict, 'linea_burn', send_notification=False)
             upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/linea/burn', burn_dict, cf_distribution_id, invalidate=False)
             print("Burn data JSON uploaded successfully.")
 
@@ -274,7 +274,7 @@ def run_dag():
                 "data": df_kpis.iloc[0].to_dict()
             }
             
-            kpis_dict = fix_dict_nan(kpis_dict, 'linea_burn_kpis')
+            kpis_dict = fix_dict_nan(kpis_dict, 'linea_burn_kpis', send_notification=True)
             upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/linea/kpis', kpis_dict, cf_distribution_id, invalidate=False)
             print("Burn KPIs JSON uploaded successfully.")
 
