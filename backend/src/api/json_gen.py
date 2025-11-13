@@ -298,7 +298,7 @@ class JsonGen():
 
         # --- CHANGES CALCULATION ---
         daily_periods = {'1d': 1, '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
-        weekly_periods = {'1w': 7, '4w': 28, '12w': 84, '52w': 365}
+        weekly_periods = {'7d': 7, '28d': 28, '84d': 84, '365d': 365}
         monthly_periods = {'30d': 30, '90d': 90, '180d': 180, '365d': 365}
 
         daily_changes = self._create_changes_dict(daily_df, metric_id, level, daily_periods, agg_window=1, agg_method=AGG_METHOD_LAST)
