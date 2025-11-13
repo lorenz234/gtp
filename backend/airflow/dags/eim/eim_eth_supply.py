@@ -40,6 +40,13 @@ def run():
         df = ad.extract(load_params)
         # load
         ad.load(df)
+        
+        ## also load into fact_kpis
+        df.reset_index(inplace=True)
+        df['metric_key'] = 'total_supply'
+        df.set_index(['metric_key', 'origin_key', 'date'], inplace=True)
+        upserted = db_connector.upsert_table('fact_kpis', df)
+        print(f"Upserted {upserted} rows into fact_kpis table.")
 
     @task()
     def run_supply_in_usd(x):
