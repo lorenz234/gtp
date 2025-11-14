@@ -52,7 +52,7 @@ class AdapterOLIOnchain(AbstractAdapter):
         if extract_params.get('to_block', None) == 'latest':
             extract_params['to_block'] = self.w3.eth.block_number
         if extract_params.get('from_block', None) == 'last_run_block':
-            extract_params['from_block'] = self.get_last_run_block(self.schema_info)
+            extract_params['from_block'] = self.get_last_run_block(self.schema_info) - 1 # to avoid error messages in case RPC syncs a bit slowly
         elif extract_params.get('from_block', 0) < 0:
             extract_params['from_block'] = extract_params.get('to_block', 0) + extract_params['from_block']
         if extract_params.get('from_block', 0) > extract_params.get('to_block', 0):
