@@ -161,37 +161,36 @@ def etl():
 
                 result_df.set_index(['origin_key', 'metric_key', 'date'], inplace=True)
                 db_connector.upsert_table('fact_kpis', result_df)
-                
-            #TODO: create highlights based on the lifetime metrics - on nov 13th not enough data yet to trial this though. Sample code below
+        
             #TODO: send messages for these lifetime highlights as well
             
-            # from src.db_connector import DbConnector
-            # from src.misc.jinja_helper import execute_jinja_query
-            # from src.main_config import get_main_config
-            # from src.config import levels_dict
+            from src.db_connector import DbConnector
+            from src.misc.jinja_helper import execute_jinja_query
+            from src.main_config import get_main_config
+            from src.config import levels_dict
 
-            # db_connector = DbConnector()
-            # main_config = get_main_config()
-            # days = 5
+            db_connector = DbConnector()
+            main_config = get_main_config()
+            days = 5
 
-            # ## for each key in levels_dict, create a list of values in the dict
-            # level_thresholds = {}
-            # for level_key in levels_dict:
-            #     values = list(levels_dict[level_key].values())
-            #     level_key = 'lifetime_' + level_key
-            #     level_thresholds[level_key] = values
+            ## for each key in levels_dict, create a list of values in the dict
+            level_thresholds = {}
+            for level_key in levels_dict:
+                values = list(levels_dict[level_key].values())
+                level_key = 'lifetime_' + level_key
+                level_thresholds[level_key] = values
 
-            # for chain in main_config:
-            #     if chain.api_in_main:
-            #         print(f'Processing chain for Lifetime level highlights: {chain.origin_key}')
+            for chain in main_config:
+                if chain.api_in_main:
+                    print(f'Processing chain for Lifetime level highlights: {chain.origin_key}')
                     
-            #         query_params = {
-            #             "origin_key": chain.origin_key,
-            #             "lookback_days": days,
-            #             "thresholds_by_metric": level_thresholds
-            #         }
+                    query_params = {
+                        "origin_key": chain.origin_key,
+                        "lookback_days": days,
+                        "thresholds_by_metric": level_thresholds
+                    }
 
-            #         execute_jinja_query(db_connector, 'chain_metrics/upsert_highlights_lifetime.sql.j2', query_params)
+                    execute_jinja_query(db_connector, 'chain_metrics/upsert_highlights_lifetime.sql.j2', query_params)
         
                 
     run_aths()
