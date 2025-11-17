@@ -259,6 +259,7 @@ class AdapterL2Beat(AbstractAdapter):
         df_main = pd.DataFrame()
         
         ####
+        ## TODO: better: use liveness or activity data
         # for projects that aren't returned by the API anymore, set is_archived = True in sys_l2beat table
         df_sys = self.db_connector.get_table('sys_l2beat')
 
