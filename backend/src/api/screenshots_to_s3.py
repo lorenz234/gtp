@@ -1,15 +1,27 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+try:
+    from src.misc.helper_functions import upload_image_to_cf_s3, send_discord_message
+except ModuleNotFoundError:
+    import sys
+    from pathlib import Path
 
-from src.misc.helper_functions import upload_image_to_cf_s3
+    CURRENT_DIR = Path(__file__).resolve().parent
+    SRC_ROOT = CURRENT_DIR.parent
+    if str(SRC_ROOT) not in sys.path:
+        sys.path.insert(0, str(SRC_ROOT))
+
+    from misc.helper_functions import upload_image_to_cf_s3, send_discord_message
+
+
 from PIL import Image
 import time
 import os
 import requests
 import numpy as np
 
-BASE_URL = 'https://www.growthepie.xyz'
+BASE_URL = 'https://www.growthepie.com'
 
 
 def capture_screenshot(url, output_path, css_selectors, offsets):
@@ -106,8 +118,11 @@ def capture_screenshot(url, output_path, css_selectors, offsets):
     finally:
         driver.quit()
 
-
-def run_screenshots(s3_bucket, cf_distribution_id, api_version, user=None, is_local_test=False):
+def run_screenshots(s3_bucket,
+                    cf_distribution_id,
+                    api_version,
+                    user=None,
+                    is_local_test=False):
     print("Running screenshots")
 
     if user == 'ubuntu':
@@ -124,6 +139,8 @@ def run_screenshots(s3_bucket, cf_distribution_id, api_version, user=None, is_lo
     if not os.path.exists(main_path):
         os.makedirs(main_path)
 
+    uploaded_paths = []
+
     for key in screenshot_data:
         for option in screenshot_data[key]["options"]:
             # the url to capture
@@ -138,52 +155,91 @@ def run_screenshots(s3_bucket, cf_distribution_id, api_version, user=None, is_lo
             # the path to save the image in s3
             s3_path = f'{api_version}/og_images/{path_joined}'
 
-            # if the path does not exist locally, create it
-            if not os.path.exists(os.path.dirname(path)):
-                os.makedirs(os.path.dirname(path))
+            try:
+                # if the path does not exist locally, create it
+                if not os.path.exists(os.path.dirname(path)):
+                    os.makedirs(os.path.dirname(path))
 
-            now = time.strftime("%Y-%m-%d %H:%M:%S")
-            print(f"{now} - Capturing screenshot for {url} to {path}")
+                now = time.strftime("%Y-%m-%d %H:%M:%S")
+                print(f"{now} - Capturing screenshot for {url} to {path}")
 
-            # capture the screenshot
-            capture_screenshot(
-                url, path, option["css_selectors"], option["offsets"])
+                # capture the screenshot
+                capture_screenshot(
+                    url, path, option["css_selectors"], option["offsets"])
 
-            now = time.strftime("%Y-%m-%d %H:%M:%S")
-            print(f"{now} - Uploading screenshot for {url} to s3 path: {s3_path}")
+                now = time.strftime("%Y-%m-%d %H:%M:%S")
+                print(
+                    f"{now} - Uploading screenshot for {url} to s3 path: {s3_path}")
 
-            if not is_local_test:
-                upload_image_to_cf_s3(s3_bucket, s3_path,
-                                    path, cf_distribution_id,'png')
+                if not is_local_test:
+                    upload_image_to_cf_s3(
+                        s3_bucket, s3_path, path, cf_distribution_id, 'png')
+                    uploaded_paths.append(s3_path)
+            except Exception as exc:  # pylint: disable=broad-except
+                error_message = (
+                    f"Error processing screenshot for {url}: {exc}"
+                )
+                print(error_message)
+                if not is_local_test:
+                    try:
+                        send_discord_message(error_message)
+                    except Exception as notify_exc:  # pylint: disable=broad-except
+                        print(f"Failed to notify Discord: {notify_exc}")
+
+    if not is_local_test and uploaded_paths:
+        summary_message = (
+            f"Uploaded {len(uploaded_paths)} screenshot(s) for API version "
+            f"{api_version}. Last path: {uploaded_paths[-1]}"
+        )
+        try:
+            send_discord_message(summary_message)
+        except Exception as notify_exc:  # pylint: disable=broad-except
+            print(f"Failed to send completion message to Discord: {notify_exc}")
 
 
 def get_page_groups_from_sitemap():
     # get the site map from /server-sitemap.xml and parse it
     sitemap_url = f"{BASE_URL}/server-sitemap.xml"
+    chains_url = f"{BASE_URL}/chains-sitemap.xml"
 
     response = requests.get(sitemap_url)
     sitemap = response.text
 
     # parse the sitemap
     from xml.etree import ElementTree as ET
-    root = ET.fromstring(sitemap)
     urls = []
 
-    for child in root:
-        for url in child:
-            # only append loc tags
-            if url.tag == "{http://www.sitemaps.org/schemas/sitemap/0.9}loc":
-                u = url.text
+    def extract_urls(xml_text):
+        root = ET.fromstring(xml_text)
+        extracted = []
+        for child in root:
+            for url in child:
+                if url.tag == "{http://www.sitemaps.org/schemas/sitemap/0.9}loc":
+                    if url.text is None:
+                        continue
+                    u = url.text
+                    u = u.replace("https://www.growthepie.xyz", BASE_URL)
+                    u = u.replace("https://www.growthepie.com", BASE_URL)
+                    extracted.append(u)
+        return extracted
 
-                # replace the url with the base url
-                u = u.replace("https://www.growthepie.xyz", BASE_URL)
-                urls.append(u)
+    urls.extend(extract_urls(sitemap))
+
+    try:
+        chains_response = requests.get(chains_url, timeout=10)
+        chains_response.raise_for_status()
+    except requests.RequestException as exc:
+        print(f"Warning: unable to load chains sitemap ({chains_url}): {exc}")
+    else:
+        urls.extend(extract_urls(chains_response.text))
 
     # get the page groups from the site map urls
     page_groups = {}
     for url in urls:
         # split the url by /
         url_parts = url.split("/")
+        if len(url_parts) < 4:
+            continue
         # get the first part of the url
         page_group = url_parts[3]
         # if the page group is not in the page_groups dictionary, add it
