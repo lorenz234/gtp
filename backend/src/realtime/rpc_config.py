@@ -204,7 +204,6 @@ rpc_config = {
         "processors": "evm",
         "sleeper": 3,
         "calc_fees": True,
-        "block_history_len": 10, 
     },
     
     "jovay": {
