@@ -203,7 +203,7 @@ rpc_config = {
         "name": "Zircuit",
         "processors": "evm",
         "sleeper": 3,
-        "calc_fees": False,
+        "calc_fees": True,
     },
     
     "jovay": {
