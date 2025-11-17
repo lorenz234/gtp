@@ -1170,7 +1170,7 @@ def highlights_prep(df, gtp_metrics):
                 highlight_text = f"This metric grew by {row['growth_pct_growth']*100:.2f}% over the past {period} days"
             header = 'Growth Highlight'
         elif highlight_type.startswith('lifetime_'):
-            highlight_text = f"Since chain genesis, over {value} has been processed."
+            highlight_text = f"Level up! Since chain genesis, over {value} has been processed."
             header = 'Lifetime Achievement'
         else:
             highlight_text = "Wow!"
