@@ -31,7 +31,7 @@ def backup():
         from src.db_connector import DbConnector
 
         db_connector = DbConnector()
-        tables = ['fact_kpis', 'sys_main_conf', 'sys_rpc_config', 'oli_oss_directory']
+        tables = ['fact_kpis', 'sys_main_conf', 'sys_rpc_config', 'oli_oss_directory', 'sys_l2beat']
 
         time_str = datetime.now().isoformat()[:10]
         bucket_name = os.getenv("S3_LONG_TERM_BUCKET")
