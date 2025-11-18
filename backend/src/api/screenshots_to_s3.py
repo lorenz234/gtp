@@ -2,7 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 try:
-    from src.misc.helper_functions import upload_image_to_cf_s3, send_discord_message
+    from src.misc.helper_functions import upload_image_to_cf_s3, send_discord_message, empty_cloudfront_cache
 except ModuleNotFoundError:
     import sys
     from pathlib import Path
@@ -12,7 +12,7 @@ except ModuleNotFoundError:
     if str(SRC_ROOT) not in sys.path:
         sys.path.insert(0, str(SRC_ROOT))
 
-    from misc.helper_functions import upload_image_to_cf_s3, send_discord_message
+    from misc.helper_functions import upload_image_to_cf_s3, send_discord_message, empty_cloudfront_cache
 
 
 from PIL import Image
@@ -173,7 +173,7 @@ def run_screenshots(s3_bucket,
 
                 if not is_local_test:
                     upload_image_to_cf_s3(
-                        s3_bucket, s3_path, path, cf_distribution_id, 'png')
+                        s3_bucket, s3_path, path, cf_distribution_id, 'png', invalidate=False)
                     uploaded_paths.append(s3_path)
             except Exception as exc:  # pylint: disable=broad-except
                 error_message = (
@@ -187,14 +187,17 @@ def run_screenshots(s3_bucket,
                         print(f"Failed to notify Discord: {notify_exc}")
 
     if not is_local_test and uploaded_paths:
-        summary_message = (
-            f"Uploaded {len(uploaded_paths)} screenshot(s) for API version "
-            f"{api_version}. Last path: {uploaded_paths[-1]}"
-        )
-        try:
-            send_discord_message(summary_message)
-        except Exception as notify_exc:  # pylint: disable=broad-except
-            print(f"Failed to send completion message to Discord: {notify_exc}")
+        print("Emptying cloudfront cache")
+        empty_cloudfront_cache(cf_distribution_id, f'/{api_version}/og_images/*')
+
+        # summary_message = (
+        #     f"Uploaded {len(uploaded_paths)} screenshot(s) for API version "
+        #     f"{api_version}. Last path: {uploaded_paths[-1]}"
+        # )
+        # try:
+        #     send_discord_message(summary_message)
+        # except Exception as notify_exc:  # pylint: disable=broad-except
+        #     print(f"Failed to send completion message to Discord: {notify_exc}")
 
 
 def get_page_groups_from_sitemap():
