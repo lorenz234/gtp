@@ -127,7 +127,7 @@ def gtp_analyst():
                         url = f"https://www.growthepie.com/embed/fundamentals/{metric_fe}?showUsd=true&theme=dark&timespan={timespan}&scale=stacked&interval=daily&showMainnet=true&chains={chains_url}&zoomed=false"
                         print(f"🌐 Chart URL: {url}")
                         filename = f"{date}_{metric_key}.png"
-                        generate_screenshot(url, filename, height=1000)
+                        generate_screenshot(url, filename, height=800, width=1400)
                         #send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"), image_paths=f"generated_images/{filename}")
                         send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message, image_path=f"generated_images/{filename}")
                     else:
@@ -196,7 +196,7 @@ def gtp_analyst():
                             url = f"https://www.growthepie.com/embed/fundamentals/{metric_fe}?showUsd=true&theme=dark&timespan={timespan}&scale=stacked&interval=daily&showMainnet=true&chains={chains_url}&zoomed=false"
                             print(f"🌐 Chart URL: {url}")
                             filename = f"{date}_{metric_key}.png"
-                            generate_screenshot(url, filename, height=1000)
+                            generate_screenshot(url, filename, height=800, width=1400)
                             send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"), image_paths=f"generated_images/{filename}")
                             #send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message, image_path=f"generated_images/{filename}")
                         else:
