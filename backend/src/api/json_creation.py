@@ -1260,6 +1260,15 @@ class JSONCreation():
                 supported_chains.append(chain.origin_key)
             master_dict['metrics'][metric]['supported_chains'] = supported_chains
             
+        ## enhance da_metrics_dict with supported chains info
+        for metric in master_dict['da_metrics']:
+            supported_chains = []
+            for da in self.da_config:
+                if metric in da.api_exclude_metrics or da.api_in_main == False:
+                    continue
+                supported_chains.append(da.origin_key)
+            master_dict['da_metrics'][metric]['supported_chains'] = supported_chains
+            
         ## enhance chains dict with supported metrics info
         for chain in master_dict['chains']:
             supported_metrics = []
