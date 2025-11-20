@@ -116,7 +116,7 @@ def capture_screenshot(url, output_path, css_selectors, offsets):
         resized_image = result_image.resize((new_width, new_height), resample=resample_filter)
 
         # Create a new canvas and center the resized image (no stretching)
-        canvas = Image.new("RGB", (target_width, target_height), (31, 39, 38))  # tweak bg color if you like
+        canvas = Image.new("RGB", (target_width, target_height), (21, 26, 25))  # tweak bg color
         offset_x = (target_width - new_width) // 2
         offset_y = (target_height - new_height) // 2
         canvas.paste(resized_image, (offset_x, offset_y))
