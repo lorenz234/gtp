@@ -103,13 +103,10 @@ def capture_screenshot(url, output_path, css_selectors, offsets):
         # Convert the numpy array back to an image
         result_image = Image.fromarray(result_array)
 
-        # the image should be at 1200px wide by 630px tall, so we will resize the image to fit that width and then crop the height
-        image_dimensions = result_image.size
-        result_image = result_image.resize(
-            (1200, int(1200 * image_dimensions[1] / image_dimensions[0])))
-
-        # crop the image to the correct height
-        result_image = result_image.crop((0, 0, 1200, 630))
+        # Resize directly to 1200x630 to avoid black bars or cropping, even if it stretches
+        resample_filter = Image.Resampling.LANCZOS if hasattr(
+            Image, "Resampling") else Image.LANCZOS
+        result_image = result_image.resize((1200, 630), resample=resample_filter)
 
         # save the image
         result_image.save(output_path)
@@ -308,8 +305,8 @@ def get_screenshot_data():
             "url": url,
             "path_list": url.split("/")[3:],
             # first six children of the #content-container that are divs
-            "css_selectors": ["#chains-page-title", "#chains-content-container"],
-            "offsets": [[-20, -20, 20, 0], [-20, -0, 20, 0]]
+            "css_selectors": ["#content-container"],
+            "offsets": [[-20, -100, 0, -100]]
         })
 
     screenshot_data = {
@@ -320,7 +317,7 @@ def get_screenshot_data():
                 "url": f"{BASE_URL}",
                 "path_list": ["landing"],
                 "css_selectors": ["#content-container"],
-                "offsets": [[-30, -110, 25, -20]]
+                "offsets": [[0, -100, 10, -50]]
             }]
         },
         "Fundamentals": {
@@ -340,3 +337,4 @@ def get_screenshot_data():
 
 
 screenshot_data = get_screenshot_data()
+#run_screenshots("", "", "v1", user="local", is_local_test=True)
