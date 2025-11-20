@@ -173,13 +173,12 @@ def run_screenshots(s3_bucket,
                         s3_bucket, s3_path, path, cf_distribution_id, 'png', invalidate=False)
                     uploaded_paths.append(s3_path)
             except Exception as exc:  # pylint: disable=broad-except
-                error_message = (
-                    f"Error processing screenshot for {url}: {exc}"
-                )
-                print(error_message)
+                print(f"Error processing screenshot for {url}")
+                print(exc)
+                
                 if not is_local_test:
                     try:
-                        send_discord_message(error_message)
+                        send_discord_message(f"Error processing screenshot for {url}")
                     except Exception as notify_exc:  # pylint: disable=broad-except
                         print(f"Failed to notify Discord: {notify_exc}")
 
