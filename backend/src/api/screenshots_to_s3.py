@@ -32,7 +32,7 @@ def capture_screenshot(url, output_path, css_selectors, offsets):
     driver = webdriver.Chrome(options=options)
 
     try:
-        driver.set_window_size(2560, 1440)
+        driver.set_window_size(2560, 1350)
         driver.get(url)
         time.sleep(3)
         # Sleep allows page load.
