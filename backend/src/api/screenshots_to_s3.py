@@ -100,16 +100,29 @@ def capture_screenshot(url, output_path, css_selectors, offsets):
             result_array[:, i, :] != [0, 0, 0])]
         result_array = result_array[:, non_black_cols, :]
 
-        # Convert the numpy array back to an image
+       # Convert the numpy array back to an image
         result_image = Image.fromarray(result_array)
 
-        # Resize directly to 1200x630 to avoid black bars or cropping, even if it stretches
-        resample_filter = Image.Resampling.LANCZOS if hasattr(
-            Image, "Resampling") else Image.LANCZOS
-        result_image = result_image.resize((1200, 630), resample=resample_filter)
+        # Resize to fit within 1200x630 while preserving aspect ratio, then pad
+        target_width, target_height = 1200, 630
+        src_width, src_height = result_image.size
+
+        # Compute scale that fits image inside target without cropping
+        scale = min(target_width / src_width, target_height / src_height)
+        new_width = int(src_width * scale)
+        new_height = int(src_height * scale)
+
+        resample_filter = Image.Resampling.LANCZOS if hasattr(Image, "Resampling") else Image.LANCZOS
+        resized_image = result_image.resize((new_width, new_height), resample=resample_filter)
+
+        # Create a new canvas and center the resized image (no stretching)
+        canvas = Image.new("RGB", (target_width, target_height), (0, 0, 0))  # tweak bg color if you like
+        offset_x = (target_width - new_width) // 2
+        offset_y = (target_height - new_height) // 2
+        canvas.paste(resized_image, (offset_x, offset_y))
 
         # save the image
-        result_image.save(output_path)
+        canvas.save(output_path)
 
         return result_image
     finally:
@@ -122,15 +135,9 @@ def run_screenshots(s3_bucket,
                     is_local_test=False):
     print("Running screenshots")
 
-    if user == 'ubuntu':
-        main_path = '../gtp/backend/src/api/screenshots'
-    else:
-        main_path = '../backend/src/api/screenshots'
-
     main_path = f"../output/{api_version}/og_images"
 
-    print(
-        f"Running screenshots: storing them in {main_path} and uploading to {s3_bucket}")
+    print(f"Running screenshots: storing them in {main_path} and uploading to {s3_bucket}")
 
     # Generate folders for image if not existing
     if not os.path.exists(main_path):
