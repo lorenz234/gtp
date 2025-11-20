@@ -70,7 +70,7 @@ def capture_screenshot(url, output_path, css_selectors, offsets):
             })
 
         # tile the images together in a way that makes sense given the coordinates from the cropped images
-        result_image = Image.new('RGB', (2560, 1440))
+        result_image = Image.new('RGB', (2560, 1350))
         for cropped_image in cropped_images_with_coords:
             result_image.paste(
                 cropped_image["im"], (cropped_image["coords"][0], cropped_image["coords"][1]))
@@ -116,7 +116,7 @@ def capture_screenshot(url, output_path, css_selectors, offsets):
         resized_image = result_image.resize((new_width, new_height), resample=resample_filter)
 
         # Create a new canvas and center the resized image (no stretching)
-        canvas = Image.new("RGB", (target_width, target_height), (0, 0, 0))  # tweak bg color if you like
+        canvas = Image.new("RGB", (target_width, target_height), (31, 39, 38))  # tweak bg color if you like
         offset_x = (target_width - new_width) // 2
         offset_y = (target_height - new_height) // 2
         canvas.paste(resized_image, (offset_x, offset_y))
