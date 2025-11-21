@@ -10,7 +10,7 @@ from src.adapters.rpc_funcs.web3 import Web3CC
 from sqlalchemy import text
 from src.main_config import get_main_config 
 from src.adapters.rpc_funcs.chain_configs import chain_configs
-from src.adapters.rpc_funcs.gcs_utils import save_data_for_range
+from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs, check_gcs_connection, save_data_for_range ## dont't remove these imports
 from eth_account import Account
 from eth_utils import keccak, to_checksum_address
 import rlp
