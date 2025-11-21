@@ -1,5 +1,6 @@
 
 import getpass
+from sqlalchemy import text
 sys_user = getpass.getuser()
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 import pandas as pd
@@ -14,8 +15,9 @@ def execute_jinja_query(db_connector, jinja_query_path, query_parameters, return
     rendered_sql = template.render(query_parameters)
     print(f"...executing jinja query: {jinja_query_path} with params: {query_parameters}")
     if return_df:
-        df = pd.read_sql(rendered_sql, db_connector.engine)
+        df = pd.read_sql(text(rendered_sql), db_connector.engine)
         return df
     else:
-        db_connector.engine.execute(rendered_sql)
+        with db_connector.engine.begin() as connection:
+            connection.execute(text(rendered_sql))
         return None

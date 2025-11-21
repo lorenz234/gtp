@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 import simplejson as json
 import logging
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 import math
 from src.misc.helper_functions import upload_json_to_cf_s3, empty_cloudfront_cache
 
@@ -150,12 +150,7 @@ class OctantV2():
                 FROM {table_name};
             """
 
-        res = self.db_connector.engine.execute(exec_string).fetchall()
-
-        if columns:
-            df = pd.DataFrame(res, columns=columns)
-        else:
-            df = pd.DataFrame(res)
+        df = pd.read_sql(text(exec_string), self.db_connector.engine)
 
         # if user_address column exists, rename to user
         if 'user_address' in df.columns:
