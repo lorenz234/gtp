@@ -235,9 +235,7 @@ class DbConnector:
                 exec_string = f"SELECT MAX(date) as val FROM fact_kpis WHERE metric_key = '{metric_key}' AND origin_key = '{origin_key}';"
 
                 with self.engine.connect() as connection:
-                        result = connection.execute(text(exec_string))
-                for row in result:
-                        val = row['val']
+                        val = connection.execute(text(exec_string)).scalar()
                 return val
         
         def get_blockspace_max_date(self, origin_key:str):
@@ -277,11 +275,9 @@ class DbConnector:
                         exec_string = f"SELECT MIN(block_number) as val FROM {table_name} WHERE date_trunc('day', block_timestamp) = '{date}';"
 
                 with self.engine.connect() as connection:
-                        result = connection.execute(text(exec_string))
-                for row in result:
-                        val = row['val']
+                        val = connection.execute(text(exec_string)).scalar()
                 
-                if val == None:
+                if val is None:
                         return 0
                 else:
                         return val
@@ -651,14 +647,12 @@ class DbConnector:
                         exec_string = f"SELECT MAX(timestamp) as last_refresh FROM {tbl_name};"
 
                 with self.engine.connect() as connection:
-                        result = connection.execute(text(exec_string))
-                for row in result:
-                        last_refresh = str(row['last_refresh'])
+                        last_refresh = connection.execute(text(exec_string)).scalar()
 
-                if last_refresh == 'None':
+                if last_refresh is None:
                         return '2021-01-01 00:00:00.000000'
                 else:
-                        return last_refresh
+                        return str(last_refresh)
                 
         def get_metric_sources(self, metric_key:str, origin_keys:list):
                 if len(origin_keys) == 0:
@@ -2329,9 +2323,8 @@ class DbConnector:
                 """
                 
                 with self.engine.connect() as connection:
-                        result = connection.execute(text(exec_string))
-                        for row in result:
-                                block_number = row['block_number']
+                        row = connection.execute(text(exec_string)).mappings().first()
+                        block_number = row['block_number'] if row else None
                                 
                 if block_number is None:
                         raise ValueError(f"No block found for the date {date_str} in table {table_name}.")
@@ -2350,7 +2343,5 @@ class DbConnector:
                                 and "date" = '{date.strftime('%Y-%m-%d')}';
                         """
                 with self.engine.connect() as connection:
-                        result = connection.execute(text(query))
-                        for row in result:
-                                block_number = row['value']
+                        block_number = connection.execute(text(query)).scalar()
                 return int(block_number)
