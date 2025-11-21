@@ -1,8 +1,3 @@
-import sys
-import getpass
-sys_user = getpass.getuser()
-sys.path.append(f"/home/{sys_user}/gtp/backend/")
-
 import time
 from datetime import datetime, timedelta
 from airflow.decorators import dag, task

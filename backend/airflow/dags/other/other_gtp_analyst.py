@@ -1,10 +1,3 @@
-import os
-import sys
-import getpass
-import asyncio
-sys_user = getpass.getuser()
-sys.path.append(f"/home/{sys_user}/gtp/backend/")
-
 from datetime import datetime, timedelta
 from airflow.decorators import dag, task
 from src.misc.airflow_utils import alert_via_webhook
@@ -64,6 +57,7 @@ def gtp_analyst():
             
     @task()
     def run_highlights_tg():
+        import os
         from src.db_connector import DbConnector
         from src.misc.jinja_helper import execute_jinja_query
         from src.config import gtp_metrics_new
@@ -136,6 +130,7 @@ def gtp_analyst():
                         
     @task()
     def run_highlights_discord():
+        import os
         from src.db_connector import DbConnector
         from src.misc.jinja_helper import execute_jinja_query
         from src.config import gtp_metrics_new
