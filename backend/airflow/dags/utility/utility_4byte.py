@@ -15,7 +15,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='This DAG create a 4byte parquet export from relevant smart contract function signatures for our UserOp script.',
     tags=['utility'],
     start_date=datetime(2025,9,16),
-    schedule_interval='11 01 * * 0'  # Run weekly on Sunday at 01:05 AM
+    schedule='11 01 * * 0'  # Run weekly on Sunday at 01:05 AM
 )
 
 def etl():

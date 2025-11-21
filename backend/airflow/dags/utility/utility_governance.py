@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Sends notifications about new governance proposals',
     tags=['utility'],
     start_date=datetime(2025,1,1),
-    schedule_interval='0 8 * * *'
+    schedule='0 8 * * *'
 )
 
 def etl():

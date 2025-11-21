@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='This DAG sends a heartbeat to healthchecks.io every 5 minutes',
     tags=['utility'],
     start_date=datetime(2023,4,24),
-    schedule_interval='*/5 * * * *'
+    schedule='*/5 * * * *'
 )
 
 def healthcheck():

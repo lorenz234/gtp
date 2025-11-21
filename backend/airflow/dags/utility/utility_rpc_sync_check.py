@@ -15,7 +15,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='DAG to check if chain nodes are synchronized',
     tags=['utility', 'hourly',],
     start_date=datetime(2023, 12, 1),
-    schedule_interval='35 * * * *'
+    schedule='35 * * * *'
 )
 
 def blockchain_sync_dag():

@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='This DAG checks if our raw data load is behind',
     tags=['utility'],
     start_date=datetime(2025,8,14),
-    schedule_interval='*/30 * * * *'
+    schedule='*/30 * * * *'
 )
 
 def check():

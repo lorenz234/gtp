@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Backfill potentially missing Starknet data',
     tags=['backfill', 'daily'],
     start_date=datetime(2023, 9, 1),
-    schedule_interval='30 09 * * *'
+    schedule='30 09 * * *'
 )
 def backfill_strk():
     @task()

@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='This is a dummy DAG that is supposed to fail.',
     tags=['utility'],
     start_date=datetime(2023,4,24),
-    schedule_interval='*/15 * * * *'
+    schedule='*/15 * * * *'
 )
 
 def etl():

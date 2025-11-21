@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load raw tx data from Orderly',
     tags=['raw', 'near-real-time', 'rpc'],
     start_date=datetime(2023, 9, 1),
-    schedule_interval='6/10 * * * *'
+    schedule='6/10 * * * *'
 )
 
 def adapter_rpc():

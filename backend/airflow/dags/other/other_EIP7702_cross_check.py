@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Cross-check EIP-7702 authorization_list for chains from Dune to our db',
     tags=['utility'],
     start_date=datetime(2025,9,16),
-    schedule_interval='22 02 * * 0'  # Run weekly on Sunday at 02:22 AM
+    schedule='22 02 * * 0'  # Run weekly on Sunday at 02:22 AM
 )
 
 def cross_check_data():

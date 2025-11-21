@@ -31,7 +31,7 @@ chain_settings = {
     description='DAG for backfilling missing blockchain data',
     tags=['backfill', 'daily'],
     start_date=datetime(2023, 12, 1),
-    schedule_interval='20 11 * * *'
+    schedule='20 11 * * *'
 )
 
 def backfiller_dag():

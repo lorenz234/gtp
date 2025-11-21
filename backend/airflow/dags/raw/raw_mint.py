@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load raw tx data from Mint',
     tags=['raw', 'near-real-time', 'rpc', 'new-setup'],
     start_date=datetime(2023, 9, 1),
-    schedule_interval='5/10 * * * *'
+    schedule='5/10 * * * *'
 )
 
 def adapter_rpc():
