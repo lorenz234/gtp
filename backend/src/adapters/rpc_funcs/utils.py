@@ -1247,7 +1247,7 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
 def get_chain_config(db_connector, chain_name):
     """
     Retrieves the RPC configuration and batch size for the specified blockchain chain.
-    
+
     Args:
         db_connector: The database connector object.
         chain_name (str): The name of the blockchain chain.
@@ -1255,12 +1255,14 @@ def get_chain_config(db_connector, chain_name):
     Returns:
         tuple: A tuple containing the list of RPC configurations and the batch size.
     """
+    chain_lower = chain_name.lower()
+
     # Determine the SQL query based on the chain name
-    if chain_name.lower() == "celestia" or chain_name.lower() == "starknet":
+    if chain_lower in ("celestia", "starknet"):
         raw_sql = text(
             "SELECT url, workers, max_requests, max_tps "
             "FROM sys_rpc_config "
-            "WHERE origin_key = :chain_name AND active = TRUE "
+            "WHERE origin_key = :chain_name AND active = TRUE"
         )
     else:
         raw_sql = text(
@@ -1270,21 +1272,26 @@ def get_chain_config(db_connector, chain_name):
         )
 
     with db_connector.engine.connect() as connection:
-        result = connection.execute(raw_sql, {"chain_name": chain_name})
-        rows = result.fetchall()
+        # .mappings() returns RowMapping objects (dict-like) in SQLAlchemy 2.x
+        rows = connection.execute(raw_sql, {"chain_name": chain_name}).mappings().all()
 
     config_list = []
-
     for row in rows:
-        config = {"url": row['url']}
+        config = {"url": row["url"]}
+
         # Add other keys only if they are not None
-        if row['workers'] is not None:
-            config['workers'] = row['workers']
-        if row['max_requests'] is not None:
-            config['max_req'] = row['max_requests']
-        if row['max_tps'] is not None:
-            config['max_tps'] = row['max_tps']
-        
+        workers = row.get("workers")
+        if workers is not None:
+            config["workers"] = workers
+
+        max_requests = row.get("max_requests")
+        if max_requests is not None:
+            config["max_req"] = max_requests
+
+        max_tps = row.get("max_tps")
+        if max_tps is not None:
+            config["max_tps"] = max_tps
+
         config_list.append(config)
 
     # Retrieve batch_size
@@ -1292,7 +1299,7 @@ def get_chain_config(db_connector, chain_name):
     main_conf = get_main_config()
     for chain in main_conf:
         if chain.origin_key == chain_name:
-            if chain.backfiller_batch_size > 0:
+            if getattr(chain, "backfiller_batch_size", 0) > 0:
                 batch_size = chain.backfiller_batch_size
             break
 
