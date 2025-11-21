@@ -8,12 +8,12 @@ from datetime import timedelta, datetime
 import jinja2
 from airflow.configuration import conf
 from airflow.models import DAG, Variable
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.bash import BashOperator
+from airflow.operators.empty import EmptyOperator
 
 # DAG configs
 DAG_ID = "airflow_log_cleanup"
-start_date=datetime(2023, 12, 1)
+START_DATE = datetime(2023, 12, 1)
 schedule = "0 4 * * *"  # daily at 04:00
 DAG_OWNER_NAME = "mseidl"
 ALERT_EMAIL_ADDRESSES = ['matthias@mseidl-analytics.de']
@@ -48,7 +48,7 @@ dag = DAG(
     template_undefined=jinja2.Undefined
 )
 
-start = DummyOperator(task_id='start', dag=dag)
+start = EmptyOperator(task_id='start', dag=dag)
 
 log_cleanup = f"""
 echo "Starting Airflow log cleanup..."
