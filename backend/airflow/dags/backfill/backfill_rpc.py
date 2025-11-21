@@ -46,7 +46,7 @@ def backfiller_dag():
             continue  # skip zkevm as it contains many empty blocks and is slow to backfill
         
         @task(task_id=f'new_backfill_{chain}', execution_timeout=timedelta(minutes=90))
-        def run_backfill_task(chain_name, db_connector, start_date, end_date, batch_size):
+        def run_backfill_task(chain_name, db_connector, backfill_start_date, backfill_end_date, batch_size):
             active_rpc_configs, batch_size = get_chain_config(db_connector, chain_name)
             w3 = None
 
@@ -60,8 +60,8 @@ def backfiller_dag():
             if not w3:
                 raise ConnectionError("Failed to connect to any provided RPC node.")
 
-            start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
-            end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
+            start_date_obj = datetime.strptime(backfill_start_date, "%Y-%m-%d")
+            end_date_obj = datetime.strptime(backfill_end_date, "%Y-%m-%d")
             start_timestamp = date_to_unix_timestamp(start_date_obj.year, start_date_obj.month, start_date_obj.day)
             end_timestamp = date_to_unix_timestamp(end_date_obj.year, end_date_obj.month, end_date_obj.day)
             start_block = find_first_block_of_day(w3, start_timestamp)
@@ -83,6 +83,6 @@ def backfiller_dag():
         start_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
         end_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
 
-        run_backfill_task(chain_name=chain, db_connector=db_connector, start_date=start_date, end_date=end_date, batch_size=batch_size)
+        run_backfill_task(chain_name=chain, db_connector=db_connector, backfill_start_date=start_date, backfill_end_date=end_date, batch_size=batch_size)
 
 backfiller_dag_instance = backfiller_dag()
