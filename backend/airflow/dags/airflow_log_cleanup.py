@@ -3,9 +3,8 @@ A maintenance workflow that you can deploy into Airflow to periodically clean
 out the task logs to avoid those getting too big.Optional
 """
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 
-import airflow
 import jinja2
 from airflow.configuration import conf
 from airflow.models import DAG, Variable
@@ -14,7 +13,7 @@ from airflow.operators.dummy_operator import DummyOperator
 
 # DAG configs
 DAG_ID = "airflow_log_cleanup"
-START_DATE = airflow.utils.dates.days_ago(1)
+start_date=datetime(2023, 12, 1)
 schedule = "0 4 * * *"  # daily at 04:00
 DAG_OWNER_NAME = "mseidl"
 ALERT_EMAIL_ADDRESSES = ['matthias@mseidl-analytics.de']
