@@ -40,7 +40,7 @@ def create_aggregate_metrics_task(origin_key):
     description='Run some sql aggregations for fees page.',
     tags=['metrics', 'near-real-time'],
     start_date=datetime(2023,4,24),
-    schedule='10,40 * * * *'
+    schedule='10 * * * *'
 )
 
 def fees_json_gen_dag():
