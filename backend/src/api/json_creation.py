@@ -1,4 +1,5 @@
 import os
+from sqlalchemy import text
 import simplejson as json
 import datetime
 import pandas as pd
@@ -2425,7 +2426,8 @@ class JSONCreation():
         return df
     
     def get_active_addresses_val(self, owner_project:str, origin_key:str, timeframe:int):
-        exec_string = f"""
+        exec_string = text(
+            f"""
             SELECT 
                 coalesce(hll_cardinality(hll_union_agg(case when "date" > current_date - interval '{timeframe+1} days' then hll_addresses end))::int, 0) as val
             FROM public.fact_active_addresses_contract_hll fact
@@ -2434,13 +2436,13 @@ class JSONCreation():
                 owner_project = '{owner_project}'
                 AND fact.origin_key = '{origin_key}'
                 AND "date" >= current_date - interval '{timeframe} days'
+            """
+        )
 
-        """
         with self.db_connector.engine.connect() as connection:
             result = connection.execute(exec_string)
-            val = result.scalar()
-            return val
-
+            val = result.scalar_one()
+        return val
 
     def create_app_details_json(self, project:str, timeframes, is_all=False):
         df = self.load_app_data(project, self.chains_list_in_api_apps)
