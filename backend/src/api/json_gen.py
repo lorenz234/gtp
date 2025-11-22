@@ -1,6 +1,5 @@
 import os
 import json
-from duckdb import df
 import pandas as pd
 import logging
 from typing import Dict, List, Optional, Tuple
