@@ -480,7 +480,8 @@ class JSONCreation():
                 )
         """
 
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
 
         ## date to datetime column in UTC
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
@@ -524,7 +525,8 @@ class JSONCreation():
                 and granularity = '10_min'
         """
 
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
 
         ## date to datetime column in UTC
         df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize('UTC')
@@ -546,7 +548,8 @@ class JSONCreation():
                 and metric_key in ('eth_equivalent_exported_usd', 'eth_equivalent_exported_eth', 'eth_supply_eth', 'eth_issuance_rate')
         """
 
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
 
         ## date to datetime column in UTC
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
@@ -1110,7 +1113,8 @@ class JSONCreation():
     
     def create_master_json(self, df_data, private_access=None):
         exec_string = "SELECT category_id, category_name, main_category_id, main_category_name FROM vw_oli_category_mapping"
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
 
         ## create dict with main_category_key as key and main_category_name as value, same for sub_categories
         ##main_category_dict = {}
@@ -2219,7 +2223,8 @@ class JSONCreation():
             ) aa USING (owner_project, origin_key)
         """
 
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
         return df
 
     def create_app_overview_json(self):
@@ -2357,7 +2362,8 @@ class JSONCreation():
                 AND fact.origin_key IN ({chains_str})
             GROUP BY 1,2,3
         """
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
         df = df.drop(columns='owner_project')
         ## date to datetime column in
         df['date'] = pd.to_datetime(df['date'])
@@ -2420,7 +2426,8 @@ class JSONCreation():
             ) aa USING (address, origin_key)
             ORDER BY fees_paid_eth desc
         """
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
         df = db_addresses_to_checksummed_addresses(df, ['address'])
 
         return df
@@ -2549,7 +2556,8 @@ class JSONCreation():
                 from vw_apps_contract_level_materialized
                 where origin_key IN ({chains_str})
         """
-        df_projects = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df_projects = pd.read_sql(exec_string, connection)
         projects = df_projects.name.to_list()
         print(f'..starting: App details export for all projects. Number of projects: {len(projects)}')
 
@@ -3026,7 +3034,8 @@ class JSONCreation():
             SELECT concat('0x',encode(id, 'hex')) as id, attester, recipient, is_offchain, revoked, ipfs_hash, tx_id, decoded_data_json, "time", time_created, revocation_time
             FROM public.oli_label_pool_bronze;
         """
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
         df = db_addresses_to_checksummed_addresses(df, ['attester', 'recipient'])
 
         upload_parquet_to_cf_s3(self.s3_bucket, f'{self.api_version}/oli/labels_raw', df, self.cf_distribution_id)
@@ -3036,7 +3045,8 @@ class JSONCreation():
             SELECT concat('0x',encode(id, 'hex')) as id, chain_id, address, tag_id, tag_value, attester, time_created, revocation_time, revoked, is_offchain
             FROM public.oli_label_pool_silver;
         """
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
         df = db_addresses_to_checksummed_addresses(df, ['address', 'attester'])
 
         upload_parquet_to_cf_s3(self.s3_bucket, f'{self.api_version}/oli/labels_decoded', df, self.cf_distribution_id)
@@ -3345,7 +3355,8 @@ class JSONCreation():
             FROM public.blockspace_labels;
         """
 
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
         df = db_addresses_to_checksummed_addresses(df, ['address'])
 
         contracts_dict = df.to_dict(orient='records')
