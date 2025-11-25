@@ -28,6 +28,7 @@ growth AS (
   WHERE date > current_date - interval '{{ days }} days'
     AND origin_key = '{{ origin_key }}'
     AND type ILIKE 'growth_%%'
+    AND value > 0
   ORDER BY growth_pct_growth DESC
   LIMIT 2
 ),
@@ -37,6 +38,7 @@ lifetime AS (
   WHERE date > current_date - interval '{{ days }} days'
     AND origin_key = '{{ origin_key }}'
     AND type ILIKE 'lifetime_%%'
+    AND value > 0
 ),
 combined AS (
   SELECT 1 AS prio, * FROM ath_multiple
