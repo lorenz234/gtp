@@ -2289,9 +2289,9 @@ class JSONCreation():
         ## add rank column
         df['rank'] = df['txcount'].rank(ascending=False)
 
-        ## keep top and bottom 3 as gainers and losers
-        df_gainers = df.sort_values(by='txcount_change_%', ascending=False).head(3).copy()
-        df_losers = df.sort_values(by='txcount_change_%', ascending=True).head(3).copy()
+        ## keep top and bottom 6 as gainers and losers
+        df_gainers = df.sort_values(by='txcount_change_%', ascending=False).head(6).copy()
+        df_losers = df.sort_values(by='txcount_change_%', ascending=True).head(6).copy()
 
         return df_gainers, df_losers
 
