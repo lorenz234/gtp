@@ -1,7 +1,7 @@
 WITH date_spine AS (
     SELECT generate_series(
         '2025-09-11'::date,
-        CURRENT_DATE - INTERVAL '1 day',
+        CURRENT_DATE,
         '1 day'::interval
     )::date AS "date"
 ),
@@ -16,7 +16,6 @@ metrics AS (
         (metric_key = 'qb_lineaTokensBridged_linea' OR metric_key = 'qb_ethBurnt_eth')
         AND origin_key = 'linea'
         AND "date" >= '2025-09-11'
-        AND "date" < CURRENT_DATE
     GROUP BY "date", origin_key
 ),
 linea_price AS (
@@ -25,7 +24,6 @@ linea_price AS (
     WHERE metric_key = 'price_usd'
         AND origin_key = 'linea'
         AND "date" >= '2025-09-11'
-        AND "date" < CURRENT_DATE
 ),
 eth_price AS (
     SELECT "date", value
@@ -33,7 +31,6 @@ eth_price AS (
     WHERE metric_key = 'price_usd'
         AND origin_key = 'ethereum'
         AND "date" >= '2025-09-11'
-        AND "date" < CURRENT_DATE
 )
 SELECT
     ds."date",
