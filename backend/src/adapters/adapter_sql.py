@@ -372,12 +372,16 @@ class AdapterSQL(AbstractAdapter):
                 if '4_hours' in granularities:
                     query = f"select date_trunc('day', max(block_timestamp)) +  INTERVAL '1 hour' * (EXTRACT(hour FROM max(block_timestamp))::int / 4 * 4) from {origin_key}_tx limit 1"
                     with self.db_connector.engine.connect() as connection:
-                        granularities['4_hours'][2] = f""" '{str(connection.execute(query).scalar())}' """
+                        last_ts = connection.exec_driver_sql(query).scalar()
+                        if last_ts is not None:
+                            granularities['4_hours'][2] = f""" '{str(last_ts)}' """
 
                 if '10_min' in granularities:
                     query = f"select date_trunc('hour', max(block_timestamp)) + INTERVAL '10 min' * FLOOR(EXTRACT(minute FROM max(block_timestamp)) / 10) from {origin_key}_tx limit 1"
                     with self.db_connector.engine.connect() as connection:
-                        granularities['10_min'][2] = f""" '{str(connection.execute(query).scalar())}' """                 
+                        last_ts = connection.exec_driver_sql(query).scalar()
+                        if last_ts is not None:
+                            granularities['10_min'][2] = f""" '{str(last_ts)}' """                 
                                    
                 for granularity in granularities:
                         timestamp_query = granularities[granularity][0]
@@ -678,4 +682,3 @@ class AdapterSQL(AbstractAdapter):
                             df = pd.read_sql(exec_string, self.db_connector.engine.connect())
                             df.set_index(['origin_key', 'metric_key', 'timestamp', 'granularity'], inplace=True)
                             self.db_connector.upsert_table('fact_kpis_granular', df)
-

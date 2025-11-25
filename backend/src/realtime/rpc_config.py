@@ -143,6 +143,14 @@ rpc_config = {
         "calc_fees": False, ##custom gas?
     },
     
+    "gravity": {
+        "name": "Gravity",
+        "processors": "evm",
+        "stack": "nitro",
+        "sleeper": 3,
+        "calc_fees": False,
+    },
+    
     # ZK Stack chains
     "zksync_era": {
         "name": "ZKsync Era",
@@ -203,7 +211,7 @@ rpc_config = {
         "name": "Zircuit",
         "processors": "evm",
         "sleeper": 3,
-        "calc_fees": False,
+        "calc_fees": True,
     },
     
     "jovay": {

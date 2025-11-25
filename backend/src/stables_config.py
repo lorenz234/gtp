@@ -1061,10 +1061,6 @@ stables_mapping = {
                 "token_address": "0x3b952c8C9C44e8Fe201e2b26F6B2200203214cfF",
                 "method_name": "totalSupply"
             },
-            "tether": {
-                "token_address": "0x46dDa6a5a559d861c06EC9a95Fb395f5C3Db0742",
-                "method_name": "totalSupply"
-            },
             "ethena-usde": {
                 "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
                 "method_name": "totalSupply"

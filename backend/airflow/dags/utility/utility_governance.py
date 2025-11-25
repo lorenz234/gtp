@@ -1,15 +1,5 @@
 from datetime import datetime,timedelta
-import getpass
-import os
-sys_user = getpass.getuser()
-
-import dotenv
-dotenv.load_dotenv()
-
-import sys
-sys.path.append(f"/home/{sys_user}/gtp/backend/")
 from airflow.decorators import dag, task 
-
 from src.misc.airflow_utils import alert_via_webhook
 
 @dag(
@@ -24,12 +14,13 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Sends notifications about new governance proposals',
     tags=['utility'],
     start_date=datetime(2025,1,1),
-    schedule_interval='0 8 * * *'
+    schedule='0 8 * * *'
 )
 
 def etl():
     @task()
     def check_for_new_proposals():
+        import os
         from src.misc.helper_functions import send_discord_message, prompt_chatgpt
         from src.misc.tally import TallyAPI
         from src.misc.agora import AgoraAPI

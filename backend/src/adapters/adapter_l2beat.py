@@ -1,6 +1,6 @@
 import time
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 import os
 
 from src.adapters.abstract_adapters import AbstractAdapter
@@ -257,6 +257,32 @@ class AdapterL2Beat(AbstractAdapter):
 
         df_meta = df.copy()
         df_main = pd.DataFrame()
+        
+        ####
+        ## TODO: better: use liveness or activity data
+        # for projects that aren't returned by the API anymore, set is_archived = True in sys_l2beat table
+        df_sys = self.db_connector.get_table('sys_l2beat')
+
+        ## filter df_sys to is_archived = False
+        df_sys = df_sys[df_sys['is_archived'] == False]
+
+        ## compare df_sys with df based on the 'index' column and show rows that are different
+        df_merged = df.merge(df_sys, on='index', suffixes=('_new', '_sys'), how='outer', indicator=True)
+        df_different = df_merged[df_merged['_merge'] != 'both']
+        
+        if len(df_different) > 0:
+            df_different = df_different.reset_index(drop=True)
+            df_different = df_different[['index']]
+
+            df_different['archived_on'] = date.today()
+            df_different['is_archived'] = True
+            
+            df_different.set_index(['index'], inplace=True)
+            self.db_connector.upsert_table('sys_l2beat', df_different)
+            send_discord_message(f"L2Beat: The following Layer 2 projects have been archived:\n{df_different.index.tolist()}", self.webhook)
+        else:
+            print("...no projects to archive in sys_l2beat")
+        ####
 
         ## iterate over each row of the df and call 
         for i, row in df_meta.iterrows():

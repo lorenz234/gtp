@@ -1,10 +1,6 @@
-import sys, getpass
-sys.path.append(f"/home/{getpass.getuser()}/gtp/backend/")
-
 from datetime import datetime, timedelta
 from airflow.decorators import dag, task
 from src.misc.airflow_utils import alert_via_webhook
-
 
 @dag(
     dag_id="metrics_sql",

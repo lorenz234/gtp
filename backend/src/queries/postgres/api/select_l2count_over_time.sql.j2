@@ -7,7 +7,7 @@ WITH date_series AS (
 ),
 
 l2beat_origin_key as (
-	select l2.date_100k, l2.name, mc.origin_key
+	select l2.date_100k, l2.name, l2.archived_on, mc.origin_key
 	from sys_l2beat l2
 	left join sys_main_conf mc on l2.index = mc.aliases_l2beat 
 )
@@ -20,7 +20,10 @@ SELECT
 	    'origin_key', s2.origin_key
 	  )) FILTER (WHERE s2.name IS NOT NULL) AS l2s_launched
 from date_series ds
-LEFT JOIN sys_l2beat s ON s.date_100k <= ds.date + interval '31 days'
-LEFT JOIN l2beat_origin_key s2 ON date_trunc('month', s2.date_100k) = ds.date
+LEFT JOIN sys_l2beat s
+    ON s.date_100k <= ds.date + interval '31 days'
+   AND (s.archived_on IS NULL OR s.archived_on > ds.date) -- exclude archived chains
+LEFT JOIN l2beat_origin_key s2 
+	ON date_trunc('month', s2.date_100k) = ds.date
 GROUP by 1
 ORDER by 1 asc

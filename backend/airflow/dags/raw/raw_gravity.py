@@ -1,8 +1,3 @@
-import sys
-import getpass
-sys_user = getpass.getuser()
-sys.path.append(f"/home/{sys_user}/gtp/backend/")
-
 from datetime import datetime, timedelta
 from airflow.decorators import dag, task
 from src.misc.airflow_utils import alert_via_webhook
@@ -19,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load raw tx data from Gravity',
     tags=['raw', 'near-real-time', 'rpc'],
     start_date=datetime(2024, 10, 15),
-    schedule_interval='2/10 * * * *'
+    schedule='2/10 * * * *'
 )
 
 def adapter_rpc():

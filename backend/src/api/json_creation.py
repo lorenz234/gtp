@@ -1,4 +1,5 @@
 import os
+from sqlalchemy import text
 import simplejson as json
 import datetime
 import pandas as pd
@@ -479,7 +480,8 @@ class JSONCreation():
                 )
         """
 
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
 
         ## date to datetime column in UTC
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
@@ -523,7 +525,8 @@ class JSONCreation():
                 and granularity = '10_min'
         """
 
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
 
         ## date to datetime column in UTC
         df['timestamp'] = pd.to_datetime(df['timestamp']).dt.tz_localize('UTC')
@@ -545,7 +548,8 @@ class JSONCreation():
                 and metric_key in ('eth_equivalent_exported_usd', 'eth_equivalent_exported_eth', 'eth_supply_eth', 'eth_issuance_rate')
         """
 
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
 
         ## date to datetime column in UTC
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
@@ -1109,7 +1113,8 @@ class JSONCreation():
     
     def create_master_json(self, df_data, private_access=None):
         exec_string = "SELECT category_id, category_name, main_category_id, main_category_name FROM vw_oli_category_mapping"
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
 
         ## create dict with main_category_key as key and main_category_name as value, same for sub_categories
         ##main_category_dict = {}
@@ -1240,10 +1245,10 @@ class JSONCreation():
             'app_metrics' : self.app_metrics,
             'fee_metrics' : fees_types_api,
             'blockspace_categories' : {
-            'main_categories' : main_category_dict,
-            'sub_categories' : sub_category_dict,
-            'mapping' : mapping_dict,
-            },
+                'main_categories' : main_category_dict,
+                'sub_categories' : sub_category_dict,
+                'mapping' : mapping_dict,
+                },
             'maturity_levels': self.maturity_levels,
             'main_chart_config': self.main_chart_config,
             'ethereum_events': self.ethereum_events['upgrades'],
@@ -1259,6 +1264,15 @@ class JSONCreation():
                     continue
                 supported_chains.append(chain.origin_key)
             master_dict['metrics'][metric]['supported_chains'] = supported_chains
+            
+        ## enhance da_metrics_dict with supported chains info
+        for metric in master_dict['da_metrics']:
+            supported_chains = []
+            for da in self.da_config:
+                if metric in da.api_exclude_metrics or da.api_in_main == False:
+                    continue
+                supported_chains.append(da.origin_key)
+            master_dict['da_metrics'][metric]['supported_chains'] = supported_chains
             
         ## enhance chains dict with supported metrics info
         for chain in master_dict['chains']:
@@ -2209,7 +2223,8 @@ class JSONCreation():
             ) aa USING (owner_project, origin_key)
         """
 
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
         return df
 
     def create_app_overview_json(self):
@@ -2347,7 +2362,8 @@ class JSONCreation():
                 AND fact.origin_key IN ({chains_str})
             GROUP BY 1,2,3
         """
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
         df = df.drop(columns='owner_project')
         ## date to datetime column in
         df['date'] = pd.to_datetime(df['date'])
@@ -2410,13 +2426,15 @@ class JSONCreation():
             ) aa USING (address, origin_key)
             ORDER BY fees_paid_eth desc
         """
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
         df = db_addresses_to_checksummed_addresses(df, ['address'])
 
         return df
     
     def get_active_addresses_val(self, owner_project:str, origin_key:str, timeframe:int):
-        exec_string = f"""
+        exec_string = text(
+            f"""
             SELECT 
                 coalesce(hll_cardinality(hll_union_agg(case when "date" > current_date - interval '{timeframe+1} days' then hll_addresses end))::int, 0) as val
             FROM public.fact_active_addresses_contract_hll fact
@@ -2425,13 +2443,13 @@ class JSONCreation():
                 owner_project = '{owner_project}'
                 AND fact.origin_key = '{origin_key}'
                 AND "date" >= current_date - interval '{timeframe} days'
+            """
+        )
 
-        """
         with self.db_connector.engine.connect() as connection:
             result = connection.execute(exec_string)
-            val = result.scalar()
-            return val
-
+            val = result.scalar_one()
+        return val
 
     def create_app_details_json(self, project:str, timeframes, is_all=False):
         df = self.load_app_data(project, self.chains_list_in_api_apps)
@@ -2538,7 +2556,8 @@ class JSONCreation():
                 from vw_apps_contract_level_materialized
                 where origin_key IN ({chains_str})
         """
-        df_projects = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df_projects = pd.read_sql(exec_string, connection)
         projects = df_projects.name.to_list()
         print(f'..starting: App details export for all projects. Number of projects: {len(projects)}')
 
@@ -3015,7 +3034,8 @@ class JSONCreation():
             SELECT concat('0x',encode(id, 'hex')) as id, attester, recipient, is_offchain, revoked, ipfs_hash, tx_id, decoded_data_json, "time", time_created, revocation_time
             FROM public.oli_label_pool_bronze;
         """
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
         df = db_addresses_to_checksummed_addresses(df, ['attester', 'recipient'])
 
         upload_parquet_to_cf_s3(self.s3_bucket, f'{self.api_version}/oli/labels_raw', df, self.cf_distribution_id)
@@ -3025,7 +3045,8 @@ class JSONCreation():
             SELECT concat('0x',encode(id, 'hex')) as id, chain_id, address, tag_id, tag_value, attester, time_created, revocation_time, revoked, is_offchain
             FROM public.oli_label_pool_silver;
         """
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
         df = db_addresses_to_checksummed_addresses(df, ['address', 'attester'])
 
         upload_parquet_to_cf_s3(self.s3_bucket, f'{self.api_version}/oli/labels_decoded', df, self.cf_distribution_id)
@@ -3334,7 +3355,8 @@ class JSONCreation():
             FROM public.blockspace_labels;
         """
 
-        df = pd.read_sql(exec_string, self.db_connector.engine.connect())
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
         df = db_addresses_to_checksummed_addresses(df, ['address'])
 
         contracts_dict = df.to_dict(orient='records')

@@ -1,9 +1,4 @@
 from datetime import datetime,timedelta
-import getpass
-sys_user = getpass.getuser()
-
-import sys
-sys.path.append(f"/home/{sys_user}/gtp/backend/")
 from airflow.decorators import dag, task 
 from src.misc.airflow_utils import alert_via_webhook    
 
@@ -19,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='This DAG sends a heartbeat to healthchecks.io every 5 minutes',
     tags=['utility'],
     start_date=datetime(2023,4,24),
-    schedule_interval='*/5 * * * *'
+    schedule='*/5 * * * *'
 )
 
 def healthcheck():

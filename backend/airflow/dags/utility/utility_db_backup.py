@@ -1,8 +1,3 @@
-import sys
-import getpass
-sys_user = getpass.getuser()
-sys.path.append(f"/home/{sys_user}/gtp/backend/")
-
 from datetime import datetime,timedelta
 from airflow.decorators import dag, task 
 from src.misc.airflow_utils import alert_via_webhook
@@ -31,7 +26,7 @@ def backup():
         from src.db_connector import DbConnector
 
         db_connector = DbConnector()
-        tables = ['fact_kpis', 'sys_main_conf', 'sys_rpc_config', 'oli_oss_directory']
+        tables = ['fact_kpis', 'sys_main_conf', 'sys_rpc_config', 'oli_oss_directory', 'sys_l2beat']
 
         time_str = datetime.now().isoformat()[:10]
         bucket_name = os.getenv("S3_LONG_TERM_BUCKET")

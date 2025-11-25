@@ -1,11 +1,5 @@
 from datetime import datetime,timedelta
-import getpass
-sys_user = getpass.getuser()
-
-import sys
-sys.path.append(f"/home/{sys_user}/gtp/backend/")
 from airflow.decorators import dag, task 
-
 from src.misc.airflow_utils import alert_via_webhook
 
 @dag(
@@ -20,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='This DAG is supposed to download app logos from the github repo and upload them to s3.',
     tags=['utility'],
     start_date=datetime(2023,4,24),
-    schedule_interval='05 01 * * *'
+    schedule='05 01 * * *'
 )
 
 def etl():

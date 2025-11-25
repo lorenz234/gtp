@@ -1,8 +1,3 @@
-import sys
-import getpass
-sys_user = getpass.getuser()
-sys.path.append(f"/home/{sys_user}/gtp/backend/")
-
 import time
 from datetime import datetime, timedelta
 from airflow.decorators import dag, task
@@ -20,7 +15,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load raw tx data from Loopring',
     tags=['raw', 'near-real-time'],
     start_date=datetime(2023, 9, 1),
-    schedule_interval='4/10 * * * *'
+    schedule='4/10 * * * *'
 )
 
 def adapter_loopring_api():

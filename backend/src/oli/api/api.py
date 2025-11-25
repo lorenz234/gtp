@@ -14,12 +14,12 @@ from eth_account.messages import encode_typed_data
 from eth_abi import decode as abi_decode
 from concurrent.futures import ProcessPoolExecutor
 
-from oli import OLI
-from oli.data.trust import UtilsTrust
+# from oli import OLI
+# from oli.data.trust import UtilsTrust
 
-oli = OLI(
-    api_key=os.getenv("OLI_API_KEY")
-)
+# oli = OLI(
+#     api_key=os.getenv("OLI_API_KEY")
+# )
 
 # tune max_workers to match available CPUs in Cloud Run
 process_pool = ProcessPoolExecutor(max_workers=4)
@@ -1127,45 +1127,45 @@ async def get_trust_lists(
     return TrustListQueryResponse(count=len(out), trust_lists=out)
 
 
-@app.get(
-    "/compute_trust_table",
-    dependencies=[Depends(get_api_key)],
-    tags=["Attestation: Trust Lists"],
-)
-async def compute_trust_table(
-    source_node: str = Query(
-        ..., description="Ethereum address (0x...) used as the trust graph source node"
-    ),
-):
-    """Compute and return a trust table for the provided source node."""
-    try:
-        normalized_source = to_normalized_address(source_node)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid source_node address")
+# @app.get(
+#     "/compute_trust_table",
+#     dependencies=[Depends(get_api_key)],
+#     tags=["Attestation: Trust Lists"],
+# )
+# async def compute_trust_table(
+#     source_node: str = Query(
+#         ..., description="Ethereum address (0x...) used as the trust graph source node"
+#     ),
+# ):
+#     """Compute and return a trust table for the provided source node."""
+#     try:
+#         normalized_source = to_normalized_address(source_node)
+#     except Exception:
+#         raise HTTPException(status_code=400, detail="Invalid source_node address")
 
 
-    try:
-        oli.trust = UtilsTrust(oli)
-        trust_table = oli.trust.compute_trust_table(
-            oli.trust.TrustGraph,
-            source_node=normalized_source,
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to compute trust table: {exc}",
-        ) from exc
+#     try:
+#         oli.trust = UtilsTrust(oli)
+#         trust_table = oli.trust.compute_trust_table(
+#             oli.trust.TrustGraph,
+#             source_node=normalized_source,
+#         )
+#     except Exception as exc:
+#         raise HTTPException(
+#             status_code=500,
+#             detail=f"Failed to compute trust table: {exc}",
+#         ) from exc
 
-    if not isinstance(trust_table, dict):
-        try:
-            trust_table = dict(trust_table)
-        except Exception:
-            raise HTTPException(
-                status_code=500,
-                detail="Trust table result could not be serialized",
-            )
+#     if not isinstance(trust_table, dict):
+#         try:
+#             trust_table = dict(trust_table)
+#         except Exception:
+#             raise HTTPException(
+#                 status_code=500,
+#                 detail="Trust table result could not be serialized",
+#             )
 
-    return {"source_node": normalized_source, "trust_table": trust_table}
+#     return {"source_node": normalized_source, "trust_table": trust_table}
 
 
 ### Labels endpoints

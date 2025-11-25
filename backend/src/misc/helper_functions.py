@@ -1111,7 +1111,13 @@ def highlights_prep(df, gtp_metrics):
         suffix = ""
         highlight_type = row['type']
         metric_key = row['metric_key']
-        metric_id, metric_config = get_metric_config_from_metric_key(metric_key, gtp_metrics)
+        
+        # if metric_key starts with "lifetime_" remove that part for metric lookup
+        if metric_key.startswith('lifetime_'):
+            metric_key_lookup = metric_key[len('lifetime_'):]
+        else:
+            metric_key_lookup = metric_key
+        metric_id, metric_config = get_metric_config_from_metric_key(metric_key_lookup, gtp_metrics)
         
         is_currency = True if 'usd' in metric_config['units'] else False
         is_eth = True if metric_key[-3:] == 'eth' else False
@@ -1119,6 +1125,18 @@ def highlights_prep(df, gtp_metrics):
 
         if metric_key == 'gas_per_second':
             suffix = "Mgas/s"
+            
+        value_val = row['value']
+        if value_val >= 1_000_000_000:
+            value = f"{value_val / 1_000_000_000:.2f}B"
+        elif value_val >= 1_000_000:
+            value = f"{value_val / 1_000_000:.2f}M"
+        elif value_val >= 1_000:
+            value = f"{value_val / 1_000:.2f}K"
+        else:
+            value = f"{value_val:,.2f}"
+
+        value = f"{prefix}{value}{suffix}" if prefix or suffix else value
 
         if highlight_type == 'ath_multiple':
             ath_val = int(row['ath_next_threshold'])
@@ -1151,20 +1169,12 @@ def highlights_prep(df, gtp_metrics):
             else:
                 highlight_text = f"This metric grew by {row['growth_pct_growth']*100:.2f}% over the past {period} days"
             header = 'Growth Highlight'
+        elif highlight_type.startswith('lifetime_'):
+            highlight_text = f"Level up! Since chain genesis, over {value} has been processed."
+            header = 'Lifetime Achievement'
         else:
             highlight_text = "Wow!"
             
-        value_val = row['value']
-        if value_val >= 1_000_000_000:
-            value = f"{value_val / 1_000_000_000:.2f}B"
-        elif value_val >= 1_000_000:
-            value = f"{value_val / 1_000_000:.2f}M"
-        elif value_val >= 1_000:
-            value = f"{value_val / 1_000:.2f}K"
-        else:
-            value = f"{value_val:,.2f}"
-
-        value = f"{prefix}{value}{suffix}" if prefix or suffix else value
 
         highlight_dict = {
             'metric_id': metric_id,

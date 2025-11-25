@@ -1,8 +1,3 @@
-import sys
-import getpass
-sys_user = getpass.getuser()
-sys.path.append(f"/home/{sys_user}/gtp/backend/")
-
 from datetime import datetime,timedelta
 from airflow.decorators import dag, task 
 from src.misc.airflow_utils import alert_via_webhook
@@ -45,7 +40,7 @@ def create_aggregate_metrics_task(origin_key):
     description='Run some sql aggregations for fees page.',
     tags=['metrics', 'near-real-time'],
     start_date=datetime(2023,4,24),
-    schedule_interval='10,40 * * * *'
+    schedule='10 * * * *'
 )
 
 def fees_json_gen_dag():

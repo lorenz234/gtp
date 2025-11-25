@@ -24,6 +24,10 @@ else:
         jinja_env = Environment(loader=FileSystemLoader('src/queries/postgres'), undefined=StrictUndefined)
 
 class DbConnector:
+        @staticmethod
+        def _coerce_text(statement):
+                return text(statement) if isinstance(statement, str) else statement
+
         def __init__(self, db_user=db_user, db_passwd=db_passwd, db_host=db_host, db_name=db_name):
             self.url = f"postgresql+psycopg2://{db_user}:{db_passwd}@{db_host}/{db_name}"
             self.uri = f"postgresql://{db_user}:{db_passwd}@{db_host}/{db_name}"
@@ -64,7 +68,7 @@ class DbConnector:
                         return pd.read_sql(text(query), self.engine)
                 else:
                         #print(f"Executing query {query_name} with params {query_params}")
-                        with self.engine.connect() as connection:
+                        with self.engine.begin() as connection:
                                 connection.execute(text(query))
                 return None                
         
@@ -125,33 +129,28 @@ class DbConnector:
         def execute_query(self, query:str, load_df=False):     
                 if load_df:
                         #print(f"Executing query and loading into DataFrame: {query}")
-                        df = pd.read_sql(query, self.engine.connect())
+                        df = pd.read_sql(self._coerce_text(query), self.engine)
                         return df
                 else:   
-                        conn = self.engine.connect()
-                        trans = conn.begin()
-                        try:
-                                conn.execute(query)
-                                trans.commit()
-                        finally:
-                                conn.close()
+                        with self.engine.begin() as connection:
+                                connection.execute(self._coerce_text(query))
                         return None
                 
         def refresh_materialized_view(self, view_name:str):
                 exec_string = f"REFRESH MATERIALIZED VIEW {view_name};"
-                with self.engine.connect() as connection:
-                        connection.execute(exec_string)
+                with self.engine.begin() as connection:
+                        connection.execute(text(exec_string))
                 print(f"Materialized view {view_name} refreshed.")
 
         def get_table(self, table_name:str, limit:int=10000):
                 exec_string = f"SELECT * FROM {table_name} LIMIT {limit};"
-                df = pd.read_sql(exec_string, self.engine.connect())
+                df = pd.read_sql(text(exec_string), self.engine)
                 return df
         
         def delete_all_rows(self, table_name:str): # dangerous function, use with caution!
                 exec_string = f"DELETE FROM {table_name};"
-                with self.engine.connect() as connection:
-                        connection.execute(exec_string)
+                with self.engine.begin() as connection:
+                        connection.execute(text(exec_string))
                 print(f"All rows deleted from {table_name}.")
         
         def get_last_price_eth(self, origin_key:str, granularity:str='daily'):
@@ -167,7 +166,7 @@ class DbConnector:
                 try:
                         query = f"SELECT value FROM {table_name} WHERE origin_key = '{origin_key}' AND metric_key = 'price_eth' {granularity_filter} ORDER BY {order_by_col} DESC LIMIT 1"
                         with self.engine.connect() as connection:
-                                result = connection.execute(query)
+                                result = connection.execute(text(query))
                                 latest_price = result.scalar()
                                 return latest_price
                 except Exception as e:
@@ -188,7 +187,7 @@ class DbConnector:
                 try:
                         query = f"SELECT value FROM {table_name} WHERE origin_key = '{origin_key}' AND metric_key = 'price_usd' {granularity_filter} ORDER BY {order_by_col} DESC LIMIT 1"
                         with self.engine.connect() as connection:
-                                result = connection.execute(query)
+                                result = connection.execute(text(query))
                                 latest_price = result.scalar()
                                 return latest_price
                 except Exception as e:
@@ -200,7 +199,7 @@ class DbConnector:
                 try:
                         query = f"SELECT l2beat_stage FROM sys_main_conf WHERE origin_key = '{origin_key}' LIMIT 1"
                         with self.engine.connect() as connection:
-                                result = connection.execute(query)
+                                result = connection.execute(text(query))
                                 stage = result.scalar()
                                 return stage
                 except Exception as e:
@@ -224,7 +223,7 @@ class DbConnector:
                 try:
                         query = f"SELECT {column} FROM sys_main_conf WHERE origin_key = '{origin_key}' LIMIT 1"
                         with self.engine.connect() as connection:
-                                result = connection.execute(query)
+                                result = connection.execute(text(query))
                                 value = result.scalar()
                                 return value
                 except Exception as e:
@@ -236,38 +235,38 @@ class DbConnector:
                 exec_string = f"SELECT MAX(date) as val FROM fact_kpis WHERE metric_key = '{metric_key}' AND origin_key = '{origin_key}';"
 
                 with self.engine.connect() as connection:
-                        result = connection.execute(exec_string)
-                for row in result:
-                        val = row['val']
+                        val = connection.execute(text(exec_string)).scalar()
                 return val
         
         def get_blockspace_max_date(self, origin_key:str):
                 if origin_key == 'imx':
-                        exec_string = f"SELECT MAX(date) as val FROM blockspace_fact_sub_category_level WHERE origin_key = '{origin_key}';"                        
+                        exec_string = text(f"SELECT MAX(date) as val FROM blockspace_fact_sub_category_level WHERE origin_key = '{origin_key}'")                   
                 else:
-                        exec_string = f"SELECT MAX(date) as val FROM blockspace_fact_contract_level WHERE origin_key = '{origin_key}';"
+                        exec_string = text(f"SELECT MAX(date) as val FROM blockspace_fact_contract_level WHERE origin_key = '{origin_key}'")
 
                 with self.engine.connect() as connection:
-                        result = connection.execute(exec_string)
-                for row in result:
-                        val = row['val']
-                return val
-        
-        def get_max_block(self, table_name:str, date:str=None):
-                if date is None:
-                        exec_string = f"SELECT MAX(block_number) as val FROM {table_name};"
-                else:
-                        exec_string = f"SELECT MAX(block_number) as val FROM {table_name} WHERE date_trunc('day', block_timestamp) = '{date}';"
-
-                with self.engine.connect() as connection:
-                        result = connection.execute(exec_string)
-                for row in result:
-                        val = row['val']
+                        row = connection.execute(exec_string).mappings().first()
+                val = row["val"] if row else None
                 
-                if val == None:
-                        return 0
+                return val
+
+        def get_max_block(self, table_name: str, date: str | None = None) -> int:
+                if date is None:
+                        exec_string = text(f"SELECT MAX(block_number) AS val FROM {table_name}")
                 else:
-                        return val
+                        exec_string = text(
+                        f"""
+                        SELECT MAX(block_number) AS val
+                        FROM {table_name}
+                        WHERE date_trunc('day', block_timestamp) = '{date}'
+                        """
+                        )
+
+                with self.engine.connect() as connection:
+                        row = connection.execute(exec_string).mappings().first()
+                val = row["val"] if row else None
+
+                return 0 if val is None else int(val)
                 
         def get_min_block(self, table_name:str, date:str=None):
                 if date is None:
@@ -276,11 +275,9 @@ class DbConnector:
                         exec_string = f"SELECT MIN(block_number) as val FROM {table_name} WHERE date_trunc('day', block_timestamp) = '{date}';"
 
                 with self.engine.connect() as connection:
-                        result = connection.execute(exec_string)
-                for row in result:
-                        val = row['val']
+                        val = connection.execute(text(exec_string)).scalar()
                 
-                if val == None:
+                if val is None:
                         return 0
                 else:
                         return val
@@ -650,14 +647,12 @@ class DbConnector:
                         exec_string = f"SELECT MAX(timestamp) as last_refresh FROM {tbl_name};"
 
                 with self.engine.connect() as connection:
-                        result = connection.execute(exec_string)
-                for row in result:
-                        last_refresh = str(row['last_refresh'])
+                        last_refresh = connection.execute(text(exec_string)).scalar()
 
-                if last_refresh == 'None':
+                if last_refresh is None:
                         return '2021-01-01 00:00:00.000000'
                 else:
-                        return last_refresh
+                        return str(last_refresh)
                 
         def get_metric_sources(self, metric_key:str, origin_keys:list):
                 if len(origin_keys) == 0:
@@ -1683,8 +1678,9 @@ class DbConnector:
                         SET {set_clause}
                         WHERE origin_key = '{row['origin_key']}';
                         """
-                        
-                        self.engine.execute(exec_string)
+
+                        with self.engine.begin() as connection:
+                                connection.execute(text(exec_string))
                 
                 print(f"{len(df)} records updated in sys_main_conf")
                 
@@ -1784,7 +1780,8 @@ class DbConnector:
                         SET active = false
                         WHERE name IN ({', '.join([f"'{name}'" for name in names])})
                 """
-                self.engine.execute(exec_string)
+                with self.engine.begin() as connection:
+                        connection.execute(text(exec_string))
                 print(f"{len(names)} projects deactivated in oli_oss_directory: {names}")
 
         def get_tags_inactive_projects(self):
@@ -2299,7 +2296,7 @@ class DbConnector:
                 try:
                        
                         with self.engine.connect() as connection:
-                                result = connection.execute(query)
+                                result = connection.execute(text(query))
                                 rpc = result.scalar()
                                 return rpc
                 except Exception as e:
@@ -2326,9 +2323,8 @@ class DbConnector:
                 """
                 
                 with self.engine.connect() as connection:
-                        result = connection.execute(exec_string)
-                        for row in result:
-                                block_number = row['block_number']
+                        row = connection.execute(text(exec_string)).mappings().first()
+                        block_number = row['block_number'] if row else None
                                 
                 if block_number is None:
                         raise ValueError(f"No block found for the date {date_str} in table {table_name}.")
@@ -2347,7 +2343,5 @@ class DbConnector:
                                 and "date" = '{date.strftime('%Y-%m-%d')}';
                         """
                 with self.engine.connect() as connection:
-                        result = connection.execute(query)
-                        for row in result:
-                                block_number = row['value']
+                        block_number = connection.execute(text(query)).scalar()
                 return int(block_number)

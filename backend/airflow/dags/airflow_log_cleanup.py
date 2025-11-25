@@ -3,19 +3,18 @@ A maintenance workflow that you can deploy into Airflow to periodically clean
 out the task logs to avoid those getting too big.Optional
 """
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 
-import airflow
 import jinja2
 from airflow.configuration import conf
 from airflow.models import DAG, Variable
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.bash import BashOperator
+from airflow.operators.empty import EmptyOperator
 
 # DAG configs
 DAG_ID = "airflow_log_cleanup"
-START_DATE = airflow.utils.dates.days_ago(1)
-SCHEDULE_INTERVAL = "0 4 * * *"  # daily at 04:00
+START_DATE = datetime(2023, 12, 1)
+schedule = "0 4 * * *"  # daily at 04:00
 DAG_OWNER_NAME = "mseidl"
 ALERT_EMAIL_ADDRESSES = ['matthias@mseidl-analytics.de']
 
@@ -43,13 +42,13 @@ dag = DAG(
         'retries': 1,
         'retry_delay': timedelta(minutes=1)
     },
-    schedule_interval=SCHEDULE_INTERVAL,
+    schedule=schedule,
     catchup=False,
     tags=['maintenance', 'daily'],
     template_undefined=jinja2.Undefined
 )
 
-start = DummyOperator(task_id='start', dag=dag)
+start = EmptyOperator(task_id='start', dag=dag)
 
 log_cleanup = f"""
 echo "Starting Airflow log cleanup..."

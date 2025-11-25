@@ -28,20 +28,32 @@ growth AS (
   WHERE date > current_date - interval '{{ days }} days'
     AND origin_key = '{{ origin_key }}'
     AND type ILIKE 'growth_%%'
+  ORDER BY growth_pct_growth DESC
+  LIMIT 2
+),
+lifetime AS (
+  SELECT *
+  FROM public.highlights
+  WHERE date > current_date - interval '{{ days }} days'
+    AND origin_key = '{{ origin_key }}'
+    AND type ILIKE 'lifetime_%%'
 ),
 combined AS (
   SELECT 1 AS prio, * FROM ath_multiple
   UNION ALL
-  SELECT 2 AS prio, * FROM ath_regular
+  SELECT 2 AS prio, * FROM lifetime
   UNION ALL
-  SELECT 3 AS prio, * FROM growth
+  SELECT 3 AS prio, * FROM ath_regular
+  UNION ALL
+  SELECT 4 AS prio, * FROM growth
+  
 ),
 ranked AS (
   SELECT
     c.*,
     ROW_NUMBER() OVER (
       PARTITION BY origin_key, metric_key
-      ORDER BY date desc, prio asc, growth_pct_growth desc
+      ORDER BY prio asc, date desc, growth_pct_growth desc
     ) AS rn
   FROM combined c
 )

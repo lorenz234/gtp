@@ -1,15 +1,27 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+try:
+    from src.misc.helper_functions import upload_image_to_cf_s3, send_discord_message, empty_cloudfront_cache
+except ModuleNotFoundError:
+    import sys
+    from pathlib import Path
 
-from src.misc.helper_functions import upload_image_to_cf_s3
+    CURRENT_DIR = Path(__file__).resolve().parent
+    SRC_ROOT = CURRENT_DIR.parent
+    if str(SRC_ROOT) not in sys.path:
+        sys.path.insert(0, str(SRC_ROOT))
+
+    from misc.helper_functions import upload_image_to_cf_s3, send_discord_message, empty_cloudfront_cache
+
+
 from PIL import Image
 import time
 import os
 import requests
 import numpy as np
 
-BASE_URL = 'https://www.growthepie.xyz'
+BASE_URL = 'https://www.growthepie.com'
 
 
 def capture_screenshot(url, output_path, css_selectors, offsets):
@@ -20,7 +32,7 @@ def capture_screenshot(url, output_path, css_selectors, offsets):
     driver = webdriver.Chrome(options=options)
 
     try:
-        driver.set_window_size(2560, 1440)
+        driver.set_window_size(2560, 1350)
         driver.get(url)
         time.sleep(3)
         # Sleep allows page load.
@@ -58,7 +70,7 @@ def capture_screenshot(url, output_path, css_selectors, offsets):
             })
 
         # tile the images together in a way that makes sense given the coordinates from the cropped images
-        result_image = Image.new('RGB', (2560, 1440))
+        result_image = Image.new('RGB', (2560, 1350))
         for cropped_image in cropped_images_with_coords:
             result_image.paste(
                 cropped_image["im"], (cropped_image["coords"][0], cropped_image["coords"][1]))
@@ -88,41 +100,50 @@ def capture_screenshot(url, output_path, css_selectors, offsets):
             result_array[:, i, :] != [0, 0, 0])]
         result_array = result_array[:, non_black_cols, :]
 
-        # Convert the numpy array back to an image
+       # Convert the numpy array back to an image
         result_image = Image.fromarray(result_array)
 
-        # the image should be at 1200px wide by 630px tall, so we will resize the image to fit that width and then crop the height
-        image_dimensions = result_image.size
-        result_image = result_image.resize(
-            (1200, int(1200 * image_dimensions[1] / image_dimensions[0])))
+        # Resize to fit within 1200x630 while preserving aspect ratio, then pad
+        target_width, target_height = 1200, 630
+        src_width, src_height = result_image.size
 
-        # crop the image to the correct height
-        result_image = result_image.crop((0, 0, 1200, 630))
+        # Compute scale that fits image inside target without cropping
+        scale = min(target_width / src_width, target_height / src_height)
+        new_width = int(src_width * scale)
+        new_height = int(src_height * scale)
+
+        resample_filter = Image.Resampling.LANCZOS if hasattr(Image, "Resampling") else Image.LANCZOS
+        resized_image = result_image.resize((new_width, new_height), resample=resample_filter)
+
+        # Create a new canvas and center the resized image (no stretching)
+        canvas = Image.new("RGB", (target_width, target_height), (21, 26, 25))  # tweak bg color
+        offset_x = (target_width - new_width) // 2
+        offset_y = (target_height - new_height) // 2
+        canvas.paste(resized_image, (offset_x, offset_y))
 
         # save the image
-        result_image.save(output_path)
+        canvas.save(output_path)
 
         return result_image
     finally:
         driver.quit()
 
-
-def run_screenshots(s3_bucket, cf_distribution_id, api_version, user=None, is_local_test=False):
+def run_screenshots(s3_bucket,
+                    cf_distribution_id,
+                    api_version,
+                    user=None,
+                    is_local_test=False):
     print("Running screenshots")
-
-    if user == 'ubuntu':
-        main_path = '../gtp/backend/src/api/screenshots'
-    else:
-        main_path = '../backend/src/api/screenshots'
 
     main_path = f"../output/{api_version}/og_images"
 
-    print(
-        f"Running screenshots: storing them in {main_path} and uploading to {s3_bucket}")
+    print(f"Running screenshots: storing them in {main_path} and uploading to {s3_bucket}")
 
     # Generate folders for image if not existing
     if not os.path.exists(main_path):
         os.makedirs(main_path)
+
+    uploaded_paths = []
 
     for key in screenshot_data:
         for option in screenshot_data[key]["options"]:
@@ -138,52 +159,93 @@ def run_screenshots(s3_bucket, cf_distribution_id, api_version, user=None, is_lo
             # the path to save the image in s3
             s3_path = f'{api_version}/og_images/{path_joined}'
 
-            # if the path does not exist locally, create it
-            if not os.path.exists(os.path.dirname(path)):
-                os.makedirs(os.path.dirname(path))
+            try:
+                # if the path does not exist locally, create it
+                if not os.path.exists(os.path.dirname(path)):
+                    os.makedirs(os.path.dirname(path))
 
-            now = time.strftime("%Y-%m-%d %H:%M:%S")
-            print(f"{now} - Capturing screenshot for {url} to {path}")
+                now = time.strftime("%Y-%m-%d %H:%M:%S")
+                print(f"{now} - Capturing screenshot for {url} to {path}")
 
-            # capture the screenshot
-            capture_screenshot(
-                url, path, option["css_selectors"], option["offsets"])
+                # capture the screenshot
+                capture_screenshot(
+                    url, path, option["css_selectors"], option["offsets"])
 
-            now = time.strftime("%Y-%m-%d %H:%M:%S")
-            print(f"{now} - Uploading screenshot for {url} to s3 path: {s3_path}")
+                now = time.strftime("%Y-%m-%d %H:%M:%S")
+                print(
+                    f"{now} - Uploading screenshot for {url} to s3 path: {s3_path}")
 
-            if not is_local_test:
-                upload_image_to_cf_s3(s3_bucket, s3_path,
-                                    path, cf_distribution_id,'png')
+                if not is_local_test:
+                    upload_image_to_cf_s3(
+                        s3_bucket, s3_path, path, cf_distribution_id, 'png', invalidate=False)
+                    uploaded_paths.append(s3_path)
+            except Exception as exc:  # pylint: disable=broad-except
+                print(f"Error processing screenshot for {url}")
+                print(exc)
+                
+                if not is_local_test:
+                    try:
+                        send_discord_message(f"Error processing screenshot for {url}")
+                    except Exception as notify_exc:  # pylint: disable=broad-except
+                        print(f"Failed to notify Discord: {notify_exc}")
+
+    if not is_local_test and uploaded_paths:
+        print("Emptying cloudfront cache")
+        empty_cloudfront_cache(cf_distribution_id, f'/{api_version}/og_images/*')
+
+        # summary_message = (
+        #     f"Uploaded {len(uploaded_paths)} screenshot(s) for API version "
+        #     f"{api_version}. Last path: {uploaded_paths[-1]}"
+        # )
+        # try:
+        #     send_discord_message(summary_message)
+        # except Exception as notify_exc:  # pylint: disable=broad-except
+        #     print(f"Failed to send completion message to Discord: {notify_exc}")
 
 
 def get_page_groups_from_sitemap():
     # get the site map from /server-sitemap.xml and parse it
     sitemap_url = f"{BASE_URL}/server-sitemap.xml"
+    chains_url = f"{BASE_URL}/chains-sitemap.xml"
 
     response = requests.get(sitemap_url)
     sitemap = response.text
 
     # parse the sitemap
     from xml.etree import ElementTree as ET
-    root = ET.fromstring(sitemap)
     urls = []
 
-    for child in root:
-        for url in child:
-            # only append loc tags
-            if url.tag == "{http://www.sitemaps.org/schemas/sitemap/0.9}loc":
-                u = url.text
+    def extract_urls(xml_text):
+        root = ET.fromstring(xml_text)
+        extracted = []
+        for child in root:
+            for url in child:
+                if url.tag == "{http://www.sitemaps.org/schemas/sitemap/0.9}loc":
+                    if url.text is None:
+                        continue
+                    u = url.text
+                    u = u.replace("https://www.growthepie.xyz", BASE_URL)
+                    u = u.replace("https://www.growthepie.com", BASE_URL)
+                    extracted.append(u)
+        return extracted
 
-                # replace the url with the base url
-                u = u.replace("https://www.growthepie.xyz", BASE_URL)
-                urls.append(u)
+    urls.extend(extract_urls(sitemap))
+
+    try:
+        chains_response = requests.get(chains_url, timeout=10)
+        chains_response.raise_for_status()
+    except requests.RequestException as exc:
+        print(f"Warning: unable to load chains sitemap ({chains_url}): {exc}")
+    else:
+        urls.extend(extract_urls(chains_response.text))
 
     # get the page groups from the site map urls
     page_groups = {}
     for url in urls:
         # split the url by /
         url_parts = url.split("/")
+        if len(url_parts) < 4:
+            continue
         # get the first part of the url
         page_group = url_parts[3]
         # if the page group is not in the page_groups dictionary, add it
@@ -249,8 +311,8 @@ def get_screenshot_data():
             "url": url,
             "path_list": url.split("/")[3:],
             # first six children of the #content-container that are divs
-            "css_selectors": ["#chains-page-title", "#chains-content-container"],
-            "offsets": [[-20, -20, 20, 0], [-20, -0, 20, 0]]
+            "css_selectors": ["#content-container"],
+            "offsets": [[-20, -100, 0, -100]]
         })
 
     screenshot_data = {
@@ -261,7 +323,7 @@ def get_screenshot_data():
                 "url": f"{BASE_URL}",
                 "path_list": ["landing"],
                 "css_selectors": ["#content-container"],
-                "offsets": [[-30, -110, 25, -20]]
+                "offsets": [[0, -100, 10, -50]]
             }]
         },
         "Fundamentals": {
@@ -281,3 +343,4 @@ def get_screenshot_data():
 
 
 screenshot_data = get_screenshot_data()
+#run_screenshots("", "", "v1", user="local", is_local_test=True)
