@@ -18,7 +18,7 @@ class AdapterDefillama(AbstractAdapter):
             'Circle': 2,
         }
         self.stables_dfs = self.get_stables_dfs()
-        self.df_ethereum = self.get_ethereum_stables_df()
+        self.df_ethereum = self.get_total_stables_fees_df()
 
         main_conf = get_main_config()
         self.projects = [chain for chain in main_conf if chain.aliases_defillama is not None]
@@ -132,9 +132,9 @@ class AdapterDefillama(AbstractAdapter):
             stables_dfs[id] = df
         return stables_dfs
     
-    def get_ethereum_stables_df(self):
+    def get_total_stables_fees_df(self):
         ## retrieve ethereum protocol fee data
-        url = f'{self.base_url}overview/fees/ethereum?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=false&dataType=dailyFees'
+        url = f'{self.base_url}overview/fees/offchain?excludeTotalDataChart=true&excludeTotalDataChartBreakdown=false&dataType=dailyFees'
         response_json = api_get_call(url)
         
         rows = []
