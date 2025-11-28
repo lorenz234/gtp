@@ -29,6 +29,7 @@ def etl():
 
         # Create adapter params
         adapter_params = {
+            #"origin_keys": ["ethereum"] # filter to specific chains
         }
 
         # Initialize the Stablecoin Adapter
@@ -56,7 +57,8 @@ def etl():
         print("\nStep 3: Collecting direct stablecoin data...")
         direct_params = {
             'days': days,
-            'load_type': 'direct_supply'
+            'load_type': 'direct_supply',
+            #'stablecoins': ['ripple-usd'] # filter to specific stablecoins
         }
         stablecoin_adapter.extract(direct_params, update=True)
         print(f"Loaded direct stablecoin records")
