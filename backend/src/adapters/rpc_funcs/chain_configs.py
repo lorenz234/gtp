@@ -23,7 +23,8 @@ chain_configs ={
       "l1GasPrice": "l1_gas_price",
       "l1FeeScalar": "l1_fee_scalar",
       "block_timestamp": "block_timestamp",
-      "type": "tx_type"
+      "type": "tx_type",
+      "nonce": "nonce"
     },
     "numeric_columns": [
       "gas_price",
@@ -72,7 +73,8 @@ chain_configs ={
       "status": "status",
       "input": "empty_input",
       "block_timestamp": "block_timestamp",
-      "type": "tx_type"
+      "type": "tx_type",
+      "nonce": "nonce"
     },
     "numeric_columns": [
       "gas_price",
@@ -117,7 +119,8 @@ chain_configs ={
       "input": "empty_input",
       "l1Fee": "l1_fee",
       "block_timestamp": "block_timestamp",
-      "type": "tx_type"
+      "type": "tx_type",
+      "nonce": "nonce"
     },
     "numeric_columns": [
       "gas_price",
@@ -162,7 +165,8 @@ chain_configs ={
       "input": "empty_input",
       "block_timestamp": "block_timestamp",
       "gasUsedForL1": "l1_gas_used",
-      "type": "tx_type"
+      "type": "tx_type",
+      "nonce": "nonce"
     },
     "numeric_columns": [
       "gas_price",
@@ -209,7 +213,8 @@ chain_configs ={
       "input": "empty_input",
       "block_timestamp": "block_timestamp",
       "contractAddress": "receipt_contract_address",
-      "type": "tx_type"
+      "type": "tx_type",
+      "nonce": "nonce"
     },
     "numeric_columns": [
       "gas_price",
@@ -258,7 +263,8 @@ chain_configs ={
       "input": "empty_input",
       "block_timestamp": "block_timestamp",
       "type": "tx_type",
-      "contractAddress": "receipt_contract_address"
+      "contractAddress": "receipt_contract_address",
+      "nonce": "nonce"
     },
     "numeric_columns": [
       "gas_price",
@@ -304,7 +310,8 @@ chain_configs ={
       "status": "status",
       "input": "empty_input",
       "block_timestamp": "block_timestamp",
-      "type": "tx_type"
+      "type": "tx_type",
+      "nonce": "nonce"
     },
     "numeric_columns": [
       "gas_price",
@@ -430,7 +437,8 @@ chain_configs ={
       "l1BlobBaseFee": "l1_blob_base_fee",
       "l1BlobBaseFeeScalar": "l1_blob_base_fee_scalar",
       "block_timestamp": "block_timestamp",
-      "type": "tx_type"
+      "type": "tx_type",
+      "nonce": "nonce"
     },
     "numeric_columns": [
       "gas_price",
@@ -507,7 +515,8 @@ chain_configs ={
       "l1BlobBaseFeeScalar": "l1_blob_base_fee_scalar",
       "block_timestamp": "block_timestamp",
       "feeCurrency": "fee_currency",
-      "type": "tx_type"
+      "type": "tx_type",
+      "nonce": "nonce"
     },
     "numeric_columns": [
       "gas_price",
