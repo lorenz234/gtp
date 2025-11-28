@@ -78,7 +78,7 @@ class AdapterL2Beat(AbstractAdapter):
                 continue
 
             naming = chain.aliases_l2beat_slug
-            url = f"https://l2beat.com/api/scaling/tvs/{naming}?range=max"       
+            url = f"https://l2beat.com/api/scaling/tvs/{naming}"       
             print(url)
             response_json = api_get_call(url, sleeper=10, retries=10)
             if response_json['success']:
@@ -287,7 +287,7 @@ class AdapterL2Beat(AbstractAdapter):
         ## iterate over each row of the df and call 
         for i, row in df_meta.iterrows():
             naming = row['slug']
-            url = f"https://l2beat.com/api/scaling/tvs/{naming}?range=max"       
+            url = f"https://l2beat.com/api/scaling/tvs/{naming}"       
             response_json = api_get_call(url, sleeper=10)
 
             if 'data' not in response_json:
