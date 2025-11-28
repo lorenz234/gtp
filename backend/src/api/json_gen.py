@@ -10,7 +10,7 @@ from src.db_connector import DbConnector
 from src.config import gtp_units, gtp_metrics_new, levels_dict
 from src.main_config import MainConfig, get_main_config
 from src.da_config import get_da_config
-from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3, empty_cloudfront_cache, highlights_prep
+from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3, empty_cloudfront_cache, highlights_prep, db_addresses_to_checksummed_addresses
 from src.misc.jinja_helper import execute_jinja_query
 
 # --- Set up a proper logger ---
@@ -900,3 +900,59 @@ class JsonGen():
         else:
             upload_json_to_cf_s3(self.s3_bucket, s3_path, output_dict, self.cf_distribution_id, invalidate=True)
         logging.info(f"SUCCESS: Exported ecosystem_apps JSON")
+    
+    def get_new_user_contracts_dict(self, origin_key) -> Dict:
+        new_user_contracts = {}
+        query_days = [1, 7]
+        
+        for days in query_days:
+            query_parameters = {
+                "days": days,
+                "origin_key": origin_key,
+                "limit": 30
+            }
+            df = execute_jinja_query(self.db_connector, 'api/select_new_user_contracts.sql.j2', query_parameters, return_df=True)
+            if not df.empty:
+                df = db_addresses_to_checksummed_addresses(df, ['address'])
+                new_user_contracts[f'{days}d'] = {
+                    "types": df.columns.tolist(),
+                    "data": df.values.tolist()
+                }
+            else:
+                new_user_contracts[f'{days}d'] = {"types": [], "data": []}
+
+        return new_user_contracts
+    
+    
+    def create_user_insights_json(self, origin_keys:Optional[list[str]]=None):
+        """
+        Generates and uploads the user_insights JSON.
+        """
+        for chain in self.main_config:
+            origin_key = chain.origin_key
+
+            if origin_keys and origin_key not in origin_keys:
+                continue
+            if not chain.api_in_main:
+                continue
+            if not chain.api_in_user_insights:
+                continue
+            
+            logging.info(f"Generating user_insights JSON for {origin_key}...")
+            
+            output_dict = {
+                "data": {
+                    "new_user_contracts": self.get_new_user_contracts_dict(origin_key),
+                },
+                'last_updated_utc': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            }
+            
+            s3_path = f'{self.api_version}/chains/{origin_key}/user_insights'
+            if self.s3_bucket is None:
+                # Assuming local saving for testing still uses a similar path structure
+                self._save_to_json(output_dict, s3_path)
+            else:
+                upload_json_to_cf_s3(self.s3_bucket, s3_path, output_dict, self.cf_distribution_id, invalidate=False)
+        
+        empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/chains/*')
+        logging.info(f"SUCCESS: Exported user_insights JSON")
