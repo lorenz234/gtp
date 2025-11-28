@@ -344,6 +344,17 @@ stables_metadata = {
             "ethereum": "0xaca92e438df0b2401ff60da7e4337b687a2435da"
         }
     },
+    "ripple-usd": {
+        "name": "Ripple USD",
+        "symbol": "RLUSD",
+        "decimals": 18,
+        "coingecko_id": "ripple-usd",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x8292Bb45bf1Ee4d140127049757C2E0fF06317eD"
+        }
+    },
     "usda": {                             # USDA
         "name": "Avalon Labs USDa",
         "symbol": "USDa",
@@ -510,7 +521,11 @@ stables_mapping = {
             "metamask-usd": {
                 "token_address": "0xaca92e438df0b2401ff60da7e4337b687a2435da",  # mUSD native on Ethereum
                 "method_name": "totalSupply",
-            }
+            },
+            "ripple-usd": {
+                "token_address": "0x8292Bb45bf1Ee4d140127049757C2E0fF06317eD",  # RLUSD on Ethereum
+                "method_name": "totalSupply",
+            },
         },
 
         "locked_supply": {
@@ -960,7 +975,7 @@ stables_mapping = {
             "ethereum": [
                 "0x0437465dfb5B79726e35F08559B0cBea55bb585C",  # DAI
                 "0xF3F62F23dF9C1D2C7C63D9ea6B90E8d24c7E3DF5",  # LUSD
-                "0xF6080D9fbEEbcd44D89aFfBFd42F098cbFf92816",  # USDC
+                "0xF6080D9fbEEbcd44D89aFfBFd42F098cbFf92816",  # USDC.e
                 "0xbb3400F107804DFB482565FF1Ec8D8aE66747605"   # USDT
             ]
         }
