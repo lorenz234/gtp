@@ -33,6 +33,7 @@ class MainConfig(BaseModel):
     api_in_economics: Optional[bool] = Field(alias="api_in_api_economics", default=None)
     api_in_labels: Optional[bool] = Field(alias="api_in_api_labels", default=None)
     api_in_apps: Optional[bool] = Field(alias="api_in_api_apps", default=None)
+    api_in_user_insights: Optional[bool] = Field(alias="api_in_api_user_insights", default=None)
     api_deployment_flag: Optional[str] = Field(alias="api_api_deployment_flag", default=None)
     api_exclude_metrics: Optional[List[str]] = Field(alias="api_api_exclude_metrics", default=None)
     api_tab_status: Optional[dict] = Field(alias="api_tab_status", default=None)
