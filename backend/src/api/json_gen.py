@@ -926,6 +926,7 @@ class JsonGen():
     def get_cross_chain_addresses_dict(self, origin_key) -> Dict:
         cca_dict = {}
         query_days = [1, 7]
+        #query_days = [1]
         
         for days in query_days:
             query_parameters = {

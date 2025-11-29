@@ -16,17 +16,20 @@ with eth_price as (
 SELECT 
 	to_address as address, 
 	l.contract_name, 
-	l.owner_project, 
+	l.owner_project,
+	l.usage_category as sub_category_key, 
+	o.main_category_id as main_category_key,
 	count(*) as txcount, 
 	sum(tx_fee) as gas_fees_eth,
 	sum(tx_fee * e.value) as gas_fees_usd
 FROM public.{{ origin_key }}_tx tx
 left join vw_oli_label_pool_gold_pivoted l on tx.to_address = l.address
 left join eth_price e on e.date = tx.block_date
+left join oli_categories o on l.usage_category = o.category_id
 where tx.block_date >= date_trunc('day',now()) - interval '{{ days }} days'
 	and tx.block_date < current_date
 	and tx.nonce = 0
 	and l.origin_key = '{{ origin_key }}'
-group by 1,2,3
-order by 4 desc
+group by 1,2,3,4,5
+order by 6 desc
 limit {{ limit }}
