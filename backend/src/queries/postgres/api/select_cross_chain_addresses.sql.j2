@@ -4,6 +4,7 @@
     Parameters:
     - days: default = 7; The time interval (in days) to consider for data extraction.
     - origin_key: The origin_key to filter the data.
+    - limit: default = 8; The maximum number of results to return.
 #}
 
 with excl_chain_cur as (
@@ -77,3 +78,4 @@ select
 from cur c
 left join prev p using (cross_chain)
 order by 2 desc
+limit {{ limit }}
