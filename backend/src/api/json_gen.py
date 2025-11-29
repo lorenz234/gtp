@@ -909,7 +909,7 @@ class JsonGen():
             query_parameters = {
                 "days": days,
                 "origin_key": origin_key,
-                "limit": 30
+                "limit": 10
             }
             df = execute_jinja_query(self.db_connector, 'api/select_new_user_contracts.sql.j2', query_parameters, return_df=True)
             if not df.empty:
