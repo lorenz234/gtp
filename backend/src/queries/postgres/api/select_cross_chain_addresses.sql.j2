@@ -1,0 +1,79 @@
+{#
+    A query to get number of cross-chain active addresses
+
+    Parameters:
+    - days: default = 7; The time interval (in days) to consider for data extraction.
+    - origin_key: The origin_key to filter the data.
+#}
+
+with excl_chain_cur as (
+    select
+        address,
+        origin_key
+    from fact_active_addresses faa
+    where faa."date" < current_date 
+        AND "date" >= current_date - interval '{{ days }} days'
+        and origin_key <> '{{ origin_key }}'
+)
+
+, cur_tmp as (
+    SELECT
+        aa.address AS address,
+        ex.origin_key as cca
+    FROM fact_active_addresses aa
+        left join excl_chain_cur ex on aa.address = ex.address
+    WHERE aa."date" < current_date 
+        AND aa."date" >= current_date - interval '{{ days }} days'
+        and aa.origin_key = '{{ origin_key }}'
+    group by 1,2
+)
+
+, excl_chain_prev as (
+    select
+        address,
+        origin_key
+    from fact_active_addresses faa
+    where faa."date" < current_date 
+        AND "date" >= current_date - interval '{{ days * 2 }} days'
+        and date < current_date - interval '{{ days }} days'
+        and origin_key <> '{{ origin_key }}'
+)
+
+, prev_tmp as (
+    SELECT
+        aa.address AS address,
+        ex.origin_key as cca
+    FROM fact_active_addresses aa
+        left join excl_chain_prev ex on aa.address = ex.address
+    WHERE aa."date" < current_date 
+        AND aa."date" >= current_date - interval '{{ days * 2 }} days'
+        and aa.date < current_date - interval '{{ days }} days'
+        and aa.origin_key = '{{ origin_key }}'
+    group by 1,2
+)
+
+, cur as (
+	select
+	    coalesce(cca,'exclusive') as cross_chain,
+	    Count(*) as value
+	from cur_tmp
+	group by 1
+)
+
+, prev as (
+	select
+	    coalesce(cca,'exclusive') as cross_chain,
+	    Count(*) as value
+	from prev_tmp
+	group by 1
+)
+
+select 
+	cross_chain,
+	c.value as current,
+	p.value as previous,
+	c.value - p.value as change,
+	ROUND(((c.value::float8 - p.value) / p.value)::numeric, 4) as change_percent
+from cur c
+left join prev p using (cross_chain)
+order by 2 desc

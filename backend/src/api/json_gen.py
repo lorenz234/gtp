@@ -923,6 +923,58 @@ class JsonGen():
 
         return new_user_contracts
     
+    def get_cross_chain_addresses_dict(self, origin_key) -> Dict:
+        cca_dict = {}
+        query_days = [1, 7]
+        
+        for days in query_days:
+            query_parameters = {
+                'origin_key': origin_key,
+                'days': days
+            }
+            df = execute_jinja_query(self.db_connector, "api/select_cross_chain_addresses.sql.j2", query_parameters, return_df=True)
+            
+            if days == 7:
+                query_total = f"""
+                    select value 
+                    from fact_kpis 
+                    where origin_key = '{origin_key}'
+                    and metric_key = 'aa_last7d'
+                    order by date desc
+                    limit 1
+                """
+            elif days == 1:
+                query_total = f"""
+                    select value 
+                    from fact_kpis 
+                    where origin_key = '{origin_key}'
+                    and metric_key = 'daa'
+                    order by date desc
+                    limit 1
+                """
+            else:
+                raise ValueError(f"Invalid days value in CCA calc: {days}")
+
+            total = self.db_connector.execute_query(query_total, load_df=True)
+            total = total.value.values[0]
+
+            ## add row to df with total
+            df = pd.concat([df, pd.DataFrame([{
+                'cross_chain': 'total',
+                'current': total,
+                'previous': 0,
+                'change': 0,
+                'change_percent': 0
+            }])], ignore_index=True)
+
+            df['share_of_users'] = df['current'] / total
+            
+            cca_dict[f'{days}d'] = {
+                "types": df.columns.tolist(),
+                "data": df.values.tolist()
+            }
+        return cca_dict
+    
     
     def create_user_insights_json(self, origin_keys:Optional[list[str]]=None):
         """
@@ -943,16 +995,18 @@ class JsonGen():
             output_dict = {
                 "data": {
                     "new_user_contracts": self.get_new_user_contracts_dict(origin_key),
+                    "cross_chain_addresses": self.get_cross_chain_addresses_dict(origin_key)
                 },
                 'last_updated_utc': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             }
+            output = fix_dict_nan(output_dict, f'chains/{origin_key}/user_insights')
             
             s3_path = f'{self.api_version}/chains/{origin_key}/user_insights'
             if self.s3_bucket is None:
                 # Assuming local saving for testing still uses a similar path structure
-                self._save_to_json(output_dict, s3_path)
+                self._save_to_json(output, s3_path)
             else:
-                upload_json_to_cf_s3(self.s3_bucket, s3_path, output_dict, self.cf_distribution_id, invalidate=False)
+                upload_json_to_cf_s3(self.s3_bucket, s3_path, output, self.cf_distribution_id, invalidate=False)
         
         empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/chains/*')
         logging.info(f"SUCCESS: Exported user_insights JSON")
