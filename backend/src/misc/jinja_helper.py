@@ -14,6 +14,7 @@ def execute_jinja_query(db_connector, jinja_query_path, query_parameters, return
     template = env.get_template(jinja_query_path)
     rendered_sql = template.render(query_parameters)
     print(f"...executing jinja query: {jinja_query_path} with params: {query_parameters}")
+    #print(rendered_sql)
     if return_df:
         df = pd.read_sql(text(rendered_sql), db_connector.engine)
         return df

@@ -932,7 +932,7 @@ class JsonGen():
             query_parameters = {
                 'origin_key': origin_key,
                 'days': days,
-                'limit': 8
+                'limit': 11
             }
             df = execute_jinja_query(self.db_connector, "api/select_cross_chain_addresses.sql.j2", query_parameters, return_df=True)
             
