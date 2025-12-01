@@ -78,7 +78,7 @@ class AdapterL2Beat(AbstractAdapter):
                 continue
 
             naming = chain.aliases_l2beat_slug
-            url = f"https://l2beat.com/api/scaling/tvs/{naming}"       
+            url = f"https://l2beat.com/api/scaling/tvs/{naming}?range=max"       
             print(url)
             response_json = api_get_call(url, sleeper=10, retries=10)
             if response_json['success']:
