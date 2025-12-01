@@ -430,6 +430,7 @@ stables_mapping = {
     ## Ethereum Mainnet is a slightly special case, as it is the source chain for most bridged stablecoins
     "ethereum": {
         "direct": {
+            ## USD 
             "usdc": {
                 "token_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC native on Ethereum
                 "method_name": "totalSupply",
@@ -526,6 +527,12 @@ stables_mapping = {
                 "token_address": "0x8292Bb45bf1Ee4d140127049757C2E0fF06317eD",  # RLUSD on Ethereum
                 "method_name": "totalSupply",
             },
+            
+            ## EUR
+            "euro-coin": {
+                "token_address": "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c",  # EURC native on Ethereum
+                "method_name": "totalSupply",
+            },
         },
 
         "locked_supply": {
@@ -539,6 +546,11 @@ stables_mapping = {
                     "0x55fe002aeff02f77364de339a1292923a15844b8",  # Circle Treasury
                 ]
             },
+            "euro-coin": {
+                "ethereum": [
+                    "0x55FE002aefF02F77364de339a1292923A15844B8"  # EURC Treasury
+                ]
+            }
         }  
     },
 

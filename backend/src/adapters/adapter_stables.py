@@ -932,6 +932,10 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 if stablecoin_id not in self.stables_metadata:
                     print(f"Stablecoin {stablecoin_id} not in metadata, skipping")
                     continue
+                if stablecoin_id not in self.stablecoins:
+                    print(f"Stablecoin {stablecoin_id} not in requested stablecoins, skipping")
+                    continue
+                
                 for source_chain in locked_supply_config[stablecoin_id].keys():
                     if source_chain not in self.connections:
                         print(f"Source chain {source_chain} not connected, skipping")

@@ -33,7 +33,7 @@ def run():
         json_gen.create_metric_jsons(level='data_availability')
         
     @task()
-    def run_create_chain_jsons():    
+    def run_create_chain_overview_jsons():    
         import os
         from src.api.json_gen import JsonGen
         from src.db_connector import DbConnector
@@ -42,6 +42,17 @@ def run():
 
         json_gen = JsonGen(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
         json_gen.create_chains_jsons()
+    
+    @task()
+    def run_create_chain_user_insights_jsons():    
+        import os
+        from src.api.json_gen import JsonGen
+        from src.db_connector import DbConnector
+        
+        db_connector = DbConnector()
+
+        json_gen = JsonGen(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
+        json_gen.create_user_insights_json()
         
     @task()
     def run_create_ecosystem_jsons():    
@@ -56,7 +67,8 @@ def run():
         
     
     run_create_metrics_per_chain_jsons()
-    run_create_chain_jsons()
+    run_create_chain_overview_jsons()
+    run_create_chain_user_insights_jsons()
     run_create_ecosystem_jsons()
     
 run()
