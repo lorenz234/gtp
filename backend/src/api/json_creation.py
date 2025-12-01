@@ -1124,9 +1124,8 @@ class JSONCreation():
             sub_category_dict[row['category_id']] = row['category_name']
 
         main_category_dict = {
-            'defi': 'DeFi',
-            'cefi': 'CeFi',            
-            'nft': 'NFT',
+            'finance': 'Finance',            
+            'collectibles': 'Collectibles',
             'social': 'Social',
             'utility': 'Utility',
             'token_transfers': 'Token Transfers',
