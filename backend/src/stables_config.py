@@ -581,6 +581,18 @@ stables_metadata = {
         }
     },
 
+    ## CHF
+    "frankencoin": {
+        "name": "Frankencoin",
+        "symbol": "ZCHF",
+        "decimals": 18,
+        "coingecko_id": "frankencoin",
+        "fiat": "chf",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xB58E61C3098d85632Df34EecfB899A1Ed80921cB"
+        }
+    },
 
     ## BRL
 
@@ -774,6 +786,13 @@ stables_mapping = {
                 "token_address": "0x50753CfAf86c094925Bf976f218D043f8791e408",  # EURR native on Ethereum
                 "method_name": "totalSupply",
             },
+
+            ## CHF
+            "frankencoin": {
+                "token_address": "0xB58E61C3098d85632Df34EecfB899A1Ed80921cB",  # ZCHF native on Ethereum
+                "method_name": "totalSupply",
+            },
+
         },
 
         "locked_supply": {
@@ -868,6 +887,11 @@ stables_mapping = {
             },
             "angle_eura": {
                 "token_address": "0xFA5Ed56A203466CbBC2430a43c66b9D8723528E7",  # EURA on Arbitrum bridged through Layer Zero
+                "method_name": "totalSupply",
+            },
+            ## CHF
+            "frankencoin": {
+                "token_address": "0xd4dd9e2f021bb459d5a5f6c24c12fe09c5d45553",  # ZCHF native on Arbitrum
                 "method_name": "totalSupply",
             },
         }
@@ -1287,6 +1311,10 @@ stables_mapping = {
             "true_usd": {
                 "token_address": "0xE7F58A92476056627f9F2dD71a2d38F164A6eF0D",
                 "method_name": "totalSupply"
+            },
+            "frankencoin": {
+                "token_address": "0xD4dD9e2F021BB459D5A5f6c24C12fE09c5D45553",
+                "method_name": "totalSupply"
             }
         },
         "bridged": {
@@ -1330,7 +1358,11 @@ stables_mapping = {
             "angle_eura": {              # EURA bridged via Layer Zero
                 "token_address": "0xA61BeB4A3d02decb01039e378237032B351125B4",
                 "method_name":  "totalSupply",
-            }
+            },
+            "frankencoin": {            # ZCHF
+                "token_address": "0xD4dD9e2F021BB459D5A5f6c24C12fE09c5D45553",
+                "method_name":  "totalSupply",
+            },
         },
 
     },  
