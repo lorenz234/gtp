@@ -594,8 +594,20 @@ stables_metadata = {
         }
     },
 
-    ## BRL
+    ## SGD
+    "xsgd": {
+        "name": "Straitsx SGD",
+        "symbol": "XSGD",
+        "decimals": 6,
+        "coingecko_id": "xsgd",
+        "fiat": "sgd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x70e8de73ce538da2beed35d14187f6959a8eca96"
+        }
+    },
 
+    ## BRL
     "brz": {
         "name": "Brazilian Digital Token",
         "symbol": "BRZ",
@@ -749,7 +761,6 @@ stables_mapping = {
             },
             
             ## EUR
-
             "euro-coin": {
                 "token_address": "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c",  # EURC native on Ethereum
                 "method_name": "totalSupply",
@@ -790,6 +801,12 @@ stables_mapping = {
             ## CHF
             "frankencoin": {
                 "token_address": "0xB58E61C3098d85632Df34EecfB899A1Ed80921cB",  # ZCHF native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## SGD 
+            "xsgd": {
+                "token_address": "0x70e8de73ce538da2beed35d14187f6959a8eca96",  # XSGD native on Ethereum
                 "method_name": "totalSupply",
             },
 
@@ -892,6 +909,11 @@ stables_mapping = {
             ## CHF
             "frankencoin": {
                 "token_address": "0xd4dd9e2f021bb459d5a5f6c24c12fe09c5d45553",  # ZCHF native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            ## SGD
+            "xsgd": {
+                "token_address": "0xe333e7754a2dc1e020a162ecab019254b9dab653",  # XSGD native on Arbitrum
                 "method_name": "totalSupply",
             },
         }
@@ -1361,6 +1383,10 @@ stables_mapping = {
             },
             "frankencoin": {            # ZCHF
                 "token_address": "0xD4dD9e2F021BB459D5A5f6c24C12fE09c5D45553",
+                "method_name":  "totalSupply",
+            },
+            "xsgd": {                    # XSGD
+                "token_address": "0x0A4C9cb2778aB3302996A34BeFCF9a8Bc288C33b",
                 "method_name":  "totalSupply",
             },
         },
