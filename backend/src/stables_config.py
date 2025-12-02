@@ -619,6 +619,19 @@ stables_metadata = {
             "ethereum": "0x420412E765BFa6d85aaaC94b4f7b708C89be2e2B"
         }
     },
+
+    ## RUB
+    "a7a5": {
+        "name": "A7A5 Ruble",
+        "symbol": "A7A5",
+        "decimals": 6,
+        "coingecko_id": "a7a5",
+        "fiat": "rub",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x6fa0be17e4bea2fcfa22ef89bf8ac9aab0ab0fc9"
+        }
+    },
 }
 
 
@@ -811,6 +824,12 @@ stables_mapping = {
             ## SGD 
             "xsgd": {
                 "token_address": "0x70e8de73ce538da2beed35d14187f6959a8eca96",  # XSGD native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## RUB
+            "a7a5": {
+                "token_address": "0x6fa0be17e4bea2fcfa22ef89bf8ac9aab0ab0fc9",  # A7A5 native on Ethereum
                 "method_name": "totalSupply",
             },
 
