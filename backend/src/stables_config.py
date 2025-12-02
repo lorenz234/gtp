@@ -558,15 +558,15 @@ stables_metadata = {
             "ethereum": "0xA40640458FBc27b6EefEdeA1E9C9E17d4ceE7a21"
         }
     },
-    "": {
-        "name": "",
-        "symbol": "",
-        "decimals": ,
-        "coingecko_id": "",
+    "stablr_eur": {
+        "name": "StablR Euro",
+        "symbol": "EURR",
+        "decimals": 6,
+        "coingecko_id": "stablr-euro",
         "fiat": "eur",
         "logo": None,
         "addresses": {
-            "ethereum": "0x50753cfaf86c094925bf976f218d043f8791e408"
+            "ethereum": "0x50753CfAf86c094925Bf976f218D043f8791e408"
         }
     },
     "": {
@@ -768,6 +768,10 @@ stables_mapping = {
             },
             "anchored_coins_eur": {
                 "token_address": "0xA40640458FBc27b6EefEdeA1E9C9E17d4ceE7a21",  # AEUR native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "stablr_eur": {
+                "token_address": "0x50753CfAf86c094925Bf976f218D043f8791e408",  # EURR native on Ethereum
                 "method_name": "totalSupply",
             },
         },
