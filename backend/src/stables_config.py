@@ -481,15 +481,15 @@ stables_metadata = {
             "ethereum": "0x4933A85b5b5466Fbaf179F72D3DE273c287EC2c2"
         }
     },
-    "": {
-        "name": "",
-        "symbol": "",
-        "decimals": ,
-        "coingecko_id": "",
+    "coinvertible": {
+        "name": "CoinVertible EUR",
+        "symbol": "EURCV",
+        "decimals": 6,
+        "coingecko_id": "societe-generale-forge-eurcv",
         "fiat": "eur",
         "logo": None,
         "addresses": {
-            "ethereum": ""
+            "ethereum": "0x5F7827FDeb7c20b443265Fc2F40845B715385Ff2"
         }
     },
     "": {
@@ -675,6 +675,10 @@ stables_mapping = {
             },
             "all_unity": {
                 "token_address": "0x4933A85b5b5466Fbaf179F72D3DE273c287EC2c2",  # EURAU native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "coinvertible": {
+                "token_address": "0x5F7827FDeb7c20b443265Fc2F40845B715385Ff2",  # EURCV native on Ethereum
                 "method_name": "totalSupply",
             },
         },
