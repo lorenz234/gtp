@@ -1186,6 +1186,12 @@ def highlights_prep(df, gtp_metrics):
             'text': highlight_text,
             'value': value,
             'date': row['date'].strftime('%Y-%m-%d'),
+            'others': {
+                'ath_prior_max': row.get('ath_prior_max'),
+                'ath_next_threshold': row.get('ath_next_threshold'),
+                'growth_pct_growth': row.get('growth_pct_growth'),
+                'growth_prior_value': row.get('growth_prior_value'),
+            }
         }
         highlights.append(highlight_dict)
         
