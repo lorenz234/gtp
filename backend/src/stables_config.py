@@ -569,6 +569,17 @@ stables_metadata = {
             "ethereum": "0x50753CfAf86c094925Bf976f218D043f8791e408"
         }
     },
+    "tether_eur": {
+        "name": "Tether Euro",
+        "symbol": "EURT",
+        "decimals": 6,
+        "coingecko_id": "tether-eurt",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xc581b735a1688071a1746c968e0798d642ede491"
+        }
+    },
     "": {
         "name": "",
         "symbol": "",
@@ -632,7 +643,19 @@ stables_metadata = {
             "ethereum": "0x6fa0be17e4bea2fcfa22ef89bf8ac9aab0ab0fc9"
         }
     },
-}
+
+    ## PHP
+    "apacx_pht": {
+        "name": "Apex PHP",
+        "symbol": "PHT",
+        "decimals": 2,
+        "coingecko_id": "pht-stablecoin",
+        "fiat": "php",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xbe370ad45d44eb45174c4ec60b88839fef32c077"
+        }
+    },
 
 
 # Bridge or direct token mapping
@@ -651,7 +674,6 @@ stables_mapping = {
         "direct": {
 
             ## USD 
-
             "usdc": {
                 "token_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC native on Ethereum
                 "method_name": "totalSupply",
@@ -814,6 +836,10 @@ stables_mapping = {
                 "token_address": "0x50753CfAf86c094925Bf976f218D043f8791e408",  # EURR native on Ethereum
                 "method_name": "totalSupply",
             },
+            "tether_eur": {
+                "token_address": "0xc581b735a1688071a1746c968e0798d642ede491",  # EURT native on Ethereum
+                "method_name": "totalSupply",
+            },
 
             ## CHF
             "frankencoin": {
@@ -830,6 +856,12 @@ stables_mapping = {
             ## RUB
             "a7a5": {
                 "token_address": "0x6fa0be17e4bea2fcfa22ef89bf8ac9aab0ab0fc9",  # A7A5 native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## PHP
+            "apacx_pht": {
+                "token_address": "0xbe370ad45d44eb45174c4ec60b88839fef32c077",  # PHT native on Ethereum
                 "method_name": "totalSupply",
             },
 
