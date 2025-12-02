@@ -580,15 +580,15 @@ stables_metadata = {
             "ethereum": "0xc581b735a1688071a1746c968e0798d642ede491"
         }
     },
-    "": {
-        "name": "",
-        "symbol": "",
-        "decimals": ,
-        "coingecko_id": "",
+    "celo_eur": {
+        "name": "Celo EUR",
+        "symbol": "cEUR",
+        "decimals": 18,
+        "coingecko_id": "celo-euro",
         "fiat": "eur",
         "logo": None,
         "addresses": {
-            "ethereum": ""
+            "celo": "0xd8763cba276a3738e6de85b4b3bf5fded6d6ca73"
         }
     },
 
@@ -1091,7 +1091,11 @@ stables_mapping = {
             "angle_eura": { # Eura on Celo bridged via Layer Zero
                 "token_address": "0xC16B81Af351BA9e64C1a069E3Ab18c244A1E3049",  
                 "method_name": "totalSupply",
-            }
+            },
+            "celo_eur": {
+                "token_address": "0xd8763cba276a3738e6de85b4b3bf5fded6d6ca73",  
+                "method_name": "totalSupply",
+            },
         },
         "locked_supply": {
             "tether": {
