@@ -400,7 +400,7 @@ stables_metadata = {
         }
     },
     "usdd": {
-        "name": "USDD Protocol",
+        "name": "Decentralized USD",
         "symbol": "USDD",
         "decimals": 18,
         "coingecko_id": "usdd",
@@ -408,6 +408,17 @@ stables_metadata = {
         "logo": None,
         "addresses": {
             "ethereum": "0x4f8e5DE400DE08B164E7421B3EE387f461beCD1A"
+        }
+    },
+    "gho_aave": {
+        "name": "GHO Aave",
+        "symbol": "GHO",
+        "decimals": 18,
+        "coingecko_id": "gho",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f"
         }
     },
 
@@ -592,6 +603,10 @@ stables_mapping = {
             },
             "usdd": {
                 "token_address": "0x4f8e5DE400DE08B164E7421B3EE387f461beCD1A",  # USDD on Ethereum
+                "method_name": "totalSupply",
+            },
+            "gho_aave": {
+                "token_address": "0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f",  # GHO on Ethereum
                 "method_name": "totalSupply",
             },
             
