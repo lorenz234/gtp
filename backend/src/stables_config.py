@@ -432,15 +432,15 @@ stables_metadata = {
             "ethereum": "0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b"
         }
     },
-    "": {
-        "name": "",
-        "symbol": "",
-        "decimals": ,
-        "coingecko_id": "",
+    "mnee": {
+        "name": "MNEE USD",
+        "symbol": "MNEE",
+        "decimals": 18,
+        "coingecko_id": "mnee-usd-stablecoin",
         "fiat": "usd",
         "logo": None,
         "addresses": {
-            "ethereum": ""
+            "ethereum": "0x8ccedbae4916b79da7f3f612efb2eb93a2bfd6cf"
         }
     },
     "": {
@@ -757,6 +757,10 @@ stables_mapping = {
             },
             "m_zero": {
                 "token_address": "0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b",  # M on Ethereum
+                "method_name": "totalSupply",
+            },
+            "mnee": {
+                "token_address": "0x8ccedbae4916b79da7f3f612efb2eb93a2bfd6cf",  # MNEE on Ethereum
                 "method_name": "totalSupply",
             },
             
