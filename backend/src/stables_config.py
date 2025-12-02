@@ -670,6 +670,19 @@ stables_metadata = {
         }
     },
 
+    ## GBP
+    "true_gbp": {
+        "name": "Tokenised GBP",
+        "symbol": "TGBP",
+        "decimals": 18,
+        "coingecko_id": "tokenised-gbp",
+        "fiat": "gbp",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x27f6c8289550fce67f6b50bed1f519966afe5287"  # USDP contract also used for TGBP
+        }
+    },
+
 
 # Bridge or direct token mapping
 ## bridged: locked value is calculated based on bridge contracts on source chains
@@ -887,6 +900,12 @@ stables_mapping = {
             ## AUD
             "audd": {
                 "token_address": "0x4cce605ed955295432958d8951d0b176c10720d5",  # AUDD native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## GBP
+            "true_gbp": {
+                "token_address": "0x27f6c8289550fce67f6b50bed1f519966afe5287",  # TGBP native on Ethereum
                 "method_name": "totalSupply",
             },
 
