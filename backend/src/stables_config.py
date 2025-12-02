@@ -616,6 +616,14 @@ stables_mapping = {
                 "token_address": "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c",  # EURC native on Ethereum
                 "method_name": "totalSupply",
             },
+            "stasis-eurs": {
+                "token_address": "0xdB25f211AB05b1c97D595516F45794528a807ad8",  # EURS native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "monerium-eur-money": {
+                "token_address": "0x3231Cb76718CDeF2155FC47b5286d82e6eDA273f",  # EURe native on Ethereum
+                "method_name": "totalSupply",
+            },
         },
 
         "locked_supply": {
@@ -695,6 +703,11 @@ stables_mapping = {
             },
             "ethena-usde": {
                 "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",  # USDe native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            ## EUR
+            "monerium-eur-money": {
+                "token_address": "0x0c06cCF38114ddfc35e07427B9424adcca9F44F8",  # EURe native on Arbitrum
                 "method_name": "totalSupply",
             },
         }
@@ -940,7 +953,12 @@ stables_mapping = {
             "metamask-usd": {
                 "token_address": "0xacA92E438df0B2401fF60dA7E4337B687a2435DA",
                 "method_name":   "totalSupply",
-            }
+            },
+            ## EUR
+            "monerium-eur-money": {
+                "token_address": "0x3ff47c5Bf409C86533FE1f4907524d304062428D",
+                "method_name":   "totalSupply",
+            },
         }
     },
     "manta": {
@@ -997,6 +1015,11 @@ stables_mapping = {
             # Ethena USDe (fully-backed synthetic dollar)
             "ethena-usde": {
                 "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply",
+            },
+            # EUR
+            "monerium-eur-money": {
+                "token_address": "0xd7bb130a48595fcdf9480e36c1ae97ff2938ac21",
                 "method_name": "totalSupply",
             },
         }
