@@ -459,6 +459,51 @@ stables_metadata = {
             "polygon": "0xE111178A87A3BfF0c8d18dECBa5798827539Ae99"
         }
     },
+    "angle_eura": {
+        "name": "Angle EURA",
+        "symbol": "EURA",
+        "decimals": 18,
+        "coingecko_id": "ageur",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x1a7e4e63778B4f12a199C062f3eFdD288afCBce8"
+        }
+    },
+    "all_unity": {
+        "name": "AllUnity EUR",
+        "symbol": "EURAU",
+        "decimals": 6,
+        "coingecko_id": "allunity-eur",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x4933A85b5b5466Fbaf179F72D3DE273c287EC2c2"
+        }
+    },
+    "": {
+        "name": "",
+        "symbol": "",
+        "decimals": ,
+        "coingecko_id": "",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": ""
+        }
+    },
+    "": {
+        "name": "",
+        "symbol": "",
+        "decimals": ,
+        "coingecko_id": "",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": ""
+        }
+    },
+
 
     ## BRL
 
@@ -624,6 +669,14 @@ stables_mapping = {
                 "token_address": "0x3231Cb76718CDeF2155FC47b5286d82e6eDA273f",  # EURe native on Ethereum
                 "method_name": "totalSupply",
             },
+            "angle_eura": {
+                "token_address": "0x1a7e4e63778B4f12a199C062f3eFdD288afCBce8",  # EURA native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "all_unity": {
+                "token_address": "0x4933A85b5b5466Fbaf179F72D3DE273c287EC2c2",  # EURAU native on Ethereum
+                "method_name": "totalSupply",
+            },
         },
 
         "locked_supply": {
@@ -640,6 +693,11 @@ stables_mapping = {
             "euro-coin": {
                 "ethereum": [
                     "0x55FE002aefF02F77364de339a1292923A15844B8"  # EURC Treasury
+                ]
+            },
+            "angle_eura": {
+                "ethereum": [
+                    "0x41D5D79431A913C4aE7d693E99eDB3D6fA258C5"  # EURA Layer Zero Bridge
                 ]
             }
         }  
@@ -708,6 +766,10 @@ stables_mapping = {
             ## EUR
             "monerium-eur-money": {
                 "token_address": "0x0c06cCF38114ddfc35e07427B9424adcca9F44F8",  # EURe native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            "angle_eura": {
+                "token_address": "0xFA5Ed56A203466CbBC2430a43c66b9D8723528E7",  # EURA on Arbitrum bridged through Layer Zero
                 "method_name": "totalSupply",
             },
         }
@@ -781,6 +843,10 @@ stables_mapping = {
             },
             "glo-dollar": {
                 "token_address": "0x4F604735c1cF31399C6E711D5962b2B3E0225AD3",  
+                "method_name": "totalSupply",
+            },
+            "angle_eura": { # Eura on Celo bridged via Layer Zero
+                "token_address": "0xC16B81Af351BA9e64C1a069E3Ab18c244A1E3049",  
                 "method_name": "totalSupply",
             }
         },
@@ -1163,6 +1229,10 @@ stables_mapping = {
                 "token_address": "0x35E5dB674D8e93a03d814FA0ADa70731efe8a4b9",
                 "method_name":  "totalSupply",
             },
+            "angle_eura": {              # EURA bridged via Layer Zero
+                "token_address": "0xA61BeB4A3d02decb01039e378237032B351125B4",
+                "method_name":  "totalSupply",
+            }
         },
 
     },  
