@@ -399,6 +399,18 @@ stables_metadata = {
             "ethereum": "0xe343167631d89B6Ffc58B88d6b7fB0228795491D"
         }
     },
+    "usdd": {
+        "name": "USDD Protocol",
+        "symbol": "USDD",
+        "decimals": 18,
+        "coingecko_id": "usdd",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x4f8e5DE400DE08B164E7421B3EE387f461beCD1A"
+        }
+    },
+
 
     ## EUR
 
@@ -467,7 +479,9 @@ stables_mapping = {
     ## Ethereum Mainnet is a slightly special case, as it is the source chain for most bridged stablecoins
     "ethereum": {
         "direct": {
+
             ## USD 
+
             "usdc": {
                 "token_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC native on Ethereum
                 "method_name": "totalSupply",
@@ -576,8 +590,13 @@ stables_mapping = {
                 "token_address": "0xe343167631d89B6Ffc58B88d6b7fB0228795491D",  # USDG on Ethereum
                 "method_name": "totalSupply",
             },
+            "usdd": {
+                "token_address": "0x4f8e5DE400DE08B164E7421B3EE387f461beCD1A",  # USDD on Ethereum
+                "method_name": "totalSupply",
+            },
             
             ## EUR
+
             "euro-coin": {
                 "token_address": "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c",  # EURC native on Ethereum
                 "method_name": "totalSupply",
