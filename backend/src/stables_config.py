@@ -388,7 +388,17 @@ stables_metadata = {
             "ethereum": "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d"
         }
     },
-    ""
+    "global_dollar": {
+        "name": "Global Dollar",
+        "symbol": "USDG",
+        "decimals": 6,
+        "coingecko_id": "global-dollar",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xe343167631d89B6Ffc58B88d6b7fB0228795491D"
+        }
+    },
 
     ## EUR
 
@@ -560,6 +570,10 @@ stables_mapping = {
             },
             "usd1": {
                 "token_address": "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d",  # USD1 on Ethereum
+                "method_name": "totalSupply",
+            },
+            "global_dollar": {
+                "token_address": "0xe343167631d89B6Ffc58B88d6b7fB0228795491D",  # USDG on Ethereum
                 "method_name": "totalSupply",
             },
             
