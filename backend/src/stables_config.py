@@ -421,6 +421,50 @@ stables_metadata = {
             "ethereum": "0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f"
         }
     },
+    "m_zero": {
+        "name": "M by M0",
+        "symbol": "M",
+        "decimals": 6,
+        "coingecko_id": "m-2",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b"
+        }
+    },
+    "": {
+        "name": "",
+        "symbol": "",
+        "decimals": ,
+        "coingecko_id": "",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": ""
+        }
+    },
+    "": {
+        "name": "",
+        "symbol": "",
+        "decimals": ,
+        "coingecko_id": "",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": ""
+        }
+    },
+    "": {
+        "name": "",
+        "symbol": "",
+        "decimals": ,
+        "coingecko_id": "",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": ""
+        }
+    },
 
 
     ## EUR
@@ -490,6 +534,28 @@ stables_metadata = {
         "logo": None,
         "addresses": {
             "ethereum": "0x5F7827FDeb7c20b443265Fc2F40845B715385Ff2"
+        }
+    },
+    "eurite": {
+        "name": "Eurite",
+        "symbol": "EURI",
+        "decimals": 18,
+        "coingecko_id": "eurite",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x9d1A7A3191102e9F900Faa10540837ba84dCBAE7"
+        }
+    },
+    "": {
+        "name": "",
+        "symbol": "",
+        "decimals": ,
+        "coingecko_id": "",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": ""
         }
     },
     "": {
@@ -654,6 +720,10 @@ stables_mapping = {
                 "token_address": "0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f",  # GHO on Ethereum
                 "method_name": "totalSupply",
             },
+            "m_zero": {
+                "token_address": "0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b",  # M on Ethereum
+                "method_name": "totalSupply",
+            },
             
             ## EUR
 
@@ -679,6 +749,10 @@ stables_mapping = {
             },
             "coinvertible": {
                 "token_address": "0x5F7827FDeb7c20b443265Fc2F40845B715385Ff2",  # EURCV native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "eurite": {
+                "token_address": "0x9d1A7A3191102e9F900Faa10540837ba84dCBAE7",  # EURI native on Ethereum
                 "method_name": "totalSupply",
             },
         },
@@ -739,7 +813,8 @@ stables_mapping = {
             "ethereum": [
                 "0xa3A7B6F88361F48403514059F1F16C8E78d60EeC", # Arbitrum L1 ERC20 Gateway
                 "0xcEe284F754E854890e311e3280b767F80797180d", # Arbitrum: L1 Arb-Custom Gateway
-                "0xA10c7CE4b876998858b1a9E12b10092229539400" # DAI Escrow contract
+                "0xA10c7CE4b876998858b1a9E12b10092229539400", # DAI Escrow contract
+                "0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd", # M by M0 Escrow contract
             ],
         },
         "direct": {
