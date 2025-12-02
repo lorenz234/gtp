@@ -547,6 +547,17 @@ stables_metadata = {
             "ethereum": "0x9d1A7A3191102e9F900Faa10540837ba84dCBAE7"
         }
     },
+    "anchored_coins_eur": {
+        "name": "Anchored Coins EUR",
+        "symbol": "AEUR",
+        "decimals": 18,
+        "coingecko_id": "anchored-coins-eur",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xA40640458FBc27b6EefEdeA1E9C9E17d4ceE7a21"
+        }
+    },
     "": {
         "name": "",
         "symbol": "",
@@ -555,7 +566,7 @@ stables_metadata = {
         "fiat": "eur",
         "logo": None,
         "addresses": {
-            "ethereum": ""
+            "ethereum": "0x50753cfaf86c094925bf976f218d043f8791e408"
         }
     },
     "": {
@@ -753,6 +764,10 @@ stables_mapping = {
             },
             "eurite": {
                 "token_address": "0x9d1A7A3191102e9F900Faa10540837ba84dCBAE7",  # EURI native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "anchored_coins_eur": {
+                "token_address": "0xA40640458FBc27b6EefEdeA1E9C9E17d4ceE7a21",  # AEUR native on Ethereum
                 "method_name": "totalSupply",
             },
         },
