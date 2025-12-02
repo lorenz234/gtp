@@ -79,6 +79,17 @@ stables_metadata = {
             "ethereum": "0x4c9edd5852cd905f086c759e8383e09bff1e68b3",
         }
     },
+    "ethena-usdtb": {
+        "name": "Ethena USDtb",
+        "symbol": "USDtb",
+        "decimals": 18,
+        "coingecko_id": "usdtb",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xC139190F447e929f090Edeb554D95AbB8b18aC1C",
+        }
+    },
     "binance_usd": {
         "name": "Binance USD",
         "symbol": "BUSD",
@@ -300,7 +311,7 @@ stables_metadata = {
             "blast": "0x4300000000000000000000000000000000000003",
         }
     },
-    "openusdt": {                            # oUSDT
+    "openusdt": {
         "name": "OpenUSDT",
         "symbol": "oUSDT",
         "decimals": 6,
@@ -311,7 +322,7 @@ stables_metadata = {
             "base": "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189"
         }
     },
-    "resolv-usr": {                          # USR
+    "resolv-usr": {
         "name": "Resolv USD",
         "symbol": "USR",
         "decimals": 18,
@@ -322,7 +333,7 @@ stables_metadata = {
             "base": "0x35E5dB674D8e93a03d814FA0ADa70731efe8a4b9"
         }
     },
-    "pusd": {                            # PUSD
+    "pusd": {
         "name": "Plume USD",
         "symbol": "pUSD",
         "decimals": 6,
@@ -355,7 +366,7 @@ stables_metadata = {
             "ethereum": "0x8292Bb45bf1Ee4d140127049757C2E0fF06317eD"
         }
     },
-    "usda": {                             # USDA
+    "usda": {
         "name": "Avalon Labs USDa",
         "symbol": "USDa",
         "decimals": 18,
@@ -366,9 +377,22 @@ stables_metadata = {
             "ethereum": "0x8A60E489004Ca22d775C5F2c657598278d17D9c2"
         }
     },
+    "usd1": {
+        "name": "World Liberty Financial USD",
+        "symbol": "USD1",
+        "decimals": 18,
+        "coingecko_id": "usd1-wlfi",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d"
+        }
+    },
+    ""
 
-    # Non-USD Stablecoins
-    "euro-coin": {                       # EURC
+    ## EUR
+
+    "euro-coin": {
         "name": "Euro Coin",
         "symbol": "EURC",
         "decimals": 6,
@@ -379,7 +403,7 @@ stables_metadata = {
             "ethereum": "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c"
         }
     },
-    "monerium-eur-money": {              # EURe
+    "monerium-eur-money": {
         "name": "Monerium EUR emoney",
         "symbol": "EURe",
         "decimals": 18,
@@ -390,18 +414,7 @@ stables_metadata = {
             "ethereum": "0x3231Cb76718CDeF2155FC47b5286d82e6eDA273f"
         }
     },
-    "brz": {                             # BRZ
-        "name": "Brazilian Digital Token",
-        "symbol": "BRZ",
-        "decimals": 4,
-        "coingecko_id": "brz",
-        "fiat": "brl",
-        "logo": None,
-        "addresses": {
-            "ethereum": "0x420412E765BFa6d85aaaC94b4f7b708C89be2e2B"
-        }
-    },
-    "stasis-eurs": {                     # EURS
+    "stasis-eurs": {
         "name": "STASIS EURS",
         "symbol": "EURS",
         "decimals": 2,
@@ -412,7 +425,21 @@ stables_metadata = {
             "ethereum": "0xdB25f211AB05b1c97D595516F45794528a807ad8",
             "polygon": "0xE111178A87A3BfF0c8d18dECBa5798827539Ae99"
         }
-    }
+    },
+
+    ## BRL
+
+    "brz": {
+        "name": "Brazilian Digital Token",
+        "symbol": "BRZ",
+        "decimals": 4,
+        "coingecko_id": "brz",
+        "fiat": "brl",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x420412E765BFa6d85aaaC94b4f7b708C89be2e2B"
+        }
+    },
 }
 
 
@@ -453,6 +480,10 @@ stables_mapping = {
             },
             "ethena-usde": {
                 "token_address": "0x4c9edd5852cd905f086c759e8383e09bff1e68b3",  # USDe native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "ethena-usdtb": {
+                "token_address": "0xC139190F447e929f090Edeb554D95AbB8b18aC1C",  # USDtb native on Ethereum
                 "method_name": "totalSupply",
             },
             "binance_usd": {
@@ -525,6 +556,10 @@ stables_mapping = {
             },
             "ripple-usd": {
                 "token_address": "0x8292Bb45bf1Ee4d140127049757C2E0fF06317eD",  # RLUSD on Ethereum
+                "method_name": "totalSupply",
+            },
+            "usd1": {
+                "token_address": "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d",  # USD1 on Ethereum
                 "method_name": "totalSupply",
             },
             
