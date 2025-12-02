@@ -622,12 +622,12 @@ stables_metadata = {
     "brz": {
         "name": "Brazilian Digital Token",
         "symbol": "BRZ",
-        "decimals": 4,
+        "decimals": 18,
         "coingecko_id": "brz",
         "fiat": "brl",
         "logo": None,
         "addresses": {
-            "ethereum": "0x420412E765BFa6d85aaaC94b4f7b708C89be2e2B"
+            "ethereum": "0x01d33FD36ec67c6Ada32cf36b31e88EE190B1839"
         }
     },
 
@@ -654,6 +654,19 @@ stables_metadata = {
         "logo": None,
         "addresses": {
             "ethereum": "0xbe370ad45d44eb45174c4ec60b88839fef32c077"
+        }
+    },
+
+    ## AUD
+    "audd": {
+        "name": "Australian Digital Dollar",
+        "symbol": "AUDD",
+        "decimals": 6,
+        "coingecko_id": "novatti-australian-digital-dollar",
+        "fiat": "aud",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x4cce605ed955295432958d8951d0b176c10720d5"
         }
     },
 
@@ -862,6 +875,18 @@ stables_mapping = {
             ## PHP
             "apacx_pht": {
                 "token_address": "0xbe370ad45d44eb45174c4ec60b88839fef32c077",  # PHT native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## BRL
+            "brz": {
+                "token_address": "0x01d33FD36ec67c6Ada32cf36b31e88EE190B1839",  # BRZ native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## AUD
+            "audd": {
+                "token_address": "0x4cce605ed955295432958d8951d0b176c10720d5",  # AUDD native on Ethereum
                 "method_name": "totalSupply",
             },
 
