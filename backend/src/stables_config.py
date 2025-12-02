@@ -443,29 +443,6 @@ stables_metadata = {
             "ethereum": "0x8ccedbae4916b79da7f3f612efb2eb93a2bfd6cf"
         }
     },
-    "": {
-        "name": "",
-        "symbol": "",
-        "decimals": ,
-        "coingecko_id": "",
-        "fiat": "usd",
-        "logo": None,
-        "addresses": {
-            "ethereum": ""
-        }
-    },
-    "": {
-        "name": "",
-        "symbol": "",
-        "decimals": ,
-        "coingecko_id": "",
-        "fiat": "usd",
-        "logo": None,
-        "addresses": {
-            "ethereum": ""
-        }
-    },
-
 
     ## EUR
 
@@ -681,8 +658,8 @@ stables_metadata = {
         "addresses": {
             "ethereum": "0x27f6c8289550fce67f6b50bed1f519966afe5287"  # USDP contract also used for TGBP
         }
-    },
-
+    }
+}
 
 # Bridge or direct token mapping
 ## bridged: locked value is calculated based on bridge contracts on source chains
