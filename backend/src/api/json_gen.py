@@ -2,7 +2,7 @@ import os
 import json
 import pandas as pd
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -13,10 +13,18 @@ from src.da_config import get_da_config
 from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3, empty_cloudfront_cache, highlights_prep, db_addresses_to_checksummed_addresses
 from src.misc.jinja_helper import execute_jinja_query
 
+# --- IMPORT SCHEMAS ---
+from src.api.schemas import (
+    MetricResponse, MetricDetails, 
+    ChainOverviewResponse, ChainData, ChainAchievements,
+    StreaksResponse, EcosystemResponse, 
+    UserInsightsResponse, UserInsightsData
+)
+
 # --- Set up a proper logger ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Constants for aggregation methods and metric IDs to improve readability ---
+# --- Constants ---
 AGG_METHOD_SUM = 'sum'
 AGG_METHOD_MEAN = 'mean'
 AGG_METHOD_LAST = 'last'
@@ -41,13 +49,23 @@ class JsonGen():
         self.metrics = gtp_metrics_new
         self.main_config = get_main_config(api_version=self.api_version)
         self.da_config = get_da_config(api_version=self.api_version)
-        self.latest_eth_price = self.db_connector.get_last_price_usd('ethereum')
+        
+        # Lazy load price to prevent crash on init if DB is flaky
+        self._latest_eth_price = None
 
-    def _save_to_json(self, data, path):
-        #create directory if not exists
-        os.makedirs(os.path.dirname(f'output/{path}.json'), exist_ok=True)
-        ## save to file
-        with open(f'output/{path}.json', 'w') as fp:
+    @property
+    def latest_eth_price(self):
+        if self._latest_eth_price is None:
+            self._latest_eth_price = self.db_connector.get_last_price_usd('ethereum')
+        return self._latest_eth_price
+
+    def _save_to_json(self, data: Dict, path: str):
+        """Saves dictionary to JSON file."""
+        full_path = f'output/{path}.json'
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        with open(full_path, 'w') as fp:
+            # Pydantic dump cleans data, but we use allow_nan=False to force error or manual fix if needed.
+            # Using custom fix_dict_nan before this call usually.
             json.dump(data, fp, ignore_nan=True)
 
     def _get_raw_data_single_ok(self, origin_key: str, metric_key: str, days: Optional[int] = None) -> pd.DataFrame:
@@ -63,10 +81,10 @@ class JsonGen():
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df['metric_key'] = metric_key
         
+        # NOTE: Ideally move these calcs to SQL or Config
         if metric_key == 'gas_per_second':
             # Convert gas_per_second from gas units to millions of gas units for easier readability
             df['value'] = df['value'] / 1_000_000
-            
         if metric_key == 'da_data_posted_bytes':
             # Convert da_data_posted_bytes from bytes to gigabytes for easier readability
             df['value'] = df['value'] / 1024 / 1024 / 1024
@@ -88,13 +106,11 @@ class JsonGen():
 
         if max_date_fill:
             # Fill missing rows until yesterday with 0 for continuous time-series
-            yesterday = pd.to_datetime('today', utc=True).normalize() - pd.Timedelta(days=1)
+            yesterday = pd.Timestamp.now(timezone.utc).normalize() - pd.Timedelta(days=1)
             start_date = min(df['date'].min(), yesterday)
             
             all_dates = pd.date_range(start=start_date, end=yesterday, freq='D', tz='UTC')
             df = df.set_index('date').reindex(all_dates, fill_value=0).reset_index().rename(columns={'index': 'date'})
-            
-            #make sure metric_key is set correctly
             df['metric_key'] = metric_key
         return df
 
@@ -103,14 +119,15 @@ class JsonGen():
         Fetches, prepares, and pivots the timeseries data for given metric keys,
         returning a single DataFrame.
         """
-        days = (pd.to_datetime('today') - pd.to_datetime(start_date or '2020-01-01')).days
+        now_utc = pd.Timestamp.now(timezone.utc)
+        start_dt = pd.to_datetime(start_date or '2020-01-01').tz_localize('UTC') if not pd.to_datetime(start_date or '2020-01-01').tzinfo else pd.to_datetime(start_date)
+        days = (now_utc - start_dt).days
 
         df_list = [
             self._prepare_metric_key_data(self._get_raw_data_single_ok(origin_key, mk, days), mk, max_date_fill)
             for mk in metric_keys
         ]
 
-        # Filter out empty dataframes before concatenating
         valid_dfs = [df for df in df_list if not df.empty]
         if not valid_dfs:
             return pd.DataFrame()
@@ -130,7 +147,6 @@ class JsonGen():
         df_formatted = df.reset_index()
         df_formatted.rename(columns={'date': 'unix'}, inplace=True)
         
-        # Rename value columns based on units config
         rename_map = {}
         value_cols = [col for col in df_formatted.columns if col != 'unix']
         if 'usd' in units or 'eth' in units:
@@ -141,20 +157,18 @@ class JsonGen():
         
         df_formatted = df_formatted.rename(columns=rename_map)
 
-        # Convert datetime to unix timestamp in milliseconds (as integer) efficiently.
+        # Convert to milliseconds
         df_formatted['unix'] = (df_formatted['unix'].astype('int64') // 1_000_000)
         
-        # Ensure standard column order for consistency in the final JSON
         base_order = ['unix']
         present_cols = [col for col in ['usd', 'eth', 'value'] if col in df_formatted.columns]
         column_order = base_order + present_cols
         
         final_df = df_formatted[column_order]
+        # Replace NaN with None for valid JSON (Pydantic handles this mostly, but good for safety)
+        final_df = final_df.where(pd.notnull(final_df), None)
         
-        values_list = final_df.values.tolist()
-        columns_list = final_df.columns.to_list()
-        
-        return values_list, columns_list
+        return final_df.values.tolist(), final_df.columns.to_list()
 
     def _create_changes_dict(self, df: pd.DataFrame, metric_id: str, level: str, periods: Dict[str, int], agg_window: int, agg_method: str) -> Dict:
         """
@@ -169,12 +183,11 @@ class JsonGen():
             agg_method (str): The aggregation method ('sum', 'mean', or 'last' for pre-aggregated values like MAA).
         """
         if df.empty:
-            return {**{key: [] for key in periods}, 'types': []}
+            # Return empty structure with None
+            return {'types': [], **{key: [] for key in periods}}
 
         metric_dict = self.metrics[level][metric_id]
         units = metric_dict.get('units', [])
-        
-        # Determine the final column types ('usd', 'eth', 'value') and their order
         reverse_rename_map, final_types_ordered = self._get_column_type_mapping(df.columns.tolist(), units)
 
         changes_dict = {
@@ -188,20 +201,17 @@ class JsonGen():
 
             for key, period in periods.items():
                 change_val = None
-                # Ensure there is enough data for both current and previous windows
                 if len(series) >= period + agg_window:
-                    if agg_method == AGG_METHOD_LAST: # For point-to-point or pre-aggregated metrics
+                    if agg_method == AGG_METHOD_LAST:
                         cur_val = series.iloc[-1]
                         prev_val = series.iloc[-(1 + period)]
-                    else: # For rolling sum or mean
+                    else:
                         cur_val = series.iloc[-agg_window:].agg(agg_method)
                         prev_val = series.iloc[-(agg_window + period) : -period].agg(agg_method)
 
-                    # Calculate percentage change with safety checks
                     if pd.notna(cur_val) and pd.notna(prev_val) and prev_val > 0 and cur_val >= 0:
                         change = (cur_val - prev_val) / prev_val
                         change_val = round(change, 4)
-                        # Cap extreme growth for frontend display purposes to prevent visual distortion.
                         if change_val > 100: 
                             change_val = 99.99
                 
@@ -239,31 +249,27 @@ class JsonGen():
         else:
             aggregated_series = df.iloc[-agg_window:].agg(agg_method)
         
-        data_list = [aggregated_series.get(reverse_rename_map.get(t)) for t in final_types_ordered]
-        
+        data_list = []
+        for t in final_types_ordered:
+            val = aggregated_series.get(reverse_rename_map.get(t))
+            data_list.append(val if pd.notna(val) else None)
+            
         return {'types': final_types_ordered, 'data': data_list}
 
     def create_metric_per_chain_dict(self, origin_key: str, metric_id: str, level: str = 'chains', start_date: Optional[str] = None) -> Optional[Dict]:
-        """Creates a dictionary for a metric/chain with daily, weekly, and monthly aggregations."""
-        # quarterly data doesn't have any changes or summary values for now
-        
+        """Creates a Pydantic Model for metric/chain."""
         metric_dict = self.metrics[level][metric_id]
         daily_df = self._get_prepared_timeseries_df(origin_key, metric_dict['metric_keys'], start_date, metric_dict.get('max_date_fill', False))
 
         if daily_df.empty:
-            logging.warning(f"No data found for {origin_key} - {metric_id}. Skipping.")
             return None
 
         agg_config = metric_dict.get('monthly_agg')
         
-        if agg_config == AGG_CONFIG_SUM:
-            agg_method = AGG_METHOD_SUM
-        elif agg_config == AGG_CONFIG_AVG:
-            agg_method = AGG_METHOD_MEAN
-        elif agg_config == AGG_CONFIG_MAA:
-            agg_method = AGG_METHOD_LAST # 'maa' implies pre-aggregated values, so we take the 'last' value
-        else:
-            raise ValueError(f"Invalid monthly_agg config '{agg_config}' for metric {metric_id}")
+        if agg_config == AGG_CONFIG_SUM: agg_method = AGG_METHOD_SUM
+        elif agg_config == AGG_CONFIG_AVG: agg_method = AGG_METHOD_MEAN
+        elif agg_config == AGG_CONFIG_MAA: agg_method = AGG_METHOD_LAST
+        else: raise ValueError(f"Invalid monthly_agg config '{agg_config}'")
             
         # --- AGGREGATIONS ---
         if agg_config == AGG_CONFIG_MAA:
@@ -275,78 +281,85 @@ class JsonGen():
             monthly_df = daily_df.resample('MS').agg(agg_method)
             quarterly_df = daily_df.resample('QS').agg(agg_method)
 
-        daily_7d_list = None
+        daily_7d_dict = None
         if metric_dict.get('avg', False):
             rolling_avg_df = daily_df.rolling(window=7).mean().dropna(how='all')
-            daily_7d_list, _ = self._format_df_for_json(rolling_avg_df, metric_dict['units'])
+            d7_data, d7_cols = self._format_df_for_json(rolling_avg_df, metric_dict['units'])
+            daily_7d_dict = {'types': d7_cols, 'data': d7_data}
         
-        # --- FORMATTING TIMESERIES FOR JSON ---
+        # --- FORMATTING TIMESERIES ---
         daily_list, daily_cols = self._format_df_for_json(daily_df, metric_dict['units'])
         weekly_list, weekly_cols = self._format_df_for_json(weekly_df, metric_dict['units'])
         monthly_list, monthly_cols = self._format_df_for_json(monthly_df, metric_dict['units'])
         quarterly_list, quarterly_cols = self._format_df_for_json(quarterly_df, metric_dict['units'])
 
-        timeseries_data = {
-            'daily': {'types': daily_cols, 'data': daily_list},
-            'weekly': {'types': weekly_cols, 'data': weekly_list},
-            'monthly': {'types': monthly_cols, 'data': monthly_list},
-            'quarterly': {'types': quarterly_cols, 'data': quarterly_list},
-        }
-        if daily_7d_list is not None:
-            timeseries_data['daily_7d_rolling'] = {'types': daily_cols, 'data': daily_7d_list}
-
-        # --- CHANGES CALCULATION ---
+        # --- CHANGES ---
         daily_periods = {'1d': 1, '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
         weekly_periods = {'7d': 7, '28d': 28, '84d': 84, '365d': 365}
         monthly_periods = {'30d': 30, '90d': 90, '180d': 180, '365d': 365}
 
-        daily_changes = self._create_changes_dict(daily_df, metric_id, level, daily_periods, agg_window=1, agg_method=AGG_METHOD_LAST)
+        daily_changes = self._create_changes_dict(daily_df, metric_id, level, daily_periods, 1, AGG_METHOD_LAST)
         
         if metric_id == METRIC_DAA:
             df_aa_weekly = self._get_prepared_timeseries_df(origin_key, [METRIC_AA_7D], start_date, metric_dict.get('max_date_fill', False))
             df_aa_monthly = self._get_prepared_timeseries_df(origin_key, [METRIC_AA_30D], start_date, metric_dict.get('max_date_fill', False))
-
-            weekly_changes = self._create_changes_dict(df_aa_weekly, metric_id, level, weekly_periods, agg_window=7, agg_method=AGG_METHOD_LAST)
-            monthly_changes = self._create_changes_dict(df_aa_monthly, metric_id, level, monthly_periods, agg_window=30, agg_method=AGG_METHOD_LAST)
+            weekly_changes = self._create_changes_dict(df_aa_weekly, metric_id, level, weekly_periods, 7, AGG_METHOD_LAST)
+            monthly_changes = self._create_changes_dict(df_aa_monthly, metric_id, level, monthly_periods, 30, AGG_METHOD_LAST)
         else:
-            weekly_changes = self._create_changes_dict(daily_df, metric_id, level, weekly_periods, agg_window=7, agg_method=agg_method)
-            monthly_changes = self._create_changes_dict(daily_df, metric_id, level, monthly_periods, agg_window=30, agg_method=agg_method)
-        
-        changes_data = {
-            'daily': daily_changes,
-            'weekly': weekly_changes,
-            'monthly': monthly_changes,
-            'quarterly': None, # quarterly_changes, # Not used for now
-        }
+            weekly_changes = self._create_changes_dict(daily_df, metric_id, level, weekly_periods, 7, agg_method)
+            monthly_changes = self._create_changes_dict(daily_df, metric_id, level, monthly_periods, 30, agg_method)
 
-        # --- SUMMARY VALUES CALCULATION ---
+        # --- SUMMARY ---
         if metric_id == METRIC_DAA:
-            summary_data = {
-                'last_1d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=1, agg_method=AGG_METHOD_LAST),
-                'last_7d': self._create_summary_values_dict(df_aa_weekly, metric_id, level, agg_window=7, agg_method=AGG_METHOD_LAST),
-                'last_30d': self._create_summary_values_dict(df_aa_monthly, metric_id, level, agg_window=30, agg_method=AGG_METHOD_LAST),
-            }
+            last_1d = self._create_summary_values_dict(daily_df, metric_id, level, 1, AGG_METHOD_LAST)
+            last_7d = self._create_summary_values_dict(df_aa_weekly, metric_id, level, 7, AGG_METHOD_LAST)
+            last_30d = self._create_summary_values_dict(df_aa_monthly, metric_id, level, 30, AGG_METHOD_LAST)
         else:
-            summary_data = {
-                'last_1d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=1, agg_method=agg_method),
-                'last_7d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=7, agg_method=agg_method),
-                'last_30d': self._create_summary_values_dict(daily_df, metric_id, level, agg_window=30, agg_method=agg_method),
-            }
+            last_1d = self._create_summary_values_dict(daily_df, metric_id, level, 1, agg_method)
+            last_7d = self._create_summary_values_dict(daily_df, metric_id, level, 7, agg_method)
+            last_30d = self._create_summary_values_dict(daily_df, metric_id, level, 30, agg_method)
 
-        # --- FINAL OUTPUT DICT ---
-        output = {
-            'details': {
-                'metric_id': metric_id,
-                'metric_name': metric_dict['name'],
-                'timeseries': timeseries_data,
-                'changes': changes_data,
-                'summary': summary_data
-            },
-        }
-        
-        output['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        output = fix_dict_nan(output, f'metrics/{origin_key}/{metric_id}')
-        return output
+        # --- BUILD PYDANTIC MODEL ---
+        try:
+            response_model = MetricResponse(
+                details=MetricDetails(
+                    metric_id=metric_id,
+                    metric_name=metric_dict['name'],
+                    
+                    # Update 1: Pass Dicts directly
+                    timeseries={
+                        'daily': {'types': daily_cols, 'data': daily_list},
+                        'weekly': {'types': weekly_cols, 'data': weekly_list},
+                        'monthly': {'types': monthly_cols, 'data': monthly_list},
+                        'quarterly': {'types': quarterly_cols, 'data': quarterly_list},
+                        'daily_7d_rolling': daily_7d_dict
+                    },
+                    
+                    # Update 2: Pass Dicts directly
+                    changes={
+                        'daily': daily_changes,
+                        'weekly': weekly_changes,
+                        'monthly': monthly_changes,
+                        # 'quarterly': None (Dictionaries allow omitting optional keys)
+                    },
+                    
+                    # Update 3: Pass Dicts directly
+                    summary={
+                        'last_1d': last_1d,
+                        'last_7d': last_7d,
+                        'last_30d': last_30d
+                    }
+                ),
+                last_updated_utc=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            )
+            
+            # Dump to dict and run nan fixer just to be 100% safe against invalid JSON
+            output_dict = response_model.model_dump(mode='json')
+            return fix_dict_nan(output_dict, f'metrics/{origin_key}/{metric_id}')
+            
+        except Exception as e:
+            logging.error(f"Validation failed for {origin_key} - {metric_id}: {e}")
+            return None
     
     def _process_and_save_metric(self, origin_key: str, metric_id: str, level: str, start_date: str):
         """
@@ -354,13 +367,11 @@ class JsonGen():
         This is designed to be called by the ThreadPoolExecutor.
         """
         #logging.info(f"Processing: {origin_key} - {metric_id}")
-        
         metric_dict = self.create_metric_per_chain_dict(origin_key, metric_id, level, start_date)
 
         if metric_dict:
             s3_path = f'{self.api_version}/metrics/{level}/{origin_key}/{metric_id}'
             if self.s3_bucket is None:
-                # Assuming local saving for testing still uses a similar path structure
                 self._save_to_json(metric_dict, s3_path)
             else:
                 upload_json_to_cf_s3(self.s3_bucket, s3_path, metric_dict, self.cf_distribution_id, invalidate=False)
@@ -368,11 +379,7 @@ class JsonGen():
         else:
             logging.warning(f"NO DATA: Skipped export for {origin_key} - {metric_id}")
             
-        
     def create_metric_jsons(self, metric_ids: Optional[List[str]] = None, origin_keys: Optional[List[str]] = None, level: str = 'chains', start_date='2020-01-01', max_workers: int = 5):
-        """
-        Generates and uploads all metric JSONs in parallel using a thread pool.
-        """
         tasks = []
         if metric_ids:
             logging.info(f"Filtering tasks for specific metric IDs: {metric_ids}")
@@ -392,407 +399,249 @@ class JsonGen():
             logging.info(f"Filtering tasks for specific origin keys: {origin_keys}")
         else:
             logging.info(f"Generating task list for ALL origin keys: {list(chain.origin_key for chain in config)}")
-
-        # 1. Generate the full list of tasks to be executed
+        
         for metric_id in self.metrics[level].keys():
-            if metric_ids and metric_id not in metric_ids:
-                continue
-            if not self.metrics[level][metric_id].get('fundamental', False):
-                continue
+            if metric_ids and metric_id not in metric_ids: continue
+            if not self.metrics[level][metric_id].get('fundamental', False): continue
 
             for chain in config:
-                origin_key = chain.origin_key
-
-                if origin_keys and origin_key not in origin_keys:
-                    continue
-                if not chain.api_in_main:
-                    continue
-                if metric_id in chain.api_exclude_metrics:
-                    continue
+                if origin_keys and chain.origin_key not in origin_keys: continue
+                if not chain.api_in_main: continue
+                if metric_id in chain.api_exclude_metrics: continue
                 
-                tasks.append((origin_key, metric_id))
+                tasks.append((chain.origin_key, metric_id))
         
-        logging.info(f"Found {len(tasks)} metric/chain combinations to process.")
-        logging.info(f"Starting parallel processing with max_workers={max_workers}...")
+        logging.info(f"Starting parallel processing for {len(tasks)} tasks with max_workers={max_workers}...")
 
-        # 2. Execute tasks in parallel using ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks to the executor
-            future_to_task = {executor.submit(self._process_and_save_metric, origin_key, metric_id, level, start_date): (origin_key, metric_id) for origin_key, metric_id in tasks}
-
-            # Process results as they complete
+            future_to_task = {executor.submit(self._process_and_save_metric, ok, mid, level, start_date): (ok, mid) for ok, mid in tasks}
             for future in as_completed(future_to_task):
-                task = future_to_task[future]
                 try:
-                    future.result()  # We call result() to raise any exceptions that occurred
+                    future.result()
                 except Exception as exc:
-                    logging.error(f'Task {task} generated an exception: {exc}')
+                    logging.error(f'Task {future_to_task[future]} generated an exception: {exc}')
 
-        logging.info("All metric JSONs have been processed.")
-        
-        # 3. Invalidate the cache after all files have been uploaded
         if self.s3_bucket and self.cf_distribution_id:
             logging.info("Invalidating CloudFront cache for all metrics...")
-            invalidation_path = f'/{self.api_version}/metrics/{level}/*'
-            empty_cloudfront_cache(self.cf_distribution_id, invalidation_path)
-            logging.info(f"CloudFront invalidation submitted for path: {invalidation_path}")
-        else:
-            logging.info("Skipping CloudFront invalidation (S3 bucket or Distribution ID not set).")
-            
-    def get_chain_highlights_dict(self, origin_key: str, days: int = 7, limit: int = 5) -> Dict:
-        query_params = {
-            "origin_key": origin_key,
-            "days" : days,
-            "limit": limit
-        }
+            empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/metrics/{level}/*')
+
+    def get_chain_highlights_dict(self, origin_key: str, days: int = 7, limit: int = 5) -> List[Dict]:
+        query_params = {"origin_key": origin_key, "days" : days, "limit": limit}
         df = execute_jinja_query(self.db_connector, 'api/select_highlights.sql.j2', query_params, return_df=True)
         if not df.empty:
-            highlights = highlights_prep(df, gtp_metrics_new)
-        else:
-            highlights = []
+            return highlights_prep(df, gtp_metrics_new)
+        return []
 
-        return highlights
-
-
-    def get_chain_rankings_data(self, origin_key, metric_id):
-        ## Comparison chains (all that are not excluded for this metric and are in main and on prod in case it's not dev api)
-        comparison_oks = [
-            chain.origin_key for chain in self.main_config
-            if metric_id not in chain.api_exclude_metrics
-            and chain.api_in_main
-            and (self.api_version == 'dev' or chain.api_deployment_flag == "PROD")
-        ]
-        
-        mks = self.metrics['chains'][metric_id]['metric_keys']
-        ## remove elements in mks list that end with _eth
-        metric_key = [x for x in mks if not x.endswith('_eth')][0]
-
-        query_parameters = {'comparison_oks': comparison_oks, 'metric_key': metric_key, 'origin_key': origin_key}
-        df_rankings = self.db_connector.execute_jinja("api/select_rankings.sql.j2", query_parameters, load_into_df=True)
-        return df_rankings
-            
     def get_chain_ranking_dict(self, origin_key):
         ranking_dict = {}
         for metric_id, metric in self.metrics['chains'].items():
             if metric["ranking_bubble"] == True:
-                df = self.get_chain_rankings_data(origin_key, metric_id)
-                if df.empty:
-                    ranking_dict[metric_id] = {'rank': None, 'out_of': None, 'color_scale': None, 'value': None}
+                # Optimized: could move this check out
+                comparison_oks = [
+                    c.origin_key for c in self.main_config
+                    if metric_id not in c.api_exclude_metrics
+                    and c.api_in_main
+                    and (self.api_version == 'dev' or c.api_deployment_flag == "PROD")
+                ]
+                
+                mks = self.metrics['chains'][metric_id]['metric_keys']
+                metric_key = [x for x in mks if not x.endswith('_eth')][0]
+
+                df_rankings = self.db_connector.execute_jinja("api/select_rankings.sql.j2", {'comparison_oks': comparison_oks, 'metric_key': metric_key, 'origin_key': origin_key}, load_into_df=True)
+                
+                if df_rankings.empty:
+                    ranking_dict[metric_id] = {'rank': -1, 'out_of': -1, 'color_scale': 0} # Placeholder to satisfy Schema if strictly needed, or Optional
                     continue
 
-                rank = df['rank'].values[0]
-                rank_max = df['out_of'].values[0]
-
+                rank = int(df_rankings['rank'].values[0])
+                rank_max = int(df_rankings['out_of'].values[0])
+                
+                # Build dict based on schema structure
+                item = {
+                    'rank': rank, 
+                    'out_of': rank_max, 
+                    'color_scale': round(rank/rank_max, 2),
+                }
 
                 if 'usd' in self.metrics['chains'][metric_id]['units'].keys():
-                    value_usd = df['value'].values[0]
-                    value_eth = value_usd / self.latest_eth_price
-                    ranking_dict[metric_id] = {'rank': int(rank), 'out_of': int(rank_max), 'color_scale': round(rank/rank_max, 2), 'value_usd': value_usd, 'value_eth': value_eth}
+                    value_usd = float(df_rankings['value'].values[0])
+                    item['value_usd'] = value_usd
+                    item['value_eth'] = value_usd / self.latest_eth_price
                 else:
-                    value = df['value'].values[0]
-                    ranking_dict[metric_id] = {'rank': int(rank), 'out_of': int(rank_max), 'color_scale': round(rank/rank_max, 2), 'value': value}
+                    item['value'] = float(df_rankings['value'].values[0])
+                    
+                ranking_dict[metric_id] = item
         return ranking_dict
     
-    def get_kpi_cards_data(self,origin_key, metric_id):
-        #logging.info(f"Generating KPI card data for {origin_key} - {metric_id}")
-        kpi_dict = {
-            'sparkline': {},
-            'current_values': {},
-            'wow_change': {}
-        }
-        
-        ## Load past 60 days of data for all metric_keys
-        metric_dict = self.metrics['chains'][metric_id]
-        start_date = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
-
-        daily_df = self._get_prepared_timeseries_df(origin_key, metric_dict['metric_keys'], start_date, metric_dict.get('max_date_fill', False))
-        daily_list, daily_cols = self._format_df_for_json(daily_df, metric_dict['units'])
-        
-        kpi_dict['sparkline'] = {'types': daily_cols, 'data': daily_list}
-
-        ## Current values takes the latest values from daily list (ignore unix)
-        current_values = daily_list[-1][1:]
-        kpi_dict['current_values'] = {'types': daily_cols[1:], 'data': current_values}
-
-        ## Week over week changes (compare latest values against values 7 days prior)
-        if len(daily_list) > 8:
-            last_week_values = daily_list[-8][1:]
-            kpi_dict['wow_change'] = {'types': daily_cols[1:], 'data': [(x - y) / y for x, y in zip(current_values, last_week_values)]}
-        else:
-            kpi_dict['wow_change'] = 0.00
-
-        return kpi_dict
-
-    def get_kpi_cards_dict(self, chain:MainConfig):
+    def get_kpi_cards_dict(self, chain: MainConfig):
         kpi_cards_dict = {}
-        for metric_id, metric in self.metrics['chains'].items():
-            if metric['ranking_bubble'] and metric_id != 'txcosts' and metric_id not in chain.api_exclude_metrics:
-                kpi_cards_dict[metric_id] = self.get_kpi_cards_data(chain.origin_key, metric_id)
-
-        ## reorder metrics like daa, throughput, stables_mcap, fees, app_revenue, fdv, others
         ordered_metrics = ['daa', 'throughput', 'stables_mcap', 'fees', 'app_revenue', 'fdv']
-        for metric_id in ordered_metrics:
-            if metric_id in kpi_cards_dict:
-                kpi_cards_dict[metric_id] = kpi_cards_dict.pop(metric_id)
+        
+        # Filter relevant metrics
+        relevant_metrics = [m for m in ordered_metrics if m in self.metrics['chains'] and m not in chain.api_exclude_metrics]
+        
+        # We can add others that are marked ranking_bubble but not in ordered list
+        for m, meta in self.metrics['chains'].items():
+            if meta['ranking_bubble'] and m != 'txcosts' and m not in chain.api_exclude_metrics and m not in relevant_metrics:
+                relevant_metrics.append(m)
 
+        for metric_id in relevant_metrics:
+             metric_dict = self.metrics['chains'][metric_id]
+             start_date = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
+             
+             daily_df = self._get_prepared_timeseries_df(chain.origin_key, metric_dict['metric_keys'], start_date, metric_dict.get('max_date_fill', False))
+             daily_list, daily_cols = self._format_df_for_json(daily_df, metric_dict['units'])
+             
+             if not daily_list: continue
+
+             current_values = daily_list[-1][1:] # Skip Unix
+             
+             wow_change = 0.00
+             if len(daily_list) > 8:
+                 last_week_values = daily_list[-8][1:]
+                 # This logic creates a list of float changes? Or just one? 
+                 # Original code: [(x-y)/y ...] -> This is a list.
+                 # Schema needs to support List or Float.
+                 wow_data = [(x - y) / y if y != 0 else 0 for x, y in zip(current_values, last_week_values)]
+                 wow_change = {'types': daily_cols[1:], 'data': wow_data}
+             else:
+                 wow_change = {'types': ["value"], 'data': [0.0]}
+
+             kpi_cards_dict[metric_id] = {
+                 'sparkline': {'types': daily_cols, 'data': daily_list},
+                 'current_values': {'types': daily_cols[1:], 'data': current_values},
+                 'wow_change': wow_change
+             }
+             
         return kpi_cards_dict
     
-    def get_blockspace_dict(self, chain:MainConfig):
+    def get_blockspace_dict(self, chain: MainConfig):
         if chain.api_in_apps:
-            ## get blockspace info
-            query_parameters = {
-                "origin_key": chain.origin_key,
-                "days": 7,
-            }
-            blockspace = execute_jinja_query(self.db_connector, "api/select_blockspace_main_categories.sql.j2", query_parameters, return_df=True) 
-            
-            output_dict = { "blockspace": {
-                    "types": blockspace.columns.tolist(),
-                    "data": blockspace.values.tolist()
-                }
-            }
-        else:
-            output_dict = {"blockspace": {"types": [], "data": []}}
-
-        return output_dict
-
+            df = execute_jinja_query(self.db_connector, "api/select_blockspace_main_categories.sql.j2", {"origin_key": chain.origin_key, "days": 7}, return_df=True) 
+            return { "types": df.columns.tolist(), "data": df.values.tolist()}
+        return {"types": [], "data": []}
 
     def get_ecosystem_dict(self, origin_keys: List[str]) -> dict:
-        ## get top 50 apps
-        query_parameters = {
-            "origin_keys": origin_keys,
-            "days": 7,
-            "limit": 5000
-        }
-        top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", query_parameters, return_df=True)
+        top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", {"origin_keys": origin_keys, "days": 7, "limit": 5000}, return_df=True)
+        if top_apps.empty: return {} # Handle empty case
+
         top_apps['txcount'] = top_apps['txcount'].astype(int)
-
-        ## get total number of apps
-        query_parameters = {
-            "origin_keys": origin_keys,
-            "days": 7
-        }
-        active_apps = execute_jinja_query(self.db_connector, "api/select_count_apps.sql.j2", query_parameters, return_df=True)
-        active_apps_count = int(active_apps.values[0][0])
         
-        output_dict = {
-            
-            "active_apps": {
-                "count": active_apps_count
-            },
-            "apps": {
-                "types": top_apps.columns.tolist(),
-                "data": top_apps.values.tolist()
-            },
+        active_apps = execute_jinja_query(self.db_connector, "api/select_count_apps.sql.j2", {"origin_keys": origin_keys, "days": 7}, return_df=True)
+        active_apps_count = int(active_apps.values[0][0]) if not active_apps.empty else 0
+        
+        return {
+            "active_apps": {"count": active_apps_count},
+            "apps": {"types": top_apps.columns.tolist(), "data": top_apps.values.tolist()},
         }
-
-
-        return output_dict
     
     def get_lifetime_achievements_dict(self, chain: str) -> dict:
-        """Creates a dictionary with lifetime achievements for a given chain."""
-        lifetime_achievements_dict = {}
-        
-        # Create a list of all metric keys we need to query
+        achievements = {}
         metrics_sum = ['txcount', 'fees', 'profit', 'rent_paid']
-        metric_keys = {}
-        for metric in metrics_sum:
-            for mk in gtp_metrics_new['chains'][metric]['metric_keys']:
-                metric_keys[mk] = metric
+        metric_keys_map = {mk: metric for metric in metrics_sum for mk in gtp_metrics_new['chains'][metric]['metric_keys']}
+        
+        mk_list = [mk.replace('txcount', 'txcount_plain') for mk in metric_keys_map.keys()]
+        
+        df = execute_jinja_query(self.db_connector, "api/select_fact_kpis_achievements.sql.j2", {'metric_keys': mk_list, 'origin_key': chain}, return_df=True)
+        
+        if not df.empty:
+            df['metric_key'] = df['metric_key'].str.replace('txcount_plain', 'txcount')
+            for row in df.to_dict(orient='records'):
+                mk = row['metric_key']
+                if mk in levels_dict:
+                    ach = self._calculate_achievement(row['total_value'], levels_dict[mk])
+                    if ach:
+                        mid = metric_keys_map.get(mk)
+                        if mid:
+                            if mid not in achievements: achievements[mid] = {}
+                            unit = 'value' if len(gtp_metrics_new['chains'][mid]['units']) == 1 else mk[-3:]
+                            achievements[mid][unit] = ach
 
-        # Query and process standard metrics
-        metric_keys_list = list(metric_keys.keys())
-        ##replace txcount with txcount_plain
-        metric_keys_list = [mk.replace('txcount', 'txcount_plain') for mk in metric_keys_list]
-        
-        
-        query_parameters = {
-            'metric_keys': metric_keys_list,
-            'origin_key': chain,
-        }
-        result_df = execute_jinja_query(
-            self.db_connector, 
-            "api/select_fact_kpis_achievements.sql.j2", 
-            query_parameters, 
-            return_df=True
-        )
-        
-        ## in result_df in column metric_key replace txcount_plain with txcount
-        result_df['metric_key'] = result_df['metric_key'].str.replace('txcount_plain', 'txcount')
-        
-        for row in result_df.to_dict(orient='records'):
-            metric_key = row['metric_key']
-            total_value = row['total_value']
-            
-            if metric_key in levels_dict:
-                achievement = self._calculate_achievement(total_value, levels_dict[metric_key])
-                if achievement:
-                    metric_id = metric_keys[metric_key]
-                    if metric_id not in lifetime_achievements_dict:
-                        lifetime_achievements_dict[metric_id] = {}
-                    if len(gtp_metrics_new['chains'][metric_id]['units'].keys()) == 1:
-                        unit = 'value'
-                    else:
-                        unit = metric_key[-3:]
-                    lifetime_achievements_dict[metric_id][unit] = achievement
+        # DAA Separate
+        df_daa = execute_jinja_query(self.db_connector, "api/select_total_aa.sql.j2", {'origin_key': chain}, return_df=True)
+        if not df_daa.empty:
+            ach = self._calculate_achievement(df_daa.iloc[0]['value'], levels_dict['daa'])
+            if ach:
+                achievements['daa'] = {'value': ach}
 
-        # Query and process DAA metric separately
-        query_parameters = {'origin_key': chain}
-        result_df = execute_jinja_query(
-            self.db_connector, 
-            "api/select_total_aa.sql.j2", 
-            query_parameters, 
-            return_df=True
-        )
-        
-        for row in result_df.to_dict(orient='records'):
-            total_value = row['value']
-            achievement = self._calculate_achievement(total_value, levels_dict['daa'])
-            if achievement:
-                lifetime_achievements_dict['daa'] = {}
-                lifetime_achievements_dict['daa']['value'] = achievement
+        return achievements
 
-        return lifetime_achievements_dict
-
-    def _calculate_achievement(self, total_value: float, levels: dict) -> dict | None:
-        """
-        Calculate achievement level and progress for a given value.
-        
-        Returns dict with level info, or None if no threshold reached.
-        """
-        # Sort levels in descending order to find highest achieved level
+    def _calculate_achievement(self, total_value: float, levels: dict) -> Optional[Dict]:
         sorted_levels = sorted(levels.items(), key=lambda x: x[1], reverse=True)
-        
         for level, threshold in sorted_levels:
             if total_value >= threshold:
                 max_level = max(levels.keys())
-                
-                # Calculate progress to next level
                 if level == max_level:
-                    percent_to_next = None
+                    percent = None
                 else:
-                    next_threshold = levels[level + 1]
-                    if next_threshold > threshold:  # Avoid division by zero
-                        percent_to_next = (total_value - threshold) / (next_threshold - threshold) * 100
-                    else:
-                        percent_to_next = 100.0
+                    next_thresh = levels[level + 1]
+                    percent = (total_value - threshold) / (next_thresh - threshold) * 100 if next_thresh > threshold else 100.0
                 
-                return {
-                    'level': level,
-                    'total_value': total_value,
-                    'percent_to_next_level': round(percent_to_next,2) if percent_to_next is not None else None
-                }
-        
-        return None  # No threshold reached
+                return {'level': level, 'total_value': total_value, 'percent_to_next_level': round(percent, 2) if percent is not None else None}
+        return None
     
     def get_streaks_dict(self, origin_key: str) -> dict:
-        query_parameters = {'origin_key': origin_key}
+        df = execute_jinja_query(self.db_connector, "api/select_streak_length.sql.j2", {'origin_key': origin_key}, return_df=True)
+        streaks = {}
+        if df.empty: return streaks
 
-        result_df = execute_jinja_query(
-            self.db_connector, 
-            "api/select_streak_length.sql.j2", 
-            query_parameters, 
-            return_df=True
-        )
-        
-        streaks_dict = {}
         for metric_id in gtp_metrics_new['chains']:
-            metric_keys = gtp_metrics_new['chains'][metric_id]['metric_keys']
-            for metric_key in metric_keys:
-                if metric_key in result_df['metric_key'].values:
-                    streak_length = int(result_df.loc[result_df['metric_key'] == metric_key, 'current_streak_length'].values[0])
-                    yesterday_value = float(result_df.loc[result_df['metric_key'] == metric_key, 'yesterdays_value'].values[0]) if 'yesterdays_value' in result_df.columns else None
-                    if not pd.isna(yesterday_value):
-                        if metric_id not in streaks_dict:
-                            streaks_dict[metric_id] = {}
-                        if len(gtp_metrics_new['chains'][metric_id]['units'].keys()) == 1:
-                            unit = 'value'
-                        else:
-                            unit = metric_key[-3:]
-                            
-                        streaks_dict[metric_id][unit] = {
-                            'streak_length': streak_length,
-                            'yesterday_value': round(yesterday_value, 4) if yesterday_value is not None else 0
-                        }
-                    else:
-                        logging.warning(f"Skipping streak for {origin_key} - {metric_key} due to NaN yesterday_value")
+            for metric_key in gtp_metrics_new['chains'][metric_id]['metric_keys']:
+                if metric_key in df['metric_key'].values:
+                    row = df.loc[df['metric_key'] == metric_key].iloc[0]
+                    y_val = float(row['yesterdays_value']) if 'yesterdays_value' in df.columns else None
                     
-        return streaks_dict
+                    if pd.notna(y_val):
+                        if metric_id not in streaks: streaks[metric_id] = {}
+                        unit = 'value' if len(gtp_metrics_new['chains'][metric_id]['units']) == 1 else metric_key[-3:]
+                        streaks[metric_id][unit] = {
+                            'streak_length': int(row['current_streak_length']),
+                            'yesterday_value': round(y_val, 4)
+                        }
+        return streaks
     
-    def get_streaks_today_dict(self) -> dict:
-        streaks_today_dict = {}
-
-        for chain in self.main_config:
-            if chain.api_in_main and chain.origin_key not in ['imx', 'loopring']:
-                query_parameters = {
-                    'origin_key': chain.origin_key,
-                    'custom_gas': True if chain.origin_key in ['mantle', 'metis', 'gravity', 'plume', 'celo'] else False,
-                }
-
-                result_df = execute_jinja_query(
-                    self.db_connector, 
-                    "api/select_streak_today.sql.j2", 
-                    query_parameters, 
-                    return_df=True
-                )
-                
-                if result_df is not None and not result_df.empty:
-                    streaks_today_dict[chain.origin_key] = {}
-                
-                for metric_id in gtp_metrics_new['chains']:
-                    metric_keys = gtp_metrics_new['chains'][metric_id]['metric_keys']
-                    for metric_key in metric_keys:
-                        for col in result_df.columns:
-                            if metric_key == col:
-                                if metric_id not in streaks_today_dict[chain.origin_key]:
-                                    streaks_today_dict[chain.origin_key][metric_id] = {}
-                                if len(gtp_metrics_new['chains'][metric_id]['units'].keys()) == 1:
-                                    unit = 'value'
-                                else:
-                                    unit = metric_key[-3:]
-                                streaks_today_dict[chain.origin_key][metric_id][unit] = result_df[col].values[0].astype(float) if result_df[col].values[0] is not None else 0
-        
-        return streaks_today_dict
-
-
-    def create_chains_dict(self, origin_key:str):
-        chains_dict = {}
-
+    def create_chains_dict(self, origin_key:str) -> Optional[Dict]:
         chain = next((c for c in self.main_config if c.origin_key == origin_key), None) 
+        if not chain: return None
 
-        if chain:
-            chains_dict["data"] = {
-                "chain_id": chain.origin_key,
-                "chain_name": chain.name,
-                "highlights": self.get_chain_highlights_dict(origin_key, days=5, limit=4),
-                "events": chain.events,
-                "ranking": self.get_chain_ranking_dict(origin_key),
-                "kpi_cards": self.get_kpi_cards_dict(chain),
-                "achievements": {
-                    "streaks": self.get_streaks_dict(origin_key),
-                    "lifetime": self.get_lifetime_achievements_dict(origin_key),
-                },
-                "blockspace": self.get_blockspace_dict(chain),
-                "ecosystem": self.get_ecosystem_dict([chain.origin_key]) if chain.api_in_apps else {}
-            }
+        try:
+            # Gather Data
+            highlights = self.get_chain_highlights_dict(origin_key, days=5, limit=4)
+            ranking = self.get_chain_ranking_dict(origin_key)
+            kpi_cards = self.get_kpi_cards_dict(chain)
+            streaks = self.get_streaks_dict(origin_key)
+            lifetime = self.get_lifetime_achievements_dict(origin_key)
+            blockspace = self.get_blockspace_dict(chain)
+            ecosystem = self.get_ecosystem_dict([chain.origin_key]) if chain.api_in_apps else {}
 
-        chains_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        chains_dict = fix_dict_nan(chains_dict, f'chains/{origin_key}/overview')
-        return chains_dict
+            # Create Pydantic Model
+            response_model = ChainOverviewResponse(
+                data=ChainData(
+                    chain_id=chain.origin_key,
+                    chain_name=chain.name,
+                    highlights=highlights,
+                    events=chain.events,
+                    ranking=ranking,
+                    kpi_cards=kpi_cards,
+                    achievements=ChainAchievements(streaks=streaks, lifetime=lifetime),
+                    blockspace=blockspace,
+                    ecosystem=ecosystem
+                ),
+                last_updated_utc=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            )
+            
+            output_dict = response_model.model_dump(mode='json')
+            return fix_dict_nan(output_dict, f'chains/{origin_key}/overview')
+
+        except Exception as e:
+            logging.error(f"Chain overview validation failed for {origin_key}: {e}")
+            return None
     
     def _process_and_save_chain_overview(self, origin_key: str):
-        """
-        Worker function to process and save/upload a single chain overview.
-        This is designed to be called by the ThreadPoolExecutor.
-        """
-        logging.info(f"Processing: {origin_key}")
-        
         chain_dict = self.create_chains_dict(origin_key)
-
         if chain_dict:
             s3_path = f'{self.api_version}/chains/{origin_key}/overview'
             if self.s3_bucket is None:
-                # Assuming local saving for testing still uses a similar path structure
                 self._save_to_json(chain_dict, s3_path)
             else:
                 upload_json_to_cf_s3(self.s3_bucket, s3_path, chain_dict, self.cf_distribution_id, invalidate=False)
@@ -801,214 +650,126 @@ class JsonGen():
             logging.warning(f"NO DATA: Skipped export for {origin_key}")
 
     def create_chains_jsons(self, origin_keys:Optional[list[str]]=None, max_workers: int = 5):
-        """
-        Generates and uploads all chains JSONs in parallel.
-        """
         tasks = []
-        
-        if origin_keys:
-            logging.info(f"Filtering for specific origin keys: {origin_keys}")
-        else:
-            logging.info(f"Generating list for ALL origin keys: {list(chain.origin_key for chain in self.main_config)}")
-        
-        # 1. Generate the full list of tasks to be executed
         for chain in self.main_config:
-            origin_key = chain.origin_key
-
-            if origin_keys and origin_key not in origin_keys:
-                continue
-            if not chain.api_in_main:
-                continue
-            
-            tasks.append((origin_key))
+            if origin_keys and chain.origin_key not in origin_keys: continue
+            if not chain.api_in_main: continue
+            tasks.append((chain.origin_key))
         
-        logging.info(f"Found {len(tasks)} chains to process.")
-        logging.info(f"Starting parallel processing with max_workers={max_workers}...")
-        
-        # 2. Execute tasks in parallel using ThreadPoolExecutor
+        logging.info(f"Processing {len(tasks)} chains...")
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks to the executor
-            future_to_task = {executor.submit(self._process_and_save_chain_overview, origin_key): origin_key for origin_key in tasks}
-
-            # Process results as they complete
+            future_to_task = {executor.submit(self._process_and_save_chain_overview, ok): ok for ok in tasks}
             for future in as_completed(future_to_task):
-                task = future_to_task[future]
                 try:
-                    future.result()  # We call result() to raise any    exceptions that occurred
+                    future.result()
                 except Exception as exc:
-                    logging.error(f'Task {task} generated an exception: {exc}')
-                    raise exc
+                    logging.error(f'Task generated an exception: {exc}')
 
-        logging.info("All metric JSONs have been processed.")
-        
-        # 3. Invalidate the cache after all files have been uploaded
         if self.s3_bucket and self.cf_distribution_id:
-            logging.info("Invalidating CloudFront cache for all chains...")
-            invalidation_path = f'/{self.api_version}/chains/*'
-            empty_cloudfront_cache(self.cf_distribution_id, invalidation_path)
-            logging.info(f"CloudFront invalidation submitted for path: {invalidation_path}")
-        else:
-            logging.info("Skipping CloudFront invalidation (S3 bucket or Distribution ID not set).")
-            
+            empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/chains/*')
+
     def create_streaks_today_json(self):
-        """
-        Generates and uploads the streaks_today JSON.
-        """
         logging.info("Generating streaks_today JSON...")
-        streaks_today_dict = self.get_streaks_today_dict()
-        
-        if not streaks_today_dict:
-            logging.warning("No data found for streaks_today. Skipping upload.")
-            return
-        
-        output_dict = {
-            "data": streaks_today_dict,
-            'last_updated_utc': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        }
-        
-        s3_path = f'{self.api_version}/chains/all/streaks_today'
-        if self.s3_bucket is None:
-            # Assuming local saving for testing still uses a similar path structure
-            self._save_to_json(output_dict, s3_path)
-        else:
-            upload_json_to_cf_s3(self.s3_bucket, s3_path, output_dict, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60, s-maxage=900, stale-while-revalidate=60, stale-if-error=86400")
-        logging.info(f"SUCCESS: Exported streaks_today JSON")
-        
+        streaks_today_dict = {}
+
+        for chain in self.main_config:
+            if chain.api_in_main and chain.origin_key not in ['imx', 'loopring']:
+                params = {'origin_key': chain.origin_key, 'custom_gas': chain.origin_key in ['mantle', 'metis', 'gravity', 'plume', 'celo']}
+                df = execute_jinja_query(self.db_connector, "api/select_streak_today.sql.j2", params, return_df=True)
+                
+                if not df.empty:
+                    streaks_today_dict[chain.origin_key] = {}
+                    for metric_id in gtp_metrics_new['chains']:
+                        for metric_key in gtp_metrics_new['chains'][metric_id]['metric_keys']:
+                            for col in df.columns:
+                                if metric_key == col:
+                                    if metric_id not in streaks_today_dict[chain.origin_key]:
+                                        streaks_today_dict[chain.origin_key][metric_id] = {}
+                                    unit = 'value' if len(gtp_metrics_new['chains'][metric_id]['units']) == 1 else metric_key[-3:]
+                                    val = df[col].values[0]
+                                    streaks_today_dict[chain.origin_key][metric_id][unit] = float(val) if val is not None else 0.0
+
+        if not streaks_today_dict: return
+
+        try:
+            response = StreaksResponse(
+                data=streaks_today_dict, 
+                last_updated_utc=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            )
+            output = response.model_dump(mode='json')
+            s3_path = f'{self.api_version}/chains/all/streaks_today'
+            if self.s3_bucket:
+                upload_json_to_cf_s3(self.s3_bucket, s3_path, output, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60")
+            else:
+                self._save_to_json(output, s3_path)
+        except Exception as e:
+            logging.error(f"Streaks today validation failed: {e}")
+
     def create_ecosystem_builders_json(self):
-        """
-        Generates and uploads the ecosystem_apps JSON.
-        """
         logging.info("Generating ecosystem_apps JSON...")
-        origin_keys = [chain.origin_key for chain in self.main_config if chain.api_in_apps]
+        origin_keys = [c.origin_key for c in self.main_config if c.api_in_apps]
         ecosystem_dict = self.get_ecosystem_dict(origin_keys)
         
-        if not ecosystem_dict:
-            logging.warning("No data found for ecosystem_apps. Skipping upload.")
-            return
-        
-        output_dict = {
-            "data": {
-                "ecosystem": ecosystem_dict
-            },
-            'last_updated_utc': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        }
-        
-        s3_path = f'{self.api_version}/ecosystem/builders'
-        if self.s3_bucket is None:
-            # Assuming local saving for testing still uses a similar path structure
-            self._save_to_json(output_dict, s3_path)
-        else:
-            upload_json_to_cf_s3(self.s3_bucket, s3_path, output_dict, self.cf_distribution_id, invalidate=True)
-        logging.info(f"SUCCESS: Exported ecosystem_apps JSON")
-    
-    def get_new_user_contracts_dict(self, origin_key) -> Dict:
-        new_user_contracts = {}
-        query_days = [1, 7]
-        
-        for days in query_days:
-            query_parameters = {
-                "days": days,
-                "origin_key": origin_key,
-                "limit": 10
-            }
-            df = execute_jinja_query(self.db_connector, 'api/select_new_user_contracts.sql.j2', query_parameters, return_df=True)
-            if not df.empty:
-                df = db_addresses_to_checksummed_addresses(df, ['address'])
-                new_user_contracts[f'{days}d'] = {
-                    "types": df.columns.tolist(),
-                    "data": df.values.tolist()
-                }
+        if not ecosystem_dict: return
+
+        try:
+            response = EcosystemResponse(
+                data={'ecosystem': ecosystem_dict},
+                last_updated_utc=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            )
+            output = response.model_dump(mode='json')
+            s3_path = f'{self.api_version}/ecosystem/builders'
+            if self.s3_bucket:
+                upload_json_to_cf_s3(self.s3_bucket, s3_path, output, self.cf_distribution_id, invalidate=True)
             else:
-                new_user_contracts[f'{days}d'] = {"types": [], "data": []}
-
-        return new_user_contracts
-    
-    def get_cross_chain_addresses_dict(self, origin_key) -> Dict:
-        cca_dict = {}
-        query_days = [1, 7]
-        #query_days = [1]
-        
-        for days in query_days:
-            query_parameters = {
-                'origin_key': origin_key,
-                'days': days,
-                'limit': 11
-            }
-            df = execute_jinja_query(self.db_connector, "api/select_cross_chain_addresses.sql.j2", query_parameters, return_df=True)
-            
-            if days == 7:
-                query_total = f"""
-                    select value 
-                    from fact_kpis 
-                    where origin_key = '{origin_key}'
-                    and metric_key = 'aa_last7d'
-                    order by date desc
-                    limit 1
-                """
-            elif days == 1:
-                query_total = f"""
-                    select value 
-                    from fact_kpis 
-                    where origin_key = '{origin_key}'
-                    and metric_key = 'daa'
-                    order by date desc
-                    limit 1
-                """
-            else:
-                raise ValueError(f"Invalid days value in CCA calc: {days}")
-
-            total = self.db_connector.execute_query(query_total, load_df=True)
-            total = total.value.values[0]
-
-            ## add row to df with total
-            df = pd.concat([df, pd.DataFrame([{
-                'cross_chain': 'total',
-                'current': total,
-                'previous': 0,
-                'change': 0,
-                'change_percent': 0
-            }])], ignore_index=True)
-
-            df['share_of_users'] = df['current'] / total
-            
-            cca_dict[f'{days}d'] = {
-                "types": df.columns.tolist(),
-                "data": df.values.tolist()
-            }
-        return cca_dict
-    
-    
-    def create_user_insights_json(self, origin_keys:Optional[list[str]]=None):
-        """
-        Generates and uploads the user_insights JSON.
-        """
-        for chain in self.main_config:
-            origin_key = chain.origin_key
-
-            if origin_keys and origin_key not in origin_keys:
-                continue
-            if not chain.api_in_main:
-                continue
-            if not chain.api_in_user_insights:
-                continue
-            
-            logging.info(f"Generating user_insights JSON for {origin_key}...")
-            
-            output_dict = {
-                "data": {
-                    "new_user_contracts": self.get_new_user_contracts_dict(origin_key),
-                    "cross_chain_addresses": self.get_cross_chain_addresses_dict(origin_key)
-                },
-                'last_updated_utc': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-            }
-            output = fix_dict_nan(output_dict, f'chains/{origin_key}/user_insights')
-            
-            s3_path = f'{self.api_version}/chains/{origin_key}/user_insights'
-            if self.s3_bucket is None:
-                # Assuming local saving for testing still uses a similar path structure
                 self._save_to_json(output, s3_path)
-            else:
-                upload_json_to_cf_s3(self.s3_bucket, s3_path, output, self.cf_distribution_id, invalidate=False)
-        
-        empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/chains/*')
-        logging.info(f"SUCCESS: Exported user_insights JSON")
+        except Exception as e:
+            logging.error(f"Ecosystem builders validation failed: {e}")
+
+    def create_user_insights_json(self, origin_keys:Optional[list[str]]=None):
+        for chain in self.main_config:
+            if origin_keys and chain.origin_key not in origin_keys: continue
+            if not chain.api_in_main or not chain.api_in_user_insights: continue
+            
+            logging.info(f"Generating user_insights JSON for {chain.origin_key}...")
+            
+            # New User Contracts
+            nuc_dict = {}
+            for days in [1, 7]:
+                df = execute_jinja_query(self.db_connector, 'api/select_new_user_contracts.sql.j2', {"days": days, "origin_key": chain.origin_key, "limit": 10}, return_df=True)
+                if not df.empty:
+                    df = db_addresses_to_checksummed_addresses(df, ['address'])
+                    nuc_dict[f'{days}d'] = {"types": df.columns.tolist(), "data": df.values.tolist()}
+                else:
+                    nuc_dict[f'{days}d'] = {"types": [], "data": []}
+
+            # Cross Chain Addresses
+            cca_dict = {}
+            for days in [1, 7]:
+                df = execute_jinja_query(self.db_connector, "api/select_cross_chain_addresses.sql.j2", {'origin_key': chain.origin_key, 'days': days, 'limit': 11}, return_df=True)
+
+                mk = 'aa_last7d' if days == 7 else 'daa'
+                total_q = f"select value from fact_kpis where origin_key = '{chain.origin_key}' and metric_key = '{mk}' order by date desc limit 1"
+                total = self.db_connector.execute_query(total_q, load_df=True).value.values[0]
+                
+                df = pd.concat([df, pd.DataFrame([{'cross_chain': 'total', 'current': total, 'previous': 0, 'change': 0, 'change_percent': 0}])], ignore_index=True)
+                df['share_of_users'] = df['current'] / total
+                cca_dict[f'{days}d'] = {"types": df.columns.tolist(), "data": df.values.tolist()}
+            
+            try:
+                response = UserInsightsResponse(
+                    data=UserInsightsData(new_user_contracts=nuc_dict, cross_chain_addresses=cca_dict),
+                    last_updated_utc=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                )
+                output = fix_dict_nan(response.model_dump(mode='json'), f'chains/{chain.origin_key}/user_insights')
+                
+                s3_path = f'{self.api_version}/chains/{chain.origin_key}/user_insights'
+                if self.s3_bucket:
+                    upload_json_to_cf_s3(self.s3_bucket, s3_path, output, self.cf_distribution_id, invalidate=False)
+                else:
+                    self._save_to_json(output, s3_path)
+            except Exception as e:
+                logging.error(f"User insights validation failed for {chain.origin_key}: {e}")
+
+        if self.s3_bucket:
+             empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/chains/*')
