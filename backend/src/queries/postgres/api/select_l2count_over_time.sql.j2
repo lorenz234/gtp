@@ -5,25 +5,30 @@ WITH date_series AS (
         interval '1 month'
     )::date AS date
 ),
-
-l2beat_origin_key as (
-	select l2.date_100k, l2.name, l2.archived_on, mc.origin_key
-	from sys_l2beat l2
-	left join sys_main_conf mc on l2.index = mc.aliases_l2beat 
+l2beat_origin_key AS (
+    SELECT l2.date_100k, l2.name, l2.archived_on, mc.origin_key
+    FROM sys_l2beat l2
+    LEFT JOIN sys_main_conf mc ON l2.index = mc.aliases_l2beat 
 )
-
 SELECT
     ds.date,
-    COUNT(distinct s.index) AS value,
-    jsonb_agg(distinct jsonb_build_object(
-	    'l2beat_name', s2.name,
-	    'origin_key', s2.origin_key
-	  )) FILTER (WHERE s2.name IS NOT NULL) AS l2s_launched
-from date_series ds
+    COUNT(DISTINCT s.index) AS value,
+    jsonb_agg(DISTINCT jsonb_build_object(
+        'l2beat_name', s2.name,
+        'origin_key',   s2.origin_key
+    )) FILTER (WHERE s2.name IS NOT NULL) AS l2s_launched,
+    jsonb_agg(DISTINCT jsonb_build_object(
+        'l2beat_name', a2.name,
+        'origin_key',   a2.origin_key
+    )) FILTER (WHERE a2.name IS NOT NULL) AS l2s_archived
+FROM date_series ds
 LEFT JOIN sys_l2beat s
     ON s.date_100k <= ds.date + interval '31 days'
-   AND (s.archived_on IS NULL OR s.archived_on > ds.date) -- exclude archived chains
-LEFT JOIN l2beat_origin_key s2 
-	ON date_trunc('month', s2.date_100k) = ds.date
-GROUP by 1
-ORDER by 1 asc
+   AND (s.archived_on IS NULL OR s.archived_on > ds.date) -- active at ds.date
+LEFT JOIN l2beat_origin_key s2
+    ON date_trunc('month', s2.date_100k)::date = ds.date  -- launched this month
+LEFT JOIN l2beat_origin_key a2
+    ON a2.archived_on IS NOT NULL
+   AND date_trunc('month', a2.archived_on)::date = ds.date -- archived this month
+GROUP BY 1
+ORDER BY 1 ASC;
