@@ -92,7 +92,7 @@ def run_dag():
             ]
             message = "\n".join(message)
 
-            send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message, image_path=f"generated_images/{filename}")
+            #send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message, image_path=f"generated_images/{filename}")
             send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"), image_paths=f"generated_images/{filename}")
             
         print("🔌 Connecting to Redis...")
