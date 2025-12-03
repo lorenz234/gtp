@@ -705,7 +705,18 @@ stables_metadata = {
         "addresses": {
             "ethereum": "0x27f6c8289550fce67f6b50bed1f519966afe5287"  # USDP contract also used for TGBP
         }
-    }
+    },
+    "cGBP": {
+        "name": "Celo British Pound",
+        "symbol": "cGBP",
+        "decimals": 18,
+        "coingecko_id": "celo-british-pound",
+        "fiat": "gbp",
+        "logo": None,
+        "addresses": {
+            "celo": "0xCCF663b1fF11028f0b19058d0f7B674004a40746"
+        }
+    },
 }
 
 # Bridge or direct token mapping
@@ -1135,7 +1146,11 @@ stables_mapping = {
             "puso": {
                 "token_address": "0x105d4a9306d2e55a71d2eb95b81553ae1dc20d7b",  
                 "method_name": "totalSupply",
-            }
+            },
+            "cGBP": {
+                "token_address": "0xCCF663b1fF11028f0b19058d0f7B674004a40746",  
+                "method_name": "totalSupply",
+            },
         },
         "locked_supply": {
             "tether": {
