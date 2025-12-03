@@ -669,6 +669,17 @@ stables_metadata = {
             "ethereum": "0xbe370ad45d44eb45174c4ec60b88839fef32c077"
         }
     },
+    "puso": {
+        "name": "PUSO Stablecoin",
+        "symbol": "PUSO",
+        "decimals": 18,
+        "coingecko_id": "puso",
+        "fiat": "php",
+        "logo": None,
+        "addresses": {
+            "celo": "0x105d4a9306d2e55a71d2eb95b81553ae1dc20d7b"
+        }
+    },
 
     ## AUD
     "audd": {
@@ -1119,6 +1130,10 @@ stables_mapping = {
             },
             "cKES": {
                 "token_address": "0x456a3D042C0DbD3db53D5489e98dFb038553B0d0",  
+                "method_name": "totalSupply",
+            },
+            "puso": {
+                "token_address": "0x105d4a9306d2e55a71d2eb95b81553ae1dc20d7b",  
                 "method_name": "totalSupply",
             }
         },
