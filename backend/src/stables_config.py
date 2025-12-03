@@ -1057,6 +1057,10 @@ stables_mapping = {
                 "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",  # USDe native on Arbitrum
                 "method_name": "totalSupply",
             },
+            "usds": {
+                "token_address": "0x6491c05A82219b8D1479057361ff1654749b876b",  # USDS native on Arbitrum
+                "method_name": "totalSupply",
+            },
             ## EUR
             "monerium-eur-money": {
                 "token_address": "0x0c06cCF38114ddfc35e07427B9424adcca9F44F8",  # EURe native on Arbitrum
@@ -1117,6 +1121,10 @@ stables_mapping = {
         "direct": {
             "usdc": {
                 "token_address": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",  # USDC native on Unichain
+                "method_name": "totalSupply",
+            },
+            "usds": {
+                "token_address": "0x7E10036Acc4B56d4dFCa3b77810356CE52313F9C",  # USDS native on Unichain
                 "method_name": "totalSupply",
             }
         }
@@ -1555,6 +1563,10 @@ stables_mapping = {
             },
             "ethena-usde": {            # USDe
                 "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name":  "totalSupply",
+            },
+            "usds": {                    # USDS
+                "token_address": "0x820C137fa70C8691f0e44Dc420a5e53c168921Dc",
                 "method_name":  "totalSupply",
             },
             "euro-coin": {              # EURC
