@@ -443,6 +443,18 @@ stables_metadata = {
             "ethereum": "0x8ccedbae4916b79da7f3f612efb2eb93a2bfd6cf"
         }
     },
+    "gooddollar": { # impossible to track correct "totalSupply", ignored for now! 
+        "name": "GoodDollar",
+        "symbol": "G$",
+        "decimals": 2, # on celo 18...! Big mess.
+        "coingecko_id": "gooddollar",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x67c5870b4a41d4ebef24d2456547a03f1f3e094b",
+            "celo": "0x62b8b11039fcfe5ab0c56e502b1c372a3d2a9c7a"
+        }
+    },
 
     ## EUR
 
@@ -605,6 +617,17 @@ stables_metadata = {
         "logo": None,
         "addresses": {
             "ethereum": "0x01d33FD36ec67c6Ada32cf36b31e88EE190B1839"
+        }
+    },
+    "celo_brl": {
+        "name": "Celo Real",
+        "symbol": "cREAL",
+        "decimals": 18,
+        "coingecko_id": "celo-real-creal",
+        "fiat": "brl",
+        "logo": None,
+        "addresses": {
+            "celo": "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787"
         }
     },
 
@@ -979,7 +1002,7 @@ stables_mapping = {
                 "method_name": "totalSupply",
             },
             "angle_eura": {
-                "token_address": "0xFA5Ed56A203466CbBC2430a43c66b9D8723528E7",  # EURA on Arbitrum bridged through Layer Zero
+                "token_address": "0xFA5Ed56A203466CbBC2430a43c66b9D8723528E7",  # EURA native on Arbitrum
                 "method_name": "totalSupply",
             },
             ## CHF
@@ -1066,13 +1089,21 @@ stables_mapping = {
                 "method_name": "totalSupply",
             },
             "angle_eura": { # Eura on Celo bridged via Layer Zero
-                "token_address": "0xC16B81Af351BA9e64C1a069E3Ab18c244A1E3049",  
+                "token_address": "0xf1dDcACA7D17f8030Ab2eb54f2D9811365EFe123",
+                "method_name": "totalSupply",
+            },
+            "angle_eura": { # Eura on Celo native
+                "token_address": "0xC16B81Af351BA9e64C1a069E3Ab18c244A1E3049",
                 "method_name": "totalSupply",
             },
             "celo_eur": {
                 "token_address": "0xd8763cba276a3738e6de85b4b3bf5fded6d6ca73",  
                 "method_name": "totalSupply",
             },
+            "celo_brl": {
+                "token_address": "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787",  
+                "method_name": "totalSupply",
+            }
         },
         "locked_supply": {
             "tether": {
@@ -1457,7 +1488,7 @@ stables_mapping = {
                 "token_address": "0x35E5dB674D8e93a03d814FA0ADa70731efe8a4b9",
                 "method_name":  "totalSupply",
             },
-            "angle_eura": {              # EURA bridged via Layer Zero
+            "angle_eura": {              # EURA native on Base
                 "token_address": "0xA61BeB4A3d02decb01039e378237032B351125B4",
                 "method_name":  "totalSupply",
             },
