@@ -60,7 +60,6 @@ def etl():
     def run_economics_mapping():
         import requests
         import yaml
-        import pandas as pd
         from src.db_connector import DbConnector
 
         # URL of the raw file from GitHub
@@ -80,6 +79,23 @@ def etl():
 
         db_connector = DbConnector()
         db_connector.upsert_table('sys_economics_mapping', df)
+        
+    @task()
+    def run_stables_mapping():
+        from src.stables_config import stables_metadata
+        import pandas as pd
+        from src.db_connector import DbConnector
+        
+        db_connector = DbConnector()
+
+        ## transform stables metadata into a dataframe
+        stables_metadata_df = pd.DataFrame.from_dict(stables_metadata, orient='index')
+        
+        stables_metadata_df.reset_index(inplace=True)
+        stables_metadata_df.rename(columns={'index': 'token_key'}, inplace=True)
+        
+        stables_metadata_df.set_index('token_key', inplace=True)
+        db_connector.upsert_table('stables_metadata', stables_metadata_df)
 
     @task()
     def run_refresh_materialized_app_view():
@@ -92,6 +108,7 @@ def etl():
     run_unique_senders()
     run_da_queries()
     run_economics_mapping()
+    run_stables_mapping()
     run_refresh_materialized_app_view()
 etl()
 
