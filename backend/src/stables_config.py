@@ -694,6 +694,19 @@ stables_metadata = {
         }
     },
 
+    ## COP
+    "cCOP": {
+        "name": "Celo Colombian Peso",
+        "symbol": "cCOP",
+        "decimals": 18,
+        "coingecko_id": "ccop",
+        "fiat": "cop",
+        "logo": None,
+        "addresses": {
+            "celo": "0x8A567e2aE79CA692Bd748aB832081C45de4041eA"
+        }
+    },
+
     ## GBP
     "true_gbp": {
         "name": "Tokenised GBP",
@@ -1149,6 +1162,10 @@ stables_mapping = {
             },
             "cGBP": {
                 "token_address": "0xCCF663b1fF11028f0b19058d0f7B674004a40746",  
+                "method_name": "totalSupply",
+            },
+            "cCOP": {
+                "token_address": "0x8A567e2aE79CA692Bd748aB832081C45de4041eA",  
                 "method_name": "totalSupply",
             },
         },
