@@ -29,6 +29,62 @@ FIAT_CURRENCY_CONFIG = {
         "vs_currency": "usd",
         "decimal_places": 2,
         "description": "United States Dollar"
+    },
+    "chf": {
+        "name": "Swiss Franc",
+        "symbol": "CHF",
+        "coingecko_forex_id": "chf",
+        "vs_currency": "usd",
+        "decimal_places": 6,
+        "description": "Swiss Franc"
+    },
+    "sgd": {
+        "name": "Singapore Dollar",
+        "symbol": "SGD",
+        "coingecko_forex_id": "sgd",
+        "vs_currency": "usd",
+        "decimal_places": 6,
+        "description": "Singapore Dollar"
+    },
+    "rub": {
+        "name": "Russian Ruble",
+        "symbol": "RUB",
+        "coingecko_forex_id": "rub",
+        "vs_currency": "usd",
+        "decimal_places": 6,
+        "description": "Russian Ruble"
+    },
+    "php": {
+        "name": "Philippine Peso",
+        "symbol": "PHP",
+        "coingecko_forex_id": "php",
+        "vs_currency": "usd",
+        "decimal_places": 6,
+        "description": "Philippine Peso"
+    },
+    "aud": {
+        "name": "Australian Dollar",
+        "symbol": "AUD",
+        "coingecko_forex_id": "aud",
+        "vs_currency": "usd",
+        "decimal_places": 6,
+        "description": "Australian Dollar"
+    },
+    "gbp": {
+        "name": "British Pound Sterling",
+        "symbol": "GBP",
+        "coingecko_forex_id": "gbp",
+        "vs_currency": "usd",
+        "decimal_places": 6,
+        "description": "British Pound Sterling"
+    },
+    "xof": {
+        "name": "West African CFA Franc",
+        "symbol": "XOF",
+        "coingecko_forex_id": "xof",
+        "vs_currency": "usd",
+        "decimal_places": 6,
+        "description": "West African CFA Franc"
     }
 }
 
