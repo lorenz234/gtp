@@ -32,16 +32,16 @@ def etl():
         json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
         df = json_creator.get_all_data()
 
-        json_creator.create_chain_details_jsons(df) ## TODO: Create new chain details for new FE and without metrics etc.
+        json_creator.create_chain_details_jsons(df) ## TODO: Deprecate as soon as FE moved
 
-    @task()
-    def run_create_metrics_details():
-        db_connector = DbConnector()
-        json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
-        df = json_creator.get_all_data()
+    # @task()
+    # def run_create_metrics_details():
+    #     db_connector = DbConnector()
+    #     json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
+    #     df = json_creator.get_all_data()
 
-        json_creator.create_metric_details_jsons(df) ## Deprecate as soon as FE moved
-        json_creator.create_da_metric_details_jsons(df) ## Deprecate as soon as FE moved
+    #     json_creator.create_metric_details_jsons(df) ## Deprecate as soon as FE moved
+    #     json_creator.create_da_metric_details_jsons(df) ## Deprecate as soon as FE moved
 
     @task()
     def run_create_landingpage():
@@ -168,7 +168,7 @@ def etl():
     ## Main
     run_create_master()    
     run_create_chain_details()
-    run_create_metrics_details()
+    #run_create_metrics_details()
     run_create_landingpage()
     run_create_economics()
     run_create_da_overview()

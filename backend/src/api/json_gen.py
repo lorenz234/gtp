@@ -705,26 +705,26 @@ class JsonGen():
         except Exception as e:
             logging.error(f"Streaks today validation failed: {e}")
 
-    def create_ecosystem_builders_json(self):
-        logging.info("Generating ecosystem_apps JSON...")
-        origin_keys = [c.origin_key for c in self.main_config if c.api_in_apps]
-        ecosystem_dict = self.get_ecosystem_dict(origin_keys)
+    # def create_ecosystem_builders_json(self):
+    #     logging.info("Generating ecosystem_apps JSON...")
+    #     origin_keys = [c.origin_key for c in self.main_config if c.api_in_apps]
+    #     ecosystem_dict = self.get_ecosystem_dict(origin_keys)
         
-        if not ecosystem_dict: return
+    #     if not ecosystem_dict: return
 
-        try:
-            response = EcosystemResponse(
-                data={'ecosystem': ecosystem_dict},
-                last_updated_utc=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-            )
-            output = response.model_dump(mode='json')
-            s3_path = f'{self.api_version}/ecosystem/builders'
-            if self.s3_bucket:
-                upload_json_to_cf_s3(self.s3_bucket, s3_path, output, self.cf_distribution_id, invalidate=True)
-            else:
-                self._save_to_json(output, s3_path)
-        except Exception as e:
-            logging.error(f"Ecosystem builders validation failed: {e}")
+    #     try:
+    #         response = EcosystemResponse(
+    #             data={'ecosystem': ecosystem_dict},
+    #             last_updated_utc=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+    #         )
+    #         output = response.model_dump(mode='json')
+    #         s3_path = f'{self.api_version}/ecosystem/builders'
+    #         if self.s3_bucket:
+    #             upload_json_to_cf_s3(self.s3_bucket, s3_path, output, self.cf_distribution_id, invalidate=True)
+    #         else:
+    #             self._save_to_json(output, s3_path)
+    #     except Exception as e:
+    #         logging.error(f"Ecosystem builders validation failed: {e}")
 
     def create_user_insights_json(self, origin_keys:Optional[list[str]]=None):
         for chain in self.main_config:
