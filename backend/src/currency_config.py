@@ -111,7 +111,6 @@ EXCHANGE_RATE_APIS = {
     }
 }
 
-
 def get_supported_currencies() -> List[str]:
     """
     Get list of supported fiat currencies.

@@ -455,6 +455,17 @@ stables_metadata = {
             "celo": "0x62b8b11039fcfe5ab0c56e502b1c372a3d2a9c7a"
         }
     },
+    "startale_usd": { 
+        "name": "Startale USD",
+        "symbol": "USDSC",
+        "decimals": 6,
+        "coingecko_id": "startale-usd",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "soneium": "0x3f99231dD03a9F0E7e3421c92B7b90fbe012985a"
+        }
+    },
 
     ## EUR
 
@@ -1022,6 +1033,12 @@ stables_mapping = {
                 "0xC67A8c5f22b40274Ca7C4A56Db89569Ee2AD3FAb" ## Escrow for USDC
             ],
         },
+        "direct": {
+            "startale_usd": {
+                "token_address": "0x3f99231dD03a9F0E7e3421c92B7b90fbe012985a",
+                "method_name": "totalSupply",
+            },
+        }
     },
     "arbitrum": {
         "bridged": {
