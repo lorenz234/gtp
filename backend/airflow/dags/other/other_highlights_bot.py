@@ -13,15 +13,15 @@ CET = timezone("Europe/Paris")
         'retry_delay': timedelta(minutes=5),
         'on_failure_callback': lambda context: alert_via_webhook(context, user='nader')
     },
-    dag_id='other_gtp_analyst',
-    description='Generate AI Insights with Social Media Automation',
+    dag_id='other_highlights_bot',
+    description='Send highlights from growthepie.com to Discord and Telegram',
     tags=['ai', 'milestones', 'metrics', 'social', 'twitter', 'charts'],
     start_date=CET.convert(datetime(2023, 9, 1, 8, 0)),
     schedule='30 8 * * *', ## CET TIMEZONE here instead of UTC
     catchup=False  # Ensures only future runs are scheduled, not backfilled
 )
 
-def gtp_analyst():
+def highlights_bot():
     # @task(execution_timeout=timedelta(minutes=60))
     # def run_analyst():
     #     """
@@ -125,8 +125,10 @@ def gtp_analyst():
                         #send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"), image_paths=f"generated_images/{filename}")
                         send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message, image_path=f"generated_images/{filename}")
                     else:
-                        #send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"))
-                        send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message)
+                        ## only 3x growth pct highlights to TG
+                        if highlight['others']['growth_pct_growth'] > 3:
+                            #send_discord_message(message, os.getenv("GTP_AI_WEBHOOK_URL"))
+                            send_telegram_message(TG_BOT_TOKEN, TG_CHAT_ID, message)
                         
     @task()
     def run_highlights_discord():
@@ -202,5 +204,5 @@ def gtp_analyst():
     run_highlights_tg()
     run_highlights_discord()
     
-gtp_analyst()
+highlights_bot()
     
