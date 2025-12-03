@@ -657,6 +657,19 @@ stables_metadata = {
         }
     },
 
+    ## XOF
+    "eXOF": {
+        "name": "Celo West African CFA Franc",
+        "symbol": "eXOF",
+        "decimals": 18,
+        "coingecko_id": None,
+        "fiat": "xof",
+        "logo": None,
+        "addresses": {
+            "celo": "0x10c892a6ec43a53e452d3478b4cbaed5c3d9c3e"
+        }
+    },
+
     ## PHP
     "apacx_pht": {
         "name": "Apex PHP",
@@ -1166,6 +1179,10 @@ stables_mapping = {
             },
             "cCOP": {
                 "token_address": "0x8A567e2aE79CA692Bd748aB832081C45de4041eA",  
+                "method_name": "totalSupply",
+            },
+            "eXOF": {
+                "token_address": "0x10c892a6ec43a53e452d3478b4cbaed5c3d9c3e",  
                 "method_name": "totalSupply",
             },
         },
