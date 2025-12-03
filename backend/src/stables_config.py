@@ -644,6 +644,19 @@ stables_metadata = {
         }
     },
 
+    ## KES
+    "cKES": {
+        "name": "Celo Kenyan Shilling",
+        "symbol": "cKES",
+        "decimals": 18,
+        "coingecko_id": "celo-kenyan-shilling",
+        "fiat": "kes",
+        "logo": None,
+        "addresses": {
+            "celo": "0x456a3D042C0DbD3db53D5489e98dFb038553B0d0"
+        }
+    },
+
     ## PHP
     "apacx_pht": {
         "name": "Apex PHP",
@@ -1102,6 +1115,10 @@ stables_mapping = {
             },
             "celo_brl": {
                 "token_address": "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787",  
+                "method_name": "totalSupply",
+            },
+            "cKES": {
+                "token_address": "0x456a3D042C0DbD3db53D5489e98dFb038553B0d0",  
                 "method_name": "totalSupply",
             }
         },
