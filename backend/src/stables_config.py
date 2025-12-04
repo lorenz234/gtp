@@ -148,7 +148,7 @@ stables_metadata = {
     "paypal-usd": {
         "name": "PayPal USD",
         "symbol": "PYUSD",
-        "decimals": 18,
+        "decimals": 6,
         "coingecko_id": "paypal-usd",
         "fiat": "usd",
         "logo": None,
@@ -528,7 +528,7 @@ stables_metadata = {
     "coinvertible": {
         "name": "CoinVertible EUR",
         "symbol": "EURCV",
-        "decimals": 6,
+        "decimals": 18,
         "coingecko_id": "societe-generale-forge-eurcv",
         "fiat": "eur",
         "logo": None,

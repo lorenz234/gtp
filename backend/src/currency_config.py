@@ -9,14 +9,14 @@ FIAT_CURRENCY_CONFIG = {
     "eur": {
         "name": "Euro",
         "symbol": "EUR",
-        "coingecko_forex_id": "eur",  # CoinGecko exchange rates API key
+        "coingecko_forex_id": "eur",  # CoinGecko exchange rates API key (https://api.coingecko.com/api/v3/exchange_rates)
         "vs_currency": "usd",
         "description": "European Union Euro"
     },
     "brl": {
         "name": "Brazilian Real", 
         "symbol": "BRL",
-        "coingecko_forex_id": "brl",  # CoinGecko exchange rates API key
+        "coingecko_forex_id": "brl",
         "vs_currency": "usd",
         "description": "Brazilian Real"
     },
@@ -222,6 +222,209 @@ FIAT_CURRENCY_CONFIG = {
         "coingecko_forex_id": "zar",
         "vs_currency": "usd",
         "description": "South African Rand"
+    },
+    "kes": {
+        "name": "Kenyan Shilling",
+        "symbol": "KES",
+        "coingecko_forex_id": "kes",
+        "vs_currency": "usd",
+        "description": "Kenyan Shilling"
+    },
+    "cop": {
+        "name": "Colombian Peso",
+        "symbol": "COP",
+        "coingecko_forex_id": "cop",
+        "vs_currency": "usd",
+        "description": "Colombian Peso"
+    },
+    "aed": {
+        "name": "United Arab Emirates Dirham",
+        "symbol": "AED",
+        "coingecko_forex_id": "aed",
+        "vs_currency": "usd",
+        "description": "United Arab Emirates Dirham"
+    },
+    "ars": {
+        "name": "Argentine Peso",
+        "symbol": "ARS",
+        "coingecko_forex_id": "ars",
+        "vs_currency": "usd",
+        "description": "Argentine Peso"
+    },
+    "bdt": {
+        "name": "Bangladeshi Taka",
+        "symbol": "BDT",
+        "coingecko_forex_id": "bdt",
+        "vs_currency": "usd",
+        "description": "Bangladeshi Taka"
+    },
+    "bhd": {
+        "name": "Bahraini Dinar",
+        "symbol": "BHD",
+        "coingecko_forex_id": "bhd",
+        "vs_currency": "usd",
+        "description": "Bahraini Dinar"
+    },
+    "bmd": {
+        "name": "Bermudian Dollar",
+        "symbol": "BMD",
+        "coingecko_forex_id": "bmd",
+        "vs_currency": "usd",
+        "description": "Bermudian Dollar"
+    },
+    "clp": {
+        "name": "Chilean Peso",
+        "symbol": "CLP",
+        "coingecko_forex_id": "clp",
+        "vs_currency": "usd",
+        "description": "Chilean Peso"
+    },
+    "gel": {
+        "name": "Georgian Lari",
+        "symbol": "GEL",
+        "coingecko_forex_id": "gel",
+        "vs_currency": "usd",
+        "description": "Georgian Lari"
+    },
+    "kwd": {
+        "name": "Kuwaiti Dinar",
+        "symbol": "KWD",
+        "coingecko_forex_id": "kwd",
+        "vs_currency": "usd",
+        "description": "Kuwaiti Dinar"
+    },
+    "lkr": {
+        "name": "Sri Lankan Rupee",
+        "symbol": "LKR",
+        "coingecko_forex_id": "lkr",
+        "vs_currency": "usd",
+        "description": "Sri Lankan Rupee"
+    },
+    "mmk": {
+        "name": "Burmese Kyat",
+        "symbol": "MMK",
+        "coingecko_forex_id": "mmk",
+        "vs_currency": "usd",
+        "description": "Burmese Kyat"
+    },
+    "ngn": {
+        "name": "Nigerian Naira",
+        "symbol": "NGN",
+        "coingecko_forex_id": "ngn",
+        "vs_currency": "usd",
+        "description": "Nigerian Naira"
+    },
+    "pkr": {
+        "name": "Pakistani Rupee",
+        "symbol": "PKR",
+        "coingecko_forex_id": "pkr",
+        "vs_currency": "usd",
+        "description": "Pakistani Rupee"
+    },
+    "sar": {
+        "name": "Saudi Riyal",
+        "symbol": "SAR",
+        "coingecko_forex_id": "sar",
+        "vs_currency": "usd",
+        "description": "Saudi Riyal"
+    },
+    "twd": {
+        "name": "New Taiwan Dollar",
+        "symbol": "TWD",
+        "coingecko_forex_id": "twd",
+        "vs_currency": "usd",
+        "description": "New Taiwan Dollar"
+    },
+    "uah": {
+        "name": "Ukrainian Hryvnia",
+        "symbol": "UAH",
+        "coingecko_forex_id": "uah",
+        "vs_currency": "usd",
+        "description": "Ukrainian Hryvnia"
+    },
+    "vef": {
+        "name": "Venezuelan Bolívar Fuerte",
+        "symbol": "VEF",
+        "coingecko_forex_id": "vef",
+        "vs_currency": "usd",
+        "description": "Venezuelan Bolívar Fuerte"
+    },
+    "vnd": {
+        "name": "Vietnamese Đồng",
+        "symbol": "VND",
+        "coingecko_forex_id": "vnd",
+        "vs_currency": "usd",
+        "description": "Vietnamese Đồng"
+    },
+    "dop": {
+        "name": "Dominican Peso",
+        "symbol": "DOP",
+        "coingecko_forex_id": "dop",
+        "vs_currency": "usd",
+        "description": "Dominican Peso"
+    },
+    "crc": {
+        "name": "Costa Rican Colón",
+        "symbol": "CRC",
+        "coingecko_forex_id": "crc",
+        "vs_currency": "usd",
+        "description": "Costa Rican Colón"
+    },
+    "hnl": {
+        "name": "Honduran Lempira",
+        "symbol": "HNL",
+        "coingecko_forex_id": "hnl",
+        "vs_currency": "usd",
+        "description": "Honduran Lempira"
+    },
+    "zmw": {
+        "name": "Zambian Kwacha",
+        "symbol": "ZMW",
+        "coingecko_forex_id": "zmw",
+        "vs_currency": "usd",
+        "description": "Zambian Kwacha"
+    },
+    "svc": {
+        "name": "Salvadoran Colón",
+        "symbol": "SVC",
+        "coingecko_forex_id": "svc",
+        "vs_currency": "usd",
+        "description": "Salvadoran Colón"
+    },
+    "bam": {
+        "name": "Bosnia and Herzegovina Convertible Mark",
+        "symbol": "BAM",
+        "coingecko_forex_id": "bam",
+        "vs_currency": "usd",
+        "description": "Bosnia and Herzegovina Convertible Mark"
+    },
+    "pen": {
+        "name": "Peruvian Sol",
+        "symbol": "PEN",
+        "coingecko_forex_id": "pen",
+        "vs_currency": "usd",
+        "description": "Peruvian Sol"
+    },
+    "gtq": {
+        "name": "Guatemalan Quetzal",
+        "symbol": "GTQ",
+        "coingecko_forex_id": "gtq",
+        "vs_currency": "usd",
+        "description": "Guatemalan Quetzal"
+    },
+    "lbp": {
+        "name": "Lebanese Pound",
+        "symbol": "LBP",
+        "coingecko_forex_id": "lbp",
+        "vs_currency": "usd",
+        "description": "Lebanese Pound"
+    },
+    "amd": {
+        "name": "Armenian Dram",
+        "symbol": "AMD",
+        "coingecko_forex_id": "amd",
+        "vs_currency": "usd",
+        "description": "Armenian Dram"
     }
 }
 
