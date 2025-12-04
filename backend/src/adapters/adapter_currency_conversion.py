@@ -200,11 +200,13 @@ class AdapterCurrencyConversion(AbstractAdapter):
                         # USD-based: EUR/USD = 1 / rates['EUR']
                         if base_rate:
                             rate_value = 1.0 / base_rate
+                            #print(f"the math is as follows {currency.upper()}: 1.0 / {base_rate} = {rate_value}")
                     else:
                         # EUR-based (or other): base/USD = (EUR->USD) / (EUR->base)
                         usd_rate = rates_upper.get('USD')
                         if usd_rate and base_rate:
                             rate_value = usd_rate / base_rate
+                            #print(f"the math is as follows: {usd_rate} / {base_rate} = {rate_value}")
                 except Exception:
                     rate_value = None
 

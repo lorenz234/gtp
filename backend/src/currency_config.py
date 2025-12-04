@@ -11,15 +11,13 @@ FIAT_CURRENCY_CONFIG = {
         "symbol": "EUR",
         "coingecko_forex_id": "eur",  # CoinGecko exchange rates API key
         "vs_currency": "usd",
-        "decimal_places": 6,  # High precision for exchange rates
         "description": "European Union Euro"
     },
     "brl": {
         "name": "Brazilian Real", 
         "symbol": "BRL",
         "coingecko_forex_id": "brl",  # CoinGecko exchange rates API key
-        "vs_currency": "usd", 
-        "decimal_places": 6,  # High precision for exchange rates
+        "vs_currency": "usd",
         "description": "Brazilian Real"
     },
     "usd": {
@@ -27,7 +25,6 @@ FIAT_CURRENCY_CONFIG = {
         "symbol": "USD", 
         "coingecko_forex_id": "usd",
         "vs_currency": "usd",
-        "decimal_places": 2,
         "description": "United States Dollar"
     },
     "chf": {
@@ -35,7 +32,6 @@ FIAT_CURRENCY_CONFIG = {
         "symbol": "CHF",
         "coingecko_forex_id": "chf",
         "vs_currency": "usd",
-        "decimal_places": 6,
         "description": "Swiss Franc"
     },
     "sgd": {
@@ -43,7 +39,6 @@ FIAT_CURRENCY_CONFIG = {
         "symbol": "SGD",
         "coingecko_forex_id": "sgd",
         "vs_currency": "usd",
-        "decimal_places": 6,
         "description": "Singapore Dollar"
     },
     "rub": {
@@ -51,7 +46,6 @@ FIAT_CURRENCY_CONFIG = {
         "symbol": "RUB",
         "coingecko_forex_id": "rub",
         "vs_currency": "usd",
-        "decimal_places": 6,
         "description": "Russian Ruble"
     },
     "php": {
@@ -59,7 +53,6 @@ FIAT_CURRENCY_CONFIG = {
         "symbol": "PHP",
         "coingecko_forex_id": "php",
         "vs_currency": "usd",
-        "decimal_places": 6,
         "description": "Philippine Peso"
     },
     "aud": {
@@ -67,7 +60,6 @@ FIAT_CURRENCY_CONFIG = {
         "symbol": "AUD",
         "coingecko_forex_id": "aud",
         "vs_currency": "usd",
-        "decimal_places": 6,
         "description": "Australian Dollar"
     },
     "gbp": {
@@ -75,7 +67,6 @@ FIAT_CURRENCY_CONFIG = {
         "symbol": "GBP",
         "coingecko_forex_id": "gbp",
         "vs_currency": "usd",
-        "decimal_places": 6,
         "description": "British Pound Sterling"
     },
     "xof": {
@@ -83,8 +74,154 @@ FIAT_CURRENCY_CONFIG = {
         "symbol": "XOF",
         "coingecko_forex_id": "xof",
         "vs_currency": "usd",
-        "decimal_places": 6,
         "description": "West African CFA Franc"
+    },
+    "cad": {
+        "name": "Canadian Dollar",
+        "symbol": "CAD",
+        "coingecko_forex_id": "cad",
+        "vs_currency": "usd",
+        "description": "Canadian Dollar"
+    },
+    "cny": {
+        "name": "Chinese Yuan",
+        "symbol": "CNY",
+        "coingecko_forex_id": "cny",
+        "vs_currency": "usd",
+        "description": "Chinese Yuan Renminbi"
+    },
+    "czk": {
+        "name": "Czech Koruna",
+        "symbol": "CZK",
+        "coingecko_forex_id": "czk",
+        "vs_currency": "usd",
+        "description": "Czech Koruna"
+    },
+    "dkk": {
+        "name": "Danish Krone",
+        "symbol": "DKK",
+        "coingecko_forex_id": "dkk",
+        "vs_currency": "usd",
+        "description": "Danish Krone"
+    },
+    "hkd": {
+        "name": "Hong Kong Dollar",
+        "symbol": "HKD",
+        "coingecko_forex_id": "hkd",
+        "vs_currency": "usd",
+        "description": "Hong Kong Dollar"
+    },
+    "huf": {
+        "name": "Hungarian Forint",
+        "symbol": "HUF",
+        "coingecko_forex_id": "huf",
+        "vs_currency": "usd",
+        "description": "Hungarian Forint"
+    },
+    "idr": {
+        "name": "Indonesian Rupiah",
+        "symbol": "IDR",
+        "coingecko_forex_id": "idr",
+        "vs_currency": "usd",
+        "description": "Indonesian Rupiah"
+    },
+    "ils": {
+        "name": "Israeli New Shekel",
+        "symbol": "ILS",
+        "coingecko_forex_id": "ils",
+        "vs_currency": "usd",
+        "description": "Israeli New Shekel"
+    },
+    "inr": {
+        "name": "Indian Rupee",
+        "symbol": "INR",
+        "coingecko_forex_id": "inr",
+        "vs_currency": "usd",
+        "description": "Indian Rupee"
+    },
+    "jpy": {
+        "name": "Japanese Yen",
+        "symbol": "JPY",
+        "coingecko_forex_id": "jpy",
+        "vs_currency": "usd",
+        "description": "Japanese Yen"
+    },
+    "krw": {
+        "name": "South Korean Won",
+        "symbol": "KRW",
+        "coingecko_forex_id": "krw",
+        "vs_currency": "usd",
+        "description": "South Korean Won"
+    },
+    "mxn": {
+        "name": "Mexican Peso",
+        "symbol": "MXN",
+        "coingecko_forex_id": "mxn",
+        "vs_currency": "usd",
+        "description": "Mexican Peso"
+    },
+    "myr": {
+        "name": "Malaysian Ringgit",
+        "symbol": "MYR",
+        "coingecko_forex_id": "myr",
+        "vs_currency": "usd",
+        "description": "Malaysian Ringgit"
+    },
+    "nok": {
+        "name": "Norwegian Krone",
+        "symbol": "NOK",
+        "coingecko_forex_id": "nok",
+        "vs_currency": "usd",
+        "description": "Norwegian Krone"
+    },
+    "nzd": {
+        "name": "New Zealand Dollar",
+        "symbol": "NZD",
+        "coingecko_forex_id": "nzd",
+        "vs_currency": "usd",
+        "description": "New Zealand Dollar"
+    },
+    "pln": {
+        "name": "Polish Zloty",
+        "symbol": "PLN",
+        "coingecko_forex_id": "pln",
+        "vs_currency": "usd",
+        "description": "Polish Zloty"
+    },
+    "ron": {
+        "name": "Romanian Leu",
+        "symbol": "RON",
+        "coingecko_forex_id": "ron",
+        "vs_currency": "usd",
+        "description": "Romanian Leu"
+    },
+    "sek": {
+        "name": "Swedish Krona",
+        "symbol": "SEK",
+        "coingecko_forex_id": "sek",
+        "vs_currency": "usd",
+        "description": "Swedish Krona"
+    },
+    "thb": {
+        "name": "Thai Baht",
+        "symbol": "THB",
+        "coingecko_forex_id": "thb",
+        "vs_currency": "usd",
+        "description": "Thai Baht"
+    },
+    "try": {
+        "name": "Turkish Lira",
+        "symbol": "TRY",
+        "coingecko_forex_id": "try",
+        "vs_currency": "usd",
+        "description": "Turkish Lira"
+    },
+    "zar": {
+        "name": "South African Rand",
+        "symbol": "ZAR",
+        "coingecko_forex_id": "zar",
+        "vs_currency": "usd",
+        "description": "South African Rand"
     }
 }
 

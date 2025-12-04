@@ -685,7 +685,7 @@ stables_metadata = {
     "apacx_pht": {
         "name": "Apex PHP",
         "symbol": "PHT",
-        "decimals": 2,
+        "decimals": 18,
         "coingecko_id": "pht-stablecoin",
         "fiat": "php",
         "logo": None,
