@@ -94,17 +94,30 @@ class AdapterCurrencyConversion(AbstractAdapter):
     
     def _fetch_current_rates(self, currencies: List[str]) -> pd.DataFrame:
         """
-        Fetch current exchange rates for specified currencies.
+        Fetch current exchange rates for specified currencies using a single CoinGecko call.
         """
         rates_data = []
         current_time = datetime.now()
         
+        # 1. Perform a single batch API call for all rates
+        coingecko_data = self._fetch_all_rates_from_coingecko()
+        if coingecko_data is None:
+            print("Failed to fetch all rates from CoinGecko. Cannot proceed.")
+            return pd.DataFrame()
+            
+        # 2. Iterate through currencies and process the batch data
         for currency in currencies:
             if currency == 'usd':
-                continue  # Skip USD
-            
-            # Fetch fresh rate
-            rate, source = self._fetch_single_rate(currency, 'usd')
+                continue
+                
+            rate: Optional[float] = None
+            try:
+                # Calculate rate using the shared CoinGecko response data
+                # This function should be implemented in src.currency_config
+                rate = calculate_forex_rate_from_coingecko(currency, 'usd', coingecko_data)
+                
+            except Exception as e:
+                print(f"Error processing CoinGecko data for {currency.upper()}: {e}")
             
             if rate is not None:
                 rates_data.append({
@@ -114,13 +127,12 @@ class AdapterCurrencyConversion(AbstractAdapter):
                     'value': rate
                 })
                 
-                print(f"Fetched {currency.upper()}/USD rate: {rate:.6f} from {source}")
+                print(f"Processed {currency.upper()}/USD rate: {rate:.6f} from coingecko batch")
             else:
-                print(f"Failed to fetch rate for {currency.upper()}")
+                print(f"Failed to find or calculate rate for {currency.upper()} from CoinGecko batch data")
         
         df = pd.DataFrame(rates_data)
         
-        # Set proper index for fact_kpis table structure
         if not df.empty:
             df = df.set_index(['metric_key', 'origin_key', 'date'])
             
@@ -141,6 +153,28 @@ class AdapterCurrencyConversion(AbstractAdapter):
             print(f"CoinGecko API failed for {base_currency}/{target_currency}")
             return None, ''
     
+    def _fetch_all_rates_from_coingecko(self) -> Optional[Dict]:
+        """
+        Fetch ALL exchange rates from CoinGecko in a single API call.
+        
+        Returns:
+            Optional[Dict]: The full response data dictionary, or None on failure.
+        """
+        try:
+            url = get_coingecko_exchange_rate_url()
+            
+            response_data = api_get_call(
+                url, 
+                sleeper=1, 
+                retries=RATE_FETCH_CONFIG['max_retries']
+            )
+            
+            return response_data
+                
+        except Exception as e:
+            print(f"CoinGecko API error during batch fetch: {e}")
+            return None
+
     def _fetch_from_coingecko(self, base_currency: str, target_currency: str) -> Optional[float]:
         """
         Fetch exchange rate from CoinGecko API.
