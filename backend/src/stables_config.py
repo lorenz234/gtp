@@ -79,6 +79,17 @@ stables_metadata = {
             "ethereum": "0x4c9edd5852cd905f086c759e8383e09bff1e68b3",
         }
     },
+    "ethena-usdtb": {
+        "name": "Ethena USDtb",
+        "symbol": "USDtb",
+        "decimals": 18,
+        "coingecko_id": "usdtb",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xC139190F447e929f090Edeb554D95AbB8b18aC1C",
+        }
+    },
     "binance_usd": {
         "name": "Binance USD",
         "symbol": "BUSD",
@@ -137,7 +148,7 @@ stables_metadata = {
     "paypal-usd": {
         "name": "PayPal USD",
         "symbol": "PYUSD",
-        "decimals": 18,
+        "decimals": 6,
         "coingecko_id": "paypal-usd",
         "fiat": "usd",
         "logo": None,
@@ -300,7 +311,7 @@ stables_metadata = {
             "blast": "0x4300000000000000000000000000000000000003",
         }
     },
-    "openusdt": {                            # oUSDT
+    "openusdt": {
         "name": "OpenUSDT",
         "symbol": "oUSDT",
         "decimals": 6,
@@ -311,7 +322,7 @@ stables_metadata = {
             "base": "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189"
         }
     },
-    "resolv-usr": {                          # USR
+    "resolv-usr": {
         "name": "Resolv USD",
         "symbol": "USR",
         "decimals": 18,
@@ -322,7 +333,7 @@ stables_metadata = {
             "base": "0x35E5dB674D8e93a03d814FA0ADa70731efe8a4b9"
         }
     },
-    "pusd": {                            # PUSD
+    "pusd": {
         "name": "Plume USD",
         "symbol": "pUSD",
         "decimals": 6,
@@ -355,7 +366,7 @@ stables_metadata = {
             "ethereum": "0x8292Bb45bf1Ee4d140127049757C2E0fF06317eD"
         }
     },
-    "usda": {                             # USDA
+    "usda": {
         "name": "Avalon Labs USDa",
         "symbol": "USDa",
         "decimals": 18,
@@ -366,9 +377,99 @@ stables_metadata = {
             "ethereum": "0x8A60E489004Ca22d775C5F2c657598278d17D9c2"
         }
     },
+    "usd1": {
+        "name": "World Liberty Financial USD",
+        "symbol": "USD1",
+        "decimals": 18,
+        "coingecko_id": "usd1-wlfi",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d"
+        }
+    },
+    "global_dollar": {
+        "name": "Global Dollar",
+        "symbol": "USDG",
+        "decimals": 6,
+        "coingecko_id": "global-dollar",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xe343167631d89B6Ffc58B88d6b7fB0228795491D"
+        }
+    },
+    "usdd": {
+        "name": "Decentralized USD",
+        "symbol": "USDD",
+        "decimals": 18,
+        "coingecko_id": "usdd",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x4f8e5DE400DE08B164E7421B3EE387f461beCD1A"
+        }
+    },
+    "gho_aave": {
+        "name": "GHO Aave",
+        "symbol": "GHO",
+        "decimals": 18,
+        "coingecko_id": "gho",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f"
+        }
+    },
+    "m_zero": {
+        "name": "M by M0",
+        "symbol": "M",
+        "decimals": 6,
+        "coingecko_id": "m-2",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b"
+        }
+    },
+    "mnee": {
+        "name": "MNEE USD",
+        "symbol": "MNEE",
+        "decimals": 18,
+        "coingecko_id": "mnee-usd-stablecoin",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x8ccedbae4916b79da7f3f612efb2eb93a2bfd6cf"
+        }
+    },
+    "gooddollar": { # impossible to track correct "totalSupply", ignored for now! 
+        "name": "GoodDollar",
+        "symbol": "G$",
+        "decimals": 2, # on celo 18...! Big mess.
+        "coingecko_id": "gooddollar",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x67c5870b4a41d4ebef24d2456547a03f1f3e094b",
+            "celo": "0x62b8b11039fcfe5ab0c56e502b1c372a3d2a9c7a"
+        }
+    },
+    "startale_usd": { 
+        "name": "Startale USD",
+        "symbol": "USDSC",
+        "decimals": 6,
+        "coingecko_id": "startale-usd",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "soneium": "0x3f99231dD03a9F0E7e3421c92B7b90fbe012985a"
+        }
+    },
 
-    # Non-USD Stablecoins
-    "euro-coin": {                       # EURC
+    ## EUR
+
+    "euro-coin": {
         "name": "Euro Coin",
         "symbol": "EURC",
         "decimals": 6,
@@ -379,7 +480,7 @@ stables_metadata = {
             "ethereum": "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c"
         }
     },
-    "monerium-eur-money": {              # EURe
+    "monerium-eur-money": {
         "name": "Monerium EUR emoney",
         "symbol": "EURe",
         "decimals": 18,
@@ -390,18 +491,7 @@ stables_metadata = {
             "ethereum": "0x3231Cb76718CDeF2155FC47b5286d82e6eDA273f"
         }
     },
-    "brz": {                             # BRZ
-        "name": "Brazilian Digital Token",
-        "symbol": "BRZ",
-        "decimals": 4,
-        "coingecko_id": "brz",
-        "fiat": "brl",
-        "logo": None,
-        "addresses": {
-            "ethereum": "0x420412E765BFa6d85aaaC94b4f7b708C89be2e2B"
-        }
-    },
-    "stasis-eurs": {                     # EURS
+    "stasis-eurs": {
         "name": "STASIS EURS",
         "symbol": "EURS",
         "decimals": 2,
@@ -412,9 +502,259 @@ stables_metadata = {
             "ethereum": "0xdB25f211AB05b1c97D595516F45794528a807ad8",
             "polygon": "0xE111178A87A3BfF0c8d18dECBa5798827539Ae99"
         }
-    }
-}
+    },
+    "angle_eura": {
+        "name": "Angle EURA",
+        "symbol": "EURA",
+        "decimals": 18,
+        "coingecko_id": "ageur",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x1a7e4e63778B4f12a199C062f3eFdD288afCBce8"
+        }
+    },
+    "all_unity": {
+        "name": "AllUnity EUR",
+        "symbol": "EURAU",
+        "decimals": 6,
+        "coingecko_id": "allunity-eur",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x4933A85b5b5466Fbaf179F72D3DE273c287EC2c2"
+        }
+    },
+    "coinvertible": {
+        "name": "CoinVertible EUR",
+        "symbol": "EURCV",
+        "decimals": 18,
+        "coingecko_id": "societe-generale-forge-eurcv",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x5F7827FDeb7c20b443265Fc2F40845B715385Ff2"
+        }
+    },
+    "eurite": {
+        "name": "Eurite",
+        "symbol": "EURI",
+        "decimals": 18,
+        "coingecko_id": "eurite",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x9d1A7A3191102e9F900Faa10540837ba84dCBAE7"
+        }
+    },
+    "anchored_coins_eur": {
+        "name": "Anchored Coins EUR",
+        "symbol": "AEUR",
+        "decimals": 18,
+        "coingecko_id": "anchored-coins-eur",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xA40640458FBc27b6EefEdeA1E9C9E17d4ceE7a21"
+        }
+    },
+    "stablr_eur": {
+        "name": "StablR Euro",
+        "symbol": "EURR",
+        "decimals": 6,
+        "coingecko_id": "stablr-euro",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x50753CfAf86c094925Bf976f218D043f8791e408"
+        }
+    },
+    "tether_eur": {
+        "name": "Tether Euro",
+        "symbol": "EURT",
+        "decimals": 6,
+        "coingecko_id": "tether-eurt",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xc581b735a1688071a1746c968e0798d642ede491"
+        }
+    },
+    "celo_eur": {
+        "name": "Celo EUR",
+        "symbol": "cEUR",
+        "decimals": 18,
+        "coingecko_id": "celo-euro",
+        "fiat": "eur",
+        "logo": None,
+        "addresses": {
+            "celo": "0xd8763cba276a3738e6de85b4b3bf5fded6d6ca73"
+        }
+    },
 
+    ## CHF
+    "frankencoin": {
+        "name": "Frankencoin",
+        "symbol": "ZCHF",
+        "decimals": 18,
+        "coingecko_id": "frankencoin",
+        "fiat": "chf",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xB58E61C3098d85632Df34EecfB899A1Ed80921cB"
+        }
+    },
+
+    ## SGD
+    "xsgd": {
+        "name": "Straitsx SGD",
+        "symbol": "XSGD",
+        "decimals": 6,
+        "coingecko_id": "xsgd",
+        "fiat": "sgd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x70e8de73ce538da2beed35d14187f6959a8eca96"
+        }
+    },
+
+    ## BRL
+    "brz": {
+        "name": "Brazilian Digital Token",
+        "symbol": "BRZ",
+        "decimals": 18,
+        "coingecko_id": "brz",
+        "fiat": "brl",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x01d33FD36ec67c6Ada32cf36b31e88EE190B1839"
+        }
+    },
+    "celo_brl": {
+        "name": "Celo Real",
+        "symbol": "cREAL",
+        "decimals": 18,
+        "coingecko_id": "celo-real-creal",
+        "fiat": "brl",
+        "logo": None,
+        "addresses": {
+            "celo": "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787"
+        }
+    },
+
+    ## RUB
+    "a7a5": {
+        "name": "A7A5 Ruble",
+        "symbol": "A7A5",
+        "decimals": 6,
+        "coingecko_id": "a7a5",
+        "fiat": "rub",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x6fa0be17e4bea2fcfa22ef89bf8ac9aab0ab0fc9"
+        }
+    },
+
+    ## KES
+    "cKES": {
+        "name": "Celo Kenyan Shilling",
+        "symbol": "cKES",
+        "decimals": 18,
+        "coingecko_id": "celo-kenyan-shilling",
+        "fiat": "kes",
+        "logo": None,
+        "addresses": {
+            "celo": "0x456a3D042C0DbD3db53D5489e98dFb038553B0d0"
+        }
+    },
+
+    ## XOF
+    "eXOF": {
+        "name": "Celo West African CFA Franc",
+        "symbol": "eXOF",
+        "decimals": 18,
+        "coingecko_id": None,
+        "fiat": "xof",
+        "logo": None,
+        "addresses": {
+            "celo": "0x10c892a6ec43a53e452d3478b4cbaed5c3d9c3e"
+        }
+    },
+
+    ## PHP
+    "apacx_pht": {
+        "name": "Apex PHP",
+        "symbol": "PHT",
+        "decimals": 18,
+        "coingecko_id": "pht-stablecoin",
+        "fiat": "php",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xbe370ad45d44eb45174c4ec60b88839fef32c077"
+        }
+    },
+    "puso": {
+        "name": "PUSO Stablecoin",
+        "symbol": "PUSO",
+        "decimals": 18,
+        "coingecko_id": "puso",
+        "fiat": "php",
+        "logo": None,
+        "addresses": {
+            "celo": "0x105d4a9306d2e55a71d2eb95b81553ae1dc20d7b"
+        }
+    },
+
+    ## AUD
+    "audd": {
+        "name": "Australian Digital Dollar",
+        "symbol": "AUDD",
+        "decimals": 6,
+        "coingecko_id": "novatti-australian-digital-dollar",
+        "fiat": "aud",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x4cce605ed955295432958d8951d0b176c10720d5"
+        }
+    },
+
+    ## COP
+    "cCOP": {
+        "name": "Celo Colombian Peso",
+        "symbol": "cCOP",
+        "decimals": 18,
+        "coingecko_id": "ccop",
+        "fiat": "cop",
+        "logo": None,
+        "addresses": {
+            "celo": "0x8A567e2aE79CA692Bd748aB832081C45de4041eA"
+        }
+    },
+
+    ## GBP
+    "true_gbp": {
+        "name": "Tokenised GBP",
+        "symbol": "TGBP",
+        "decimals": 18,
+        "coingecko_id": "tokenised-gbp",
+        "fiat": "gbp",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0x27f6c8289550fce67f6b50bed1f519966afe5287"  # USDP contract also used for TGBP
+        }
+    },
+    "cGBP": {
+        "name": "Celo British Pound",
+        "symbol": "cGBP",
+        "decimals": 18,
+        "coingecko_id": "celo-british-pound",
+        "fiat": "gbp",
+        "logo": None,
+        "addresses": {
+            "celo": "0xCCF663b1fF11028f0b19058d0f7B674004a40746"
+        }
+    },
+}
 
 # Bridge or direct token mapping
 ## bridged: locked value is calculated based on bridge contracts on source chains
@@ -430,6 +770,7 @@ stables_mapping = {
     ## Ethereum Mainnet is a slightly special case, as it is the source chain for most bridged stablecoins
     "ethereum": {
         "direct": {
+
             ## USD 
             "usdc": {
                 "token_address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",  # USDC native on Ethereum
@@ -453,6 +794,10 @@ stables_mapping = {
             },
             "ethena-usde": {
                 "token_address": "0x4c9edd5852cd905f086c759e8383e09bff1e68b3",  # USDe native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "ethena-usdtb": {
+                "token_address": "0xC139190F447e929f090Edeb554D95AbB8b18aC1C",  # USDtb native on Ethereum
                 "method_name": "totalSupply",
             },
             "binance_usd": {
@@ -527,12 +872,115 @@ stables_mapping = {
                 "token_address": "0x8292Bb45bf1Ee4d140127049757C2E0fF06317eD",  # RLUSD on Ethereum
                 "method_name": "totalSupply",
             },
+            "usd1": {
+                "token_address": "0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d",  # USD1 on Ethereum
+                "method_name": "totalSupply",
+            },
+            "global_dollar": {
+                "token_address": "0xe343167631d89B6Ffc58B88d6b7fB0228795491D",  # USDG on Ethereum
+                "method_name": "totalSupply",
+            },
+            "usdd": {
+                "token_address": "0x4f8e5DE400DE08B164E7421B3EE387f461beCD1A",  # USDD on Ethereum
+                "method_name": "totalSupply",
+            },
+            "gho_aave": {
+                "token_address": "0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f",  # GHO on Ethereum
+                "method_name": "totalSupply",
+            },
+            "m_zero": {
+                "token_address": "0x866A2BF4E572CbcF37D5071A7a58503Bfb36be1b",  # M on Ethereum
+                "method_name": "totalSupply",
+            },
+            "mnee": {
+                "token_address": "0x8ccedbae4916b79da7f3f612efb2eb93a2bfd6cf",  # MNEE on Ethereum
+                "method_name": "totalSupply",
+            },
             
             ## EUR
             "euro-coin": {
                 "token_address": "0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c",  # EURC native on Ethereum
                 "method_name": "totalSupply",
             },
+            "stasis-eurs": {
+                "token_address": "0xdB25f211AB05b1c97D595516F45794528a807ad8",  # EURS native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "monerium-eur-money": {
+                "token_address": "0x3231Cb76718CDeF2155FC47b5286d82e6eDA273f",  # EURe native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "angle_eura": {
+                "token_address": "0x1a7e4e63778B4f12a199C062f3eFdD288afCBce8",  # EURA native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "all_unity": {
+                "token_address": "0x4933A85b5b5466Fbaf179F72D3DE273c287EC2c2",  # EURAU native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "coinvertible": {
+                "token_address": "0x5F7827FDeb7c20b443265Fc2F40845B715385Ff2",  # EURCV native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "eurite": {
+                "token_address": "0x9d1A7A3191102e9F900Faa10540837ba84dCBAE7",  # EURI native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "anchored_coins_eur": {
+                "token_address": "0xA40640458FBc27b6EefEdeA1E9C9E17d4ceE7a21",  # AEUR native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "stablr_eur": {
+                "token_address": "0x50753CfAf86c094925Bf976f218D043f8791e408",  # EURR native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "tether_eur": {
+                "token_address": "0xc581b735a1688071a1746c968e0798d642ede491",  # EURT native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## CHF
+            "frankencoin": {
+                "token_address": "0xB58E61C3098d85632Df34EecfB899A1Ed80921cB",  # ZCHF native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## SGD 
+            "xsgd": {
+                "token_address": "0x70e8de73ce538da2beed35d14187f6959a8eca96",  # XSGD native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## RUB
+            "a7a5": {
+                "token_address": "0x6fa0be17e4bea2fcfa22ef89bf8ac9aab0ab0fc9",  # A7A5 native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## PHP
+            "apacx_pht": {
+                "token_address": "0xbe370ad45d44eb45174c4ec60b88839fef32c077",  # PHT native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## BRL
+            "brz": {
+                "token_address": "0x01d33FD36ec67c6Ada32cf36b31e88EE190B1839",  # BRZ native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## AUD
+            "audd": {
+                "token_address": "0x4cce605ed955295432958d8951d0b176c10720d5",  # AUDD native on Ethereum
+                "method_name": "totalSupply",
+            },
+
+            ## GBP
+            "true_gbp": {
+                "token_address": "0x27f6c8289550fce67f6b50bed1f519966afe5287",  # TGBP native on Ethereum
+                "method_name": "totalSupply",
+            },
+
         },
 
         "locked_supply": {
@@ -549,6 +997,11 @@ stables_mapping = {
             "euro-coin": {
                 "ethereum": [
                     "0x55FE002aefF02F77364de339a1292923A15844B8"  # EURC Treasury
+                ]
+            },
+            "angle_eura": {
+                "ethereum": [
+                    "0x41D5D79431A913C4aE7d693E99eDB3D6fA258C5"  # EURA Layer Zero Bridge
                 ]
             }
         }  
@@ -580,13 +1033,20 @@ stables_mapping = {
                 "0xC67A8c5f22b40274Ca7C4A56Db89569Ee2AD3FAb" ## Escrow for USDC
             ],
         },
+        "direct": {
+            "startale_usd": {
+                "token_address": "0x3f99231dD03a9F0E7e3421c92B7b90fbe012985a",
+                "method_name": "totalSupply",
+            },
+        }
     },
     "arbitrum": {
         "bridged": {
             "ethereum": [
                 "0xa3A7B6F88361F48403514059F1F16C8E78d60EeC", # Arbitrum L1 ERC20 Gateway
                 "0xcEe284F754E854890e311e3280b767F80797180d", # Arbitrum: L1 Arb-Custom Gateway
-                "0xA10c7CE4b876998858b1a9E12b10092229539400" # DAI Escrow contract
+                "0xA10c7CE4b876998858b1a9E12b10092229539400", # DAI Escrow contract
+                "0xD925C84b55E4e44a53749fF5F2a5A13F63D128fd", # M by M0 Escrow contract
             ],
         },
         "direct": {
@@ -612,6 +1072,29 @@ stables_mapping = {
             },
             "ethena-usde": {
                 "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",  # USDe native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            "usds": {
+                "token_address": "0x6491c05A82219b8D1479057361ff1654749b876b",  # USDS native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            ## EUR
+            "monerium-eur-money": {
+                "token_address": "0x0c06cCF38114ddfc35e07427B9424adcca9F44F8",  # EURe native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            "angle_eura": {
+                "token_address": "0xFA5Ed56A203466CbBC2430a43c66b9D8723528E7",  # EURA native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            ## CHF
+            "frankencoin": {
+                "token_address": "0xd4dd9e2f021bb459d5a5f6c24c12fe09c5d45553",  # ZCHF native on Arbitrum
+                "method_name": "totalSupply",
+            },
+            ## SGD
+            "xsgd": {
+                "token_address": "0xe333e7754a2dc1e020a162ecab019254b9dab653",  # XSGD native on Arbitrum
                 "method_name": "totalSupply",
             },
         }
@@ -656,6 +1139,10 @@ stables_mapping = {
             "usdc": {
                 "token_address": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",  # USDC native on Unichain
                 "method_name": "totalSupply",
+            },
+            "usds": {
+                "token_address": "0x7E10036Acc4B56d4dFCa3b77810356CE52313F9C",  # USDS native on Unichain
+                "method_name": "totalSupply",
             }
         }
     },
@@ -686,7 +1173,43 @@ stables_mapping = {
             "glo-dollar": {
                 "token_address": "0x4F604735c1cF31399C6E711D5962b2B3E0225AD3",  
                 "method_name": "totalSupply",
-            }
+            },
+            "angle_eura": { # Eura on Celo bridged via Layer Zero
+                "token_address": "0xf1dDcACA7D17f8030Ab2eb54f2D9811365EFe123",
+                "method_name": "totalSupply",
+            },
+            "angle_eura": { # Eura on Celo native
+                "token_address": "0xC16B81Af351BA9e64C1a069E3Ab18c244A1E3049",
+                "method_name": "totalSupply",
+            },
+            "celo_eur": {
+                "token_address": "0xd8763cba276a3738e6de85b4b3bf5fded6d6ca73",  
+                "method_name": "totalSupply",
+            },
+            "celo_brl": {
+                "token_address": "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787",  
+                "method_name": "totalSupply",
+            },
+            "cKES": {
+                "token_address": "0x456a3D042C0DbD3db53D5489e98dFb038553B0d0",  
+                "method_name": "totalSupply",
+            },
+            "puso": {
+                "token_address": "0x105d4a9306d2e55a71d2eb95b81553ae1dc20d7b",  
+                "method_name": "totalSupply",
+            },
+            "cGBP": {
+                "token_address": "0xCCF663b1fF11028f0b19058d0f7B674004a40746",  
+                "method_name": "totalSupply",
+            },
+            "cCOP": {
+                "token_address": "0x8A567e2aE79CA692Bd748aB832081C45de4041eA",  
+                "method_name": "totalSupply",
+            },
+            "eXOF": {
+                "token_address": "0x10c892a6ec43a53e452d3478b4cbaed5c3d9c3e",  
+                "method_name": "totalSupply",
+            },
         },
         "locked_supply": {
             "tether": {
@@ -857,7 +1380,12 @@ stables_mapping = {
             "metamask-usd": {
                 "token_address": "0xacA92E438df0B2401fF60dA7E4337B687a2435DA",
                 "method_name":   "totalSupply",
-            }
+            },
+            ## EUR
+            "monerium-eur-money": {
+                "token_address": "0x3ff47c5Bf409C86533FE1f4907524d304062428D",
+                "method_name":   "totalSupply",
+            },
         }
     },
     "manta": {
@@ -914,6 +1442,11 @@ stables_mapping = {
             # Ethena USDe (fully-backed synthetic dollar)
             "ethena-usde": {
                 "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
+                "method_name": "totalSupply",
+            },
+            # EUR
+            "monerium-eur-money": {
+                "token_address": "0xd7bb130a48595fcdf9480e36c1ae97ff2938ac21",
                 "method_name": "totalSupply",
             },
         }
@@ -1017,6 +1550,10 @@ stables_mapping = {
             "true_usd": {
                 "token_address": "0xE7F58A92476056627f9F2dD71a2d38F164A6eF0D",
                 "method_name": "totalSupply"
+            },
+            "frankencoin": {
+                "token_address": "0xD4dD9e2F021BB459D5A5f6c24C12fE09c5D45553",
+                "method_name": "totalSupply"
             }
         },
         "bridged": {
@@ -1045,6 +1582,10 @@ stables_mapping = {
                 "token_address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
                 "method_name":  "totalSupply",
             },
+            "usds": {                    # USDS
+                "token_address": "0x820C137fa70C8691f0e44Dc420a5e53c168921Dc",
+                "method_name":  "totalSupply",
+            },
             "euro-coin": {              # EURC
                 "token_address": "0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42",
                 "method_name":  "totalSupply",
@@ -1055,6 +1596,18 @@ stables_mapping = {
             },
             "resolv-usr": {             # USR
                 "token_address": "0x35E5dB674D8e93a03d814FA0ADa70731efe8a4b9",
+                "method_name":  "totalSupply",
+            },
+            "angle_eura": {              # EURA native on Base
+                "token_address": "0xA61BeB4A3d02decb01039e378237032B351125B4",
+                "method_name":  "totalSupply",
+            },
+            "frankencoin": {            # ZCHF
+                "token_address": "0xD4dD9e2F021BB459D5A5f6c24C12fE09c5D45553",
+                "method_name":  "totalSupply",
+            },
+            "xsgd": {                    # XSGD
+                "token_address": "0x0A4C9cb2778aB3302996A34BeFCF9a8Bc288C33b",
                 "method_name":  "totalSupply",
             },
         },
