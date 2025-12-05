@@ -448,6 +448,13 @@ EXCHANGE_RATE_APIS = {
         "method": "GET",
         "timeout": 10,
         "description": "Frankfurter historical USD-based rates"
+    },
+    # Historical: Guy on Github https://github.com/fawazahmed0/exchange-api
+    "github_exchange_api": {
+        "url_template": "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@{date}/v1/currencies/usd.json",
+        "method": "GET",
+        "timeout": 10,
+        "description": "Github historical exchange rates"
     }
 }
 
@@ -476,6 +483,13 @@ def get_historical_exchange_rate_url(date_str: str) -> str:
     Uses Frankfurter with USD base.
     """
     return EXCHANGE_RATE_APIS["frankfurter"]["url_template"].format(date=date_str)
+
+def get_github_historical_exchange_rate_url(date_str: str) -> str:
+    """
+    Get historical exchange rate API URL for a specific date (YYYY-MM-DD).
+    Uses Github API with USD base.
+    """
+    return EXCHANGE_RATE_APIS["github_exchange_api"]["url_template"].format(date=date_str)
 
 def calculate_forex_rate_from_coingecko(base_currency: str, target_currency: str, rates_data: dict) -> Optional[float]:
     """
