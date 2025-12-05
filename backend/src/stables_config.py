@@ -1207,7 +1207,7 @@ stables_mapping = {
                 "method_name": "totalSupply",
             },
             "eXOF": {
-                "token_address": "0x10c892a6ec43a53e452d3478b4cbaed5c3d9c3e",  
+                "token_address": "0x73f93dcc49cb8a239e2032663e9475dd5ef29a08",  
                 "method_name": "totalSupply",
             },
         },
