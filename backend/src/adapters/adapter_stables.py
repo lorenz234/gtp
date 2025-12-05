@@ -9,6 +9,7 @@ from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.helper_functions import print_init, print_load, print_extract
 from src.stables_config import stables_metadata, stables_mapping
 from src.misc.helper_functions import send_discord_message
+from src.misc.jinja_helper import execute_jinja_query
 
 ## TODO: add days 'auto' functionality. if blocks are missing, fetch all. If tokens are missing, fetch all
 ## This should also work for new tokens being added etc
@@ -1061,153 +1062,25 @@ class AdapterStablecoinSupply(AbstractAdapter):
     
     def get_total_supply(self, days=None):
         """
-        Calculate the total stablecoin supply (bridged + direct - locked) per chain
-        
-        This method:
-        1. Retrieves bridged supply data from Ethereum bridge contracts
-        2. Retrieves direct supply data from L2 native tokens
-        3. Retrieves locked supply data from treasury contracts
-        4. Applies currency conversion for non-USD stablecoins
-        5. Combines them to get total stablecoin supply by chain and stablecoin
-        6. Also calculates a total across all stablecoins for each chain
+        Calculate the total stablecoin supply (bridged + direct - locked) per chain in USDd
         """
 
         days = days if days is not None else 9999
         
         print(f"Filtering data for origin_keys present in stables_config: {self.chains}")
 
-        # Check if we have existing data in the database
-        df_bridged = self.db_connector.get_data_from_table("fact_stables",
-                    filters={
-                        "metric_key": "supply_bridged",
-                        "origin_key": self.chains
-                    },
-                    days=days
-                )
-        df_direct = self.db_connector.get_data_from_table("fact_stables",
-                    filters={
-                        "metric_key": "supply_direct",
-                        "origin_key": self.chains
-                    },
-                    days=days
-                )
-        df_locked = self.db_connector.get_data_from_table("fact_stables",
-                    filters={
-                        "metric_key": "locked_supply",
-                        "origin_key": self.chains
-                    },
-                    days=days
-                )
+        params = {
+            'origin_keys': self.chains,
+            'days': days
+        }
         
-        df_bridged_exceptions = self.db_connector.get_data_from_table("fact_stables",
-                    filters={
-                        "metric_key": "supply_bridged_exceptions",
-                        "origin_key": self.chains
-                    },
-                    days=days
-                )
-        
-        # Pre-fetch exchange rate DataFrames for all supported non-USD currencies
-        from src.adapters.adapter_currency_conversion import AdapterCurrencyConversion
-        currency_adapter = AdapterCurrencyConversion({}, self.db_connector)
-        
-        # Get all possible currencies from stables metadata
-        all_currencies = set()
-        for token_key, metadata in self.stables_metadata.items():
-            fiat = metadata.get('fiat', 'usd')
-            all_currencies.add(fiat)
-        
-        # Fetch exchange rate DataFrames for all currencies
-        df_exchange_rates = pd.DataFrame()
-        for currency in all_currencies:
-            try:
-                rates_df = currency_adapter.get_exchange_rates_dataframe(currency, days=days)
-                rates_df['fiat_currency'] = currency
-                if not rates_df.empty:
-                    df_exchange_rates = pd.concat([df_exchange_rates, rates_df])
-                    print(f"Pre-fetched {len(rates_df)} exchange rate records for {currency.upper()}")
-                else:
-                    print(f"No exchange rate data found for {currency.upper()}")
-            except Exception as e:
-                print(f"Error pre-fetching exchange rates for {currency}: {e}")
-                
-        #print(df_exchange_rates.head().to_markdown())
-        
-        # Reset index to work with the dataframes
-        if not df_bridged.empty:
-            df_bridged = df_bridged.reset_index()
-        if not df_direct.empty:
-            df_direct = df_direct.reset_index()
-        if not df_locked.empty:
-            df_locked = df_locked.reset_index()
-        if not df_bridged_exceptions.empty:
-            df_bridged_exceptions.reset_index()
-
-        df_bridged_all = pd.concat([df_bridged, df_bridged_exceptions])
-
-        ## sum up bridged supply for for all chains that aren't Ethereum
-        df_bridged_l2s = df_bridged_all[df_bridged_all['origin_key'] != 'ethereum']
-        df_bridged_l2s.drop(columns=['origin_key'], inplace=True)
-        df_bridged_l2s = df_bridged_l2s.groupby(['date'])['value'].sum().reset_index()
-        df_bridged_l2s['metric_key'] = 'stables_mcap'
-        
-        # Combine datasets
-        df = pd.concat([df_bridged, df_direct, df_locked])
-        
-        if df.empty:
-            print("No data available for total supply calculation")
-            # Return empty dataframe with correct structure
-            return pd.DataFrame(columns=['metric_key', 'origin_key', 'date', 'token_key', 'value']).set_index(['metric_key', 'origin_key', 'date', 'token_key'])
-        
-        # Apply currency conversion for non-USD stablecoins
-        print("Checking for non-USD stablecoins to convert...")
-        
-        # Reset index to work with the dataframe
-        df_reset = df.reset_index()
-
-        # Create a mapping of token keys to their fiat currencies
-        tk_currency_map = {}
-        if 'token_key' in df_reset.columns:
-            for token_key in df_reset['token_key'].unique():
-                if token_key and token_key in self.stables_metadata:
-                    fiat = self.stables_metadata[token_key].get('fiat')
-                    tk_currency_map[token_key] = fiat
-
-        if tk_currency_map:
-            ## print unique fiat currencies
-            unique_fiat_currencies = list(set(tk_currency_map.values()))
-            print(f"Found stablecoins with currencies: {unique_fiat_currencies}")
-
-        # create df from tk_currency_map
-        df_tk_currency_map = pd.DataFrame(list(tk_currency_map.items()), columns=['token_key', 'fiat_currency'])
-        print(df_tk_currency_map.head().to_markdown())
-
-        # Map fiat currencies to the main dataframe
-        df_reset = df_reset.merge(df_tk_currency_map, on='token_key', how='left')
-        #print(df_reset.head().to_markdown())
-        
-        # Map exchange rates to the main dataframe
-        df_reset = df_reset.merge(df_exchange_rates, on=['fiat_currency', 'date'], how='left')
-
-        # calculate usd value by multiplying with exchange rates
-        df_reset['value'] = df_reset['value'] * df_reset['exchange_rate']
-
-        # Also create total across all stablecoins
-        df_total = df.groupby(['origin_key', 'date'])['value'].sum().reset_index()
-        df_total['metric_key'] = 'stables_mcap'
-
-        #### Special logic for Ethereum (remove bridged supply from Ethereum values)
-        df_total_ethereum = df_total[df_total['origin_key'] == 'ethereum'].copy()
-        df_total = df_total[df_total['origin_key'] != 'ethereum']
-
-        ## join df_total_ethereum with df_bridged_l2s
-        df_total_ethereum = df_total_ethereum.merge(df_bridged_l2s, on='date', how='left', suffixes=('', '_l2s'))
-        df_total_ethereum['value'] = df_total_ethereum['value'] - df_total_ethereum['value_l2s'].fillna(0)
-        df_total_ethereum.drop(columns=['value_l2s', 'metric_key_l2s'], inplace=True)
-
-        # Combine total Ethereum with other chains
-        df_total = pd.concat([df_total, df_total_ethereum])
+        df = execute_jinja_query(
+            self.db_connector,
+            'chain_metrics/select_total_stable_supply.sql.j2',
+            params,
+            return_df=True
+        ) 
         
         # Set index and return
-        df_total.set_index(['metric_key', 'origin_key', 'date'], inplace=True)
-        return df_total
+        df.set_index(['metric_key', 'origin_key', 'date'], inplace=True)
+        return df

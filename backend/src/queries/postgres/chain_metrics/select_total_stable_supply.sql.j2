@@ -1,0 +1,55 @@
+{# 
+    A query to calculate total stablecoin supply in USD, adjusted for bridged L2 supplies.
+
+    Parameters:
+    - origin_keys: The key of the chain to filter the data by.
+    - days: default = 7
+#}
+
+
+WITH stables_usd as (
+	select *
+	from vw_fact_stables_usd
+	where date < current_date
+        AND date >= current_date - interval '{{ days }} days'
+	    and origin_key IN ( '{{ origin_keys | join("', '") }}')
+),
+
+bridged_l2s AS (
+    SELECT
+        date,
+        SUM(value_usd) AS value_l2s_usd
+    FROM stables_usd
+    WHERE metric_key IN ('supply_bridged', 'supply_bridged_exceptions')
+      AND origin_key <> 'ethereum'
+    GROUP BY date
+),
+
+totals_raw AS (
+    SELECT
+        origin_key,
+        date,
+        SUM (
+            CASE WHEN metric_key = 'supply_bridged_exceptions' THEN 0 ELSE value_usd END
+        ) AS value_usd
+    FROM stables_usd
+    GROUP BY origin_key, date
+),
+
+totals_adjusted AS (
+    SELECT
+        'stables_mcap' AS metric_key,
+        t.origin_key,
+        t.date,
+        CASE 
+            WHEN t.origin_key = 'ethereum'
+                THEN t.value_usd - COALESCE(b.value_l2s_usd, 0)
+            ELSE t.value_usd
+        END AS value
+    FROM totals_raw t
+    LEFT JOIN bridged_l2s b USING (date)
+)
+
+SELECT *
+FROM totals_adjusted
+ORDER BY date, origin_key;
