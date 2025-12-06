@@ -15,6 +15,7 @@ from src.currency_config import (
     calculate_forex_rate_from_coingecko,
     get_coingecko_exchange_rate_url,
     get_historical_exchange_rate_url,
+    get_github_historical_exchange_rate_url,
     RATE_FETCH_CONFIG
 )
 from src.misc.helper_functions import api_get_call, print_init, print_load, print_extract
@@ -65,7 +66,8 @@ class AdapterCurrencyConversion(AbstractAdapter):
         elif load_type == 'historical_rates':
             if not target_date:
                 raise ValueError("historical_rates requires 'date' in YYYY-MM-DD format")
-            df = self._fetch_historical_rates(currencies, target_date)
+            #df = self._fetch_historical_rates(currencies, target_date) Frankfurter API
+            df = self._fetch_historical_rates_github(currencies, target_date) # Random Guys Github API (no data before 2024-03-02)
         else:
             raise ValueError(f"Unsupported load_type: {load_type}")
             
@@ -92,6 +94,7 @@ class AdapterCurrencyConversion(AbstractAdapter):
             print(f"Failed to load exchange rates to database: {e}")
             raise
     
+    # Uses Coingecko API & fallback random guys github API
     def _fetch_current_rates(self, currencies: List[str]) -> pd.DataFrame:
         """
         Fetch current exchange rates for specified currencies using a single CoinGecko call.
@@ -99,11 +102,18 @@ class AdapterCurrencyConversion(AbstractAdapter):
         rates_data = []
         current_time = datetime.now()
         
-        # 1. Perform a single batch API call for all rates
+        # 1. Perform a single batch API call for all rates from CoinGecko
         coingecko_data = self._fetch_all_rates_from_coingecko()
         if coingecko_data is None:
-            print("Failed to fetch all rates from CoinGecko. Cannot proceed.")
+            print("Failed to fetch all rates from CoinGecko. Using fallback.")
             return pd.DataFrame()
+        
+        # 1.1 Perform a single batch API call for all rates from Github Guys as fallback
+        df_github_data = self._fetch_historical_rates_github(currencies, current_time.strftime('%Y-%m-%d'))
+        if df_github_data.empty:
+            print("Failed to fetch all rates from fallback (Github Guys API).")
+            if coingecko_data is None:
+                return pd.DataFrame()
             
         # 2. Iterate through currencies and process the batch data
         for currency in currencies:
@@ -111,13 +121,19 @@ class AdapterCurrencyConversion(AbstractAdapter):
                 continue
                 
             rate: Optional[float] = None
-            try:
-                # Calculate rate using the shared CoinGecko response data
-                # This function should be implemented in src.currency_config
-                rate = calculate_forex_rate_from_coingecko(currency, 'usd', coingecko_data)
-                
-            except Exception as e:
-                print(f"Error processing CoinGecko data for {currency.upper()}: {e}")
+
+            # Calculate rate using the shared CoinGecko response data
+            rate = calculate_forex_rate_from_coingecko(currency, 'usd', coingecko_data)
+
+            # If rate is not found in Coingecko, use fallback
+            if rate is None:
+                print(f"Error processing CoinGecko data for {currency.upper()}. Trying fallback.")
+                # Using fallback from Github Guys API
+                try:
+                    rate = df_github_data.xs(f'fiat_{currency.lower()}', level='origin_key')['value'][0]
+                except Exception as e:
+                    print(f"Error processing fallback data for {currency.upper()}: {e}")
+                    rate = None
             
             if rate is not None:
                 rates_data.append({
@@ -126,10 +142,9 @@ class AdapterCurrencyConversion(AbstractAdapter):
                     'origin_key': f'fiat_{currency}',
                     'value': rate
                 })
-                
-                print(f"Processed {currency.upper()}/USD rate: {rate:.6f} from coingecko batch")
+                print(f"Fetched rate for {currency.upper()}: {rate} USD")
             else:
-                print(f"Failed to find or calculate rate for {currency.upper()} from CoinGecko batch data")
+                print(f"Failed to find or calculate rate for {currency.upper()} from CoinGecko & fallback data.")
         
         df = pd.DataFrame(rates_data)
         
@@ -137,7 +152,7 @@ class AdapterCurrencyConversion(AbstractAdapter):
             df = df.set_index(['metric_key', 'origin_key', 'date'])
             
         return df
-    
+
     def _fetch_single_rate(self, base_currency: str, target_currency: str) -> Tuple[Optional[float], str]:
         """
         Fetch exchange rate for a single currency pair with fallback.
@@ -198,6 +213,7 @@ class AdapterCurrencyConversion(AbstractAdapter):
             print(f"CoinGecko API error for {base_currency}/{target_currency}: {e}")
             return None
 
+    # Uses Frankfurter API
     def _fetch_historical_rates(self, currencies: List[str], target_date: str) -> pd.DataFrame:
         """
         Fetch historical exchange rates for a specific date using historical API.
@@ -259,6 +275,57 @@ class AdapterCurrencyConversion(AbstractAdapter):
             df = df.set_index(['metric_key', 'origin_key', 'date'])
         return df
     
+    # Uses Github Guys API
+    def _fetch_historical_rates_github(self, currencies: List[str], target_date: str) -> pd.DataFrame:
+        """
+        Fetch historical exchange rates for a specific date using Github API.
+
+        The provider returns USD-based rates. For base->USD, we invert the value.
+        """
+        try:
+            url = get_github_historical_exchange_rate_url(target_date)
+            response_data = api_get_call(
+                url,
+                sleeper=1,
+                retries=RATE_FETCH_CONFIG['max_retries']
+            )
+        except Exception as e:
+            print(f"Github Historical API error for date {target_date}: {e}")
+            response_data = None
+
+        rates_data: List[Dict] = []
+
+        for currency in currencies:
+            if currency == 'usd':
+                continue
+            rate_value: Optional[float] = None
+            if response_data:
+                try:
+                    rates = response_data.get('usd', {}) or {}
+                    # normalize keys to upper
+                    rates_upper = {str(k).upper(): v for k, v in rates.items()}
+
+                    base_rate = rates_upper.get(currency.upper())
+
+                    if base_rate:
+                        rate_value = 1.0 / base_rate
+                except Exception:
+                    rate_value = None
+
+            if rate_value is not None:
+                rates_data.append({
+                    'date': pd.to_datetime(target_date).date(),
+                    'metric_key': 'price_usd',
+                    'origin_key': f'fiat_{currency}',
+                    'value': rate_value
+                })
+            else:
+                print(f"No historical rate for {currency.upper()} on {target_date} from Github API")
+
+        df = pd.DataFrame(rates_data)
+        if not df.empty:
+            df = df.set_index(['metric_key', 'origin_key', 'date'])
+        return df
 
     def get_exchange_rates_dataframe(self, base_currency: str, target_currency: str = 'usd', days: int = 30) -> pd.DataFrame:
         """
