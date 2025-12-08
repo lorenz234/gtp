@@ -1088,27 +1088,114 @@ def fetch_block_transaction_details(w3, block):
                 print(f"Failed to fetch receipt for tx {tx['hash'].hex()}: {str(inner_e)}")
 
     return transaction_details
-    
-def fetch_data_for_range(w3, block_start, block_end):
+
+def extract_block_header(block):
     """
-    Fetches transaction data for a range of blocks and returns it as a DataFrame.
-    Also extracts authorization list data from type 4 transactions.
+    Extracts block header data from the Web3 block object.
+    """
+    try:
+        # Convert unix timestamp to datetime object
+        ts = block['timestamp']
+        dt_obj = pd.to_datetime(ts, unit='s')
+        
+        # Prepare the dictionary matching SQL column names
+        data = {
+            'number': block['number'],
+            # Bytea fields (Keep as raw or hex strings here, processed later)
+            'hash': block['hash'],
+            'parent_hash': block['parentHash'],
+            'parent_beacon_block_root': block.get('parentBeaconBlockRoot'), 
+            'miner': block['miner'],
+            # Int fields
+            'nonce': block['nonce'], 
+            'difficulty': block['difficulty'],
+            'size': block['size'],
+            'gas_limit': block['gasLimit'],
+            'gas_used': block['gasUsed'],
+            'base_fee_per_gas': block.get('baseFeePerGas'), 
+            'excess_blob_gas': block.get('excessBlobGas'),  
+            'blob_gas_used': block.get('blobGasUsed'),      
+            'txcount': len(block['transactions']),
+            # Time fields
+            'timestamp': dt_obj,             
+            'block_date': dt_obj.date()      
+        }
+        return data
+    except Exception as e:
+        print(f"Error extracting header for block {block.get('number')}: {e}")
+        return None
+
+def process_and_upload_block_headers(df, db_connector, chain):
+    """
+    Processes the raw block DataFrame (bytea, nonce conversion) and uploads to DB.
+    Only runs if chain is ethereum.
+    """
+
+    try:
+        table_name = f'{chain.lower()}_blocks'
+
+        # 1. Handle BYTEA columns
+        bytea_cols = ['hash', 'parent_hash', 'parent_beacon_block_root', 'miner']
+        for col in bytea_cols:
+            if col in df.columns:
+                df[col] = df[col].apply(lambda x: process_bytea_value(x) if pd.notnull(x) else None)
+
+        # 2. Handle NONCE (Hex/Bytes -> Int)
+        def parse_nonce(x):
+            if x is None: return None
+            if isinstance(x, int): return x
+            if isinstance(x, str): return int(x, 16)
+            if hasattr(x, 'hex'): return int(x.hex(), 16)
+            return int(x)
+
+        if 'nonce' in df.columns:
+            df['nonce'] = df['nonce'].apply(parse_nonce)
+        
+        # 3. Ensure Numeric Columns fill NaN with None (for SQL NULL)
+        numeric_nullable = ['base_fee_per_gas', 'excess_blob_gas', 'blob_gas_used']
+        for col in numeric_nullable:
+            if col in df.columns:
+                df[col] = df[col].astype(object).where(df[col].notnull(), None)
+
+        # 4. Set Index and Upload
+        df_upload = df.copy()
+        if 'number' in df_upload.columns:
+            df_upload.set_index('number', inplace=True)
+        
+        # Use existing upsert logic
+        db_connector.upsert_table(table_name, df_upload)
+        print(f"...block headers inserted for {chain}: {len(df_upload)} rows")
+
+    except Exception as e:
+        print(f"ERROR: Failed to upload block headers for {chain}: {e}")
+    
+    
+def fetch_data_for_range(w3, block_start, block_end, chain): # <--- Added chain argument
+    """
+    Fetches transaction data and block headers for a range of blocks.
     
     Args:
         w3: The Web3 instance for interacting with the blockchain.
         block_start (int): The starting block number.
         block_end (int): The ending block number.
-
-    Returns:
-        tuple: (transaction_df, auth_list_df) - DataFrames containing transaction data and authorization list data
+        chain (str): The name of the blockchain chain.
+    
+    Returns: (transaction_df, auth_list_df, blocks_df)
     """
     all_transaction_details = []
     all_auth_list_data = []
+    all_block_headers = [] # <--- Container for block headers
     
     try:
         # Loop through each block in the range
         for block_num in range(block_start, block_end + 1):
             block = w3.eth.get_block(block_num, full_transactions=True)
+            
+            # Extract block header data immediately (efficient, no extra RPC call)
+            if chain.lower() == 'ethereum':
+                header_data = extract_block_header(block)
+                if header_data:
+                    all_block_headers.append(header_data)
             
             # Fetch transaction details for the block using the new function
             transaction_details = fetch_block_transaction_details(w3, block)
@@ -1123,18 +1210,17 @@ def fetch_data_for_range(w3, block_start, block_end):
                 if not auth_list_df.empty:
                     all_auth_list_data.append(auth_list_df)
 
-        # Convert list of dictionaries to DataFrame
+        # Convert lists to DataFrames
         df = pd.DataFrame(all_transaction_details)
-        
-        # Combine all authorization list data
         auth_df = pd.concat(all_auth_list_data, ignore_index=True) if all_auth_list_data else pd.DataFrame()
-        
-        # if df doesn't have any records, then handle it gracefully
+        blocks_df = pd.DataFrame(all_block_headers)
+
+        # Return tuple of 3 DataFrames
         if df.empty:
             print(f"...no transactions found for blocks {block_start} to {block_end}.")
-            return None, auth_df  # Return None for transactions, but still return auth data if any
+            return None, auth_df, blocks_df 
         else:
-            return df, auth_df
+            return df, auth_df, blocks_df
 
     except Exception as e:
         raise e
@@ -1165,8 +1251,11 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
         try:
             elapsed_time = time.time() - start_time
 
-            df, auth_df = fetch_data_for_range(w3, current_start, current_end)
+            df, auth_df, blocks_df = fetch_data_for_range(w3, current_start, current_end, chain)
 
+            if not blocks_df.empty:
+                process_and_upload_block_headers(blocks_df, db_connector, chain)
+            
             # Check if df is None or empty, and if so, return early without further processing.
             if df is None or df.empty:
                 print(f"...skipping blocks {current_start} to {current_end} due to no data.")
