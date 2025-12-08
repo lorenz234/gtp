@@ -34,8 +34,9 @@ AGG_CONFIG_AVG = 'avg'
 AGG_CONFIG_MAA = 'maa'
 
 METRIC_DAA = 'daa'
-METRIC_MAA = 'maa'
 METRIC_WAA = 'waa'
+METRIC_MAA = 'maa'
+METRIC_QAA = 'qaa'
 METRIC_AA_7D = 'aa_last7d'
 METRIC_AA_30D = 'aa_last30d'
 
@@ -275,7 +276,7 @@ class JsonGen():
         if agg_config == AGG_CONFIG_MAA:
             weekly_df = self._get_prepared_timeseries_df(origin_key, [METRIC_WAA], start_date, metric_dict.get('max_date_fill', False))
             monthly_df = self._get_prepared_timeseries_df(origin_key, [METRIC_MAA], start_date, metric_dict.get('max_date_fill', False))
-            quarterly_df = self._get_prepared_timeseries_df(origin_key, [METRIC_MAA], start_date, metric_dict.get('max_date_fill', False))
+            quarterly_df = self._get_prepared_timeseries_df(origin_key, [METRIC_QAA], start_date, metric_dict.get('max_date_fill', False))
         else:
             weekly_df = daily_df.resample('W-MON', label='left', closed='left').agg(agg_method)
             monthly_df = daily_df.resample('MS').agg(agg_method)
