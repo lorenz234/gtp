@@ -897,6 +897,14 @@ def get_all_gtp_tags(db_connector):
     df = db_connector.get_table('oli_tags')
     return df
 
+# get all official Open Labels Initative usage categories from OLI Github
+def get_all_oli_categories_from_github():
+    url = "https://raw.githubusercontent.com/openlabelsinitiative/OLI/refs/heads/main/1_label_schema/tags/valuesets/usage_category.yml"
+    response = requests.get(url)
+    data = yaml.load(response.text, Loader=yaml.FullLoader)
+    df = pd.DataFrame(data['categories'])
+    return df
+
 # get the growthepie x Open Labels Initative (OLI) list of trusted entities (attester, tag_id, score)
 def get_trusted_entities(db_connector):
     # copy Github data into df
