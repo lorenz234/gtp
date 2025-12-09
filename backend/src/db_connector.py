@@ -1820,42 +1820,6 @@ class DbConnector:
                 df['attester'] = '\\x' + df['attester'].apply(lambda x: x.hex())
                 return df
         
-        ## This function is used for our Airtable setup - get the latest OLI silver table label
-        def get_oli_label_lastest(self, address, chain_id, attester = '0xA725646C05E6BB813D98C5ABB4E72DF4BCF00B56'):
-                if attester.startswith('0x') or attester.startswith('\\'):
-                        attester = attester[2:]
-                if address.startswith('0x') or address.startswith('\\'):
-                        address = address[2:]
-                exec_string = f'''
-                        SELECT 
-                                id, 
-                                chain_id, 
-                                address, 
-                                tag_id, 
-                                tag_value AS value, 
-                                attester, 
-                                time_created, 
-                                revocation_time, 
-                                revoked, 
-                                is_offchain
-                        FROM (
-                                SELECT 
-                                        *,
-                                        MAX(time_created) OVER () AS max_time_created
-                                FROM public.oli_label_pool_silver
-                                WHERE 
-                                        attester = decode('{attester}', 'hex')
-                                        AND address = decode('{address}', 'hex')
-                                        AND chain_id = '{chain_id}'
-                                        AND revoked = false
-                        ) sub
-                        WHERE time_created = max_time_created;
-                '''
-                df = pd.read_sql(exec_string, self.engine.connect())
-                df['address'] = '\\x' + df['address'].apply(lambda x: x.hex())
-                df['attester'] = '\\x' + df['attester'].apply(lambda x: x.hex())
-                return df
-        
         ## This function is used for our Airtable setup - it returns the gold table label, aggregation of all trusted labels
         def get_oli_trusted_label_gold(self, address, chain_id):
                 if address.startswith('0x') or address.startswith('\\'):
