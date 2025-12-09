@@ -2,7 +2,6 @@ SELECT
     chain_id, 
     tag_id, 
     COUNT(*) as row_count
-FROM public.oli_label_pool_silver
-WHERE revoked = FALSE
+FROM public.labels
 GROUP BY chain_id, tag_id
 ORDER BY chain_id, tag_id;

@@ -49,6 +49,8 @@ def main():
             df_att = execute_jinja_query(db_connector, "oli/analytics_count_by_attester.sql.j2", query_parameters, return_df=True)
             query_parameters = {"attester": row['attester'], "take": 25}
             df_att_latest = execute_jinja_query(db_connector, "oli/analytics_latest_by_attester.sql.j2", query_parameters, return_df=True)
+            # turn time_created into unix timestamp
+            df_att_latest['time_created'] = df_att_latest['time_created'].apply(lambda x: int(x.timestamp()) if x is not None else None)
             data_dict = {
                 "data": {
                     "timestamp": int(datetime.now().timestamp()),
@@ -115,7 +117,6 @@ def main():
                 "timestamp": int(datetime.now().timestamp()),
                 "count_tags": int(df_totals["count_tags"].iloc[0]),
                 "count_attestations": int(df_totals["count_attestations"].iloc[0]),
-                "revoked_count_tags": int(df_totals["revoked_count_tags"].iloc[0]),
                 "revoked_count_attestations": int(df_totals["revoked_count_attestations"].iloc[0]),
                 "offchain_count_tags": int(df_totals["offchain_count_tags"].iloc[0]),
                 "offchain_count_attestations": int(df_totals["offchain_count_attestations"].iloc[0]),
