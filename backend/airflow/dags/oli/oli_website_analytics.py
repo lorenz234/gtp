@@ -11,7 +11,7 @@ from src.misc.airflow_utils import alert_via_webhook
         'retry_delay': timedelta(minutes=15),
         'on_failure_callback': lambda context: alert_via_webhook(context, user='lorenz')
     },
-    dag_id='oli_website',
+    dag_id='oli_website_analytics',
     description='Create json files for the OLI website analytics page',
     tags=['oli', 'daily'],
     start_date=datetime(2025, 9, 25),
@@ -71,10 +71,9 @@ def main():
                             row['revoked'],
                             row['ipfs_hash'],
                             row['tx_id'],
-                            row['decoded_data_json'],
-                            row['time'],
-                            row['time_created'],
-                            row['revocation_time']
+                            row['chain_id'],
+                            row['tags_json'],
+                            row['time_created']
                         ] for index, row in df_att_latest.iterrows()]
                     }
                 }

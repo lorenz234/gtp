@@ -2214,7 +2214,7 @@ class JSONCreation():
                     coalesce(hll_cardinality(hll_union_agg(case when "date" > current_date - interval '{timeframe+1} days' then hll_addresses end))::int, 0) as daa, 
                     coalesce(hll_cardinality(hll_union_agg(case when "date" < current_date - interval '{timeframe} days' then hll_addresses end))::int, 0) as prev_daa
                 FROM public.fact_active_addresses_contract_hll fact
-                JOIN vw_oli_label_pool_gold_pivoted oli USING (address, origin_key)
+                JOIN vw_oli_label_pool_gold_pivoted_v2 oli USING (address, origin_key)
                 WHERE "date" >= current_date - interval '{timeframe*2} days'
                     AND fact.origin_key IN ({chains_str})
                     AND oli.owner_project IS NOT NULL
@@ -2415,7 +2415,7 @@ class JSONCreation():
                     origin_key, 
                     hll_cardinality(hll_union_agg(hll_addresses))::int AS daa
                 FROM public.fact_active_addresses_contract_hll fact
-                JOIN vw_oli_label_pool_gold_pivoted oli USING (address, origin_key)
+                JOIN vw_oli_label_pool_gold_pivoted_v2 oli USING (address, origin_key)
                 WHERE 
                     oli.owner_project  = '{owner_project}'
                     AND fact.origin_key IN ({chains_str})
@@ -2437,7 +2437,7 @@ class JSONCreation():
             SELECT 
                 coalesce(hll_cardinality(hll_union_agg(case when "date" > current_date - interval '{timeframe+1} days' then hll_addresses end))::int, 0) as val
             FROM public.fact_active_addresses_contract_hll fact
-            JOIN vw_oli_label_pool_gold_pivoted oli USING (address, origin_key)
+            JOIN vw_oli_label_pool_gold_pivoted_v2 oli USING (address, origin_key)
             WHERE 
                 owner_project = '{owner_project}'
                 AND fact.origin_key = '{origin_key}'
@@ -3028,12 +3028,15 @@ class JSONCreation():
         upload_parquet_to_cf_s3(self.s3_bucket, f'{self.api_version}/labels/export_labels_{subset}', df, self.cf_distribution_id)
         print(f'DONE -- labels export_labels_{subset}.parquet export')
 
-    def create_export_oli_parquet(self):        
+    def create_export_oli_parquet(self):
+        # Connect to OLI database
+        oli_db_connector = DbConnector(db_name='oli')
+        
         exec_string = f"""
-            SELECT concat('0x',encode(id, 'hex')) as id, attester, recipient, is_offchain, revoked, ipfs_hash, tx_id, decoded_data_json, "time", time_created, revocation_time
-            FROM public.oli_label_pool_bronze;
+            SELECT concat('0x',encode(uid, 'hex')) as uid, attester, recipient, chain_id, tags_json, is_offchain, revoked, ipfs_hash, tx_hash, last_updated_time, revocation_time
+            FROM public.attestations;
         """
-        with self.db_connector.engine.connect() as connection:
+        with oli_db_connector.engine.connect() as connection:
             df = pd.read_sql(exec_string, connection)
         df = db_addresses_to_checksummed_addresses(df, ['attester', 'recipient'])
 
@@ -3041,10 +3044,10 @@ class JSONCreation():
         print(f'DONE -- OLI labels_raw.parquet export')
 
         exec_string = f"""
-            SELECT concat('0x',encode(id, 'hex')) as id, chain_id, address, tag_id, tag_value, attester, time_created, revocation_time, revoked, is_offchain
-            FROM public.oli_label_pool_silver;
+            SELECT concat('0x',encode(uid, 'hex')) as uid, chain_id, address, attester, "time", is_offchain, last_updated_time, tag_id, tag_value
+            FROM public.labels;
         """
-        with self.db_connector.engine.connect() as connection:
+        with oli_db_connector.engine.connect() as connection:
             df = pd.read_sql(exec_string, connection)
         df = db_addresses_to_checksummed_addresses(df, ['address', 'attester'])
 

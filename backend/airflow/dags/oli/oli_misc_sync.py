@@ -15,7 +15,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Sync various OLI related data such as categories to our web3 db.',
     tags=['oli'],
     start_date=datetime(2025, 12, 9),
-    schedule='55 */6 * * *',  # Runs every 6 hours, at minute 50
+    schedule='45 0 * * *',  # Runs daily at 0:45 AM
     catchup=False  # Prevents backfilling
 )
 
@@ -106,9 +106,10 @@ def main():
         db_connector = DbConnector()
         db_connector.upsert_table('oli_trust_table', df)
 
+    tags = sync_tags_from_OLI_github()
+    categories = sync_categories_from_OLI_github()
+    trust_table = sync_oli_trust_table()
 
-    sync_tags_from_OLI_github()
-    sync_categories_from_OLI_github()
-    sync_oli_trust_table()
+    tags >> categories >> trust_table 
 
 main()

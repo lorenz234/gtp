@@ -15,7 +15,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Update Airtable for contracts labelling',
     tags=['oli', 'daily'],
     start_date=datetime(2023,9,10),
-    schedule='50 00 * * *' #after coingecko, after oli_oss_directory, and before metrics_sql_blockspace
+    schedule='50 00 * * *' # 0:50am. After coingecko, after oli_oss_directory, oli_misc_sync and before metrics_sql_blockspace
 )
 
 def etl():
@@ -85,9 +85,9 @@ def etl():
                 print(f"Successfully attested label for {address} on {chain_id}: {response}")
                 
     @task()
-    def airtable_write_chain_info():
+    def sync_chains_to_airtable():
         """
-        This task writes the chain info from the main config to Airtable.
+        This task syncs the chain info from the main config to Airtable.
         """
         import pandas as pd
         import os
@@ -128,11 +128,11 @@ def etl():
         if df_new.empty == False:
             at.push_to_airtable(table, df_new.drop(columns=['id']))
 
-        # remove old records
-        mask = ~df_air['origin_key'].isin(df['origin_key'])
-        df_remove = df_air[mask]
-        if df_remove.empty == False:
-            at.delete_airtable_ids(table, df_remove['id'].tolist())
+        # remove old records (rare occurrence, commented out as of Dec.9th 2025)
+        #mask = ~df_air['origin_key'].isin(df['origin_key'])
+        #df_remove = df_air[mask]
+        #if df_remove.empty == False:
+        #    at.delete_airtable_ids(table, df_remove['id'].tolist())
 
     @task()
     def airtable_write_contracts():
@@ -159,16 +159,17 @@ def etl():
         at.clear_all_airtable(table)
 
         # set 'approve' column to False for all records with temp_owner_project filled out
-        df_remove = at.read_airtable(table)
-        df_remove['approve'] = False
-        at.update_airtable(table, df_remove)
-        
+        df_unapprove = at.read_airtable(table)
+        df_unapprove['approve'] = False
+        df_unapprove = df_unapprove[['id', 'approve']]
+        at.update_airtable(table, df_unapprove)
+
         # get top unlabelled contracts, short and long term and also inactive contracts
         df0 = db_connector.get_unlabelled_contracts('20', '720') # top 20 contracts per chain from last 720 days
         df1 = db_connector.get_unlabelled_contracts('20', '180') # top 20 contracts per chain from last 3 months
         df2 = db_connector.get_unlabelled_contracts('20', '30') # top 20 contracts per chain from last month
         df3 = db_connector.get_unlabelled_contracts('20', '7') # top 20 contracts per chain from last week
-        
+
         # merge the all dataframes & reset index
         df = pd.concat([df0, df1, df2, df3])
         df = df.reset_index(drop=True)
@@ -180,6 +181,7 @@ def etl():
         df['address'] = df['address'].apply(lambda x: to_checksum_address('0x' + bytes(x).hex()))
 
         # remove all duplicates that are still in the airtable due to temp_owner_project
+        df_remove = at.read_airtable(table)
         if df_remove.empty == False:
             # replace id with actual origin_key
             chains = api.table(AIRTABLE_BASE_ID, 'Chains')
@@ -211,6 +213,74 @@ def etl():
 
         # write to airtable
         at.push_to_airtable(table, df)
+
+    @task()
+    def airtable_write_label_pool_reattest():
+        """
+        This task writes the approved label pool reattest table to Airtable.
+        """
+        from eth_utils import to_checksum_address
+        from src.db_connector import DbConnector
+        from src.misc.helper_functions import send_discord_message
+        import src.misc.airtable_functions as at
+        from pyairtable import Api
+        import os
+
+        # get new untrusted owner_project attestations from labels view in web3 db
+        db_connector = DbConnector()
+        yesterday = datetime.today() - timedelta(days=1)
+        load_params = {'date': yesterday.strftime('%Y-%m-%d')}
+        df_air = db_connector.execute_jinja('/oli/extract_labels_for_review.sql.j2', load_params, load_into_df=True)
+
+        if df_air.empty == False:
+
+            # push to airtable
+            AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
+            AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
+            api = Api(AIRTABLE_API_KEY)
+            table = api.table(AIRTABLE_BASE_ID, 'Label Pool Reattest')
+            df_air['address'] = df_air['address'].apply(lambda x: to_checksum_address('0x' + bytes(x).hex()))
+            df_air['attester'] = df_air['attester'].apply(lambda x: to_checksum_address('0x' + bytes(x).hex()))
+            
+            # exchange the category with the id & make it a list
+            cat = api.table(AIRTABLE_BASE_ID, 'Sub Categories')
+            df_cat = at.read_airtable(cat)
+            df_air = df_air.replace({'usage_category': df_cat.set_index('category_id')['id']})
+            df_air['usage_category'] = df_air['usage_category'].apply(lambda x: [x])
+            
+            # exchange the project with the id & make it a list
+            proj = api.table(AIRTABLE_BASE_ID, 'OSS Projects')
+            df_proj = at.read_airtable(proj)
+            df_air = df_air.replace({'owner_project': df_proj.set_index('Name')['id']})
+            df_air['owner_project'] = df_air['owner_project'].apply(lambda x: [x])
+            
+            # exchange the chain chain_id with the id & make it a list
+            chains = api.table(AIRTABLE_BASE_ID, 'Chains')
+            df_chains = at.read_airtable(chains)
+            df_air = df_air.replace({'chain_id': df_chains.set_index('caip2')['id']})
+            df_air['chain_id'] = df_air['chain_id'].apply(lambda x: [x])
+            
+            # rename chain_id to origin_key
+            df_air = df_air.rename(columns={'chain_id': 'origin_key'})
+            
+            # catch errors and log them in the error column (for owner_project and usage_category)
+            df_air['error'] = None
+            df_air['error'] = df_air.apply(
+                lambda row: (row['error'] or '') + f" failed owner_project: '{row['owner_project'][0]}'" 
+                if row['owner_project'][0] is not None and not row['owner_project'][0].startswith('rec') else row['error'], axis=1
+            )
+            df_air['error'] = df_air.apply(
+                lambda row: (row['error'] or '') + f" failed usage_category: '{row['usage_category'][0]}'" 
+                if row['usage_category'][0] is not None and not row['usage_category'][0].startswith('rec') else row['error'], axis=1
+            )
+            df_air['usage_category'] = df_air['usage_category'].apply(lambda x: x if x[0] is not None and x[0].startswith('rec') else [])
+            df_air['owner_project'] = df_air['owner_project'].apply(lambda x: x if x[0] is not None and x[0].startswith('rec') else [])
+            
+            # write to airtable df
+            at.push_to_airtable(table, df_air)
+            
+            # send discord message
+            send_discord_message(f"{df_air.shape[0]} new attestations submitted to label pool, please review in airtable.", os.getenv('DISCORD_CONTRACTS'))
 
     @task()
     def airtable_write_depreciated_owner_project():
@@ -380,11 +450,11 @@ def etl():
             oli = OLI(private_key=os.getenv("OLI_gtp_pk"), api_key=os.getenv("OLI_API_KEY"))
             # revoke with max 500 uids at once
             for i in range(0, len(uids_offchain), 500):
-                tx_hash, count = oli.revoke_bulk_by_uids(uids_offchain[i:i + 500], onchain=False, gas_limit=15000000)
-                print(f"Revoked {count} offchain labels with tx_hash {tx_hash}")
+                response = oli.revoke_bulk_by_uids(uids_offchain[i:i + 500], onchain=False, gas_limit=15000000)
+                print(f"Revoked {len(uids_offchain[i:i + 500])} offchain labels with tx_hash {response}")
             for i in range(0, len(uids_onchain), 500):
-                tx_hash, count = oli.revoke_bulk_by_uids(uids_onchain[i:i + 500], onchain=True, gas_limit=15000000)
-                print(f"Revoked {count} onchain labels with tx_hash {tx_hash}")
+                response = oli.revoke_bulk_by_uids(uids_onchain[i:i + 500], onchain=True, gas_limit=15000000)
+                print(f"Revoked {len(uids_onchain[i:i + 500])} onchain labels with tx_hash {response}")
 
     @task()
     def sync_categories_to_airtable():
@@ -429,26 +499,42 @@ def etl():
         # add new records
         at.push_to_airtable(table_sub, df_sub[df_sub['id'].isna()].drop(columns=['id']))
 
+    @task()
+    def refresh_materialized_views():
+        """
+        This task refreshes the OLI materialized views in our web3 database.
+        """
+        from src.db_connector import DbConnector
+        db_connector = DbConnector()
+        materialized_views = [
+            'vw_oli_label_pool_gold_v2',
+            'vw_oli_label_pool_gold_pivoted_v2'
+        ]
+        for view in materialized_views:
+            db_connector.refresh_materialized_view(view)
 
-    # all tasks
+    ## Sync things from db to airtable
     sync_categories = sync_categories_to_airtable() ## sync categories from db to airtable
+    sync_chains = sync_chains_to_airtable() ## sync chains from db to airtable
 
+    ## Read in new labels from airtable and attest to label pool
     read_contracts = airtable_read_contracts()  ## read in contracts from airtable and attest
     read_pool = airtable_read_label_pool_reattest() ## read in approved labels from airtable and attest 
     read_remap = airtable_read_depreciated_owner_project() ## read in remap owner project from airtable and attest
     
-    refresh_tags = refresh_oli_tags() ## read in oli tags from oli Github and upsert to DB table oli_tags
-    trusted_entities = refresh_trusted_entities() ## read in trusted entities from gtp-dna Github and upsert to DB
-    refresh = run_refresh_materialized_view() ## refresh materialized views vw_oli_label_pool_gold and vw_oli_label_pool_gold_pivoted
-    
-    write_chain = airtable_write_chain_info() ## write chain info from main config to airtable
+    ## Refresh materialized views
+    refresh_views = refresh_materialized_views()
+
+    ## Write new unlabeled contracts and depreciated owner project to airtable from db
     write_contracts = airtable_write_contracts()  ## write contracts from DB to airtable
-    write_owner_project = airtable_write_depreciated_owner_project() ## write remap owner project from DB to airtable
+    write_pool = airtable_write_label_pool_reattest() ## write label pool reattest from DB to airtable
+    write_remap = airtable_write_depreciated_owner_project() ## write remap owner project from DB to airtable
     
+    ## Revoke old attestations from label pool
     revoke_onchain = revoke_old_attestations() ## revoke old attestations from the label pool
 
     # Define execution order
-    read_contracts >> read_pool >> read_remap >> refresh_tags >> trusted_entities >> refresh >> write_chain >> write_contracts >> write_owner_project >> revoke_onchain
+    sync_categories >> sync_chains >> read_contracts >> read_pool >> read_remap >> refresh_views >> write_contracts >> write_pool >> write_remap >> revoke_onchain
     
 etl()
 

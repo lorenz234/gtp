@@ -1197,7 +1197,7 @@ class DbConnector:
                                 sum(txcount) as txcount,
                                 sum(daa) as daa
                         FROM public.blockspace_fact_contract_level cl
-                        inner join vw_oli_label_pool_gold_pivoted bl on cl.address = bl.address and cl.origin_key = bl.origin_key 
+                        inner join vw_oli_label_pool_gold_pivoted_v2 bl on cl.address = bl.address and cl.origin_key = bl.origin_key 
                         where date < DATE_TRUNC('day', NOW())
                                 and date >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
                                 and cl.origin_key = '{chain}'
@@ -1291,7 +1291,7 @@ class DbConnector:
                                         sum(txcount) as txcount,
                                         round(avg(daa)) as daa
                                 FROM public.blockspace_fact_contract_level cl
-                                left join vw_oli_label_pool_gold_pivoted bl on cl.address = bl.address and cl.origin_key = bl.origin_key 
+                                left join vw_oli_label_pool_gold_pivoted_v2 bl on cl.address = bl.address and cl.origin_key = bl.origin_key 
                                 left join vw_oli_category_mapping bcm on lower(bl.usage_category) = lower(bcm.category_id) 
                                 left join oli_oss_directory oss on bl.owner_project = oss.name
                                 where 
@@ -1369,7 +1369,7 @@ class DbConnector:
                                         sum(txcount) as txcount,
                                         round(avg(daa)) as daa
                                 FROM public.blockspace_fact_contract_level cl
-                                left join vw_oli_label_pool_gold_pivoted bl on cl.address = bl.address and cl.origin_key = bl.origin_key
+                                left join vw_oli_label_pool_gold_pivoted_v2 bl on cl.address = bl.address and cl.origin_key = bl.origin_key
                                 left join vw_oli_category_mapping bcm on lower(bl.usage_category) = lower(bcm.category_id)
                                 left join oli_oss_directory oss on bl.owner_project = oss.name
                                 where
@@ -1471,7 +1471,7 @@ class DbConnector:
                                         sum(txcount) as txcount,
                                         round(avg(daa)) as daa
                                 FROM public.blockspace_fact_contract_level cl
-                                left join vw_oli_label_pool_gold_pivoted bl on cl.address = bl.address and cl.origin_key = bl.origin_key 
+                                left join vw_oli_label_pool_gold_pivoted_v2 bl on cl.address = bl.address and cl.origin_key = bl.origin_key 
                                 left join vw_oli_category_mapping bcm on lower(bl.usage_category) = lower(bcm.category_id) 
                                 left join oli_oss_directory oss on bl.owner_project = oss.name
                                 where 
@@ -1793,7 +1793,7 @@ class DbConnector:
                         )
 
                         SELECT gt.*
-                        FROM vw_oli_label_pool_gold gt 
+                        FROM vw_oli_label_pool_gold_v2 gt 
                         LEFT JOIN active_projects ip ON ip.name = gt.tag_value
                         WHERE 
                                 tag_id = 'owner_project'
@@ -1807,10 +1807,10 @@ class DbConnector:
         def get_oli_labels_gold_by_owner_project(self, owner_project):
                 exec_string = f"""
                         SELECT address, origin_key, caip2, tag_id, tag_value, attester, time_created
-                        FROM public.vw_oli_label_pool_gold
+                        FROM public.vw_oli_label_pool_gold_v2
                         WHERE (address, caip2) IN (
                                 SELECT DISTINCT address, caip2
-                                FROM public.vw_oli_label_pool_gold
+                                FROM public.vw_oli_label_pool_gold_v2
                                 WHERE tag_id = 'owner_project'
                                 AND tag_value = '{owner_project}'
                         );
@@ -1869,7 +1869,7 @@ class DbConnector:
                                 tag_value as value,
                                 attester,
                                 time_created
-                        FROM public.vw_oli_label_pool_gold
+                        FROM public.vw_oli_label_pool_gold_v2
                         where 
                                 address = decode('{address}', 'hex')
                                 and caip2 = '{chain_id}';
@@ -1886,22 +1886,21 @@ class DbConnector:
                 exec_string = f'''
                         WITH filtered_labels AS (
                                 SELECT *
-                                FROM public.oli_label_pool_silver
-                                WHERE 
-                                        attester = decode('{attester}', 'hex')
-                                        AND revoked = false
+                                FROM public.labels
+                                WHERE attester = decode('{attester}', 'hex')
                         ),
                         with_max_time AS (
                                 SELECT 
                                         *,
-                                        MAX(time_created) OVER (PARTITION BY chain_id, address) AS max_time_created
+                                        MAX(time) OVER (PARTITION BY chain_id, address) AS max_time
                                 FROM filtered_labels
                         )
-                        SELECT DISTINCT ON (id)
-                                '0x' || encode(id, 'hex') AS id_hex,
+                        SELECT DISTINCT ON (uid)
+                                -- address,
+                                '0x' || encode(uid, 'hex') AS id_hex,
                                 is_offchain
                         FROM with_max_time
-                        WHERE time_created < max_time_created;
+                        WHERE time < max_time;
                 '''
                 df = pd.read_sql(exec_string, self.engine.connect())
                 return df
@@ -1921,7 +1920,7 @@ class DbConnector:
                                         MAX(CASE WHEN tag_id = 'owner_project' THEN tag_value END) AS owner_project,
                                         MAX(CASE WHEN tag_id = 'usage_category' THEN tag_value END) AS usage_category,
                                         MAX(CASE WHEN tag_id = '_comment' THEN tag_value END) AS _comment
-                                FROM public.vw_oli_label_pool_gold
+                                FROM public.vw_oli_label_pool_gold_v2
                                 GROUP BY
                                         address, caip2
                         ),
@@ -2007,7 +2006,7 @@ class DbConnector:
                                 g.deployment_tx,
                                 g.deployer_address,
                                 g.deployment_date
-                        FROM public.vw_oli_label_pool_gold_pivoted g
+                        FROM public.vw_oli_label_pool_gold_pivoted_v2 g
                         LEFT JOIN sys_main_conf s USING (origin_key)
                         WHERE owner_project IS NOT NULL
                         """
@@ -2063,7 +2062,7 @@ class DbConnector:
                                 (cl.daa - prev.daa) / prev.daa as daa_change
                         FROM current_period cl
                         left join prev_period prev using (address, origin_key)
-                        left join vw_oli_label_pool_gold_pivoted lab using (address, origin_key)
+                        left join vw_oli_label_pool_gold_pivoted_v2 lab using (address, origin_key)
                         left join oli_oss_directory oss on oss.name = lab.owner_project
                         left join sys_main_conf syc on cl.origin_key = syc.origin_key
                         where cl.origin_key IN ('{"','".join(origin_keys)}')
@@ -2097,7 +2096,7 @@ class DbConnector:
                                 lab.deployment_date
                                 {aggregation}
                         FROM public.blockspace_fact_contract_level cl
-                        left join vw_oli_label_pool_gold_pivoted lab using (address, origin_key)
+                        left join vw_oli_label_pool_gold_pivoted_v2 lab using (address, origin_key)
                         left join sys_main_conf syc on cl.origin_key = syc.origin_key
                         where cl."date"  >= current_date - interval '180 days'
                                 and cl."date" < current_date
@@ -2196,7 +2195,7 @@ class DbConnector:
                                 MAX(CASE WHEN tag_id = 'contract_monitored' THEN tag_value END) AS contract_monitored,
                                 MAX(CASE WHEN tag_id = 'source_code_verified' THEN tag_value END) AS source_code_verified,
                                 MAX(CASE WHEN tag_id = '_comment' THEN tag_value END) AS _comment
-                        FROM public.vw_oli_label_pool_gold
+                        FROM public.vw_oli_label_pool_gold_v2
                         GROUP BY 1, 2
                 """
                 df = pd.read_sql(exec_string, self.engine.connect())
