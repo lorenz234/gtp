@@ -3030,13 +3030,11 @@ class JSONCreation():
 
     def create_export_oli_parquet(self):
         # Connect to OLI database
-        db_connector = DbConnector()
-        
         exec_string = f"""
             SELECT concat('0x',encode(uid, 'hex')) as id, attester, recipient, is_offchain, revoked, ipfs_hash, tx_hash AS tx_id, raw AS decoded_data_json, chain_id, tags_json, last_updated_time AS "time", "time" AS time_created, revocation_time
             FROM public.attestations;
         """
-        with db_connector.engine.connect() as connection:
+        with self.db_connector.engine.connect() as connection:
             df = pd.read_sql(exec_string, connection)
         df = db_addresses_to_checksummed_addresses(df, ['attester', 'recipient'])
 
@@ -3047,7 +3045,7 @@ class JSONCreation():
             SELECT concat('0x',encode(uid, 'hex')) as id, chain_id, address, tag_id, tag_value, attester, "time" AS time_created, is_offchain 
             FROM public.labels;
         """
-        with db_connector.engine.connect() as connection:
+        with self.db_connector.engine.connect() as connection:
             df = pd.read_sql(exec_string, connection)
         df = db_addresses_to_checksummed_addresses(df, ['address', 'attester'])
 
