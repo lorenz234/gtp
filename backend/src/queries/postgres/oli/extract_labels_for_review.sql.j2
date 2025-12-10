@@ -15,7 +15,6 @@ WITH filtered_labels AS (
   FROM 
     public.labels
   WHERE 
-    -- attester NOT IN (SELECT attester FROM oli_trusted_entities)
     attester != decode('A725646C05E6BB813D98C5ABB4E72DF4BCF00B56', 'hex') -- growthepie.attest
     AND attester != decode('C139d50144Ee873c8577d682628E045dECe6040E', 'hex') -- growthepie.automatic
     AND chain_id IN (SELECT caip2 FROM sys_main_conf)
