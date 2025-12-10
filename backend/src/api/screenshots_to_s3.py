@@ -307,7 +307,7 @@ def landing_template():
     """Template for landing page"""
     return {
         "content_html": """
-            <div style="display: flex; flex-direction: row; color: #CDD8D3; align-items: center; height: 100%; width: 100%; padding-left: 30px;">
+            <div style="display: flex; flex-direction: row; color: #CDD8D3; align-items: center; height: 100%; width: 100%; padding-left: 60px;">
                 <div style="display: flex; flex-direction: column; height: 434px; justify-content: space-between;">
                     <div style="display: flex; justify-content: center; flex-direction: column; width: 508px;">
                         <img src="og_resources/gtp_logo.png" alt="Logo" style="width: 450px; height: 105px;">
@@ -328,7 +328,7 @@ def icon_page_template(page_name, icon):
     """Template for pages with icon file path (fundamentals, blockspace)"""
     return {
         "content_html": f"""
-            <div style="display: flex; flex-direction: row; color: #CDD8D3; align-items: center; height: 100%; width: 100%; justify-content: space-evenly; padding-left: 30px; padding-right: 15px;">
+            <div style="display: flex; flex-direction: row; color: #CDD8D3; align-items: center; height: 100%; width: 100%; justify-content: space-evenly; padding-left: 60px;">
                 <div style="display: flex; flex-direction: column; height: 434px; justify-content: space-between;">
                     <div style="display: flex; justify-content: center; flex-direction: column; width: 508px;">
                         <img src="og_resources/gtp_logo.png" alt="Logo" style="width: 450px; height: 105px;">
@@ -342,8 +342,8 @@ def icon_page_template(page_name, icon):
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: center; height: 484px; width: 648px;">
                     <img src="og_resources/icons/small/{icon}.svg" alt="Logo" style="width: 300; height: 300px;">
-                    <div style="display: flex; align-items: center; margin-top: 70px; height: 89px;">
-                        <div class="text-6xl" style="text-wrap: wrap;">{page_name}</div>
+                    <div style="display: flex; align-items: center; margin-top: 69px; height: 89px;">
+                        <div class="text-6xl" style="text-wrap: wrap; text-align: center;">{page_name}</div>
                     </div>
                 </div>
             </div>
@@ -355,7 +355,7 @@ def chain_page_template(chain_name, logo_svg, chain_color):
     """Template for chain pages with inline SVG logo from master.json"""
     return {
         "content_html": f"""
-            <div style="display: flex; flex-direction: row; color: #CDD8D3; align-items: center; height: 100%; width: 100%; justify-content: space-evenly; padding-left: 30px; padding-right: 15px;">
+            <div style="display: flex; flex-direction: row; color: #CDD8D3; align-items: center; height: 100%; width: 100%; justify-content: space-evenly; padding-left: 30px;">
                 <div style="display: flex; flex-direction: column; height: 434px; justify-content: space-between;">
                     <div style="display: flex; justify-content: center; flex-direction: column; width: 508px;">
                         <img src="og_resources/gtp_logo.png" alt="Logo" style="width: 450px; height: 105px;">
@@ -367,11 +367,11 @@ def chain_page_template(chain_name, logo_svg, chain_color):
                         <div class="text-2xl" style="padding-left: 110px;">Check the latest and historic data</div>
                     </div>
                 </div>
-                <div style="display: flex; flex-direction: column; align-items: center; height: 484px; width: 648px; color: {chain_color};">
+                <div style="display: flex; flex-direction: column; align-items: center; height: 484px; flex: 1; color: {chain_color};">
                     <svg width="300" height="300" viewBox="0 0 15 15" fill="{chain_color}" xmlns="http://www.w3.org/2000/svg">
                         {logo_svg}
                     </svg>
-                    <div style="display: flex; align-items: center; margin-top: 70px; height: 89px; color: #CDD8D3;">
+                    <div style="display: flex; align-items: center; margin-top: 69px; height: 89px; color: #CDD8D3;">
                         <div class="text-6xl" style="text-wrap: wrap;">{chain_name}</div>
                     </div>
                 </div>
@@ -595,5 +595,5 @@ def run_template_generation(s3_bucket,
 
 
 # For testing
-# if __name__ == "__main__":
-#     run_template_generation("", "", "v1", user="local", is_local_test=True)
+#if __name__ == "__main__":
+#    run_template_generation("", "", "v1", user="local", is_local_test=True)
