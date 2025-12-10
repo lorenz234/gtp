@@ -148,12 +148,12 @@ def read_all_labeled_contracts_airtable(api, AIRTABLE_BASE_ID, table):
         df_owner_projects.set_index('id', inplace=True)
         df['owner_project'] = df[df['owner_project'].notnull()]['owner_project'].apply(lambda x: df_owner_projects.loc[x]['Name'])
     if len(df[df["usage_category"].notna()]) > 0: # TODO: move this into a function
-        df_usage_categories = read_airtable(api.table(AIRTABLE_BASE_ID, 'Usage Categories'))
-        df_usage_categories = df_usage_categories[['id', 'Category']]
+        df_usage_categories = read_airtable(api.table(AIRTABLE_BASE_ID, 'Sub Categories'))
+        df_usage_categories = df_usage_categories[['id', 'category_id']]
         df_usage_categories.set_index('id', inplace=True)
-        df['usage_category'] = df[df['usage_category'].notnull()]['usage_category'].apply(lambda x: df_usage_categories.loc[x]['Category'])
+        df['usage_category'] = df[df['usage_category'].notnull()]['usage_category'].apply(lambda x: df_usage_categories.loc[x]['category_id'])
     if len(df[df["origin_key"].notna()]) > 0: # TODO: move this into a function
-        df_chains = read_airtable(api.table(AIRTABLE_BASE_ID, 'Chain List'))
+        df_chains = read_airtable(api.table(AIRTABLE_BASE_ID, 'Chains'))
         df_chains = df_chains[['id', 'caip2']]
         df_chains.set_index('id', inplace=True)
         df['chain_id'] = df[df['origin_key'].notnull()]['origin_key'].apply(lambda x: df_chains.loc[x]['caip2'])
@@ -236,12 +236,12 @@ def read_all_approved_label_pool_reattest(api, AIRTABLE_BASE_ID, table):
         df_owner_projects.set_index('id', inplace=True)
         df['owner_project'] = df[df['owner_project'].notnull()]['owner_project'].apply(lambda x: df_owner_projects.loc[x]['Name'])
     if len(df[df["usage_category"].notna()]) > 0: # TODO: move this into a function
-        df_usage_categories = read_airtable(api.table(AIRTABLE_BASE_ID, 'Usage Categories'))
-        df_usage_categories = df_usage_categories[['id', 'Category']]
+        df_usage_categories = read_airtable(api.table(AIRTABLE_BASE_ID, 'Sub Categories'))
+        df_usage_categories = df_usage_categories[['id', 'category_id']]
         df_usage_categories.set_index('id', inplace=True)
-        df['usage_category'] = df[df['usage_category'].notnull()]['usage_category'].apply(lambda x: df_usage_categories.loc[x]['Category'])
+        df['usage_category'] = df[df['usage_category'].notnull()]['usage_category'].apply(lambda x: df_usage_categories.loc[x]['category_id'])
     if len(df[df["origin_key"].notna()]) > 0: # TODO: move this into a function
-        df_chains = read_airtable(api.table(AIRTABLE_BASE_ID, 'Chain List'))
+        df_chains = read_airtable(api.table(AIRTABLE_BASE_ID, 'Chains'))
         df_chains = df_chains[['id', 'caip2']]
         df_chains.set_index('id', inplace=True)
         df['chain_id'] = df[df['origin_key'].notnull()]['origin_key'].apply(lambda x: df_chains.loc[x]['caip2'])

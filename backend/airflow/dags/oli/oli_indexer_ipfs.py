@@ -38,12 +38,23 @@ def main():
 
             ## fetch data to upload ##
             query_select = """
-                SELECT uid, time, is_offchain, raw, schema_info
-                FROM public.attestations
-                WHERE
-                    is_offchain = true
+                SELECT 
+                    uid, 
+                    time, 
+                    is_offchain, 
+                    raw, 
+                    schema_info,
+                    table_name
+                FROM (
+                    SELECT uid, time, is_offchain, raw, schema_info, ipfs_hash, 'attestations' AS table_name
+                    FROM public.attestations
+                    UNION ALL
+                    SELECT uid, time, is_offchain, raw, schema_info, ipfs_hash, 'trust_lists' AS table_name
+                    FROM trust_lists
+                ) AS combined_tables
+                WHERE is_offchain = true
                     AND (ipfs_hash IS NULL OR ipfs_hash = '')
-                ORDER BY 2 
+                ORDER BY time
                 LIMIT 250
             """
             df = db_connector.execute_query(query_select, load_df=True)
@@ -56,11 +67,10 @@ def main():
 
             ## upload to IPFS ##
             bucket = 'oli-offchain-attestations'
-            table_name = 'attestations'
 
             # Function to upload a single row
             def upload_row(row):
-                path_name = f'attestations/{row["schema_info"]}/{row["uid"]}.json'
+                path_name = f'{row["table_name"]}/{row["schema_info"]}/{row["uid"]}.json'
                 cid = upload_json_to_filebase_ipfs(bucket, path_name, row['raw'])
                 print(f'Uploaded UID {row["uid"]} to IPFS with CID: {cid}')
                 return {
@@ -71,37 +81,49 @@ def main():
             # Upload all files concurrently with 10 workers
             results = []
             with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                futures = [executor.submit(upload_row, row) for _, row in df.iterrows()]
-                
-                for future in concurrent.futures.as_completed(futures):
+                future_to_schema = {
+                    executor.submit(upload_row, row): row.get('table_name') 
+                    for _, row in df.iterrows()
+                }
+                for future in concurrent.futures.as_completed(future_to_schema):
                     try:
                         result = future.result()
-                        results.append(result)
+                        table_name = future_to_schema[future]       
+                        results.append(result | {'table_name': table_name})
                     except Exception as e:
                         print(f'Error uploading: {e}')
 
-            # Batch update all rows in a single query
+            # Group results by table_name
             if results:
-                values_list = []
+                results_by_table = {}
                 for result in results:
-                    uid_hex = result['uid'][2:] if result['uid'].startswith('0x') else result['uid']
-                    values_list.append(f"(decode('{uid_hex}', 'hex'), '{result['cid']}')")
+                    table_name = result['table_name']
+                    if table_name not in results_by_table:
+                        results_by_table[table_name] = []
+                    results_by_table[table_name].append(result)
                 
-                values_str = ',\n        '.join(values_list)
-                
-                query_update = f"""
-                    UPDATE public.{table_name} AS t
-                    SET
-                        ipfs_hash = v.cid,
-                        last_updated_time = NOW()
-                    FROM (VALUES
-                        {values_str}
-                    ) AS v(uid, cid)
-                    WHERE t.uid = v.uid;
-                """
-                
-                db_connector.execute_query(query_update)
-                print(f'Updated {len(results)} rows in database')
+                # Batch update for each table
+                for table_name, table_results in results_by_table.items():
+                    values_list = []
+                    for result in table_results:
+                        uid_hex = result['uid'][2:] if result['uid'].startswith('0x') else result['uid']
+                        values_list.append(f"(decode('{uid_hex}', 'hex'), '{result['cid']}')")
+                    
+                    values_str = ',\n        '.join(values_list)
+                    
+                    query_update = f"""
+                        UPDATE public.{table_name} AS t
+                        SET
+                            ipfs_hash = v.cid,
+                            last_updated_time = NOW()
+                        FROM (VALUES
+                            {values_str}
+                        ) AS v(uid, cid)
+                        WHERE t.uid = v.uid;
+                    """
+                    
+                    db_connector.execute_query(query_update)
+                    print(f'Updated {len(table_results)} rows in table {table_name}')
 
             ## break the loop if time reached ##
             if start_time + (29 * 60) < time.time():  # 29 minutes

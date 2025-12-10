@@ -1,16 +1,19 @@
-SELECT 
-    '0x' || encode(id, 'hex') as id,
+SELECT
+    '0x' || encode(uid, 'hex') as id,
     '0x' || encode(attester, 'hex') as attester,
     '0x' || encode(recipient, 'hex') as recipient,
     is_offchain,
     revoked,
     ipfs_hash,
-    '0x' || encode(tx_id, 'hex') as tx_id,
-    decoded_data_json,
-    "time",
-    time_created,
-    revocation_time
-FROM public.oli_label_pool_bronze
+    CASE 
+        WHEN tx_hash IS NULL OR tx_hash = '\x'::bytea OR length(tx_hash) = 0 
+        THEN NULL 
+        ELSE '0x' || encode(tx_hash, 'hex') 
+    END as tx_id,
+    chain_id,
+    tags_json,
+    "time" AS time_created
+FROM public.attestations
 WHERE attester = decode('{{ attester }}', 'hex')
 ORDER BY time_created DESC
 LIMIT {{ take }};

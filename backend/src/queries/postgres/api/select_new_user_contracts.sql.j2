@@ -23,7 +23,7 @@ SELECT
 	sum(tx_fee) as gas_fees_eth,
 	sum(tx_fee * e.value) as gas_fees_usd
 FROM public.{{ origin_key }}_tx tx
-left join vw_oli_label_pool_gold_pivoted l on tx.to_address = l.address
+left join vw_oli_label_pool_gold_pivoted_v2 l on tx.to_address = l.address
 left join eth_price e on e.date = tx.block_date
 left join oli_categories o on l.usage_category = o.category_id
 where tx.block_date >= date_trunc('day',now()) - interval '{{ days }} days'

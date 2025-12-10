@@ -11,7 +11,7 @@ from src.misc.airflow_utils import alert_via_webhook
         'retry_delay': timedelta(minutes=15),
         'on_failure_callback': lambda context: alert_via_webhook(context, user='lorenz')
     },
-    dag_id='oli_website',
+    dag_id='oli_website_analytics',
     description='Create json files for the OLI website analytics page',
     tags=['oli', 'daily'],
     start_date=datetime(2025, 9, 25),
@@ -49,6 +49,8 @@ def main():
             df_att = execute_jinja_query(db_connector, "oli/analytics_count_by_attester.sql.j2", query_parameters, return_df=True)
             query_parameters = {"attester": row['attester'], "take": 25}
             df_att_latest = execute_jinja_query(db_connector, "oli/analytics_latest_by_attester.sql.j2", query_parameters, return_df=True)
+            # turn time_created into unix timestamp
+            df_att_latest['time_created'] = df_att_latest['time_created'].apply(lambda x: int(x.timestamp()) if x is not None else None)
             data_dict = {
                 "data": {
                     "timestamp": int(datetime.now().timestamp()),
@@ -71,10 +73,9 @@ def main():
                             row['revoked'],
                             row['ipfs_hash'],
                             row['tx_id'],
-                            row['decoded_data_json'],
-                            row['time'],
-                            row['time_created'],
-                            row['revocation_time']
+                            row['chain_id'],
+                            row['tags_json'],
+                            row['time_created']
                         ] for index, row in df_att_latest.iterrows()]
                     }
                 }
@@ -116,7 +117,6 @@ def main():
                 "timestamp": int(datetime.now().timestamp()),
                 "count_tags": int(df_totals["count_tags"].iloc[0]),
                 "count_attestations": int(df_totals["count_attestations"].iloc[0]),
-                "revoked_count_tags": int(df_totals["revoked_count_tags"].iloc[0]),
                 "revoked_count_attestations": int(df_totals["revoked_count_attestations"].iloc[0]),
                 "offchain_count_tags": int(df_totals["offchain_count_tags"].iloc[0]),
                 "offchain_count_attestations": int(df_totals["offchain_count_attestations"].iloc[0]),

@@ -1,27 +1,26 @@
 {#
     Get all attestations from external attesters that have a 'contract_name', 'owner_project' or 'usage_category' tag assigned to a label. Labels are reviewed and reattested via airtable.
-    - Filters out revoked attestations
     - Filters out tag_ids that are not contract_name, owner_project, usage_category
-    - Filters out attestations made by growthepie.attest
+    - Filters out attestations made by growthepie.attest or growthepie.automatic
 
     Parameters:
-    - time: time_created, default = 0; Only consider attestations newer than that time (int: Unix Timestamp).
+    - date: Only get attestations after this date (default: '2020-01-01')
 #}
 
-{% set time_created = time_created | default(0) %}
+{% set date = date | default('2020-01-01') %}
 
 WITH filtered_labels AS (
   SELECT 
-    id, chain_id, address, tag_id, tag_value, attester, time_created
+    uid, chain_id, address, tag_id, tag_value, attester, "time"
   FROM 
-    public.oli_label_pool_silver
+    public.labels
   WHERE 
     -- attester NOT IN (SELECT attester FROM oli_trusted_entities)
     attester != decode('A725646C05E6BB813D98C5ABB4E72DF4BCF00B56', 'hex') -- growthepie.attest
+    AND attester != decode('C139d50144Ee873c8577d682628E045dECe6040E', 'hex') -- growthepie.automatic
     AND chain_id IN (SELECT caip2 FROM sys_main_conf)
-    AND revoked = FALSE
     AND tag_id IN ('contract_name', 'owner_project', 'usage_category')
-    AND time_created > {{ time_created }}
+    AND "time" > '{{ date }}'::timestamp
 ),
 
 pivoted_data AS (
@@ -35,7 +34,7 @@ pivoted_data AS (
   FROM 
     filtered_labels
   GROUP BY 
-    id
+    uid
 )
 
 SELECT * FROM pivoted_data
