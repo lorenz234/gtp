@@ -2073,64 +2073,6 @@ class DbConnector:
                 df = pd.read_sql(exec_string, self.engine.connect())
                 return df
         
-        # export all labels created by us (gtp) in an OLI compliant table, only used for one time exports
-        def get_labels_export_tag_mapping(self):
-                exec_string = f"""
-                        SELECT
-                                '0x' || encode(address, 'hex') AS address,
-                                CASE
-                                        WHEN origin_key = 'arbitrum' THEN 'eip155:42161'
-                                        WHEN origin_key = 'base' THEN 'eip155:8453'
-                                        WHEN origin_key = 'blast' THEN 'eip155:81457'
-                                        WHEN origin_key = 'ethereum' THEN 'eip155:1'
-                                        WHEN origin_key = 'fraxtal' THEN 'eip155:252'
-                                        WHEN origin_key = 'linea' THEN 'eip155:59144'
-                                        WHEN origin_key = 'mantle' THEN 'eip155:5000'
-                                        WHEN origin_key = 'metis' THEN 'eip155:1088'
-                                        WHEN origin_key = 'mode' THEN 'eip155:34443'
-                                        WHEN origin_key = 'optimism' THEN 'eip155:10'
-                                        WHEN origin_key = 'polygon_zkevm' THEN 'eip155:1101'
-                                        WHEN origin_key = 'redstone' THEN 'eip155:690'
-                                        WHEN origin_key = 'scroll' THEN 'eip155:534352'
-                                        WHEN origin_key = 'taiko' THEN 'eip155:167000'
-                                        WHEN origin_key = 'zksync_era' THEN 'eip155:324'
-                                        WHEN origin_key = 'zora' THEN 'eip155:7777777'
-                                        WHEN origin_key = 'arbitrum_nova' THEN 'eip155:42170'
-                                        WHEN origin_key = 'swell' THEN 'eip155:1923'
-                                        WHEN origin_key = 'unichain' THEN 'eip155:130'
-                                        ELSE NULL
-                                END AS chain_id,
-                                MAX(CASE WHEN tag_id = 'is_eoa' THEN value END) AS is_eoa,
-                                MAX(CASE WHEN tag_id = 'is_contract' THEN value END) AS is_contract,
-                                MAX(CASE WHEN tag_id = 'is_factory_contract' THEN value END) AS is_factory_contract,
-                                MAX(CASE WHEN tag_id = 'is_proxy' THEN value END) AS is_proxy,
-                                MAX(CASE WHEN tag_id = 'is_safe_contract' THEN value END) AS is_safe_contract,
-                                MAX(CASE WHEN tag_id = 'contract_name' THEN value END) AS contract_name,
-                                MAX(CASE WHEN tag_id = 'deployment_tx' THEN value END) AS deployment_tx,
-                                MAX(CASE WHEN tag_id = 'deployer_address' THEN value END) AS deployer_address,
-                                MAX(CASE WHEN tag_id = 'owner_project' THEN value END) AS owner_project,
-                                MAX(CASE WHEN tag_id = 'deployment_date' THEN value END) AS deployment_date,
-                                MAX(CASE WHEN tag_id = 'erc_type' THEN value END) AS erc_type,
-                                MAX(CASE WHEN tag_id = 'erc20.symbol' THEN value END) AS "erc20.symbol",
-                                MAX(CASE WHEN tag_id = 'erc20.decimals' THEN value END) AS "erc20.decimals",
-                                MAX(CASE WHEN tag_id = 'erc721.name' THEN value END) AS "erc721.name",
-                                MAX(CASE WHEN tag_id = 'erc721.symbol' THEN value END) AS "erc721.symbol",
-                                MAX(CASE WHEN tag_id = 'erc1155.name' THEN value END) AS "erc1155.name",
-                                MAX(CASE WHEN tag_id = 'erc1155.symbol' THEN value END) AS "erc1155.symbol",
-                                MAX(CASE WHEN tag_id = 'usage_category' THEN value END) AS usage_category,
-                                MAX(CASE WHEN tag_id = 'version' THEN value END) AS version,
-                                MAX(CASE WHEN tag_id = 'audit' THEN value END) AS audit,
-                                MAX(CASE WHEN tag_id = 'contract_monitored' THEN value END) AS contract_monitored,
-                                MAX(CASE WHEN tag_id = 'source_code_verified' THEN value END) AS source_code_verified,
-                                MAX(CASE WHEN tag_id = 'internal_description' THEN value END) AS _comment
-                        FROM public.oli_tag_mapping
-                        WHERE origin_key <> 'gitcoin_pgn'
-                        GROUP BY address, origin_key
-                        HAVING MAX(CASE WHEN "source" = 'orbal' OR "source" = 'Matthias' OR "source" = '' OR "source" = 'Label Pool Approved' OR "source" IS NULL THEN 'gtp' ELSE '000' END) = 'gtp';
-                """
-                df = pd.read_sql(exec_string, self.engine.connect())
-                return df
-        
         def get_labels_export_gold_table(self):
                 exec_string = f"""
                         SELECT
