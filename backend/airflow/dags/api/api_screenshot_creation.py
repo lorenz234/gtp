@@ -24,9 +24,9 @@ def etl():
     @task()
     def run_screenshots_task():
         import os
-        from src.api.screenshots_to_s3 import run_screenshots
+        from src.api.screenshots_to_s3 import run_template_generation
         
-        run_screenshots(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), 'v1', sys_user)
+        run_template_generation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), 'v1', sys_user)
     
     run_screenshots_task()
 etl()
