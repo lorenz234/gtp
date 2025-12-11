@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Data for USDC on Arbitrum bridge to Hyperliquid.',
     tags=['other'],
     start_date=datetime(2025,9,9),
-    schedule='24 1 * * *' # Every day at 01:24
+    schedule='24 3 * * *' # Every day at 03:24
 )
 
 def run_dag():
