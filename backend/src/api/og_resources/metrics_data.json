@@ -11,7 +11,7 @@
         "how_gamed": "Active address is one of the most contentious metrics. Its counts can be inflated through sybil behavior, where many fake wallets are created to simulate activity - often during airdrops or incentive campaigns. For this reason, it's best to always interpret active addresses alongside other onchain metrics like Chain Revenue or Total Value Secured as well as looking into the most active contracts on this chain to get a full picture of real network engagement.",
         "interpretation": "A rising number of active addresses generally indicates growing user interest and adoption of the blockchain, while a declining count may signal waning engagement. However, it's important to consider active addresses in context with other metrics, as high activity doesn't always equate to a healthy or valuable network.",
         "icon": "gtp-metrics-activeaddresses"
-      },
+    },
       "icon": "gtp-metrics-activeaddresses",
       "key": "daa",
       "rootKey": "metricsDailyActiveAddresses"
@@ -27,7 +27,7 @@
         "how_gamed": "Transaction count can be artificially inflated through spam transactions or micro-transactions that do not represent meaningful activity on the network. Especially since transaction costs dropped for Layer 2s (after the Dencun upgrade in March 2024). Also worth noting: transaction can vary in complexity. The gas used for a transaction can range from 21,000 for a simple ETH transfer to several hundred thousand for more complex interactions. This metric is best analyzed together with Chain Revenue or Transaction Costs. If users have to pay high fees to get their transactions in they are less likely to spam the network.",
         "interpretation": "A rising transaction count generally indicates growing user interest and adoption of the blockchain, while a declining count may signal waning engagement. However, it's important to consider transaction count in context with other metrics, as high activity doesn't always equate to a healthy or valuable network.",
         "icon": "gtp-metrics-transactioncount"
-      },
+    },
       "icon": "gtp-metrics-transactioncount",
       "key": "txcount",
       "rootKey": "metricsTxCount"
@@ -43,7 +43,7 @@
         "how_gamed": "Since throughput focuses on gas used rather than transaction count, it is less susceptible to manipulation through small spam transactions. However, it is still possible that larger transactions could be used to flood the network. This metric is best analyzed together with Chain Revenue or Transaction Costs. If users have to pay high fees to get their transactions in they are less likely to spam the network.",
         "interpretation": "The throughput chart often appears as a flat line for some chains (i.e. Base) because they operate well below their maximum capacity (block gas target). If a chain is operating close to its maximum throughput, it may experience congestion and higher fees during periods of high demand.",
         "icon": "gtp-metrics-throughput"
-      },
+    },
       "icon": "gtp-metrics-throughput",
       "key": "throughput",
       "rootKey": "throughput"
@@ -59,7 +59,7 @@
         "how_gamed": "Stablecoin supply is generally a very reliable metric, since stablecoins are typically backed by real-world assets (either cash or treasuries). This makes it more difficult to artificially inflate this metric compared to other value-based metrics (like Total Value Secured).",
         "interpretation": "A rising stablecoin supply generally indicates growing user interest and trust in the blockchain, while a declining supply may signal waning confidence. However, it's important to consider stablecoin supply in context with other metrics, as high stablecoin holdings don't always equate to a healthy or valuable network.",
         "icon": "gtp-metrics-stablecoinmarketcap"
-      },
+    },
       "icon": "gtp-metrics-stablecoinmarketcap",
       "key": "stables_mcap",
       "rootKey": "metricsStablesMcap"
@@ -75,7 +75,7 @@
         "how_gamed": "Total Value Secured can be artificially inflated through the use of wrapped tokens or other synthetic assets that do not represent real value. Additionally, the use of bridges to transfer assets between chains can also lead to double-counting of value if not properly accounted for. For these reasons, it's important to interpret TVS alongside other metrics like Chain Revenue or Stablecoin Supply to get a full picture of a chain's health.",
         "interpretation": "A rising TVS generally indicates growing user interest and trust in the blockchain, while a declining TVS may signal waning confidence. However, it's important to consider TVS in context with other metrics, as high TVS doesn't always equate to a healthy or valuable network.",
         "icon": "gtp-metrics-totalvaluelocked"
-      },
+    },
       "icon": "gtp-metrics-totalvaluelocked",
       "key": "tvl",
       "rootKey": "metricsTvl"
@@ -94,7 +94,7 @@
         "icon": "gtp-metrics-transactioncosts",
         "showGwei": true,
         "reversePerformer": true
-      },
+    },
       "icon": "gtp-metrics-transactioncosts",
       "key": "txcosts",
       "rootKey": "metricsTxCosts"
@@ -110,7 +110,7 @@
         "how_gamed": "Chain revenue is hard to manipulate directly, since it is determined by real user fees paid to the network. However, chains can also introduce fee incentives or subsidies (i.e. in gas fee credits) to encourage usage, which can temporarily boost revenue figures. Therefore, it's important to interpret this metric alongside other indicators of network health and adoption.",
         "interpretation": "A rising revenue generally indicates growing user interest and adoption of the blockchain, while a declining revenue may signal waning engagement. The more users are willing to pay fees to use the chain, the more valuable the chain's applications and security are perceived to be.",
         "icon": "gtp-metrics-feespaidbyusers"
-      },
+    },
       "icon": "gtp-metrics-feespaidbyusers",
       "key": "fees",
       "rootKey": "metricsFeesPaidToEthereum"
@@ -126,7 +126,7 @@
         "how_gamed": "We saw very little attempts to game this metric so far, since it reflects real costs that Layer 2s have to pay to operate.",
         "interpretation": "The amount of rent paid to L1 mostly depends on the gas prices on Ethereum as well as the amount of data that Layer 2s post on L1. Higher rent payments generally indicate that Layer 2s are actively utilizing Ethereum's security and data availability features, while lower payments may suggest reduced activity or alternative approaches to data posting (i.e. alternative DA Layers like EigenDA).",
         "icon": "gtp-metrics-rentpaidtol1"
-      },
+    },
       "icon": "gtp-metrics-rentpaidtol1",
       "key": "rent_paid",
       "rootKey": "metricsRentPaid"
@@ -142,7 +142,7 @@
         "how_gamed": "The main angle to game Onchain Profit is through providing gas fee subsidies, which can artificially inflate revenue figures. Therefore, it's important to interpret this metric alongside other indicators of network health and adoption.",
         "interpretation": "A positive onchain profit indicates that the Layer 2 is generating more revenue than it is spending on data posting, suggesting a sustainable business model. Conversely, a negative profit may signal financial challenges or inefficiencies in the L2's operations. However, offchain costs and fees subsidies are not included in this metric and should be considered separately when evaluating overall profitability.",
         "icon": "gtp-metrics-onchainprofit"
-      },
+    },
       "icon": "gtp-metrics-onchainprofit",
       "key": "profit",
       "rootKey": "metricsEarnings"
@@ -160,7 +160,7 @@
         "interpretation": "A general high FDV indicates that investors value this token highly. A high FDV relative to the current market cap (-> low issuance rate) may indicate potential dilution risk.",
         "icon": "gtp-metrics-fdv",
         "showGwei": false
-      },
+    },
       "icon": "gtp-metrics-fdv",
       "key": "fdv",
       "rootKey": "metricsFullyDilutedValuation"
@@ -176,7 +176,7 @@
         "interpretation": "A higher market cap generally indicates a more reputable and higher value project, while a lower market cap may suggest less interest or confidence. However, market cap isn't solely linked to a project's quality, as it can be influenced by factors like market sentiment, token supply, treasury sizes, voting rights, etc.",
         "icon": "gtp-metrics-marketcap",
         "showGwei": false
-      },
+    },
       "icon": "gtp-metrics-marketcap",
       "key": "market_cap",
       "rootKey": "marketCap"
@@ -190,7 +190,7 @@
         "why": "App Revenue is a key metric for assessing the financial health and success of applications on a blockchain. It reflects the total amount of fees generated by applications, which can be used to measure their popularity and effectiveness. A high App Revenue indicates that users find the applications valuable and are willing to pay for them, while a low App Revenue may suggest that the applications are not meeting user needs or expectations.",
         "interpretation": "A rising App Revenue generally indicates growing user interest and adoption of the applications on the blockchain, while a declining revenue may signal waning engagement. However, it's important to consider App Revenue in context with other metrics, as high revenue doesn't always equate to a healthy or valuable application ecosystem.",
         "icon": "gtp-metrics-feespaidbyusers"
-      },
+    },
       "icon": "gtp-metrics-feespaidbyusers",
       "key": "app_revenue",
       "rootKey": "metricsAppRevenue"
