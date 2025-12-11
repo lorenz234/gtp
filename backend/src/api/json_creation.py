@@ -3031,7 +3031,19 @@ class JSONCreation():
     def create_export_oli_parquet(self):
         # Connect to OLI database
         exec_string = f"""
-            SELECT concat('0x',encode(uid, 'hex')) as id, attester, recipient, is_offchain, revoked, ipfs_hash, tx_hash AS tx_id, raw AS decoded_data_json, chain_id, tags_json, last_updated_time AS "time", "time" AS time_created, revocation_time
+            SELECT 
+                concat('0x',encode(uid, 'hex')) as id, 
+                attester, 
+                recipient, 
+                is_offchain, 
+                revoked, 
+                ipfs_hash, 
+                tx_hash AS tx_id, 
+                raw AS decoded_data_json, 
+                chain_id, 
+                last_updated_time AS "time",
+                "time" AS time_created,
+                revocation_time
             FROM public.attestations;
         """
         with self.db_connector.engine.connect() as connection:
