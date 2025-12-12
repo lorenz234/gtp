@@ -1,7 +1,12 @@
 select 
     date, 
     value / (5*60*24) as blob_count,
-    case when date >= '2025-05-07' then 6 else 3 end as blob_target
+    case 
+        when date >= '2026-01-07' then 14
+        when date >= '2025-12-09' then 10
+        when date >= '2025-05-07' then 6 
+        else 3 
+    end as blob_target
 from fact_kpis
 where metric_key = 'da_blob_count' and origin_key = 'da_ethereum_blobs'
     and date >= '2024-06-01'
