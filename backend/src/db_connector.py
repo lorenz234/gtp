@@ -1198,6 +1198,7 @@ class DbConnector:
                                 sum(daa) as daa
                         FROM public.blockspace_fact_contract_level cl
                         inner join vw_oli_label_pool_gold_pivoted_v2 bl on cl.address = bl.address and cl.origin_key = bl.origin_key 
+                        inner join vw_oli_category_mapping oli on oli.category_id = bl.usage_category
                         where date < DATE_TRUNC('day', NOW())
                                 and date >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
                                 and cl.origin_key = '{chain}'
