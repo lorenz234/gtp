@@ -1091,6 +1091,8 @@ class JSONCreation():
         ## iterate over main_config to get similar chains
         for proj in self.main_config:
             if proj.origin_key not in [origin_key, 'all_l2s', 'multiple']:
+                if proj.api_in_main == False:
+                    continue
                 if proj.metadata_stack == stack:
                     similar_chains.append(proj.origin_key)
                     
@@ -1098,12 +1100,14 @@ class JSONCreation():
         if len(similar_chains) < 7:
             for proj in self.main_config:
                 if proj.origin_key not in [origin_key, 'all_l2s', 'multiple']:
+                    if proj.api_in_main == False:
+                        continue
                     if proj.metadata_da_layer == da and proj.origin_key not in similar_chains:
                         similar_chains.append(proj.origin_key)
                         
         ## if still less than 7, fill with random chains
         import random
-        all_chains = [proj.origin_key for proj in self.main_config if proj.origin_key not in [origin_key, 'all_l2s', 'multiple'] and proj.origin_key not in similar_chains]
+        all_chains = [proj.origin_key for proj in self.main_config if proj.origin_key not in [origin_key, 'all_l2s', 'multiple'] and proj.origin_key not in similar_chains and proj.api_in_main == True]
         while len(similar_chains) < 7:
             similar_chains.append(random.choice(all_chains))
             

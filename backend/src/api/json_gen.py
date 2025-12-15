@@ -561,9 +561,10 @@ class JsonGen():
         # DAA Separate
         df_daa = execute_jinja_query(self.db_connector, "api/select_total_aa.sql.j2", {'origin_key': chain}, return_df=True)
         if not df_daa.empty:
-            ach = self._calculate_achievement(df_daa.iloc[0]['value'], levels_dict['daa'])
-            if ach:
-                achievements['daa'] = {'value': ach}
+            if df_daa.iloc[0]['value']:            
+                ach = self._calculate_achievement(df_daa.iloc[0]['value'], levels_dict['daa'])
+                if ach:
+                    achievements['daa'] = {'value': ach}
 
         return achievements
 
@@ -603,7 +604,9 @@ class JsonGen():
     
     def create_chains_dict(self, origin_key:str) -> Optional[Dict]:
         chain = next((c for c in self.main_config if c.origin_key == origin_key), None) 
-        if not chain: return None
+        if not chain: 
+            print(f"Chain with origin_key '{origin_key}' not found in configuration.")
+            return None
 
         try:
             # Gather Data
@@ -674,7 +677,7 @@ class JsonGen():
         streaks_today_dict = {}
 
         for chain in self.main_config:
-            if chain.api_in_main and chain.origin_key not in ['imx', 'loopring']:
+            if chain.api_in_main and chain.origin_key not in ['imx', 'loopring', 'megaeth']:
                 params = {'origin_key': chain.origin_key, 'custom_gas': chain.origin_key in ['mantle', 'metis', 'gravity', 'plume', 'celo']}
                 df = execute_jinja_query(self.db_connector, "api/select_streak_today.sql.j2", params, return_df=True)
                 
