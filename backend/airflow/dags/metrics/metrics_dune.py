@@ -30,25 +30,20 @@ def etl():
         }
         load_params = {
             'queries': [
-                # {
-                #     'name': 'stables_mcap',
-                #     'query_id': 2608415,
-                #     'params': {'days': 5}
-                # },
                 {
                     'name': 'economics_da',
                     'query_id': 4046209,
                     'params': {'days': 5}
                 },
-                # {
-                #     'name': 'starknet_aa', #starknet daa, maa, user_base, aa_last7d, aa_last30d
-                #     'query_id': 5057380,
-                #     'params': {'days': 5}
-                # }
                 {
                     'name': 'combined_kpis', # combined different queries
                     'query_id': 5338492,
                     'params': {'days': 5}
+                },
+                {
+                    'name': 'mega_fundamentals', # combined different queries
+                    'query_id': 6357340,
+                    'params': {'days': 3}
                 },
             ],
             'prepare_df': 'prepare_df_metric_daily',
