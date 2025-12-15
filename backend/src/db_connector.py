@@ -1820,23 +1820,26 @@ class DbConnector:
                 df['attester'] = '\\x' + df['attester'].apply(lambda x: x.hex())
                 return df
         
-        ## This function is used for our Airtable setup - it returns the gold table label, aggregation of all trusted labels
-        def get_oli_trusted_label_gold(self, address, chain_id):
+        ## This function is used for our Airtable setup - it returns all prior attestations made by a specific attester for a specific address on a specific chain
+        def get_all_prior_attested_labels(self, address, chain_id, attester):
                 if address.startswith('0x') or address.startswith('\\'):
                         address = address[2:]
+                attester = attester[2:] if attester.startswith('0x') or attester.startswith('\\') else attester
                 exec_string = f'''
                         SELECT 
-                                address, 
-                                origin_key, 
-                                caip2, 
-                                tag_id, 
-                                tag_value as value,
-                                attester,
-                                time_created
-                        FROM public.vw_oli_label_pool_gold_v2
-                        where 
-                                address = decode('{address}', 'hex')
-                                and caip2 = '{chain_id}';
+                                l.address,
+                                s.origin_key,
+                                l.chain_id AS caip2,
+                                l.tag_id,
+                                l.tag_value AS value,
+                                l.attester,
+                                l."time"
+                        FROM public.labels l
+                        LEFT JOIN public.sys_main_conf s ON l.chain_id = s.caip2
+                        WHERE 
+                                l.address = decode('{address}', 'hex')
+                                AND l.chain_id = '{chain_id}'
+                                AND l.attester = decode('{attester}', 'hex');
                 '''
                 df = pd.read_sql(exec_string, self.engine.connect())
                 df['address'] = '\\x' + df['address'].apply(lambda x: x.hex())

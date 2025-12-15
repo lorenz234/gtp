@@ -65,7 +65,7 @@ def etl():
                 df_air = group[1]
                 df_air['source'] = 'airtable'
                 # get label from gold table to fill in missing tags
-                df_gold = db_connector.get_oli_trusted_label_gold(group[0][0], group[0][1])
+                df_gold = db_connector.get_all_prior_attested_labels(group[0][0], group[0][1], "0xA725646C05E6BB813D98C5ABB4E72DF4BCF00B56")
                 df_gold = df_gold[['address', 'caip2', 'tag_id', 'value']]
                 df_gold = df_gold.rename(columns={'caip2': 'chain_id'})
                 df_gold['source'] = 'gold_table'
@@ -362,8 +362,8 @@ def etl():
                 # add source column to keep track of origin
                 df_air = group[1]
                 df_air['source'] = 'airtable'
-                # get label from gold table to fill in missing tags
-                df_gold = db_connector.get_oli_trusted_label_gold(group[0][0], group[0][1])
+                # get all other label attested by us to fill in missing tags
+                df_gold = db_connector.get_all_prior_attested_labels(group[0][0], group[0][1], "0xA725646C05E6BB813D98C5ABB4E72DF4BCF00B56")
                 df_gold = df_gold[['address', 'caip2', 'tag_id', 'value']]
                 df_gold = df_gold.rename(columns={'caip2': 'chain_id'})
                 df_gold['source'] = 'gold_table'
