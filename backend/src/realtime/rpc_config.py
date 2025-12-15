@@ -122,7 +122,7 @@ rpc_config = {
         "name": "MegaETH",
         "processors": "evm",
         "stack": "op_stack",
-        "sleeper": 2,
+        "sleeper": 1,
         "calc_fees": True,
         "hide": True,
     },
