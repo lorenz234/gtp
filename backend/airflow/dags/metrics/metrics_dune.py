@@ -122,6 +122,42 @@ def etl():
 
         # load
         ad.load(df)
+        
+    @task()
+    def run_mega_contract_level():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'megaeth_contract_level_daily',
+                    'query_id': 6360383,
+                    'params': {'days': 2}
+                }
+            ],
+            'prepare_df': 'prepare_df_contract_level_daily',
+            'load_type': 'blockspace_fact_contract_level'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+
+        print(f"Loaded {df.shape[0]} rows for megaeth active addresses.")
+        
+        # additional prep steps
+        df['origin_key'] = 'megaeth'
+        df.set_index(['address', 'date', 'origin_key'], inplace=True)
+
+        # load
+        ad.load(df)
 
 
     @task()
@@ -186,5 +222,6 @@ def etl():
     run_glo_holders()
     check_for_depreciated_L2_trx()
     run_mega_aa()
+    run_mega_contract_level()
     
 etl()

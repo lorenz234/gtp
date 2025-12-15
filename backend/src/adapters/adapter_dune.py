@@ -118,6 +118,40 @@ class AdapterDune(AbstractAdapter):
         df['address'] = df['address'].str.replace('0x', '\\x', regex=False)
         return df
     
+    def prepare_df_contract_level_daily(self, df):
+        df["metrics"] = (
+            df["metrics"]
+            .astype(str)
+            .str.strip("[]")
+            .str.split()          # splits on whitespace
+        )
+
+        cols = [
+            "gas_fees_eth",
+            "gas_fees_usd",
+            "txcount",
+            "daa",
+            "success_rate",
+            "median_tx_fee",
+            "gas_used",
+        ]
+
+        df[cols] = pd.DataFrame(df["metrics"].tolist(), index=df.index)
+
+        df["gas_fees_eth"]   = df["gas_fees_eth"].astype(float)
+        df["gas_fees_usd"]   = df["gas_fees_usd"].astype(float)
+        df["txcount"]        = df["txcount"].astype(int)
+        df["daa"]            = df["daa"].astype(int)
+        df["success_rate"]   = df["success_rate"].astype(float)
+        df["median_tx_fee"]  = df["median_tx_fee"].astype(float)
+        df["gas_used"]       = df["gas_used"].astype(float)
+
+        df = df.drop(columns=["metrics"])
+
+        df = df.rename(columns={"day": "date"})
+        df['address'] = df['address'].str.replace('0x', '\\x', regex=False)
+        return df
+    
     def prepare_df_incriptions(self, df):
         # address column to bytea
         df['address'] = df['address'].apply(lambda x: bytes.fromhex(x[2:]))
