@@ -92,6 +92,32 @@ class AdapterDune(AbstractAdapter):
         df = df.set_index(['metric_key', 'origin_key', 'date'])
         return df
     
+    def prepare_df_aa_daily(self, df):
+        print(f"Preparing df with {df.shape[0]} (compact) rows for active addresses daily...")
+        
+        # 1) parse "[0x.. 0x..]" -> ["0x..", "0x.."]
+        df["from_addresses"] = (
+            df["from_addresses"]
+            .astype(str)
+            .str.strip("[]")
+            .str.split()          # splits on whitespace
+        )
+
+        # 2) explode
+        df = (
+            df.explode("from_addresses")
+            .rename(columns={"from_addresses": "address"})
+            .dropna(subset=["address"])
+            .reset_index(drop=True)
+        )
+        
+        print(f"Exploded to {df.shape[0]} rows for active addresses daily...")
+
+        # 3) rename column, format address
+        df = df.rename(columns={"day": "date"})
+        df['address'] = df['address'].str.replace('0x', '\\x', regex=False)
+        return df
+    
     def prepare_df_incriptions(self, df):
         # address column to bytea
         df['address'] = df['address'].apply(lambda x: bytes.fromhex(x[2:]))
