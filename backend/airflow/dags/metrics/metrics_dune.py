@@ -33,12 +33,12 @@ def etl():
                 {
                     'name': 'economics_da',
                     'query_id': 4046209,
-                    'params': {'days': 5}
+                    'params': {'days': 3}
                 },
                 {
                     'name': 'combined_kpis', # combined different queries
                     'query_id': 5338492,
-                    'params': {'days': 5}
+                    'params': {'days': 3}
                 },
                 {
                     'name': 'mega_fundamentals', # combined different queries
