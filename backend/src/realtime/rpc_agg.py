@@ -157,10 +157,10 @@ class EVMProcessor(BlockchainProcessor):
             #logger.info(f"Processed {len(receipts)} receipts for block {block_number} on {chain_name}. swaps: {len(swaps)}, native transfers: {len(native_transfers)}, erc20 transfers: {len(erc20_transfers)}")
             
             # # Calculate average costs with fallbacks
-            # def calc_avg_cost(transfers):
-            #     if transfers:
-            #         return sum(tx['cost_wei'] for tx in transfers) / len(transfers) / 1e18
-            #     return 0
+            def calc_avg_cost(transfers):
+                if transfers:
+                    return sum(tx['cost_wei'] for tx in transfers) / len(transfers) / 1e18
+                return 0
 
             # Calculate median cost
             def calculate_median_cost(transfers):
@@ -171,7 +171,8 @@ class EVMProcessor(BlockchainProcessor):
                     return costs[len(costs) // 2] / 1e18
                 return (costs[len(costs) // 2 - 1] + costs[len(costs) // 2]) / 2 / 1e18
 
-            avg_cost_eth = calculate_median_cost(all_tx)
+            avg_cost_eth = calc_avg_cost(all_tx)
+            
             avg_native_cost_eth = calculate_median_cost(native_transfers)
             avg_erc20_cost_eth = calculate_median_cost(erc20_transfers)
             avg_swap_cost_eth = calculate_median_cost(swaps)
