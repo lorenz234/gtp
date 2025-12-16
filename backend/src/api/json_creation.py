@@ -697,7 +697,7 @@ class JSONCreation():
         df = self.download_data(chain_user_string, metrics_user_string)
 
         ## divide value by 1000000 where metric_key is gas_per_second --> mgas/s
-        df.loc[df['metric_key'] == 'gas_per_second', 'value'] = df['value'] / 1000000
+        df.loc[df['metric_key'] == 'gas_per_second', 'value'] = df['value'] / 1_000_000
         df.loc[df['metric_key'] == 'da_data_posted_bytes', 'value'] = df['value'] / 1024 / 1024 / 1024
         return df
     

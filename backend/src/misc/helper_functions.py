@@ -1104,19 +1104,20 @@ def highlights_prep(df, gtp_metrics):
         is_currency = True if 'usd' in metric_config['units'] else False
         is_eth = True if metric_key[-3:] == 'eth' else False
         prefix = "ETH " if is_eth else "$" if is_currency else ""
-
+        
+        value_val = row['value']
         if metric_key == 'gas_per_second':
             suffix = "Mgas/s"
-            
-        value_val = row['value']
-        if value_val >= 1_000_000_000:
-            value = f"{value_val / 1_000_000_000:.2f}B"
-        elif value_val >= 1_000_000:
-            value = f"{value_val / 1_000_000:.2f}M"
-        elif value_val >= 1_000:
-            value = f"{value_val / 1_000:.2f}K"
+            value = f"{value_val/1_000_000:,.2f}"
         else:
-            value = f"{value_val:,.2f}"
+            if value_val >= 1_000_000_000:
+                value = f"{value_val / 1_000_000_000:.2f}B"
+            elif value_val >= 1_000_000:
+                value = f"{value_val / 1_000_000:.2f}M"
+            elif value_val >= 1_000:
+                value = f"{value_val / 1_000:.2f}K"
+            else:
+                value = f"{value_val:,.2f}"
 
         value = f"{prefix}{value}{suffix}" if prefix or suffix else value
 
