@@ -150,11 +150,47 @@ def etl():
         # extract
         df = ad.extract(load_params)
 
-        print(f"Loaded {df.shape[0]} rows for megaeth active addresses.")
+        print(f"Loaded {df.shape[0]} rows for megaeth contract level.")
         
         # additional prep steps
         df['origin_key'] = 'megaeth'
         df.set_index(['address', 'date', 'origin_key'], inplace=True)
+
+        # load
+        ad.load(df)
+        
+    @task()
+    def run_mega_category_level():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'megaeth_category_level_daily',
+                    'query_id': 6364531,
+                    'params': {'days': 2}
+                }
+            ],
+            'prepare_df': 'prepare_df_category_level_daily',
+            'load_type': 'blockspace_fact_category_level'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+
+        print(f"Loaded {df.shape[0]} rows for megaeth category level.")
+        
+        # additional prep steps
+        df['origin_key'] = 'megaeth'
+        df.set_index(['category_id', 'date', 'origin_key'], inplace=True)
 
         # load
         ad.load(df)
@@ -221,7 +257,10 @@ def etl():
     #run_inscriptions() # paused as of Jan 2025, no one uses inscriptions. Backfilling easily possible if needed.
     run_glo_holders()
     check_for_depreciated_L2_trx()
+    
+    ## MegaETH tasks
     run_mega_aa()
     run_mega_contract_level()
+    run_mega_category_level()
     
 etl()
