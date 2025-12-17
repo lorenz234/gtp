@@ -118,6 +118,33 @@ class AdapterDune(AbstractAdapter):
         df['address'] = df['address'].str.replace('0x', '\\x', regex=False)
         return df
     
+    def prepare_df_contract_level_aa_daily(self, df):
+        print(f"Preparing df with {df.shape[0]} (compact) rows for contract level active addresses daily...")
+        
+        # 1) parse "[0x.. 0x..]" -> ["0x..", "0x.."]
+        df["from_addresses"] = (
+            df["from_addresses"]
+            .astype(str)
+            .str.strip("[]")
+            .str.split()          # splits on whitespace
+        )
+
+        # 2) explode
+        df = (
+            df.explode("from_addresses")
+            .rename(columns={"from_addresses": "from_address"})
+            .dropna(subset=["from_address"])
+            .reset_index(drop=True)
+        )
+        
+        print(f"Exploded to {df.shape[0]} rows for contract level active addresses daily...")
+
+        # 3) rename column, format address
+        df = df.rename(columns={"day": "date"})
+        df['address'] = df['address'].str.replace('0x', '\\x', regex=False)
+        df['from_address'] = df['from_address'].str.replace('0x', '\\x', regex=False)
+        return df
+    
     def prepare_df_contract_level_daily(self, df):
         df["metrics"] = (
             df["metrics"]

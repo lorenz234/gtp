@@ -124,6 +124,42 @@ def etl():
         ad.load(df)
         
     @task()
+    def run_mega_contract_level_aa():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'megaeth_aa',
+                    'query_id': 6369584,
+                    'params': {'days': 2}
+                }
+            ],
+            'prepare_df': 'prepare_df_contract_level_aa_daily',
+            'load_type': 'fact_active_addresses_contract'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+
+        print(f"Loaded {df.shape[0]} rows for megaeth active addresses.")
+        
+        # additional prep steps
+        df['origin_key'] = 'megaeth'
+        df.set_index(['address', 'date', 'origin_key', 'from_address'], inplace=True)
+
+        # load
+        ad.load(df)
+        
+    @task()
     def run_mega_contract_level():
         import os
         from src.db_connector import DbConnector
@@ -262,5 +298,6 @@ def etl():
     run_mega_aa()
     run_mega_contract_level()
     run_mega_category_level()
+    run_mega_contract_level_aa()
     
 etl()
