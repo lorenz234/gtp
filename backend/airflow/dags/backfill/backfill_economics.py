@@ -107,7 +107,7 @@ def main():
                     'queries': [
                         {
                             'name': 'l1-values-per-chain-chain-filter',
-                            'query_id': 4561949,
+                            'query_id': 4561949, # BACKFILLS ONLY FROM 2024-01-01 ONWARDS, CHANGE DUNE HERE LINE 15: https://dune.com/queries/4561893
                             'params': {
                                 'chain': row['origin_key'],
                             }
