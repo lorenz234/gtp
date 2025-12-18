@@ -1042,6 +1042,12 @@ class JSONCreation():
         df_tmp = df_tmp.loc[df_tmp.date == df_tmp.date.max()]
         df_tmp = df_tmp.sort_values(by='value', ascending=False)
         top_chains = df_tmp['origin_key'].head(top_n).tolist()
+        
+        ## drop latest element in the list and append 'megaeth' at the end
+        if 'megaeth' not in top_chains:
+            top_chains = top_chains[:-1]
+            top_chains.append('megaeth')
+        
         print(f'Default selection by aa_last7d: {top_chains}')
         return top_chains
     
