@@ -2,7 +2,7 @@ import pandas as pd
 from datetime import datetime
 
 from src.adapters.abstract_adapters import AbstractAdapter
-from src.misc.helper_functions import print_init, print_load, print_extract
+from src.misc.helper_functions import print_init, print_load, print_extract, send_discord_message
 
 from dune_client.client import DuneClient
 from dune_client.query import QueryBase
@@ -49,6 +49,7 @@ class AdapterDune(AbstractAdapter):
                 print(f"...finished loading {query.name}. Loaded {df.shape[0]} rows")
             except Exception as e:
                 print(f"Error loading {query.name}: {e}")
+                send_discord_message(f"Dune Error loading {query.name} with query_id {query.query_id}: {e}")
                 continue
             
             # Prepare df if set in load_params
@@ -116,6 +117,10 @@ class AdapterDune(AbstractAdapter):
         # 3) rename column, format address
         df = df.rename(columns={"day": "date"})
         df['address'] = df['address'].str.replace('0x', '\\x', regex=False)
+        
+        ## drop column chunk_id
+        if 'chunk_id' in df.columns:
+            df = df.drop(columns=['chunk_id'])
         return df
     
     def prepare_df_contract_level_aa_daily(self, df):
