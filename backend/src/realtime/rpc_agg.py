@@ -800,7 +800,7 @@ class RtBackend:
         # --- normal path (no override) ---
         if chain_name == "megaeth":
             subblock_count = current_block.get("subblock_count", 1)
-            print(f"megaeth subblock_count: {subblock_count}")
+            ##print(f"megaeth subblock_count: {subblock_count}")
             block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp), subblock_count)
         else:
             block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
