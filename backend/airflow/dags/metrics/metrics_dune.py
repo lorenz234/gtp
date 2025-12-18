@@ -15,7 +15,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load aggregates metrics such as txcount, daa, fees paid, stablecoin mcap where applicable.',
     tags=['metrics', 'daily'],
     start_date=datetime(2023,6,5),
-    schedule='05 02 * * *'
+    schedule='05 02 * * *' ## needs to run before sql_materialize because of acthive addresses agg (i.e. megaeth AA)
 )
 
 def etl():
@@ -30,25 +30,20 @@ def etl():
         }
         load_params = {
             'queries': [
-                # {
-                #     'name': 'stables_mcap',
-                #     'query_id': 2608415,
-                #     'params': {'days': 5}
-                # },
                 {
                     'name': 'economics_da',
                     'query_id': 4046209,
-                    'params': {'days': 5}
+                    'params': {'days': 3}
                 },
-                # {
-                #     'name': 'starknet_aa', #starknet daa, maa, user_base, aa_last7d, aa_last30d
-                #     'query_id': 5057380,
-                #     'params': {'days': 5}
-                # }
                 {
                     'name': 'combined_kpis', # combined different queries
                     'query_id': 5338492,
-                    'params': {'days': 5}
+                    'params': {'days': 3}
+                },
+                {
+                    'name': 'mega_fundamentals', # combined different queries
+                    'query_id': 6357340,
+                    'params': {'days': 3}
                 },
             ],
             'prepare_df': 'prepare_df_metric_daily',
@@ -91,6 +86,115 @@ def etl():
     #     df = ad.extract(load_params)
     #     # load
     #     ad.load(df)
+    
+    @task()
+    def run_mega_aa():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'megaeth_aa',
+                    'query_id': 6359844,
+                    'params': {'days': 2}
+                }
+            ],
+            'prepare_df': 'prepare_df_aa_daily',
+            'load_type': 'fact_active_addresses'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+
+        print(f"Loaded {df.shape[0]} rows for megaeth active addresses.")
+        
+        # additional prep steps
+        df['origin_key'] = 'megaeth'
+        df.set_index(['address', 'date', 'origin_key'], inplace=True)
+
+        # load
+        ad.load(df)
+        
+    @task()
+    def run_mega_contract_level():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'megaeth_contract_level_daily',
+                    'query_id': 6360383,
+                    'params': {'days': 2}
+                }
+            ],
+            'prepare_df': 'prepare_df_contract_level_daily',
+            'load_type': 'blockspace_fact_contract_level'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+
+        print(f"Loaded {df.shape[0]} rows for megaeth contract level.")
+        
+        # additional prep steps
+        df['origin_key'] = 'megaeth'
+        df.set_index(['address', 'date', 'origin_key'], inplace=True)
+
+        # load
+        ad.load(df)
+        
+    @task()
+    def run_mega_category_level():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'megaeth_category_level_daily',
+                    'query_id': 6364531,
+                    'params': {'days': 2}
+                }
+            ],
+            'prepare_df': 'prepare_df_category_level_daily',
+            'load_type': 'blockspace_fact_category_level'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+
+        print(f"Loaded {df.shape[0]} rows for megaeth category level.")
+        
+        # additional prep steps
+        df['origin_key'] = 'megaeth'
+        df.set_index(['category_id', 'date', 'origin_key'], inplace=True)
+
+        # load
+        ad.load(df)
+
 
     @task()
     def run_glo_holders():
@@ -98,8 +202,8 @@ def etl():
         from src.db_connector import DbConnector
         from src.adapters.adapter_dune import AdapterDune
         
-        ## if today is a sunday, run this
-        if datetime.now().weekday() == 6:
+        ## if it's first day of month, run glo holders dag
+        if datetime.now().day == 1:
             adapter_params = {
                 'api_key' : os.getenv("DUNE_API")
             }
@@ -122,7 +226,7 @@ def etl():
             # load
             ad.load(df)
         else:
-            print("Today is not Sunday, skipping GLO holders DAG run.")
+            print("Today is not 1st day of month, skipping GLO holders DAG run.")
 
     @task()
     def check_for_depreciated_L2_trx():
@@ -153,5 +257,10 @@ def etl():
     #run_inscriptions() # paused as of Jan 2025, no one uses inscriptions. Backfilling easily possible if needed.
     run_glo_holders()
     check_for_depreciated_L2_trx()
+    
+    ## MegaETH tasks
+    run_mega_aa()
+    run_mega_contract_level()
+    run_mega_category_level()
     
 etl()

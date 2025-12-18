@@ -6,7 +6,7 @@ import json
 import requests
 import base64
 from pathlib import Path
-
+from pprint import pprint
 # Get the directory where this script lives
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -30,7 +30,7 @@ OG_BACKDROP_PATH = SCRIPT_DIR / "og_resources/og_backdrop.png"
 OG_WIDTH = 1200
 OG_HEIGHT = 630
 
-BLOCKSPACE_OPTIONS = {
+BLOCKSPACE_DIRECTORIES = {
     "chain-overview": {
         "label": "Chain Overview",
         "icon": "gtp-chain"
@@ -40,6 +40,101 @@ BLOCKSPACE_OPTIONS = {
         "icon": "gtp-compare"
     }
 }
+
+
+DA_DIRECTORIES = {
+    "fees-paid-per-megabyte": {
+        "label": "Fees Paid per MB",
+        "icon": "gtp-da-fees-paid-per-mb"
+    },
+    "blob-count": {
+        "label": "Blob Count",
+        "icon": "gtp-blobs-number"
+    },
+    "da-consumers": {
+        "label": "DA Consumers",
+        "icon": "gtp-blob-producers"
+    },
+    "data-posted": {
+        "label": "Data Posted",
+        "icon": "gtp-data-posted"
+    },
+    "fees-paid": {
+        "label": "DA Fees Paid",
+        "icon": "gtp-da-fees-paid"
+    }
+}
+
+# GitHub repo for quick-bites images
+QUICK_BITES_GITHUB_API = "https://api.github.com/repos/growthepie/gtp-frontend/contents/public/quick-bites"
+QUICK_BITES_RAW_BASE = "https://raw.githubusercontent.com/growthepie/gtp-frontend/main/public/quick-bites"
+QUICK_BITES_LOCAL_DIR = SCRIPT_DIR / "og_resources/quick-bites"
+
+
+def sync_quick_bites_from_github():
+    """
+    Sync quick-bites images from GitHub repository.
+    Downloads all files from gtp-frontend/public/quick-bites to local og_resources/quick-bites folder.
+    """
+    print("Syncing quick-bites images from GitHub...")
+    
+    # Ensure local directory exists
+    QUICK_BITES_LOCAL_DIR.mkdir(parents=True, exist_ok=True)
+    
+    try:
+        # Get list of files from GitHub API
+        response = requests.get(QUICK_BITES_GITHUB_API, timeout=30)
+        response.raise_for_status()
+        files = response.json()
+        
+        if not isinstance(files, list):
+            print(f"Warning: Unexpected response from GitHub API: {type(files)}")
+            return
+        
+        # Get list of existing local files
+        existing_files = set(f.name for f in QUICK_BITES_LOCAL_DIR.iterdir() if f.is_file())
+        github_files = set()
+        
+        for file_info in files:
+            if file_info.get("type") != "file":
+                continue
+                
+            filename = file_info.get("name")
+            if not filename:
+                continue
+            
+            github_files.add(filename)
+            download_url = f"{QUICK_BITES_RAW_BASE}/{filename}"
+            local_path = QUICK_BITES_LOCAL_DIR / filename
+            
+            # Download file
+            try:
+                file_response = requests.get(download_url, timeout=30)
+                file_response.raise_for_status()
+                
+                with open(local_path, "wb") as f:
+                    f.write(file_response.content)
+                print(f"  Downloaded: {filename}")
+                
+            except requests.RequestException as exc:
+                print(f"  Warning: Failed to download {filename}: {exc}")
+        
+        # Remove local files that no longer exist on GitHub
+        removed_files = existing_files - github_files
+        for filename in removed_files:
+            file_path = QUICK_BITES_LOCAL_DIR / filename
+            try:
+                file_path.unlink()
+                print(f"  Removed (not on GitHub): {filename}")
+            except OSError as exc:
+                print(f"  Warning: Failed to remove {filename}: {exc}")
+        
+        print(f"Quick-bites sync complete: {len(github_files)} files")
+        
+    except requests.RequestException as exc:
+        print(f"Warning: Failed to fetch quick-bites list from GitHub: {exc}")
+    except Exception as exc:
+        print(f"Warning: Error syncing quick-bites: {exc}")
 
 def get_backdrop_base64():
     """Load backdrop image and convert to base64 for embedding in HTML"""
@@ -324,6 +419,34 @@ def landing_template():
     }
 
 
+def application_page_template(page_name, icon):
+    """Template for pages with icon file path (fundamentals, blockspace)"""
+    return {
+        "content_html": f"""
+            <div style="display: flex; flex-direction: row; color: #CDD8D3; align-items: center; height: 100%; width: 100%; justify-content: space-evenly; padding-left: 60px;">
+                <div style="display: flex; flex-direction: column; height: 434px; justify-content: space-between;">
+                    <div style="display: flex; justify-content: center; flex-direction: column; width: 508px;">
+                        <img src="og_resources/gtp_logo.png" alt="Logo" style="width: 450px; height: 105px;">
+                        <div class="text-3xl" style="text-wrap: wrap; width: 100%; padding: 0 0 0 106px;">
+                         <div style="width: 400px; text-wrap: wrap;">Visualizing Ethereum's Story Through Data</div>
+                        </div>
+                    </div>
+                    <div style="height: 89px; display: flex; align-items: center;">
+                        <div class="text-2xl" style="padding-left: 110px;">Check the latest and historic data</div>
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center; height: 484px; width: 648px;">
+                    <div style="display: flex; justify-content: center; align-items: center; height: 295px; width: 295px; border-radius: 999px; overflow: hidden;">
+                        <img src="https://api.growthepie.com/v1/apps/logos/{icon}" alt="Logo" style="width: 300px; height: 300px;">
+                    </div>
+                    <div style="display: flex; align-items: center; margin-top: 69px; height: 89px;">
+                        <div class="text-6xl" style="text-wrap: wrap; text-align: center;">{page_name}</div>
+                    </div>
+                </div>
+            </div>
+        """
+    }
+
 def icon_page_template(page_name, icon):
     """Template for pages with icon file path (fundamentals, blockspace)"""
     return {
@@ -341,6 +464,7 @@ def icon_page_template(page_name, icon):
                     </div>
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: center; height: 484px; width: 648px;">
+                    
                     <img src="og_resources/icons/small/{icon}.svg" alt="Logo" style="width: 300; height: 300px;">
                     <div style="display: flex; align-items: center; margin-top: 69px; height: 89px;">
                         <div class="text-6xl" style="text-wrap: wrap; text-align: center;">{page_name}</div>
@@ -350,7 +474,36 @@ def icon_page_template(page_name, icon):
         """
     }
 
+def quick_bite_page_template(page_name, icon):
+    """Template for pages with icon file path (fundamentals, blockspace)"""
+    return {
+        "content_html": f"""
+            <div style="display: flex; flex-direction: row; color: #CDD8D3; align-items: center; height: 100%; width: 100%; justify-content: space-evenly; padding-left: 60px;">
+                <div style="display: flex; flex-direction: column; height: 434px; justify-content: space-between;">
+                    <div style="display: flex; justify-content: center; flex-direction: column; width: 508px;">
+                        <img src="og_resources/gtp_logo.png" alt="Logo" style="width: 450px; height: 105px;">
+                        <div class="text-3xl" style="text-wrap: wrap; width: 100%; padding: 0 0 0 106px;">
+                         <div style="width: 400px; text-wrap: wrap;">Visualizing Ethereum's Story Through Data</div>
+                        </div>
+                    </div>
+                    <div style="height: 89px; display: flex; align-items: center;">
+                        <div class="text-2xl" style="padding-left: 110px;">Check the latest and historic data</div>
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center; height: 484px; width: 648px;">
+                    <div style="display: flex; justify-content: center; align-items: center; height: 300px; width: 300px; border-radius: 30px; overflow: hidden;">
+                        <img src="og_resources/quick-bites/{icon}.webp" alt="Logo" style="width: 300px; height: 300px;">
+                    </div>
+                    <div style="display: flex; align-items: center; margin-top: 69px; height: 89px;">
+                        <div class="text-6xl" style="text-wrap: wrap; text-align: center;">{page_name}</div>
+                    </div>
+                </div>
+            </div>
+        """
+    }
 
+
+    
 def chain_page_template(chain_name, logo_svg, chain_color):
     """Template for chain pages with inline SVG logo from master.json"""
     return {
@@ -387,36 +540,53 @@ def get_page_groups_from_sitemap():
     """Get page groups from sitemap"""
     sitemap_url = f"{BASE_URL}/server-sitemap.xml"
     chains_url = f"{BASE_URL}/chains-sitemap.xml"
-
-    response = requests.get(sitemap_url)
-    sitemap = response.text
+    quick_bites_url = f"{BASE_URL}/quick-bites-sitemap.xml"
 
     from xml.etree import ElementTree as ET
     urls = []
 
     def extract_urls(xml_text):
-        root = ET.fromstring(xml_text)
-        extracted = []
-        for child in root:
-            for url in child:
-                if url.tag == "{http://www.sitemaps.org/schemas/sitemap/0.9}loc":
-                    if url.text is None:
-                        continue
-                    u = url.text
-                    u = u.replace("https://www.growthepie.xyz", BASE_URL)
-                    u = u.replace("https://www.growthepie.com", BASE_URL)
-                    extracted.append(u)
-        return extracted
+        """Extract URLs from sitemap XML, returns empty list on parse error"""
+        try:
+            root = ET.fromstring(xml_text)
+            extracted = []
+            for child in root:
+                for url in child:
+                    if url.tag == "{http://www.sitemaps.org/schemas/sitemap/0.9}loc":
+                        if url.text is None:
+                            continue
+                        u = url.text
+                        u = u.replace("https://www.growthepie.xyz", BASE_URL)
+                        u = u.replace("https://www.growthepie.com", BASE_URL)
+                        extracted.append(u)
+            return extracted
+        except ET.ParseError as exc:
+            print(f"Warning: Failed to parse XML: {exc}")
+            return []
 
-    urls.extend(extract_urls(sitemap))
+    # Fetch main sitemap
+    try:
+        response = requests.get(sitemap_url, timeout=10)
+        response.raise_for_status()
+        urls.extend(extract_urls(response.text))
+    except requests.RequestException as exc:
+        print(f"Warning: unable to load main sitemap ({sitemap_url}): {exc}")
 
+    # Fetch chains sitemap
     try:
         chains_response = requests.get(chains_url, timeout=10)
         chains_response.raise_for_status()
+        urls.extend(extract_urls(chains_response.text))
     except requests.RequestException as exc:
         print(f"Warning: unable to load chains sitemap ({chains_url}): {exc}")
-    else:
-        urls.extend(extract_urls(chains_response.text))
+
+    # Fetch quick bites sitemap
+    try:
+        quick_bites_response = requests.get(quick_bites_url, timeout=10)
+        quick_bites_response.raise_for_status()
+        urls.extend(extract_urls(quick_bites_response.text))
+    except requests.RequestException as exc:
+        print(f"Warning: unable to load quick bites sitemap ({quick_bites_url}): {exc}")
 
     page_groups = {}
     for url in urls:
@@ -435,6 +605,15 @@ def get_template_configs():
     """Define template configurations for different page types"""
     
     # Fetch master.json for chain metadata (names, colors, logos, etc.)
+    apps_url = "https://api.growthepie.com/v1/labels/projects_filtered.json"
+    try:
+        apps_response = requests.get(apps_url, timeout=30)
+        apps_response.raise_for_status()
+        apps_data = apps_response.json()
+    except requests.RequestException as exc:
+        print(f"Warning: unable to fetch applications.json ({apps_url}): {exc}")
+        apps_data = {}
+
     master_url = "https://api.growthepie.xyz/v1/master.json"
     try:
         master_response = requests.get(master_url, timeout=30)
@@ -452,6 +631,7 @@ def get_template_configs():
     
     page_groups = get_page_groups_from_sitemap()
     
+
     chains = master_data.get("chains", {})
 
     configs = {}
@@ -465,6 +645,61 @@ def get_template_configs():
             "template": landing_template()
         }]
     }
+
+    configs["Application-Overview"] = {
+        "label": "Application Overview",
+        "options": [{
+            "label": "Application Overview",
+            "path_list": ["application-overview"],
+            "template": icon_page_template("Applications", "gtp-project")
+        }]
+    }
+
+    configs["Economics"] = {
+        "label": "Economics",
+        "options": [{
+            "label": "Economics",
+            "path_list": ["economics"],
+            "template": icon_page_template("Economics", "gtp-metrics-economics")
+        }]
+    }
+
+    configs["Ecosystem"] = {
+        "label": "Ethereum Ecosystem",
+        "options": [
+            {
+                "label": "Ethereum Ecosystem",
+                "path_list": ["ecosystem"],
+                "template": icon_page_template("Ethereum Ecosystem", "gtp-ethereumlogo")
+            }
+        ]
+    }
+
+    da_options = []
+    for url in page_groups.get("data-availability", []):
+        page_name = url.split("/")[-1].replace("-", " ").title()
+        da_data = master_data.get("da_metrics", {}).get(url.split("/")[-1].replace("-", "_"), {})
+
+        icon = None
+        name = None
+        icon = DA_DIRECTORIES.get(url.split("/")[-1], {}).get("icon", "gtp-overview")
+
+        if(da_data.get("name", None) is not None):
+            name = da_data.get("name")
+        else:
+            name = page_name
+
+        da_options.append({
+            "label": f"Data Availability - {name}",
+            "path_list": url.split("/")[3:],
+            "template": icon_page_template(name, icon)
+        })
+
+    configs["Data Availability"] = {
+        "label": "Data Availability",
+        "options": da_options
+    }
+
     
     # Fundamentals pages
     fundamentals_metrics = metrics.get("metrics", {})
@@ -489,7 +724,7 @@ def get_template_configs():
     blockspace_options = []
     for url in page_groups.get("blockspace", []):
         page_name = url.split("/")[-1].replace("-", " ").title()
-        blockspace_data = BLOCKSPACE_OPTIONS.get(url.split("/")[-1], {})
+        blockspace_data = BLOCKSPACE_DIRECTORIES.get(url.split("/")[-1], {})
         icon = blockspace_data.get("icon", "gtp-chain")
         blockspace_options.append({
             "label": f"Blockspace - {page_name}",
@@ -500,6 +735,21 @@ def get_template_configs():
     configs["Blockspace"] = {
         "label": "Blockspace",
         "options": blockspace_options
+    }
+
+
+    quick_bites_options = []
+    for url in page_groups.get("quick-bites", []):
+        page_name = url.split("/")[-1].replace("-", " ").title()
+        quick_bites_options.append({
+            "label": f"Quick Bites - {page_name}",
+            "path_list": url.split("/")[3:],
+            "template": quick_bite_page_template(page_name, url.split("/")[-1])
+        })
+
+    configs["Quick Bites"] = {
+        "label": "Quick Bites",
+        "options": quick_bites_options
     }
     
     # Chain pages
@@ -530,7 +780,29 @@ def get_template_configs():
         "label": "Single Chain",
         "options": chain_options
     }
+
+    apps_options = []
+    # apps_data structure: {"data": {"types": [...], "data": [[...], [...], ...]}}
+    # Each app array: [owner_project, display_name, description, main_github, twitter, website, logo_path, ...]
+    apps_list = apps_data.get("data", {}).get("data", [])
+    for app in apps_list:
+        if len(app) < 7:
+            continue
+        app_key = app[0]       # owner_project (e.g., "hedgey-finance")
+        app_name = app[1]      # display_name (e.g., "Hedgey Finance")
+        app_logo = app[6]      # logo_path (e.g., "hedgey-finance.png")
+        
+        apps_options.append({
+            "label": f"Application - {app_name}",
+            "path_list": ["applications", app_key],
+            "template": application_page_template(app_name, app_logo or "gtp-chain")
+        })
     
+    configs["Applications"] = {
+        "label": "Applications",
+        "options": apps_options
+    }
+
     return configs
 
 
@@ -545,43 +817,50 @@ def run_template_generation(s3_bucket,
                            is_local_test=False):
     """Generate OG images from HTML templates"""
     print("Running HTML template-based OG image generation")
+    
+    # Sync quick-bites images from GitHub before generating
+    sync_quick_bites_from_github()
 
-    main_path = f"../output/{api_version}/og_images"
+    # Use absolute path for output directory (project root's output folder)
+    # SCRIPT_DIR is backend/src/api/, so go up 3 levels to reach project root
+    main_path = (SCRIPT_DIR / f"../../../output/{api_version}/og_images").resolve()
 
     print(f"Generating images: storing in {main_path} and uploading to {s3_bucket}")
 
-    if not os.path.exists(main_path):
-        os.makedirs(main_path)
+    if not main_path.exists():
+        main_path.mkdir(parents=True, exist_ok=True)
 
     uploaded_paths = []
     template_configs = get_template_configs()
+    
 
     for key in template_configs:
         for option in template_configs[key]["options"]:
             path_joined = "/".join(option["path_list"])
-            path = f"{main_path}/{path_joined}.png"
+            output_path = main_path / f"{path_joined}.png"
             s3_path = f'{api_version}/og_images/{path_joined}'
 
             try:
-                if not os.path.exists(os.path.dirname(path)):
-                    os.makedirs(os.path.dirname(path))
+                # Ensure parent directory exists
+                output_path.parent.mkdir(parents=True, exist_ok=True)
 
                 now = time.strftime("%Y-%m-%d %H:%M:%S")
-                print(f"{now} - Generating image for {option['label']} to {path}")
+                print(f"{now} - Generating image for {option['label']} to {output_path}")
 
                 # Generate image from HTML template
-                create_og_image(option["template"], path)
+                create_og_image(option["template"], str(output_path))
 
                 now = time.strftime("%Y-%m-%d %H:%M:%S")
                 print(f"{now} - Uploading image to s3 path: {s3_path}")
 
                 if not is_local_test:
                     upload_image_to_cf_s3(
-                        s3_bucket, s3_path, path, cf_distribution_id, 'png', invalidate=False)
+                        s3_bucket, s3_path, str(output_path), cf_distribution_id, 'png', invalidate=False)
                     uploaded_paths.append(s3_path)
             except Exception as exc:
                 print(f"Error processing image for {option['label']}")
-                print(exc)
+                import traceback
+                traceback.print_exc()
                 
                 if not is_local_test:
                     try:

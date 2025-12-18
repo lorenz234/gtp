@@ -644,7 +644,6 @@ class BlockspaceJSONCreation():
         return df
 
 
-    ### ToDo: Add check/filters whether chain data should be loaded based on in_api flag
     def create_blockspace_comparison_json(self):
         # create base dict
         comparison_dict = {
@@ -667,6 +666,9 @@ class BlockspaceJSONCreation():
             print(f"...processing timeframe {timeframe} days")
             sub_cat_agg_df = self.get_comparison_aggregate_data_day(timeframe, 'sub_category', chain_keys)
             main_cat_agg_df = self.get_comparison_aggregate_data_day(timeframe, 'main_category', chain_keys)
+            
+            if timeframe == 180:
+                return main_cat_agg_df
             
             timeframe_key = f'{timeframe}d' if timeframe != 'max' else 'max'
 

@@ -92,6 +92,95 @@ class AdapterDune(AbstractAdapter):
         df = df.set_index(['metric_key', 'origin_key', 'date'])
         return df
     
+    def prepare_df_aa_daily(self, df):
+        print(f"Preparing df with {df.shape[0]} (compact) rows for active addresses daily...")
+        
+        # 1) parse "[0x.. 0x..]" -> ["0x..", "0x.."]
+        df["from_addresses"] = (
+            df["from_addresses"]
+            .astype(str)
+            .str.strip("[]")
+            .str.split()          # splits on whitespace
+        )
+
+        # 2) explode
+        df = (
+            df.explode("from_addresses")
+            .rename(columns={"from_addresses": "address"})
+            .dropna(subset=["address"])
+            .reset_index(drop=True)
+        )
+        
+        print(f"Exploded to {df.shape[0]} rows for active addresses daily...")
+
+        # 3) rename column, format address
+        df = df.rename(columns={"day": "date"})
+        df['address'] = df['address'].str.replace('0x', '\\x', regex=False)
+        return df
+    
+    def prepare_df_contract_level_daily(self, df):
+        df["metrics"] = (
+            df["metrics"]
+            .astype(str)
+            .str.strip("[]")
+            .str.split()          # splits on whitespace
+        )
+
+        cols = [
+            "gas_fees_eth",
+            "gas_fees_usd",
+            "txcount",
+            "daa",
+            "success_rate",
+            "median_tx_fee",
+            "gas_used",
+        ]
+
+        df[cols] = pd.DataFrame(df["metrics"].tolist(), index=df.index)
+
+        df["gas_fees_eth"]   = df["gas_fees_eth"].astype(float)
+        df["gas_fees_usd"]   = df["gas_fees_usd"].astype(float)
+        df["txcount"]        = df["txcount"].astype(float)
+        df["daa"]            = df["daa"].astype(float)
+        df["success_rate"]   = df["success_rate"].astype(float)
+        df["median_tx_fee"]  = df["median_tx_fee"].astype(float)
+        df["gas_used"]       = df["gas_used"].astype(float)
+
+        df = df.drop(columns=["metrics"])
+
+        df = df.rename(columns={"day": "date"})
+        df['address'] = df['address'].str.replace('0x', '\\x', regex=False)
+        return df
+    
+    def prepare_df_category_level_daily(self, df):
+        df["metrics"] = (
+            df["metrics"]
+            .astype(str)
+            .str.strip("[]")
+            .str.split()          # splits on whitespace
+        )
+
+        cols = [
+            "gas_fees_eth",
+            "gas_fees_usd",
+            "txcount",
+            "daa",
+            "gas_used",
+        ]
+
+        df[cols] = pd.DataFrame(df["metrics"].tolist(), index=df.index)
+
+        df["gas_fees_eth"]   = df["gas_fees_eth"].astype(float)
+        df["gas_fees_usd"]   = df["gas_fees_usd"].astype(float)
+        df["txcount"]        = df["txcount"].astype(float)
+        df["daa"]            = df["daa"].astype(float)
+        df["gas_used"]       = df["gas_used"].astype(float)
+
+        df = df.drop(columns=["metrics"])
+
+        df = df.rename(columns={"day": "date"})
+        return df
+    
     def prepare_df_incriptions(self, df):
         # address column to bytea
         df['address'] = df['address'].apply(lambda x: bytes.fromhex(x[2:]))

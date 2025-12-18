@@ -47,6 +47,7 @@ class MainConfig(BaseModel):
     aliases_defillama: Optional[str] = Field(alias="aliases_defillama", default=None)
 
     ## METADATA
+    metadata_chain_type: Optional[str] = Field(alias="metadata_chain_type", default="others")
     metadata_description: Optional[str] = Field(alias="metadata_description", default=None)
     metadata_symbol: Optional[str] = Field(alias="metadata_symbol", default=None)
     metadata_gas_token: Optional[str] = Field(alias="metadata_gas_token", default=None)

@@ -697,7 +697,7 @@ class JSONCreation():
         df = self.download_data(chain_user_string, metrics_user_string)
 
         ## divide value by 1000000 where metric_key is gas_per_second --> mgas/s
-        df.loc[df['metric_key'] == 'gas_per_second', 'value'] = df['value'] / 1000000
+        df.loc[df['metric_key'] == 'gas_per_second', 'value'] = df['value'] / 1_000_000
         df.loc[df['metric_key'] == 'da_data_posted_bytes', 'value'] = df['value'] / 1024 / 1024 / 1024
         return df
     
@@ -1091,6 +1091,8 @@ class JSONCreation():
         ## iterate over main_config to get similar chains
         for proj in self.main_config:
             if proj.origin_key not in [origin_key, 'all_l2s', 'multiple']:
+                if proj.api_in_main == False:
+                    continue
                 if proj.metadata_stack == stack:
                     similar_chains.append(proj.origin_key)
                     
@@ -1098,12 +1100,14 @@ class JSONCreation():
         if len(similar_chains) < 7:
             for proj in self.main_config:
                 if proj.origin_key not in [origin_key, 'all_l2s', 'multiple']:
+                    if proj.api_in_main == False:
+                        continue
                     if proj.metadata_da_layer == da and proj.origin_key not in similar_chains:
                         similar_chains.append(proj.origin_key)
                         
         ## if still less than 7, fill with random chains
         import random
-        all_chains = [proj.origin_key for proj in self.main_config if proj.origin_key not in [origin_key, 'all_l2s', 'multiple'] and proj.origin_key not in similar_chains]
+        all_chains = [proj.origin_key for proj in self.main_config if proj.origin_key not in [origin_key, 'all_l2s', 'multiple'] and proj.origin_key not in similar_chains and proj.api_in_main == True]
         while len(similar_chains) < 7:
             similar_chains.append(random.choice(all_chains))
             
@@ -1175,6 +1179,7 @@ class JSONCreation():
                 'ecosystem': chain.ecosystem,
                 'colors': chain.colors,
                 'logo': chain.logo,
+                'chain_type': chain.metadata_chain_type,
                 'technology': chain.metadata_technology,
                 'purpose': chain.metadata_purpose,
                 'launch_date': chain.metadata_launch_date,

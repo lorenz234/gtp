@@ -241,6 +241,23 @@ class AdapterSQL(AbstractAdapter):
                 df.set_index(['date', 'category_id' ,'origin_key'], inplace=True)
                 print(f"...upserting total usage usage for imx. Total rows: {df.shape[0]}...")
                 self.db_connector.upsert_table('blockspace_fact_category_level', df)
+                
+            elif chain == 'megaeth':
+                days_mapping = 5000
+                print(f"...aggregating sub categories for {chain} and last {days_mapping} days...")
+                df = self.db_connector.get_blockspace_sub_categories(chain, days_mapping)
+                df.set_index(['date', 'category_id' ,'origin_key'], inplace=True)
+
+                print(f"...upserting sub categories for {chain}. Total rows: {df.shape[0]}...")
+                self.db_connector.upsert_table('blockspace_fact_category_level', df)
+
+                ## determine unlabeled usage
+                print(f"...aggregating unlabeled usage for {chain} and last {days_mapping} days...")
+                df = self.db_connector.get_blockspace_unlabeled(chain, days_mapping)
+                df.set_index(['date', 'category_id' ,'origin_key'], inplace=True)
+
+                print(f"...upserting unlabeled usage for {chain}. Total rows: {df.shape[0]}...")
+                self.db_connector.upsert_table('blockspace_fact_category_level', df)
             
             else:
                 ## aggregate contract data
@@ -309,7 +326,7 @@ class AdapterSQL(AbstractAdapter):
                 days = int(days)
             
             ## Starknet data isn't stored in fact_active_addresses as we only keep EVM addresses in here
-            if origin_key != 'starknet':
+            if origin_key not in ['starknet', 'megaeth']:
                 print(f"...aggregating + inserting active addresses data for {origin_key} and last {days} days and days_end set to {days_end}...")
                 self.db_connector.aggregate_unique_addresses(origin_key, days, days_end)
 

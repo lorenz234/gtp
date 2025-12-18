@@ -7,6 +7,7 @@
 #   - `stack`: The stack type (e.g., "l1", "op_stack", "nitro", "elastic", "basic") which determines the fee calculation and other processing specifics.
 #   - `sleeper`: The time to wait between requests in seconds.
 #   - `calc_fees`: A boolean indicating whether to calculate fees for transactions on this chain.
+#   - `hide`: A boolean indicating whether to hide this chain from certain displays (not included in all entries).
 
 rpc_config = {
     ## L1
@@ -116,6 +117,14 @@ rpc_config = {
         "stack": "op_stack",
         "sleeper": 3,
         "calc_fees": False,
+    },
+    "megaeth": {
+        "name": "MegaETH",
+        "processors": "evm",
+        "stack": "op_stack",
+        "sleeper": 1,
+        "calc_fees": True,
+        "hide": True,
     },
     
     ## Nitro/Arbitrum Orbit chains
