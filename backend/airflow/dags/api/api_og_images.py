@@ -13,20 +13,20 @@ from src.misc.airflow_utils import alert_via_webhook
         'retry_delay' : timedelta(minutes=5),
         'on_failure_callback': lambda context: alert_via_webhook(context, user='mike')
     },
-    dag_id='api_screenshot_creation',
-    description='Create and store screenshots in s3 bucket',
+    dag_id='api_og_images',
+    description='Create and store og images',
     tags=['api', 'daily'],
     start_date = datetime(2023,4,24),
-    schedule='00 07 * * *'
+    schedule='0 7 * * SUN'
 )
 
 def etl():
     @task()
-    def run_screenshots_task():
+    def run_og_images():
         import os
         from src.api.screenshots_to_s3 import run_template_generation
         
         run_template_generation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), 'v1', sys_user)
     
-    run_screenshots_task()
+    run_og_images()
 etl()
