@@ -142,6 +142,10 @@ class AdapterDune(AbstractAdapter):
             .reset_index(drop=True)
         )
         
+        ## drop column chunk_id
+        if 'chunk_id' in df.columns:
+            df = df.drop(columns=['chunk_id'])
+        
         print(f"Exploded to {df.shape[0]} rows for contract level active addresses daily...")
 
         # 3) rename column, format address
