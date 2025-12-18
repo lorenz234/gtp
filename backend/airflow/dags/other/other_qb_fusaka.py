@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description="Quick Bite on Fusaka + blob_base_fee backfilling",
     tags=["other"],
     start_date=datetime(2025, 12, 11),
-    schedule="17 0 * * *",  # Every day at 00:17
+    schedule="7 */8 * * *",  # At minute 7 past every 8th hour
 )
 def run_dag():
 
