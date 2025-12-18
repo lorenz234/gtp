@@ -781,12 +781,8 @@ class RtBackend:
 
         tps_override = current_block.get("tps_override")
         if tps_override is not None:
-            if chain_name == "megaeth":
-                subblock_count = current_block.get("subblock_count", 1)
-                print(f"megaeth subblock_count: {subblock_count}")
-                block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp), subblock_count)
-            else:
-                block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
+            # --- override path ---
+            block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
             chain["block_history"].append({
                 "number": current_block_number,
                 "timestamp": current_timestamp,  # float seconds
@@ -802,7 +798,12 @@ class RtBackend:
             return float(tps_override)
 
         # --- normal path (no override) ---
-        block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
+        if chain_name == "megaeth":
+            subblock_count = current_block.get("subblock_count", 1)
+            print(f"megaeth subblock_count: {subblock_count}")
+            block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp), subblock_count)
+        else:
+            block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
 
         if chain["last_block_number"] is not None:
             blocks_missed = current_block_number - chain["last_block_number"] - 1
