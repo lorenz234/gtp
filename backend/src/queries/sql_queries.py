@@ -124,8 +124,8 @@ sql_queries = [
         ## Worldchain
         ,*standard_evm_queries("worldchain")
         #,SQLQuery(metric_key = "txcount_type4", origin_key = "worldchain", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
-        ## Mint
-        ,*standard_evm_queries("mint")
+        # ## Mint
+        # ,*standard_evm_queries("mint")
         ## Fraxtal
         ,*standard_evm_queries("fraxtal")
         ## INK

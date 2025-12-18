@@ -814,23 +814,41 @@ class DbConnector:
                         days_end_string = f"DATE_TRUNC('day', NOW() - INTERVAL '{days_end} days')"
                 
                 ## Having clause: not worth it to add addresses that where only called by one from_address (which is the case for 90% of to_addresses)
-                exec_string = f'''
+                if chain in ['megaeth']:
+                        exec_string= f'''
                         INSERT INTO fact_active_addresses_contract_hll (address, origin_key, date, hll_addresses)
                                 SELECT 
-                                        to_address as address,
-                                        '{chain}' as origin_key,
-                                        date_trunc('day', block_timestamp) as date,
+                                        address,
+                                        origin_key,
+                                        date,
                                         hll_add_agg(hll_hash_bytea(from_address), 17,5,-1,1)        
-                                FROM {chain}_tx
+                                FROM fact_active_addresses_contract
                                 WHERE 
-                                        to_address is not null
-                                        AND block_timestamp < {days_end_string}
-                                        AND block_timestamp >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
+                                        date < {days_end_string}
+                                        and date >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
+                                        and origin_key = '{chain}'
                                 GROUP BY 1,2,3
-                                HAVING COUNT(DISTINCT from_address) > 1
                         ON CONFLICT (address, origin_key, date)
                         DO UPDATE SET hll_addresses = EXCLUDED.hll_addresses;
-                '''
+                        '''     
+                else:
+                        exec_string = f'''
+                                INSERT INTO fact_active_addresses_contract_hll (address, origin_key, date, hll_addresses)
+                                        SELECT 
+                                                to_address as address,
+                                                '{chain}' as origin_key,
+                                                date_trunc('day', block_timestamp) as date,
+                                                hll_add_agg(hll_hash_bytea(from_address), 17,5,-1,1)        
+                                        FROM {chain}_tx
+                                        WHERE 
+                                                to_address is not null
+                                                AND block_timestamp < {days_end_string}
+                                                AND block_timestamp >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
+                                        GROUP BY 1,2,3
+                                        HAVING COUNT(DISTINCT from_address) > 1
+                                ON CONFLICT (address, origin_key, date)
+                                DO UPDATE SET hll_addresses = EXCLUDED.hll_addresses;
+                        '''
 
                 with self.engine.connect() as connection:
                         with connection.begin():
