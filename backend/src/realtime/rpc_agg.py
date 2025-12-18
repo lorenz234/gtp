@@ -711,7 +711,7 @@ class RtBackend:
             self.chain_data[chain_name]["errors"] += 1
             return None
         
-    def calculate_block_time(self, chain_name: str, current_block_number: int, current_timestamp: int) -> float:
+    def calculate_block_time(self, chain_name: str, current_block_number: int, current_timestamp: int, subblock_count: int = 1) -> float:
         """
         Calculate average block time based on current and previous block timestamps.
         Accounts for missed blocks by dividing time difference by number of blocks elapsed.
@@ -734,7 +734,8 @@ class RtBackend:
             # Only add valid block times (positive time, positive blocks, and reasonable)
             if blocks_elapsed > 0 and time_diff > 0 and time_diff < 3600:  # Ignore if > 1 hour (likely a gap)
                 # Calculate per-block time by dividing total time by number of blocks
-                block_time = time_diff / blocks_elapsed
+                block_time = time_diff / blocks_elapsed / subblock_count
+                    
                 chain["block_time_history"].append(block_time)
                 
                 # Keep only last 10 block times
@@ -773,8 +774,11 @@ class RtBackend:
 
         tps_override = current_block.get("tps_override")
         if tps_override is not None:
-            block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
-
+            if chain_name == "megaeth":
+                subblock_count = current_block.get("miniBlockCount", 1)
+                block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp), subblock_count)
+            else:
+                block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
             chain["block_history"].append({
                 "number": current_block_number,
                 "timestamp": current_timestamp,  # float seconds
