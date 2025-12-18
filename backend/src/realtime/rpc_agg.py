@@ -96,6 +96,12 @@ class EVMProcessor(BlockchainProcessor):
                     "gasLimit": hex(block.gasLimit),
                 }
             
+            subblock_count = 1
+            if chain_name == 'megaeth':
+                # megaeth returns miniblocks, adjust gas constants
+                block = await web3.eth.get_block('latest', full_transactions=False)
+                subblock_count = block.get('miniBlockCount', 1)
+            
             # Extract all block info from receipts
             first_receipt = receipts[0]
             block_number = first_receipt.blockNumber
@@ -219,6 +225,7 @@ class EVMProcessor(BlockchainProcessor):
                 "tx_cost_swap_usd": avg_swap_cost_usd,
                 "tx_cost_median": median_cost_eth,
                 "tx_cost_median_usd": median_cost_usd,
+                "subblock_count": subblock_count,
             }
 
             self.backend.chain_data[chain_name].update({
@@ -801,7 +808,7 @@ class RtBackend:
             blocks_missed = current_block_number - chain["last_block_number"] - 1
             if blocks_missed > 0:
                 self._add_estimated_blocks(chain, blocks_missed, current_block_number, int(current_timestamp), tx_count)
-                if blocks_missed > 5:
+                if blocks_missed > 10:
                     logger.warning(f"{chain_name}: Missed {blocks_missed} blocks between {chain['last_block_number']} and {current_block_number}")
 
         chain["block_history"].append({
