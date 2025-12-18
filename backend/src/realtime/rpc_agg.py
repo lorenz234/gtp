@@ -776,6 +776,7 @@ class RtBackend:
         if tps_override is not None:
             if chain_name == "megaeth":
                 subblock_count = current_block.get("miniBlockCount", 1)
+                print(f"megaeth subblock_count: {subblock_count}")
                 block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp), subblock_count)
             else:
                 block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
