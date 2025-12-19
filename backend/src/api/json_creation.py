@@ -1117,7 +1117,7 @@ class JSONCreation():
                         
         ## if still less than 7, fill with random chains
         import random
-        all_chains = [proj.origin_key for proj in self.main_config if proj.origin_key not in [origin_key, 'all_l2s', 'multiple'] and proj.origin_key not in similar_chains and proj.api_in_main == True]
+        all_chains = [proj.origin_key for proj in self.main_config if proj.origin_key not in [origin_key, 'all_l2s', 'multiple'] and proj.origin_key not in similar_chains and proj.api_in_main == True and proj.api_deployment_flag in ['PROD']]
         while len(similar_chains) < 7:
             similar_chains.append(random.choice(all_chains))
             
