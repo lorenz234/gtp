@@ -1099,6 +1099,8 @@ class JSONCreation():
             if proj.origin_key not in [origin_key, 'all_l2s', 'multiple']:
                 if proj.api_in_main == False:
                     continue
+                if proj.api_deployment_flag not in ['PROD']:
+                    continue
                 if proj.metadata_stack == stack:
                     similar_chains.append(proj.origin_key)
                     
@@ -1107,6 +1109,8 @@ class JSONCreation():
             for proj in self.main_config:
                 if proj.origin_key not in [origin_key, 'all_l2s', 'multiple']:
                     if proj.api_in_main == False:
+                        continue
+                    if proj.api_deployment_flag not in ['PROD']:
                         continue
                     if proj.metadata_da_layer == da and proj.origin_key not in similar_chains:
                         similar_chains.append(proj.origin_key)
@@ -1156,7 +1160,7 @@ class JSONCreation():
             if chain.api_in_main == False:
                 print(f'..skipped: Master json export for {origin_key}. API is set to False')
                 continue
-            if chain.api_deployment_flag not in ['PROD', 'DEV'] and private_access != origin_key:
+            if chain.api_deployment_flag not in ['PROD', 'DEV', 'ZIRCUIT'] and private_access != origin_key:
                 print(f'..skipped: Master json export for {origin_key}. Deployment flag is set to {chain.api_deployment_flag}')
                 continue
 
@@ -1174,6 +1178,7 @@ class JSONCreation():
                 'evm_chain_id': chain.evm_chain_id,
                 'links': chain.links,
                 'tab_status': chain.api_tab_status,
+                #'deployment': 'DEV' if chain.api_deployment_flag == 'ZIRCUIT' else chain.api_deployment_flag,
                 'deployment': chain.api_deployment_flag,
                 'name_short': chain.name_short,
                 'company': chain.company,
@@ -3219,7 +3224,7 @@ class JSONCreation():
         ## filter based on settings in main_config
         for adapter in self.main_config:
             ## filter out origin_keys from df if in_api=false
-            if adapter.api_in_main == False or adapter.api_deployment_flag not in ["PROD", "DEV"]:
+            if adapter.api_in_main == False or adapter.api_deployment_flag not in ["PROD", "DEV", "ZIRCUIT"]:
                 #print(f"Filtering out origin_keys for adapter {adapter.name}")
                 df = df[df.origin_key != adapter.origin_key]
             elif len(adapter.api_exclude_metrics) > 0:
