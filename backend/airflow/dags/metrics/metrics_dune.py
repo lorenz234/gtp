@@ -340,4 +340,7 @@ def etl():
     run_mega_category_level()
     run_mega_contract_level_aa()
     
+    ## Polygon POS tasks
+    run_polygon_pos_aa()
+    
 etl()
