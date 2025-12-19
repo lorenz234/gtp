@@ -93,35 +93,35 @@ class AdapterDune(AbstractAdapter):
         df = df.set_index(['metric_key', 'origin_key', 'date'])
         return df
     
-    def prepare_df_aa_daily(self, df):
-        print(f"Preparing df with {df.shape[0]} (compact) rows for active addresses daily...")
+    # def prepare_df_aa_daily(self, df):
+    #     print(f"Preparing df with {df.shape[0]} (compact) rows for active addresses daily...")
         
-        # 1) parse "[0x.. 0x..]" -> ["0x..", "0x.."]
-        df["from_addresses"] = (
-            df["from_addresses"]
-            .astype(str)
-            .str.strip("[]")
-            .str.split()          # splits on whitespace
-        )
+    #     # 1) parse "[0x.. 0x..]" -> ["0x..", "0x.."]
+    #     df["from_addresses"] = (
+    #         df["from_addresses"]
+    #         .astype(str)
+    #         .str.strip("[]")
+    #         .str.split()          # splits on whitespace
+    #     )
 
-        # 2) explode
-        df = (
-            df.explode("from_addresses")
-            .rename(columns={"from_addresses": "address"})
-            .dropna(subset=["address"])
-            .reset_index(drop=True)
-        )
+    #     # 2) explode
+    #     df = (
+    #         df.explode("from_addresses")
+    #         .rename(columns={"from_addresses": "address"})
+    #         .dropna(subset=["address"])
+    #         .reset_index(drop=True)
+    #     )
         
-        print(f"Exploded to {df.shape[0]} rows for active addresses daily...")
+    #     print(f"Exploded to {df.shape[0]} rows for active addresses daily...")
 
-        # 3) rename column, format address
-        df = df.rename(columns={"day": "date"})
-        df['address'] = df['address'].str.replace('0x', '\\x', regex=False)
+    #     # 3) rename column, format address
+    #     df = df.rename(columns={"day": "date"})
+    #     df['address'] = df['address'].str.replace('0x', '\\x', regex=False)
         
-        ## drop column chunk_id
-        if 'chunk_id' in df.columns:
-            df = df.drop(columns=['chunk_id'])
-        return df
+    #     ## drop column chunk_id
+    #     if 'chunk_id' in df.columns:
+    #         df = df.drop(columns=['chunk_id'])
+    #     return df
     
     def prepare_df_contract_level_aa_daily(self, df):
         print(f"Preparing df with {df.shape[0]} (compact) rows for contract level active addresses daily...")
