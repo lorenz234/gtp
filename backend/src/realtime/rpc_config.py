@@ -230,6 +230,14 @@ rpc_config = {
         "calc_fees": False,
     },
     
+    "polygon_pos": {
+        "name": "Polygon PoS",
+        "processors": "evm",
+        "stack": "basic",
+        "sleeper": 2,
+        "calc_fees": False,
+    },
+    
     # Custom Gas EVM chains
     "mantle": {
         "name": "Mantle",
