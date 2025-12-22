@@ -1740,6 +1740,14 @@ stables_mapping = {
             "stasis-eurs": {
                 "token_address": "0xe111178a87a3bff0c8d18decba5798827539ae99",
                 "method_name": "totalSupply"
+            },
+            "xsgd": {
+                "token_address": "0xdc3326e71d45186f113a2f448984ca0e8d201995",
+                "method_name": "totalSupply"
+            },
+            "monerium-eur-money": {
+                "token_address": "0xE0aEa583266584DafBB3f9C3211d5588c73fEa8d",
+                "method_name": "totalSupply"
             }
         }
     }
