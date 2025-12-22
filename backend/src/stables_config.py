@@ -1760,6 +1760,10 @@ stables_mapping = {
             "angle_eura": {
                 "token_address": "0xe0b52e49357fd4daf2c15e02058dce6bc0057db4",
                 "method_name": "totalSupply"
+            },
+            "tether_eur": {
+                "token_address": "0x7BDF330f423Ea880FF95fC41A280fD5eCFD3D09f",
+                "method_name": "totalSupply"
             }
         }
     }
