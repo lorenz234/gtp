@@ -1709,6 +1709,10 @@ stables_mapping = {
             "wusd": {
                 "token_address": "0x7cd017ca5ddb86861fa983a34b5f495c6f898c41",
                 "method_name": "totalSupply"
+            },
+            "brz": {
+                "token_address": "0x4eD141110F6EeeAbA9A1df36d8c26f684d2475Dc",
+                "method_name": "totalSupply"
             }
         }
     }
