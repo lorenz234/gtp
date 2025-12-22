@@ -174,7 +174,7 @@ def run_dag():
             }
 
             # Fix any NaN values in the data_dict
-            data_dict = fix_dict_nan(data_dict, f'robinhood_daily_{ticker}')
+            data_dict = fix_dict_nan(data_dict, f'robinhood_daily_{ticker}', send_notification=False)
 
             # Upload to S3
             upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/robinhood/stocks/{ticker}', data_dict, cf_distribution_id, invalidate=False)
@@ -222,7 +222,7 @@ def run_dag():
         }
 
         # fix NaN values in the data_dict2
-        data_dict2 = fix_dict_nan(data_dict2, 'robinhood_totals')
+        data_dict2 = fix_dict_nan(data_dict2, 'robinhood_totals', send_notification=True)
 
         # Upload to S3
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood/totals', data_dict2, cf_distribution_id, invalidate=False)
@@ -279,7 +279,7 @@ def run_dag():
         stockCount = len(rows_data)
 
         # Fix NaN values in the data_dict3
-        data_dict3 = fix_dict_nan(data_dict3, 'robinhood_stocks')
+        data_dict3 = fix_dict_nan(data_dict3, 'robinhood_stocks', send_notification=True)
 
         # Upload to S3
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood/stock_table', data_dict3, cf_distribution_id, invalidate=False)
@@ -294,7 +294,7 @@ def run_dag():
         }
 
         # Fix NaN values in the dict_dropdown
-        dict_dropdown = fix_dict_nan(dict_dropdown, 'robinhood_dropdown')
+        dict_dropdown = fix_dict_nan(dict_dropdown, 'robinhood_dropdown', send_notification=True)
         # Upload to S3
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood/dropdown', dict_dropdown, cf_distribution_id, invalidate=False)
 
@@ -312,7 +312,7 @@ def run_dag():
         }
 
         # fix NaN and upload to S3
-        data_dict4 = fix_dict_nan(data_dict4, 'robinhood_kpi')
+        data_dict4 = fix_dict_nan(data_dict4, 'robinhood_kpi', send_notification=True)
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood/kpi', data_dict4, cf_distribution_id, invalidate=False)
 
 
