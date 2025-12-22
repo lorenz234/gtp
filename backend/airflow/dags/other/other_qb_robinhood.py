@@ -108,7 +108,7 @@ def run_dag():
     def create_json_file():
         import pandas as pd
         import os
-        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
+        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan, send_discord_message
         from src.db_connector import DbConnector
         from src.misc.jinja_helper import execute_jinja_query
 
@@ -120,6 +120,16 @@ def run_dag():
         df = execute_jinja_query(db_connector, "api/quick_bites/robinhood_merged_daily.sql.j2", query_parameters={}, return_df=True)
         ticker_list = df['ticker'].unique().tolist()
         df['unix_timestamp'] = pd.to_datetime(df['date']).astype(int) // 10**6  # Convert to milliseconds
+
+        # send alert for tickers which have to be reviewed (no close price data)
+        alert_df = df.groupby('ticker').last()
+        alert_df = alert_df[alert_df['close_price_used'].isnull()]
+        if alert_df.empty == False:
+            alert_message = "The following Robinhood tickers have no price data:\n"
+            for ticker in alert_df.index:
+                alert_message += f"- {ticker}, {alert_df.loc[ticker, 'name']}\n"
+            alert_message += "Please check if stock ticker on Yahoo Finance is different from Robinhood (e.g. '.' rather than '-'), then edit the 'ticker' value in robinhood_stock_list table. In case the stock was delisted, set column 'active' to False."
+            send_discord_message(alert_message)
 
         def find_last_zero_value_index(series: pd.Series) -> int:
             """
