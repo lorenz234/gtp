@@ -1736,6 +1736,10 @@ stables_mapping = {
             "sbc": {
                 "token_address": "0xfdcc3dd6671eab0709a4c0f3f53de9a333d80798",
                 "method_name": "totalSupply"
+            },
+            "stasis-eurs": {
+                "token_address": "0xe111178a87a3bff0c8d18decba5798827539ae99",
+                "method_name": "totalSupply"
             }
         }
     }
