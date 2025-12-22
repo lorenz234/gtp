@@ -787,6 +787,19 @@ stables_metadata = {
             "celo": "0xCCF663b1fF11028f0b19058d0f7B674004a40746"
         }
     },
+
+    ## TRY
+    "bilira": {
+        "name": "BiLira",
+        "symbol": "TRYB",
+        "decimals": 6,
+        "coingecko_id": "bilira",
+        "fiat": "try",
+        "logo": None,
+        "addresses": {
+            "polygon": "0x4fb71290ac171e1d144f7221d882becac7196eb5"
+        }
+    },
 }
 
 # Bridge or direct token mapping
@@ -1364,6 +1377,10 @@ stables_mapping = {
             "usdc": {
                 "token_address": "0x79A02482A880bCE3F13e09Da970dC34db4CD24d1",
                 "method_name": "totalSupply"
+            },
+            "bilira": {
+                "token_address": "0x2c537e5624e4af88a7ae4060c022609376c8d0eb",
+                "method_name": "totalSupply"
             }
         }
     },
@@ -1664,6 +1681,10 @@ stables_mapping = {
             "sbc": {                     # SBC
                 "token_address": "0xfdcc3dd6671eab0709a4c0f3f53de9a333d80798",
                 "method_name":  "totalSupply",
+            },
+            "bilira": {                  # BiLira
+                "token_address": "0xfb8718a69aed7726afb3f04d2bd4bfde1bdcb294",
+                "method_name":  "totalSupply",
             }
         },
 
@@ -1764,7 +1785,12 @@ stables_mapping = {
             "tether_eur": {
                 "token_address": "0x7BDF330f423Ea880FF95fC41A280fD5eCFD3D09f",
                 "method_name": "totalSupply"
+            },
+            "bilira": {
+                "token_address": "0x4fb71290ac171e1d144f7221d882becac7196eb5",
+                "method_name": "totalSupply"
             }
+
         }
     }
 }
