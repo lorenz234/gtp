@@ -91,45 +91,9 @@ def etl():
     #     df = ad.extract(load_params)
     #     # load
     #     ad.load(df)
-    
+        
     @task()
     def run_mega_aa():
-        import os
-        from src.db_connector import DbConnector
-        from src.adapters.adapter_dune import AdapterDune
-
-        adapter_params = {
-            'api_key' : os.getenv("DUNE_API")
-        }
-        load_params = {
-            'queries': [
-                {
-                    'name': 'megaeth_aa',
-                    'query_id': 6359844,
-                    'params': {'days': 2}
-                }
-            ],
-            'prepare_df': 'prepare_df_aa_daily',
-            'load_type': 'fact_active_addresses'
-        }
-
-        # initialize adapter
-        db_connector = DbConnector()
-        ad = AdapterDune(adapter_params, db_connector)
-        # extract
-        df = ad.extract(load_params)
-
-        print(f"Loaded {df.shape[0]} rows for megaeth active addresses.")
-        
-        # additional prep steps
-        df['origin_key'] = 'megaeth'
-        df.set_index(['address', 'date', 'origin_key'], inplace=True)
-
-        # load
-        ad.load(df)
-        
-    @task()
-    def run_mega_contract_level_aa():
         import os
         from src.db_connector import DbConnector
         from src.adapters.adapter_dune import AdapterDune
@@ -146,7 +110,7 @@ def etl():
                 }
             ],
             'prepare_df': 'prepare_df_contract_level_aa_daily',
-            'load_type': 'fact_active_addresses_contract'
+            'load_type': 'CUSTOM'
         }
 
         # initialize adapter
@@ -155,14 +119,27 @@ def etl():
         # extract
         df = ad.extract(load_params)
 
-        print(f"Loaded {df.shape[0]} rows for megaeth active addresses.")
-        
-        # additional prep steps
-        df['origin_key'] = 'megaeth'
-        df.set_index(['address', 'date', 'origin_key', 'from_address'], inplace=True)
+        print(f"Loaded {df.shape[0]} rows for megaeth active addresses on contract level.")
 
-        # load
-        ad.load(df)
+        # prepare for fact_active_addresses_contract
+        df_contract_aa = df.copy()
+        df_contract_aa = df_contract_aa[df_contract_aa.address != '<nil>']
+
+        df_contract_aa['origin_key'] = 'megaeth'
+        df_contract_aa.set_index(['address', 'date', 'origin_key', 'from_address'], inplace=True)
+        db_connector.upsert_table('fact_active_addresses_contract', df_contract_aa)
+
+        # prepare for fact_active_addresses
+        df_aa = df.copy()
+        df_aa = df_aa.drop(columns=['address'])
+        df_aa = df_aa.drop_duplicates(subset=['date', 'from_address'])
+        df_aa = df_aa.rename(columns={'from_address': 'address'})
+
+        # additional prep steps
+        df_aa['origin_key'] = 'megaeth'
+        df_aa.set_index(['address', 'date', 'origin_key'], inplace=True)
+        db_connector.upsert_table('fact_active_addresses', df_aa)
+
         
     @task()
     def run_mega_contract_level():
@@ -237,42 +214,6 @@ def etl():
         ad.load(df)
 
     @task()
-    def run_polygon_pos_aa():
-        import os
-        from src.db_connector import DbConnector
-        from src.adapters.adapter_dune import AdapterDune
-
-        adapter_params = {
-            'api_key' : os.getenv("DUNE_API")
-        }
-        load_params = {
-            'queries': [
-                {
-                    'name': 'polygon_pos_aa',
-                    'query_id': 6371198,
-                    'params': {'days': 2}
-                }
-            ],
-            'prepare_df': 'prepare_df_aa_daily',
-            'load_type': 'fact_active_addresses'
-        }
-
-        # initialize adapter
-        db_connector = DbConnector()
-        ad = AdapterDune(adapter_params, db_connector)
-        # extract
-        df = ad.extract(load_params)
-
-        print(f"Loaded {df.shape[0]} rows for polygon pos active addresses.")
-        
-        # additional prep steps
-        df['origin_key'] = 'polygon_pos'
-        df.set_index(['address', 'date', 'origin_key'], inplace=True)
-
-        # load
-        ad.load(df)
-
-    @task()
     def run_glo_holders():
         import os
         from src.db_connector import DbConnector
@@ -338,7 +279,6 @@ def etl():
     run_mega_aa()
     run_mega_contract_level()
     run_mega_category_level()
-    run_mega_contract_level_aa()
     
     ## Polygon POS tasks
     # run_polygon_pos_aa()

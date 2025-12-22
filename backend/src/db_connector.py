@@ -814,7 +814,7 @@ class DbConnector:
                         days_end_string = f"DATE_TRUNC('day', NOW() - INTERVAL '{days_end} days')"
                 
                 ## Having clause: not worth it to add addresses that where only called by one from_address (which is the case for 90% of to_addresses)
-                if chain in ['megaeth']:
+                if chain in ['megaeth', 'polygon_pos']:
                         exec_string= f'''
                         INSERT INTO fact_active_addresses_contract_hll (address, origin_key, date, hll_addresses)
                                 SELECT 
