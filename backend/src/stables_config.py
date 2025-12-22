@@ -1752,6 +1752,14 @@ stables_mapping = {
             "true_gbp": {
                 "token_address": "0x27f6c8289550fce67f6b50bed1f519966afe5287",
                 "method_name": "totalSupply"
+            },
+            "apacx_pht": {
+                "token_address": "0xe75220cb014dfb2d354bb59be26d7458bb8d0706",
+                "method_name": "totalSupply"
+            },
+            "angle_eura": {
+                "token_address": "0xe0b52e49357fd4daf2c15e02058dce6bc0057db4",
+                "method_name": "totalSupply"
             }
         }
     }
