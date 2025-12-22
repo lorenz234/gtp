@@ -89,6 +89,7 @@ def run_dag():
     def pull_data_from_yfinance():
         from src.adapters.adapter_yfinance_stocks import AdapterYFinance
         from src.db_connector import DbConnector
+        import time
 
         db = DbConnector()
         yfi = AdapterYFinance({}, db)
@@ -103,6 +104,45 @@ def run_dag():
 
         df = yfi.extract(load_params)
         yfi.load(df)
+
+        # sometimes yahoo finance api fails so we check data and refill missing tickers
+        df_check = db.execute_query(
+            """
+            SELECT 
+                rsl."name", 
+                rsl.ticker, 
+                rd.value as last_close_price,
+                rd.date::TEXT as last_close_date
+            FROM public.robinhood_stock_list rsl
+            LEFT JOIN LATERAL (
+                SELECT contract_address, "date", value
+                FROM public.robinhood_daily
+                WHERE 
+                    metric_key = 'Close'
+                    AND contract_address = rsl.contract_address
+                ORDER BY "date" DESC
+                LIMIT 1
+            ) rd ON true
+            WHERE rsl.active = true
+            ORDER BY last_close_date ASC
+            """,
+            load_df=True
+        )
+        if df_check['last_close_date'].iloc[-1] != df_check['last_close_date'].iloc[0]:
+            print("Refilling missing tickers from Yahoo Finance...")
+            time.sleep(300)  # wait for 5 minutes before refilling to avoid rate limits!
+            missing_tickers = df_check[df_check['last_close_date'] == df_check['last_close_date'].iloc[0]]['ticker'].tolist()
+            print(f"Missing tickers: {missing_tickers}")
+
+            load_params_refill = {
+                'tickers': missing_tickers,
+                'endpoints': ['Close'],
+                'days': 5,
+                'table': 'robinhood_daily',
+                'prepare_df': 'prepare_df_robinhood_daily'
+            }
+            df_refill = yfi.extract(load_params_refill)
+            yfi.load(df_refill)
 
     @task(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS)
     def create_json_file():
@@ -180,7 +220,8 @@ def run_dag():
                     "values": values
                 },
                 "ticker": ticker,
-                "name": filtered_data['name'].iloc[0]
+                "name": filtered_data['name'].iloc[0],
+                "address": filtered_data['contract_address'].iloc[0]
             }
 
             # Fix any NaN values in the data_dict
