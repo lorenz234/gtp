@@ -7,13 +7,12 @@ WITH date_range AS (
 ),
 all_stocks AS (
   SELECT DISTINCT contract_address 
-  FROM public.robinhood_daily
-  WHERE contract_address IN (
-    SELECT contract_address 
-    FROM public.robinhood_stock_list 
-    WHERE 
-      ticker NOT IN ('demo token 1', 'SPACEX', 'OPAI')
-  )
+    FROM public.robinhood_daily
+    WHERE contract_address IN (
+      SELECT contract_address 
+      FROM public.robinhood_stock_list 
+      WHERE active = TRUE
+    )
 ),
 complete_date_stock_grid AS (
   SELECT 

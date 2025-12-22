@@ -8,7 +8,7 @@ WITH date_range AS (
 all_stocks AS (
   SELECT contract_address
   FROM public.robinhood_stock_list
-  WHERE ticker NOT IN ('demo token 1', 'SPACEX', 'OPAI')
+  WHERE active = TRUE -- only active stocks (not delisted or acquired)
 ),
 complete_date_stock_grid AS (
   SELECT

@@ -124,5 +124,5 @@ LEFT JOIN seven_days_ago_data sda
     ON ld.contract_address = sda.contract_address
     AND sda.rn_7d = 1
 WHERE ld.rn = 1
-    AND rsl.ticker NOT IN ('demo token 1', 'SPACEX', 'OPAI')
+    AND rsl.active = TRUE
 ORDER BY ld.usd_outstanding DESC NULLS LAST;

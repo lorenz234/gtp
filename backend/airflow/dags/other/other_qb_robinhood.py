@@ -89,6 +89,7 @@ def run_dag():
     def pull_data_from_yfinance():
         from src.adapters.adapter_yfinance_stocks import AdapterYFinance
         from src.db_connector import DbConnector
+        import time
 
         db = DbConnector()
         yfi = AdapterYFinance({}, db)
@@ -104,11 +105,50 @@ def run_dag():
         df = yfi.extract(load_params)
         yfi.load(df)
 
+        # sometimes yahoo finance api fails so we check data and refill missing tickers
+        df_check = db.execute_query(
+            """
+            SELECT 
+                rsl."name", 
+                rsl.ticker, 
+                rd.value as last_close_price,
+                rd.date::TEXT as last_close_date
+            FROM public.robinhood_stock_list rsl
+            LEFT JOIN LATERAL (
+                SELECT contract_address, "date", value
+                FROM public.robinhood_daily
+                WHERE 
+                    metric_key = 'Close'
+                    AND contract_address = rsl.contract_address
+                ORDER BY "date" DESC
+                LIMIT 1
+            ) rd ON true
+            WHERE rsl.active = true
+            ORDER BY last_close_date ASC
+            """,
+            load_df=True
+        )
+        if df_check['last_close_date'].iloc[-1] != df_check['last_close_date'].iloc[0]:
+            print("Refilling missing tickers from Yahoo Finance...")
+            time.sleep(300)  # wait for 5 minutes before refilling to avoid rate limits!
+            missing_tickers = df_check[df_check['last_close_date'] == df_check['last_close_date'].iloc[0]]['ticker'].tolist()
+            print(f"Missing tickers: {missing_tickers}")
+
+            load_params_refill = {
+                'tickers': missing_tickers,
+                'endpoints': ['Close'],
+                'days': 5,
+                'table': 'robinhood_daily',
+                'prepare_df': 'prepare_df_robinhood_daily'
+            }
+            df_refill = yfi.extract(load_params_refill)
+            yfi.load(df_refill)
+
     @task(trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS)
     def create_json_file():
         import pandas as pd
         import os
-        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
+        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan, send_discord_message
         from src.db_connector import DbConnector
         from src.misc.jinja_helper import execute_jinja_query
 
@@ -120,6 +160,16 @@ def run_dag():
         df = execute_jinja_query(db_connector, "api/quick_bites/robinhood_merged_daily.sql.j2", query_parameters={}, return_df=True)
         ticker_list = df['ticker'].unique().tolist()
         df['unix_timestamp'] = pd.to_datetime(df['date']).astype(int) // 10**6  # Convert to milliseconds
+
+        # send alert for tickers which have to be reviewed (no close price data)
+        alert_df = df.groupby('ticker').last()
+        alert_df = alert_df[alert_df['close_price_used'].isnull()]
+        if alert_df.empty == False:
+            alert_message = "The following Robinhood tickers have no price data:\n"
+            for ticker in alert_df.index:
+                alert_message += f"- {ticker}, {alert_df.loc[ticker, 'name']}\n"
+            alert_message += "Please check if stock ticker on Yahoo Finance is different from Robinhood (e.g. '.' rather than '-'), then edit the 'ticker' value in robinhood_stock_list table. In case the stock was delisted, set column 'active' to False."
+            send_discord_message(alert_message)
 
         def find_last_zero_value_index(series: pd.Series) -> int:
             """
@@ -170,11 +220,12 @@ def run_dag():
                     "values": values
                 },
                 "ticker": ticker,
-                "name": filtered_data['name'].iloc[0]
+                "name": filtered_data['name'].iloc[0],
+                "address": filtered_data['contract_address'].iloc[0]
             }
 
             # Fix any NaN values in the data_dict
-            data_dict = fix_dict_nan(data_dict, f'robinhood_daily_{ticker}')
+            data_dict = fix_dict_nan(data_dict, f'robinhood_daily_{ticker}', send_notification=False)
 
             # Upload to S3
             upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/robinhood/stocks/{ticker}', data_dict, cf_distribution_id, invalidate=False)
@@ -222,7 +273,7 @@ def run_dag():
         }
 
         # fix NaN values in the data_dict2
-        data_dict2 = fix_dict_nan(data_dict2, 'robinhood_totals')
+        data_dict2 = fix_dict_nan(data_dict2, 'robinhood_totals', send_notification=True)
 
         # Upload to S3
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood/totals', data_dict2, cf_distribution_id, invalidate=False)
@@ -279,7 +330,7 @@ def run_dag():
         stockCount = len(rows_data)
 
         # Fix NaN values in the data_dict3
-        data_dict3 = fix_dict_nan(data_dict3, 'robinhood_stocks')
+        data_dict3 = fix_dict_nan(data_dict3, 'robinhood_stocks', send_notification=True)
 
         # Upload to S3
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood/stock_table', data_dict3, cf_distribution_id, invalidate=False)
@@ -294,7 +345,7 @@ def run_dag():
         }
 
         # Fix NaN values in the dict_dropdown
-        dict_dropdown = fix_dict_nan(dict_dropdown, 'robinhood_dropdown')
+        dict_dropdown = fix_dict_nan(dict_dropdown, 'robinhood_dropdown', send_notification=True)
         # Upload to S3
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood/dropdown', dict_dropdown, cf_distribution_id, invalidate=False)
 
@@ -312,7 +363,7 @@ def run_dag():
         }
 
         # fix NaN and upload to S3
-        data_dict4 = fix_dict_nan(data_dict4, 'robinhood_kpi')
+        data_dict4 = fix_dict_nan(data_dict4, 'robinhood_kpi', send_notification=True)
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/robinhood/kpi', data_dict4, cf_distribution_id, invalidate=False)
 
 
