@@ -366,6 +366,17 @@ stables_metadata = {
             "plume": "0xdddD73F5Df1F0DC31373357beAC77545dC5A6f3F"
         }
     },
+    "sbc": {
+        "name": "Stable Coin",
+        "symbol": "SBC",
+        "decimals": 18,
+        "coingecko_id": "stable-coin-2",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xf9fb20b8e097904f0ab7d12e9dbee88f2dcd0f16"
+        }
+    },
     "metamask-usd": {
         "name": "MetaMask USD",
         "symbol": "mUSD",
@@ -884,6 +895,10 @@ stables_mapping = {
             },
             "usual-usd": {
                 "token_address": "0x73a15fed60bf67631dc6cd7bc5b6e8da8190acf5",  # USD0 native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "sbc": {
+                "token_address": "0xf9FB20B8E097904f0aB7d12e9DbeE88f2dcd0F16",  # SBC native on Ethereum
                 "method_name": "totalSupply",
             },
             "glo-dollar": {
@@ -1712,6 +1727,10 @@ stables_mapping = {
             },
             "brz": {
                 "token_address": "0x4eD141110F6EeeAbA9A1df36d8c26f684d2475Dc",
+                "method_name": "totalSupply"
+            },
+            "sbc": {
+                "token_address": "0xfdcc3dd6671eab0709a4c0f3f53de9a333d80798",
                 "method_name": "totalSupply"
             }
         }
