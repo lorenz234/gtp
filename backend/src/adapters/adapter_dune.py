@@ -236,6 +236,8 @@ class AdapterDune(AbstractAdapter):
         return df
     
     def prepare_robinhood_list(self, df):
+        # add active column and set to True
+        df['active'] = True
         # set index to contract_address
         df = df.set_index(['contract_address'])
         return df
