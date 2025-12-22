@@ -165,7 +165,7 @@ def run_dag():
         alert_df = df.groupby('ticker').last()
         alert_df = alert_df[alert_df['close_price_used'].isnull()]
         if alert_df.empty == False:
-            alert_message = "The following Robinhood tickers have no price data:\n"
+            alert_message = "<@790276642660548619> The following Robinhood tickers have no price data:\n"
             for ticker in alert_df.index:
                 alert_message += f"- {ticker}, {alert_df.loc[ticker, 'name']}\n"
             alert_message += "Please check if stock ticker on Yahoo Finance is different from Robinhood (e.g. '.' rather than '-'), then edit the 'ticker' value in robinhood_stock_list table. In case the stock was delisted, set column 'active' to False."
