@@ -211,6 +211,17 @@ stables_metadata = {
             "ethereum": "0xf939e0a03fb07f59a73314e73794be0e57ac1b4e",
         }
     },
+    "wusd": {
+        "name": "Worldwide USD",
+        "symbol": "WUSD",
+        "decimals": 18,
+        "coingecko_id": "worldwide-usd",
+        "fiat": "usd",
+        "logo": "https://assets.coingecko.com/coins/images/35358/standard/WUSD-logo.png?1755754866",
+        "addresses": {
+            "ethereum": "0x7cd017ca5ddb86861fa983a34b5f495c6f898c41",
+        }
+    },
     "dola": {
         "name": "Dola",
         "symbol": "DOLA",
@@ -829,6 +840,10 @@ stables_mapping = {
             },
             "gemini-usd": {
                 "token_address": "0x056fd409e1d7a124bd7017459dfea2f387b6d5cd",  # GUSD native on Ethereum
+                "method_name": "totalSupply",
+            },
+            "wusd": {
+                "token_address": "0x7cd017ca5ddb86861fa983a34b5f495c6f898c41",  # WUSD native on Ethereum
                 "method_name": "totalSupply",
             },
             "paypal-usd": {
@@ -1689,6 +1704,10 @@ stables_mapping = {
             },
             "ausd": {
                 "token_address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+                "method_name": "totalSupply"
+            }, 
+            "wusd": {
+                "token_address": "0x7cd017ca5ddb86861fa983a34b5f495c6f898c41",
                 "method_name": "totalSupply"
             }
         }
