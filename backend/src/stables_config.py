@@ -1748,6 +1748,10 @@ stables_mapping = {
             "monerium-eur-money": {
                 "token_address": "0xE0aEa583266584DafBB3f9C3211d5588c73fEa8d",
                 "method_name": "totalSupply"
+            },
+            "true_gbp": {
+                "token_address": "0x27f6c8289550fce67f6b50bed1f519966afe5287",
+                "method_name": "totalSupply"
             }
         }
     }
