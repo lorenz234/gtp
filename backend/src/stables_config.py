@@ -1661,6 +1661,10 @@ stables_mapping = {
                 "token_address": "0x0A4C9cb2778aB3302996A34BeFCF9a8Bc288C33b",
                 "method_name":  "totalSupply",
             },
+            "sbc": {                     # SBC
+                "token_address": "0xfdcc3dd6671eab0709a4c0f3f53de9a333d80798",
+                "method_name":  "totalSupply",
+            }
         },
 
     },  
