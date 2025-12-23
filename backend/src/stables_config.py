@@ -211,6 +211,17 @@ stables_metadata = {
             "ethereum": "0xf939e0a03fb07f59a73314e73794be0e57ac1b4e",
         }
     },
+    "wusd": {
+        "name": "Worldwide USD",
+        "symbol": "WUSD",
+        "decimals": 18,
+        "coingecko_id": "worldwide-usd",
+        "fiat": "usd",
+        "logo": "https://assets.coingecko.com/coins/images/35358/standard/WUSD-logo.png?1755754866",
+        "addresses": {
+            "ethereum": "0x7cd017ca5ddb86861fa983a34b5f495c6f898c41",
+        }
+    },
     "dola": {
         "name": "Dola",
         "symbol": "DOLA",
@@ -300,6 +311,17 @@ stables_metadata = {
             "ethereum": "0x7712c34205737192402172409a8F7ccef8aA2AEc", 
         }
     },
+    "ausd": {
+        "name": "aUSD",
+        "symbol": "AUSD",
+        "decimals": 6,
+        "coingecko_id": "ausd",
+        "fiat": "usd",
+        "logo": "https://assets.coingecko.com/coins/images/39284/standard/AUSD_1024px.png?1764684132",
+        "addresses": {
+            "ethereum": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+        }
+    },
     "usdb": {
         "name": "USDB",
         "symbol": "USDB",
@@ -342,6 +364,17 @@ stables_metadata = {
         "logo": None,
         "addresses": {
             "plume": "0xdddD73F5Df1F0DC31373357beAC77545dC5A6f3F"
+        }
+    },
+    "sbc": {
+        "name": "Stable Coin",
+        "symbol": "SBC",
+        "decimals": 18,
+        "coingecko_id": "stable-coin-2",
+        "fiat": "usd",
+        "logo": None,
+        "addresses": {
+            "ethereum": "0xf9fb20b8e097904f0ab7d12e9dbee88f2dcd0f16"
         }
     },
     "metamask-usd": {
@@ -754,6 +787,19 @@ stables_metadata = {
             "celo": "0xCCF663b1fF11028f0b19058d0f7B674004a40746"
         }
     },
+
+    ## TRY
+    "bilira": {
+        "name": "BiLira",
+        "symbol": "TRYB",
+        "decimals": 6,
+        "coingecko_id": "bilira",
+        "fiat": "try",
+        "logo": None,
+        "addresses": {
+            "polygon": "0x4fb71290ac171e1d144f7221d882becac7196eb5"
+        }
+    },
 }
 
 # Bridge or direct token mapping
@@ -820,6 +866,10 @@ stables_mapping = {
                 "token_address": "0x056fd409e1d7a124bd7017459dfea2f387b6d5cd",  # GUSD native on Ethereum
                 "method_name": "totalSupply",
             },
+            "wusd": {
+                "token_address": "0x7cd017ca5ddb86861fa983a34b5f495c6f898c41",  # WUSD native on Ethereum
+                "method_name": "totalSupply",
+            },
             "paypal-usd": {
                 "token_address": "0x6c3ea9036406852006290770bedfcaba0e23a0e8",  # PYUSD native on Ethereum
                 "method_name": "totalSupply",
@@ -860,6 +910,10 @@ stables_mapping = {
                 "token_address": "0x73a15fed60bf67631dc6cd7bc5b6e8da8190acf5",  # USD0 native on Ethereum
                 "method_name": "totalSupply",
             },
+            "sbc": {
+                "token_address": "0xf9FB20B8E097904f0aB7d12e9DbeE88f2dcd0F16",  # SBC native on Ethereum
+                "method_name": "totalSupply",
+            },
             "glo-dollar": {
                 "token_address": "0x4f604735c1cf31399c6e711d5962b2b3e0225ad3",  # USDGLO native on Ethereum
                 "method_name": "totalSupply",
@@ -894,6 +948,10 @@ stables_mapping = {
             },
             "mnee": {
                 "token_address": "0x8ccedbae4916b79da7f3f612efb2eb93a2bfd6cf",  # MNEE on Ethereum
+                "method_name": "totalSupply",
+            },
+            "ausd": {
+                "token_address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",  # aUSD on Ethereum
                 "method_name": "totalSupply",
             },
             
@@ -986,7 +1044,9 @@ stables_mapping = {
         "locked_supply": {
             "tether": {
                 "ethereum": [
-                    "0x5754284f345afc66a98fbB0a0Afe71e0F007B949"  # Tether Treasury
+                    "0x5754284f345afc66a98fbB0a0Afe71e0F007B949",  # Tether Treasury
+                    "0x6C96dE32CEa08842dcc4058c14d3aaAD7Fa41dee", # USDT Layer Zero Bridge https://layerzeroscan.com/oft/USDT0/USDT0
+                    "0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf"  # USDT Polygon Bridge (until Aug. 2025)
                 ]
             },
             "usdc": {
@@ -1142,6 +1202,10 @@ stables_mapping = {
             },
             "usds": {
                 "token_address": "0x7E10036Acc4B56d4dFCa3b77810356CE52313F9C",  # USDS native on Unichain
+                "method_name": "totalSupply",
+            },
+            "tether": {
+                "token_address": "0x9151434b16b9763660705744891fA906F660EcC5",  # USDT0
                 "method_name": "totalSupply",
             }
         }
@@ -1313,6 +1377,10 @@ stables_mapping = {
             "usdc": {
                 "token_address": "0x79A02482A880bCE3F13e09Da970dC34db4CD24d1",
                 "method_name": "totalSupply"
+            },
+            "bilira": {
+                "token_address": "0x2c537e5624e4af88a7ae4060c022609376c8d0eb",
+                "method_name": "totalSupply"
             }
         }
     },
@@ -1323,7 +1391,7 @@ stables_mapping = {
             ]
         },
         "direct": {
-            "tether": {
+            "tether": { # USDT0
                 "token_address": "0x0200C29006150606B650577BBE7B6248F58470c1",
                 "method_name":   "totalSupply",
             },
@@ -1610,6 +1678,14 @@ stables_mapping = {
                 "token_address": "0x0A4C9cb2778aB3302996A34BeFCF9a8Bc288C33b",
                 "method_name":  "totalSupply",
             },
+            "sbc": {                     # SBC
+                "token_address": "0xfdcc3dd6671eab0709a4c0f3f53de9a333d80798",
+                "method_name":  "totalSupply",
+            },
+            "bilira": {                  # BiLira
+                "token_address": "0xfb8718a69aed7726afb3f04d2bd4bfde1bdcb294",
+                "method_name":  "totalSupply",
+            }
         },
 
     },  
@@ -1649,6 +1725,72 @@ stables_mapping = {
                 "token_address": "0xff12470a969Dd362EB6595FFB44C82c959Fe9ACc",
                 "method_name": "totalSupply"
             }
+        }
+    },
+    "polygon_pos": {
+        "bridged": {
+            "ethereum": [
+                "0x40ec5B33f54e0E8A33A975908C5BA1c14e5BbbDf",  # ERC20 bridge escrow (USDC, DAI, USDT before Sep. 2025)
+            ]
+        },
+        "direct": {
+            "tether": { # USDT0, and before USDT bridged canonically
+                "token_address": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+                "method_name": "totalSupply"
+            },
+            "buidl": {
+                "token_address": "0x2893Ef551B6dD69F661Ac00F11D93E5Dc5Dc0e99",
+                "method_name": "totalSupply"
+            },
+            "ausd": {
+                "token_address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+                "method_name": "totalSupply"
+            }, 
+            "wusd": {
+                "token_address": "0x7cd017ca5ddb86861fa983a34b5f495c6f898c41",
+                "method_name": "totalSupply"
+            },
+            "brz": {
+                "token_address": "0x4eD141110F6EeeAbA9A1df36d8c26f684d2475Dc",
+                "method_name": "totalSupply"
+            },
+            "sbc": {
+                "token_address": "0xfdcc3dd6671eab0709a4c0f3f53de9a333d80798",
+                "method_name": "totalSupply"
+            },
+            "stasis-eurs": {
+                "token_address": "0xe111178a87a3bff0c8d18decba5798827539ae99",
+                "method_name": "totalSupply"
+            },
+            "xsgd": {
+                "token_address": "0xdc3326e71d45186f113a2f448984ca0e8d201995",
+                "method_name": "totalSupply"
+            },
+            "monerium-eur-money": {
+                "token_address": "0xE0aEa583266584DafBB3f9C3211d5588c73fEa8d",
+                "method_name": "totalSupply"
+            },
+            "true_gbp": {
+                "token_address": "0x27f6c8289550fce67f6b50bed1f519966afe5287",
+                "method_name": "totalSupply"
+            },
+            "apacx_pht": {
+                "token_address": "0xe75220cb014dfb2d354bb59be26d7458bb8d0706",
+                "method_name": "totalSupply"
+            },
+            "angle_eura": {
+                "token_address": "0xe0b52e49357fd4daf2c15e02058dce6bc0057db4",
+                "method_name": "totalSupply"
+            },
+            "tether_eur": {
+                "token_address": "0x7BDF330f423Ea880FF95fC41A280fD5eCFD3D09f",
+                "method_name": "totalSupply"
+            },
+            "bilira": {
+                "token_address": "0x4fb71290ac171e1d144f7221d882becac7196eb5",
+                "method_name": "totalSupply"
+            }
+
         }
     }
 }
