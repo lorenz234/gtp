@@ -15,7 +15,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load aggregates metrics such as txcount, daa, fees paid, stablecoin mcap where applicable.',
     tags=['metrics', 'daily'],
     start_date=datetime(2023,6,5),
-    schedule='05 02 * * *' ## needs to run before sql_materialize because of acthive addresses agg (i.e. megaeth AA)
+    schedule='55 01 * * *' ## needs to run before sql_materialize because of acthive addresses agg (i.e. megaeth AA)
 )
 
 def etl():

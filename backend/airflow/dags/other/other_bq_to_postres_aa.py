@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load active addresses from BigQuery to Postgres',
     tags=['other'],
     start_date=datetime(2025,12,21),
-     schedule='33 2 * * *'
+     schedule='50 1 * * *'
 )
 
 def run_dag():
