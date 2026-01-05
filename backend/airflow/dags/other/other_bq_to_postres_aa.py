@@ -52,9 +52,9 @@ def run_dag():
             DECLARE d DATE DEFAULT @the_day;
 
             SELECT
-            from_address as address,
-            DATE(block_timestamp) AS date,
-            COUNT(*) AS txcount
+                from_address as address,
+                DATE(block_timestamp) AS date,
+                COUNT(*) AS txcount
             FROM `bigquery-public-data.goog_blockchain_polygon_mainnet_us.transactions`
             WHERE DATE(block_timestamp) = @the_day
             GROUP BY 1,2
