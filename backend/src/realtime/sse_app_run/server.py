@@ -4,7 +4,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Set, Optional
+from typing import Dict, List, Any, Set, Optional, Tuple
 
 import redis.asyncio as aioredis
 import aiohttp_cors
@@ -54,6 +54,7 @@ class ServerConfig:
     max_history_events: int = 20
     cleanup_interval_ms: int = 60000
     max_connections: int = 500
+    max_data_age_seconds: int = 60
 
     @classmethod
     def from_env(cls) -> 'ServerConfig':
@@ -64,7 +65,8 @@ class ServerConfig:
             redis_db=int(os.getenv("REDIS_DB", cls.redis_db)),
             redis_password=os.getenv("REDIS_PASSWORD"),
             server_port=int(os.getenv("SERVER_PORT", cls.server_port)),
-            max_connections=int(os.getenv("MAX_CONNECTIONS", cls.max_connections))
+            max_connections=int(os.getenv("MAX_CONNECTIONS", cls.max_connections)),
+            max_data_age_seconds=int(os.getenv("MAX_DATA_AGE_SECONDS", cls.max_data_age_seconds))
         )
 
 @dataclass
@@ -103,6 +105,7 @@ class RedisSSEServer:
         self._chain_cache: Optional[List[str]] = None
         self._chain_cache_time: Optional[datetime] = None
         self._cache_ttl = 60
+        self._max_data_age_ms = self.config.max_data_age_seconds * 1000
         
         self.chain_clients = {}  # Track clients per chain
         self.history_compressor = HistoryCompressor()
@@ -114,6 +117,28 @@ class RedisSSEServer:
     def _safe_int(self, value, default=0):
         try: return int(value) if value is not None else default
         except (ValueError, TypeError): return default
+
+    def _is_fresh_timestamp(self, timestamp_ms: int, now_ms: Optional[int] = None) -> bool:
+        """Check whether a timestamp is within the freshness window."""
+        if not timestamp_ms or timestamp_ms < 0:
+            return False
+        if now_ms is None:
+            now_ms = int(datetime.now().timestamp() * 1000)
+        age = now_ms - timestamp_ms
+        return 0 <= age <= self._max_data_age_ms
+
+    def _filter_fresh_chain_data(self, chain_data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
+        """Return only chains with data newer than the freshness window."""
+        now_ms = int(datetime.now().timestamp() * 1000)
+        fresh_data = {}
+        stale_chains = []
+        for chain_name, data in chain_data.items():
+            ts_ms = self._safe_int(data.get("timestamp", 0))
+            if self._is_fresh_timestamp(ts_ms, now_ms):
+                fresh_data[chain_name] = data
+            else:
+                stale_chains.append(chain_name)
+        return fresh_data, stale_chains
 
     async def _confirm_global_ath(self, candidate_value: float) -> bool:
         if candidate_value <= self.tps_ath:
@@ -464,6 +489,10 @@ class RedisSSEServer:
     async def _calculate_global_metrics(self, chain_data: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate global metrics from chain data."""
         try:
+            chain_data, stale_chains = self._filter_fresh_chain_data(chain_data)
+            if stale_chains:
+                logger.debug(f"Excluded stale chain data from global metrics: {', '.join(stale_chains)}")
+
             await self._update_all_chain_records(chain_data)
 
             tps_values = [self._safe_float(data.get("tps", 0)) for data in chain_data.values() if isinstance(data, dict)]
@@ -621,10 +650,14 @@ class RedisSSEServer:
         """Fetch latest data from Redis and update internal state."""
         try:
             chain_data = await self._get_all_chain_data()
-            global_metrics = await self._calculate_global_metrics(chain_data)
-            self.latest_data = chain_data
+            fresh_data, stale_chains = self._filter_fresh_chain_data(chain_data)
+            if stale_chains:
+                logger.debug(f"Ignoring stale chain data (> {self.config.max_data_age_seconds}s): {', '.join(stale_chains)}")
+
+            global_metrics = await self._calculate_global_metrics(fresh_data)
+            self.latest_data = fresh_data
             self.global_metrics = global_metrics
-            logger.debug(f"Updated data for {len(chain_data)} chains, total TPS: {global_metrics.get('total_tps', 0)}")
+            logger.debug(f"Updated data for {len(fresh_data)} fresh chains, total TPS: {global_metrics.get('total_tps', 0)}")
         except Exception as e:
             logger.error(f"Error updating data: {str(e)}")
     
@@ -664,6 +697,8 @@ class RedisSSEServer:
                 for chain_name in self.latest_data.keys():
                     if chain_name in self.chain_clients:
                         enhanced_data = await self._get_chain_sse_data(chain_name)
+                        if enhanced_data is None:
+                            continue
                         await self._broadcast_to_chain_clients(chain_name, enhanced_data)
                 
                 await asyncio.sleep(self.config.update_interval)
@@ -708,12 +743,16 @@ class RedisSSEServer:
             
             # Send initial chain data
             initial_data = await self._get_chain_sse_data(chain_name)
-            initial_message = json.dumps({
+            initial_payload = {
                 "type": "initial",
                 "chain_name": chain_name,
                 "data": initial_data,
                 "timestamp": datetime.now().isoformat()
-            })
+            }
+            if initial_data is None:
+                initial_payload["error"] = f"No fresh data available (>{self.config.max_data_age_seconds}s old)"
+
+            initial_message = json.dumps(initial_payload)
             await response.write(f"data: {initial_message}\n\n".encode('utf-8'))
             
             # Keep connection alive with heartbeats
@@ -736,10 +775,14 @@ class RedisSSEServer:
         return response
 
     async def _get_chain_sse_data(self, chain_name: str):
-        """Get comprehensive chain data for SSE streaming."""
+        """Get comprehensive chain data for SSE streaming, skipping stale entries."""
         try:
             # Get current chain data
             current_data = await self._get_latest_chain_data(chain_name)
+            timestamp_ms = self._safe_int(current_data.get("timestamp", 0))
+            if not self._is_fresh_timestamp(timestamp_ms):
+                logger.info(f"Skipping stale data for chain {chain_name} (>{self.config.max_data_age_seconds}s old)")
+                return None
             
             # Get chain metrics (ATH, 24h high)
             metrics = self.chain_metrics.get(chain_name, {})
@@ -768,6 +811,8 @@ class RedisSSEServer:
 
     async def _broadcast_to_chain_clients(self, chain_name: str, data):
         """Broadcast updates to clients subscribed to a specific chain."""
+        if data is None:
+            return
         if chain_name not in self.chain_clients or not self.chain_clients[chain_name]:
             return
             
