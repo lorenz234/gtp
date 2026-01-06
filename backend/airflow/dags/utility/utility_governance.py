@@ -48,25 +48,26 @@ def etl():
                     message = message.replace("                    ", "")
                     send_discord_message(message, os.getenv('DISCORD_GOV'))
 
+        # NOT WORKING AS OF JAN 2026, ENDPOINT DOWN OR API EXPIRED(?)
         # checking Optimism and Scroll
-        a = AgoraAPI(os.getenv("Agora_API_KEY"))
-        for governance in a.base_url:
-            print(f"Checking proposals for {governance}...")
-            proposals = a.get_proposals(a.base_url[governance])
-            for i, proposal in proposals.iterrows():
-                if proposal['startTime'].split('T')[0] == yesterday_date: # only post about proposals that are starting voting today
-                    proposal_url = a.base_url[governance].replace("api/v1/", "") + "proposals/" + proposal['id']
-                    message = f"""
-                    📢 **New Proposal for {governance}** <@{898167530202464278}> <@{874921624720257037}>
-                    
-                    🔗 [Read the full proposal]({proposal_url})
-                    
-                    📝 **Description:**
-                    {prompt_chatgpt("Please provide a short description for the proposal: " + proposal["description"], os.getenv('OPENAI_API_KEY'))}
-                    """
-                    message = message.replace("                    ", "")
-                    print(message)
-                    send_discord_message(message, os.getenv('DISCORD_GOV'))
+        #a = AgoraAPI(os.getenv("Agora_API_KEY"))
+        #for governance in a.base_url:
+        #    print(f"Checking proposals for {governance}...")
+        #    proposals = a.get_proposals(a.base_url[governance])
+        #    for i, proposal in proposals.iterrows():
+        #        if proposal['startTime'].split('T')[0] == yesterday_date: # only post about proposals that are starting voting today
+        #            proposal_url = a.base_url[governance].replace("api/v1/", "") + "proposals/" + proposal['id']
+        #            message = f"""
+        #            📢 **New Proposal for {governance}** <@{898167530202464278}> <@{874921624720257037}>
+        #            
+        #            🔗 [Read the full proposal]({proposal_url})
+        #            
+        #            📝 **Description:**
+        #            {prompt_chatgpt("Please provide a short description for the proposal: " + proposal["description"], os.getenv('OPENAI_API_KEY'))}
+        #            """
+        #            message = message.replace("                    ", "")
+        #            print(message)
+        #            send_discord_message(message, os.getenv('DISCORD_GOV'))
         
     
     check_for_new_proposals()
