@@ -742,12 +742,23 @@ class JSONCreation():
         df_tmp = df_tmp.groupby(pd.Grouper(key='date')).sum().reset_index()
 
         if comparison == False:
-            ## only keep latest date
-            df_tmp = df_tmp.loc[df_tmp.date == df_tmp.date.max()]
+            if origin_key == 'ethereum' and aggregation in ['monthly', 'weekly']:
+                ## for ethereum, only keep the 2nd latest date to avoid half months/weeks/days in waa and maa metrics
+                df_tmp = df_tmp.loc[df_tmp.date != df_tmp.date.max()]
+                df_tmp = df_tmp.loc[df_tmp.date == df_tmp.date.max()]
+            else:
+                ## only keep latest date
+                df_tmp = df_tmp.loc[df_tmp.date == df_tmp.date.max()]
         else:
-            ## drop latest date and keep the one before
-            df_tmp = df_tmp.loc[df_tmp.date != df_tmp.date.max()]
-            df_tmp = df_tmp.loc[df_tmp.date == df_tmp.date.max()]
+            if origin_key == 'ethereum' and aggregation in ['monthly', 'weekly']:
+                ## for ethereum, drop latest 2 dates and keep the one before to avoid half months/weeks/days in waa and maa metrics
+                df_tmp = df_tmp.loc[df_tmp.date != df_tmp.date.max()]
+                df_tmp = df_tmp.loc[df_tmp.date != df_tmp.date.max()]
+                df_tmp = df_tmp.loc[df_tmp.date == df_tmp.date.max()]
+            else:
+                ## drop latest date and keep the one before
+                df_tmp = df_tmp.loc[df_tmp.date != df_tmp.date.max()]
+                df_tmp = df_tmp.loc[df_tmp.date == df_tmp.date.max()]
 
         users = df_tmp.value.sum()    
         return users

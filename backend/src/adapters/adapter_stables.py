@@ -149,7 +149,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         
         raise Exception(f"Failed after {max_retries} retries")
 
-    def extract(self, load_params:dict, update=False):
+    def extract(self, load_params:dict, update=False, backfill=False):
         """
         Extract stablecoin data based on load parameters.
         
@@ -167,7 +167,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         elif self.load_type == 'bridged_supply':
             df = self.get_bridged_supply(update=update)
         elif self.load_type == 'direct_supply':
-            df = self.get_direct_supply(update=update)
+            df = self.get_direct_supply(update=update, backfill=backfill)
         elif self.load_type == 'locked_supply':
             df = self.get_locked_supply(update=update)
         elif self.load_type == 'total_supply':
@@ -743,7 +743,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             df_main = pd.DataFrame(columns=['metric_key', 'origin_key', 'date', 'token_key', 'value']).set_index(['metric_key', 'origin_key', 'date', 'token_key'])
         return df_main
     
-    def get_direct_supply(self, update=False):
+    def get_direct_supply(self, update=False, backfill=False):
         """
         Get supply of stablecoins that are natively minted on L2 chains
         """
@@ -798,6 +798,22 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     print(f"Stablecoin {stablecoin_id} not in requested stablecoins, skipping")
                     continue
                 
+                ## if backfill is True, only process dates with missing data for this chain and stablecoin
+                if backfill:
+                    ## load existing data for this chain and stablecoin from fact_stables
+                    existing_data = self.db_connector.get_data_from_table(
+                        "fact_stables", 
+                        filters={
+                            "metric_key": "supply_direct",
+                            "origin_key": chain,
+                            "token_key": stablecoin_id
+                        }
+                    )
+                    # Determine which dates are missing data
+                    missing_dates = set(df_blocknumbers['date']) - set(existing_data['date'])
+                    # Filter df_blocknumbers to only include missing dates
+                    df_blocknumbers = df_blocknumbers[df_blocknumbers['date'].isin(missing_dates)]
+                
                 stable_data = self.stables_metadata[stablecoin_id]
                 symbol = stable_data['symbol']
                 decimals = stable_data['decimals']
@@ -848,7 +864,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         
                     except Exception as e:
                         print(f"....Error getting total supply for {symbol} at block {block}: {e}")
-                        if 'execution reverted' in str(e) or 'Could not decode contract function call' in str(e):
+                        if 'Could not decode contract function call' in str(e):
                             # Contract might not be deployed yet
                             contract_deployed = False
                             break

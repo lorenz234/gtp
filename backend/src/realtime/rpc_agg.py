@@ -359,8 +359,7 @@ class LighterProcessor(BlockchainProcessor):
     """
     Processor for Lighter (Elliot) explorer.
     - Uses the backend API:
-        GET <base>/currentHeight           -> {"code":200,"height":83872906}
-        GET <base>/blocks?index=H&limit=20&sort=desc
+        GET <base>/blocks
     - Returns a block-like dict; no fee calcs; TPS is computed by your rolling logic.
     """
 
@@ -381,26 +380,8 @@ class LighterProcessor(BlockchainProcessor):
                 logger.error("HTTP session not initialized")
                 return None
 
-            # 1) Get current height
-            height_url = f"{base_url.rstrip('/')}/currentHeight"
-            async with self.backend.http_session.get(height_url, timeout=10) as resp:
-                body = await resp.text()
-                if resp.status != 200:
-                    logger.error(f"[{chain_name}] HTTP {resp.status} {height_url}. Body: {body[:512]}")
-                    return None
-                try:
-                    hjson = await resp.json()
-                except Exception as e:
-                    logger.error(f"[{chain_name}] JSON parse error on currentHeight: {e}. Body: {body[:512]}")
-                    return None
-
-            height = int(hjson.get("height", -1))
-            if height <= 0:
-                logger.error(f"[{chain_name}] Invalid height from currentHeight: {hjson}")
-                return None
-
-            # 2) Fetch latest 20 blocks by that index
-            blocks_url = f"{base_url.rstrip('/')}/blocks?index={height}&limit=20&sort=desc"
+            # Fetch latest 20 blocks by that index
+            blocks_url = f"{base_url.rstrip('/')}/blocks"
             async with self.backend.http_session.get(blocks_url, timeout=10) as resp:
                 body = await resp.text()
                 if resp.status != 200:
@@ -412,7 +393,7 @@ class LighterProcessor(BlockchainProcessor):
                     logger.error(f"[{chain_name}] JSON parse error on blocks: {e}. Body: {body[:512]}")
                     return None
 
-            blocks = (data or {}).get("blocks", [])
+            blocks = data
             if not isinstance(blocks, list) or not blocks:
                 logger.error(f"[{chain_name}] Blocks payload empty/wrong shape: {data}")
                 return None
@@ -421,8 +402,8 @@ class LighterProcessor(BlockchainProcessor):
             rows = []
             for b in blocks:
                 try:
-                    h = int(b["height"])
-                    sz = int(b.get("size", 0))
+                    h = int(b["block_height"])
+                    sz = int(b.get("block_size", 0))
                     rows.append((h, sz))
                 except Exception:
                     continue
