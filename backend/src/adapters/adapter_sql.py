@@ -242,7 +242,7 @@ class AdapterSQL(AbstractAdapter):
                 print(f"...upserting total usage usage for imx. Total rows: {df.shape[0]}...")
                 self.db_connector.upsert_table('blockspace_fact_category_level', df)
                 
-            elif chain == 'megaeth':
+            elif chain in ['megaeth', 'polygon_pos']:
                 days_mapping = 5000
                 print(f"...aggregating sub categories for {chain} and last {days_mapping} days...")
                 df = self.db_connector.get_blockspace_sub_categories(chain, days_mapping)
