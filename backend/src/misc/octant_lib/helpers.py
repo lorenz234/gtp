@@ -440,14 +440,18 @@ def get_rewards(epoch_info: dict):
     :param epoch_info: Dictionary containing the epoch number
     :return: List of dictionaries containing the rewards
     """
-    if epoch_info["has_allocation_ended"]:
-        resp = fetch_rest(
+    resp = fetch_rest(
             f"https://backend.mainnet.octant.app/rewards/projects/epoch/{epoch_info['epoch']}")
-        rewards = resp["rewards"] if "rewards" in resp else []
-    else:
-        resp = fetch_rest(
-            f"https://backend.mainnet.octant.app/rewards/projects/estimated")
-        rewards = resp["rewards"] if "rewards" in resp else []
+    rewards = resp["rewards"] if "rewards" in resp else []
+        
+    # if epoch_info["has_allocation_ended"]:
+    #     resp = fetch_rest(
+    #         f"https://backend.mainnet.octant.app/rewards/projects/epoch/{epoch_info['epoch']}")
+    #     rewards = resp["rewards"] if "rewards" in resp else []
+    # else:
+    #     resp = fetch_rest(
+    #         f"https://backend.mainnet.octant.app/rewards/projects/estimated")
+    #     rewards = resp["rewards"] if "rewards" in resp else []
 
     for reward in rewards:
         # add an id to each reward value so we can upsert if needed, the id should be the epoch+address
