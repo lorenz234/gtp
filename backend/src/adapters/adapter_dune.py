@@ -52,6 +52,10 @@ class AdapterDune(AbstractAdapter):
                 send_discord_message(f"Dune Error loading {query.name} with query_id {query.query_id}: {e}")
                 continue
             
+            if df.shape[0] == 0:
+                print(f"No data returned for {query.name}, skipping...")
+                continue
+            
             # Prepare df if set in load_params
             prep_df = self.load_params.get('prepare_df')
             if prep_df != None:
@@ -154,7 +158,7 @@ class AdapterDune(AbstractAdapter):
         df['from_address'] = df['from_address'].str.replace('0x', '\\x', regex=False)
         return df
     
-    def prepare_df_contract_level_daily(self, df):
+    def prepare_df_contract_level_daily(self, df:pd.DataFrame):
         df["metrics"] = (
             df["metrics"]
             .astype(str)

@@ -69,6 +69,9 @@ class MainConfig(BaseModel):
     runs_aggregate_addresses: Optional[bool] = Field(alias="runs_aggregate_addresses ", default=None)
     runs_aggregate_apps: Optional[bool] = Field(alias="runs_aggregate_apps", default=None)
     runs_contract_metadata: Optional[bool] = Field(alias="runs_contract_metadata", default=None)
+    runs_archive_raw_tx: Optional[bool] = Field(alias="runs_archive_raw_tx", default=None)
+    runs_delete_archived_raw_tx: Optional[bool] = Field(alias="runs_delete_archived_raw_tx", default=None)
+    
 
     ## RPC CONFIG
     backfiller_on: Optional[bool] = Field(alias="backfiller_backfiller_on", default=None)
