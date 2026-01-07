@@ -133,7 +133,7 @@ class AdapterCrossCheck(AbstractAdapter):
         SELECT
             *,
             explorer - raw AS diff,
-            (explorer - raw) / NULLIF(explorer, 0) AS diff_percent
+            COALESCE((explorer - raw) / NULLIF(explorer, 0), 999) AS diff_percent
         FROM temp
         """
 
