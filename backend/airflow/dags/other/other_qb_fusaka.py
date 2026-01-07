@@ -51,6 +51,7 @@ def run_dag():
         # options are '1h', '4h', 'daily'
         rel_block_ranges = [
             # (block_from, label, interval, date) - no spaces in label!
+            (24179383, 'Fusaka-BPO2', '1h', '2026-01-07'), # Fusaka BPO2
             (23975778, 'Fusaka-BPO1', '1h', '2025-12-09'), # Fusaka BPO1
             (23935694, 'Fusaka', '4h', '2025-12-03'), # Fusaka
             (22431084, 'Pectra', 'daily', '2025-05-07'), # Pectra
