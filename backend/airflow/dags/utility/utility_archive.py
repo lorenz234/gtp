@@ -21,18 +21,12 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- #
 # Helper functions
 # --------------------------------------------------------------------------- #
-def save_to_gcs(df: pl.DataFrame, path: str, fs: Optional[gcsfs.GCSFileSystem], test_mode: bool) -> None:
-    """Write a Polars DataFrame to GCS (or local path when in test mode)."""
-    if test_mode:
-        local_path = path.replace("gs://", "local/")
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
-        df.write_parquet(local_path, compression="snappy")
-        logger.info("[TEST MODE] Saved to local: %s", local_path)
-    else:
-        assert fs is not None, "GCS filesystem not initialised"
-        with fs.open(path, "wb") as f:
-            df.write_parquet(f, compression="snappy")
-        logger.info("Saved to GCS: %s", path)
+def save_to_gcs(df: pl.DataFrame, path: str, fs: Optional[gcsfs.GCSFileSystem]) -> None:
+    """Write a Polars DataFrame to GCS."""
+    assert fs is not None, "GCS filesystem not initialised"
+    with fs.open(path, "wb") as f:
+        df.write_parquet(f, compression="snappy")
+    logger.info("Saved to GCS: %s", path)
 
 
 def get_bq_max_block(client: bigquery.Client, table_name: str) -> Optional[int]:
@@ -75,14 +69,14 @@ def get_eligible_chains() -> List[Dict[str, str]]:
     return eligible
 
 
-def archive_chain(table_name: str, bucket_name: str, keep_postgres_days: int, chunk_size: int, test_mode: bool) -> None:
+def archive_chain(table_name: str, bucket_name: str, keep_postgres_days: int, chunk_size: int) -> None:
     """Archive a single chain's *_tx table to GCS/BQ."""
     credentials_info = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
     credentials = service_account.Credentials.from_service_account_info(credentials_info)
     bq_client = bigquery.Client(credentials=credentials)
 
     db_connector = DbConnector()
-    fs = None if test_mode else gcsfs.GCSFileSystem(token=credentials_info)
+    fs = gcsfs.GCSFileSystem(token=credentials_info)
 
     archival_date = datetime.now().date() - timedelta(days=keep_postgres_days)
     logger.info("Archival date cutoff: %s", archival_date)
@@ -150,7 +144,7 @@ def archive_chain(table_name: str, bucket_name: str, keep_postgres_days: int, ch
             filename = f"part_{part_id}_{block_range}.parquet"
             gcs_path = f"{bucket_name}/db_tx/{table_name}/date={year}-{month}-{day}/{filename}"
 
-            save_to_gcs(df, f"gs://{gcs_path}", fs, test_mode)
+            save_to_gcs(df, f"gs://{gcs_path}", fs)
 
         else:
             logger.info("Multiple dates in batch %s, dropping latest date.", unique_dates)
@@ -180,7 +174,7 @@ def archive_chain(table_name: str, bucket_name: str, keep_postgres_days: int, ch
                 filename = f"part_{part_id}_{block_range}.parquet"
                 gcs_path = f"{bucket_name}/db_tx/{table_name}/date={year}-{month}-{day}/{filename}"
 
-                save_to_gcs(group, f"gs://{gcs_path}", fs, test_mode)
+                save_to_gcs(group, f"gs://{gcs_path}", fs)
 
         start_block = max_block
         part += 1
@@ -190,7 +184,6 @@ def archive_chain(table_name: str, bucket_name: str, keep_postgres_days: int, ch
 # DAG definition
 # --------------------------------------------------------------------------- #
 eligible_chains = get_eligible_chains()
-test_mode_default = os.getenv("UTILITY_ARCHIVE_TEST_MODE", "false").lower() == "true"
 bucket_default = os.getenv("UTILITY_ARCHIVE_BUCKET", "gtp-archive")
 keep_days_default = int(os.getenv("UTILITY_ARCHIVE_KEEP_POSTGRES_DAYS", "30"))
 chunk_size_default = int(os.getenv("UTILITY_ARCHIVE_CHUNK_SIZE", "1000000"))
@@ -220,11 +213,10 @@ def utility_archive():
             table: str = table_name,
             bucket: str = bucket_default,
             keep_days: int = keep_days_default,
-            chunk_size: int = chunk_size_default,
-            test_mode: bool = test_mode_default,
+            chunk_size: int = chunk_size_default
         ):
             logger.info("Starting archive task for %s (table: %s)", origin_key, table)
-            archive_chain(table, bucket, keep_days, chunk_size, test_mode)
+            archive_chain(table, bucket, keep_days, chunk_size)
 
         run_archive()
 
