@@ -130,11 +130,11 @@ class AdapterCrossCheck(AbstractAdapter):
             group by 1
         )
 
-        select 
-            *, 
-            explorer - raw as diff,
-            (explorer - raw) / explorer as diff_percent
-            from temp
+        SELECT
+            *,
+            explorer - raw AS diff,
+            (explorer - raw) / NULLIF(explorer, 0) AS diff_percent
+        FROM temp
         """
 
         df = pd.read_sql(exec_string, self.db_connector.engine.connect())
