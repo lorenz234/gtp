@@ -12,16 +12,18 @@ WITH BlockCalculations AS (
         
         -- 1. Calculate Target Blob Gas (Value to be updated)
         CASE
+            WHEN t.number >= 24179383 THEN 14 * 128 * 1024 -- BPO2 Fusaka (14 blobs)
             WHEN t.number >= 23975778 THEN 10 * 128 * 1024 -- BPO1 Fusaka (10 blobs)
             WHEN t.number >= 22431084 THEN 6 * 128 * 1024  -- Pectra & Fusaka (6 blobs)
-            ELSE 3 * 128 * 1024                           -- Dencun (3 blobs of 128kib)
+            ELSE 3 * 128 * 1024                            -- Dencun (3 blobs of 128kib)
         END AS calculated_target_blob_gas,
         
         -- 2. Calculate Blob Base Fee Update Fraction (Value to be updated, also reused in next step)
         CASE
-            WHEN t.number >= 23975778 THEN 8346193 -- BPO1 Fusaka
-            WHEN t.number >= 22431084 THEN 5007716 -- Pectra & Fusaka
-            ELSE 3338477                           -- Dencun
+            WHEN t.number >= 24179383 THEN 11684671 -- BPO2 Fusaka
+            WHEN t.number >= 23975778 THEN 8346193  -- BPO1 Fusaka
+            WHEN t.number >= 22431084 THEN 5007716  -- Pectra & Fusaka
+            ELSE 3338477                            -- Dencun
         END AS calculated_blob_base_fee_update_fraction
         
     FROM 
