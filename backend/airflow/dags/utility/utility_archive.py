@@ -14,6 +14,7 @@ from sqlalchemy import inspect
 from src.db_connector import DbConnector
 from src.main_config import get_main_config
 from src.misc.airflow_utils import alert_via_webhook
+from src.misc.helper_functions import send_discord_message
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ def get_bq_max_block(client: bigquery.Client, table_name: str) -> Optional[int]:
         return int(df_bq["max_block"][0]) if not df_bq.empty else None
     except Exception as exc:  # broad catch: table may not exist yet
         logger.warning("Could not read max block for %s from BQ: %s", table_name, exc)
+        send_discord_message(f"Archival DAG: Could not read max block for {table_name} from BQ: {exc}")
         return None
 
 
