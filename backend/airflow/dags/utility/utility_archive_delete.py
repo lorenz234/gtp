@@ -293,7 +293,7 @@ def utility_archive_delete():
     eligible_chains = get_eligible_chains() # chains flagged for delete and with existing table
     keep_days_default = 35 # keep this many days in Postgres
     query_start_override_default = None # e.g. '2024-01-01' to override query start date
-    diff_threshold_default = 5 # max allowed difference between BQ and Postgres counts
+    diff_threshold_default = 10 # max allowed difference between BQ and Postgres counts
     batch_size_default = 10_000 # delete this many blocks at once
 
     for chain in eligible_chains:
