@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 from airflow.decorators import dag, task
 from google.cloud import bigquery
 from google.oauth2 import service_account
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 from src.db_connector import DbConnector
 from src.main_config import get_main_config
@@ -116,7 +116,7 @@ def get_db_count(
       AND block_date >= '{query_start_date}'
     """
     with db_connector.engine.connect() as connection:
-        result = connection.execute(query)
+        result = connection.execute(text(query))
         return int(result.scalar() or 0)
 
 
@@ -162,7 +162,7 @@ def get_db_min_block(
     FROM {table_name}
     """
     with db_connector.engine.connect() as connection:
-        result = connection.execute(query)
+        result = connection.execute(text(query))
         min_block = result.scalar()
         return int(min_block) if min_block is not None else None
     
@@ -182,7 +182,7 @@ def get_db_min_date(
     FROM {table_name} 
     """ 
     with db_connector.engine.connect() as connection: 
-        result = connection.execute(query) 
+        result = connection.execute(text(query)) 
         min_date = result.scalar() 
         return min_date if min_date is not None else None
 
@@ -214,7 +214,7 @@ def delete_blocks(
             WHERE block_number <= {end_block};
         """
         with db_connector.engine.connect() as connection:
-            connection.execute(query)
+            connection.execute(text(query))
 
         if end_block == max_block:
             logger.info("Done deleting for %s up to %s.", table_name, max_block)
