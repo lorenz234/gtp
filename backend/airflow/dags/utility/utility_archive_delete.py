@@ -213,7 +213,7 @@ def delete_blocks(
             DELETE FROM {table_name}
             WHERE block_number <= {end_block};
         """
-        with db_connector.engine.connect() as connection:
+        with db_connector.engine.begin() as connection:
             connection.execute(text(query))
 
         if end_block == max_block:
@@ -241,7 +241,7 @@ def run_check_and_delete(
         db_connector, keep_postgres_days, table_name, query_start_override
     )
 
-    logger.info("Archival date (after here stuff gets deleted): %s", archival_date)
+    logger.info("Archival date (before here stuff gets deleted): %s", archival_date)
     logger.info("Query window start (from here on we start comparing -> current min block date in DB): %s", query_start_date)
 
     bq_count = get_bq_count(bq_client, table_name, archival_date, query_start_date)
@@ -300,7 +300,7 @@ def utility_archive_delete():
         origin_key = chain["origin_key"]
         table_name = chain["table_name"]
         
-        @task(task_id=f"delete_archived_{origin_key}", execution_timeout=timedelta(hours=2))
+        @task(task_id=f"delete_archived_{origin_key}", execution_timeout=timedelta(hours=12))
         def run_delete(
             table: str = table_name,
             keep_days: int = keep_days_default,
@@ -308,7 +308,7 @@ def utility_archive_delete():
             diff_threshold: int = diff_threshold_default,
             batch_size: int = batch_size_default,
         ):
-            logger.info("Starting delete task for %s (table: %s)", origin_key, table)
+            logger.info("Starting delete task for table: %s", table)
             run_check_and_delete(
                 table,
                 keep_days,
