@@ -333,7 +333,7 @@ class AdapterSQL(AbstractAdapter):
             print(f"...HLL: aggregating + inserting active addresses data for {origin_key} and last {days} days and days_end set to {days_end}...")
             self.db_connector.aggregate_unique_addresses_hll(origin_key, days, days_end)
 
-            if origin_key in [chain.origin_key for chain in self.main_config if chain.runs_aggregate_apps == True] and origin_key not in ['starknet', 'megaeth', 'polygon_pos']:
+            if origin_key in [chain.origin_key for chain in self.main_config if chain.runs_aggregate_apps == True] and origin_key not in ['starknet']:
                 print(f"...HLL: aggregating + inserting app addresses data for {origin_key} and last {days} days and days_end set to {days_end}...")
                 self.db_connector.aggregate_unique_addresses_contracts_hll(origin_key, days, days_end)
             else:
