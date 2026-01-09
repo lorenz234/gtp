@@ -53,7 +53,7 @@ def get_archive_window(
     keep_postgres_days: int,
     table_name: str,
     query_start_override: Optional[str],
-) -> Tuple[datetime.date, datetime.date]:
+) -> Tuple[datetime.date, datetime.date, int]:
     """
         Return archival date and query start date.
         Archival date: today - keep_postgres_days (everything before this date can be deleted)
@@ -70,8 +70,14 @@ def get_archive_window(
         if min_db_date is None:
             raise ValueError(f"No min DB date found for {table_name}")
         query_start_date = min_db_date
+        
+    db_min_block = get_db_min_block(db_connector, table_name)
+    if db_min_block is not None:
+        logger.info("DB min block for %s: %s", table_name, db_min_block)
+    else:
+        raise ValueError(f"No min DB block found for {table_name}")
     
-    return archival_date, query_start_date
+    return archival_date, query_start_date, db_min_block
 
 
 def get_bq_count(
@@ -79,6 +85,7 @@ def get_bq_count(
     table_name: str,
     archival_date: datetime.date,
     query_start_date: datetime.date,
+    db_min_block: int,
 ) -> int:
     """
         Return count of rows in BQ table between archival_date and query_start_date.
@@ -89,6 +96,7 @@ def get_bq_count(
         COUNT(*) AS row_count
     FROM `growthepie.gtp_archive.{table_name}` 
     WHERE date <= '{archival_date}'
+      AND block_number >= {db_min_block}
       AND date >= '{query_start_date}'
     """
     results = client.query(query).result()
@@ -103,6 +111,7 @@ def get_db_count(
     table_name: str,
     archival_date: datetime.date,
     query_start_date: datetime.date,
+    db_min_block: int,
 ) -> int:
     """
         Return count of rows in DB table between archival_date and query_start_date.
@@ -113,6 +122,7 @@ def get_db_count(
         COUNT(*)
     FROM {table_name}
     WHERE block_date <= '{archival_date}'
+      AND block_number >= {db_min_block}
       AND block_date >= '{query_start_date}'
     """
     with db_connector.engine.connect() as connection:
@@ -237,15 +247,16 @@ def run_check_and_delete(
     bq_client = get_bq_client()
     db_connector = DbConnector()
 
-    archival_date, query_start_date = get_archive_window(
+    archival_date, query_start_date, db_min_block = get_archive_window(
         db_connector, keep_postgres_days, table_name, query_start_override
     )
 
     logger.info("Archival date (before here stuff gets deleted): %s", archival_date)
-    logger.info("Query window start (from here on we start comparing -> current min block date in DB): %s", query_start_date)
+    logger.info("Query window start (mostly acts as a query speed up filter): %s", query_start_date)
+    logger.info("DB min block (from here on we actually start comparing): %s", db_min_block)
 
-    bq_count = get_bq_count(bq_client, table_name, archival_date, query_start_date)
-    db_count = get_db_count(db_connector, table_name, archival_date, query_start_date)
+    bq_count = get_bq_count(bq_client, table_name, archival_date, query_start_date, db_min_block)
+    db_count = get_db_count(db_connector, table_name, archival_date, query_start_date, db_min_block)
 
     diff = abs(db_count - bq_count)
     logger.info("Count check for %s: DB=%s, BQ=%s, diff=%s", table_name, db_count, bq_count, diff)
