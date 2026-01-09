@@ -343,10 +343,6 @@ class AdapterSQL(AbstractAdapter):
         print(f"...run cca_weekly_multiple l2s for last {days} days (can take a while for longer timeframes)...")
         self.db_connector.execute_jinja('chain_metrics/upsert_cca_weekly_multiple_l2s.sql.j2', {'days': days})
 
-        ## STOPPED loading this on October 15th, 2024 (currently not used)
-        # print(f'...aggregate_addresses_first_seen_global for last {days} days...')
-        # self.db_connector.aggregate_addresses_first_seen_global(days)
-
     def run_fees_queries(self, origin_keys, days, granularities, metric_keys=None):
         if origin_keys is None:
             origin_keys = [chain.origin_key for chain in self.main_config if chain.api_in_fees == True]
