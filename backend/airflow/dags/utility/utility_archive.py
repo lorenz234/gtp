@@ -98,18 +98,18 @@ def get_archive_dates(
     archival_date: date,
 ) -> List[date]:
     query = f"""
-        SELECT DISTINCT date
+        SELECT MIN(date) AS min_date
         FROM {table_name}
         WHERE origin_key = '{origin_key}'
           AND date <= '{archival_date}'
-        ORDER BY date
     """
     df = pl.read_database_uri(query=query, uri=db_connector.uri)
-    if df.is_empty():
+    if df.is_empty() or df["min_date"].is_null().all():
         return []
-    if df.schema["date"] == pl.Utf8:
-        df = df.with_columns(pl.col("date").str.strptime(pl.Date, strict=False))
-    return [d for d in df["date"].to_list() if d is not None]
+    min_date = df["min_date"][0]
+    if isinstance(min_date, str):
+        min_date = datetime.strptime(min_date, "%Y-%m-%d").date()
+    return [min_date + timedelta(days=offset) for offset in range((archival_date - min_date).days + 1)]
 
 
 def archive_chain(table_name: str, bucket_name: str, keep_postgres_days: int, chunk_size: int) -> None:
