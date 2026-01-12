@@ -49,6 +49,39 @@ def get_bq_max_block(client: bigquery.Client, table_name: str) -> Optional[int]:
         return None
 
 
+def get_bq_max_date(
+    client: bigquery.Client,
+    table_name: str,
+    origin_key: str,
+    archival_date: date,
+) -> Optional[date]:
+    """Fetch the current max date in BQ for the table and origin_key; return None if missing."""
+    query = f"""
+    SELECT 
+        MAX(date) AS max_date
+    FROM `growthepie.gtp_archive.{table_name}` 
+    WHERE origin_key = '{origin_key}'
+      AND date <= '{archival_date}'
+    """
+    try:
+        results = client.query(query).result()
+        df_bq = results.to_dataframe()
+        if df_bq.empty or df_bq["max_date"].isnull().all():
+            return None
+        max_date = df_bq["max_date"][0]
+        if isinstance(max_date, datetime):
+            return max_date.date()
+        if isinstance(max_date, date):
+            return max_date
+        if isinstance(max_date, str):
+            return datetime.strptime(max_date, "%Y-%m-%d").date()
+        return None
+    except Exception as exc:  # broad catch: table may not exist yet
+        logger.warning("Could not read max date for %s from BQ: %s", table_name, exc)
+        send_discord_message(f"Archival DAG: Could not read max date for {table_name} from BQ: {exc}")
+        return None
+
+
 def get_eligible_chains() -> List[Dict[str, str]]:
     """Return chains flagged for archiving and with an existing *_tx table."""
     main_conf = get_main_config()
@@ -96,6 +129,7 @@ def get_archive_dates(
     table_name: str,
     origin_key: str,
     archival_date: date,
+    min_date_override: Optional[date] = None,
 ) -> List[date]:
     query = f"""
         SELECT MIN(date) AS min_date
@@ -106,7 +140,7 @@ def get_archive_dates(
     df = pl.read_database_uri(query=query, uri=db_connector.uri)
     if df.is_empty() or df["min_date"].is_null().all():
         return []
-    min_date = df["min_date"][0]
+    min_date = min_date_override or df["min_date"][0]
     if isinstance(min_date, str):
         min_date = datetime.strptime(min_date, "%Y-%m-%d").date()
     return [min_date + timedelta(days=offset) for offset in range((archival_date - min_date).days + 1)]
@@ -232,12 +266,31 @@ def archive_table_by_date(
     """Archive non-tx tables by date for a single origin_key."""
     credentials_info = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
     fs = gcsfs.GCSFileSystem(token=credentials_info)
+    bq_client = bigquery.Client(
+        credentials=service_account.Credentials.from_service_account_info(credentials_info)
+    )
     db_connector = DbConnector()
 
     archival_date = datetime.now().date() - timedelta(days=keep_postgres_days)
     logger.info("Archival date cutoff: %s", archival_date)
 
-    dates = get_archive_dates(db_connector, table_name, origin_key, archival_date)
+    bq_max_date = get_bq_max_date(bq_client, table_name, origin_key, archival_date)
+    if bq_max_date:
+        logger.info("BQ max date for %s (%s): %s", table_name, origin_key, bq_max_date)
+        if bq_max_date >= archival_date:
+            logger.info("No new dates to archive for %s (%s).", table_name, origin_key)
+            return
+        start_date = bq_max_date + timedelta(days=1)
+    else:
+        start_date = None
+
+    dates = get_archive_dates(
+        db_connector,
+        table_name,
+        origin_key,
+        archival_date,
+        min_date_override=start_date,
+    )
     if not dates:
         logger.info("No dates to archive for %s (%s).", table_name, origin_key)
         return
