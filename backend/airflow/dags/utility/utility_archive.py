@@ -1,7 +1,8 @@
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+import re
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
 
 import gcsfs
@@ -69,6 +70,46 @@ def get_eligible_chains() -> List[Dict[str, str]]:
             continue
         eligible.append({"origin_key": chain.origin_key, "table_name": table_name})
     return eligible
+
+
+def get_eligible_archive_tables() -> List[Dict[str, str]]:
+    """Return chain/table pairs flagged in archive_tables and present in the DB."""
+    main_conf = get_main_config()
+    db_connector = DbConnector()
+    inspector = inspect(db_connector.engine)
+    existing_tables = set(inspector.get_table_names())
+
+    eligible = []
+    for chain in main_conf:
+        if not chain.archive_tables:
+            continue
+        for table_name in chain.archive_tables:
+            if table_name not in existing_tables:
+                logger.info("Skipping %s: table %s not found in DB", chain.origin_key, table_name)
+                continue
+            eligible.append({"origin_key": chain.origin_key, "table_name": table_name})
+    return eligible
+
+
+def get_archive_dates(
+    db_connector: DbConnector,
+    table_name: str,
+    origin_key: str,
+    archival_date: date,
+) -> List[date]:
+    query = f"""
+        SELECT DISTINCT date
+        FROM {table_name}
+        WHERE origin_key = '{origin_key}'
+          AND date <= '{archival_date}'
+        ORDER BY date
+    """
+    df = pl.read_database_uri(query=query, uri=db_connector.uri)
+    if df.is_empty():
+        return []
+    if df.schema["date"] == pl.Utf8:
+        df = df.with_columns(pl.col("date").str.strptime(pl.Date, strict=False))
+    return [d for d in df["date"].to_list() if d is not None]
 
 
 def archive_chain(table_name: str, bucket_name: str, keep_postgres_days: int, chunk_size: int) -> None:
@@ -182,10 +223,55 @@ def archive_chain(table_name: str, bucket_name: str, keep_postgres_days: int, ch
         part += 1
 
 
+def archive_table_by_date(
+    table_name: str,
+    origin_key: str,
+    bucket_name: str,
+    keep_postgres_days: int,
+) -> None:
+    """Archive non-tx tables by date for a single origin_key."""
+    credentials_info = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
+    fs = gcsfs.GCSFileSystem(token=credentials_info)
+    db_connector = DbConnector()
+
+    archival_date = datetime.now().date() - timedelta(days=keep_postgres_days)
+    logger.info("Archival date cutoff: %s", archival_date)
+
+    dates = get_archive_dates(db_connector, table_name, origin_key, archival_date)
+    if not dates:
+        logger.info("No dates to archive for %s (%s).", table_name, origin_key)
+        return
+
+    for archive_date in dates:
+        query = f"""
+            SELECT *
+            FROM {table_name}
+            WHERE origin_key = '{origin_key}'
+              AND date = '{archive_date}'
+        """
+        df = pl.read_database_uri(query=query, uri=db_connector.uri)
+        if df.is_empty():
+            logger.info("No data for %s %s on %s.", table_name, origin_key, archive_date)
+            continue
+
+        year, month, day = archive_date.year, f"{archive_date.month:02}", f"{archive_date.day:02}"
+        filename = "part_1.parquet"
+        gcs_path = (
+            f"{bucket_name}/db_other/{table_name}/origin_key={origin_key}/date={year}-{month}-{day}/{filename}"
+        )
+        save_to_gcs(df, f"gs://{gcs_path}", fs)
+
+
+def build_task_id(prefix: str, origin_key: str, table_name: str) -> str:
+    safe_name = re.sub(r"[^a-zA-Z0-9_]+", "_", f"{origin_key}_{table_name}")
+    return f"{prefix}_{safe_name}"
+
+
 # --------------------------------------------------------------------------- #
 # DAG definition
 # --------------------------------------------------------------------------- #
 eligible_chains = get_eligible_chains()
+eligible_archive_tables = get_eligible_archive_tables()
 bucket_default = os.getenv("UTILITY_ARCHIVE_BUCKET", "gtp-archive")
 keep_days_default = int(os.getenv("UTILITY_ARCHIVE_KEEP_POSTGRES_DAYS", "30"))
 chunk_size_default = int(os.getenv("UTILITY_ARCHIVE_CHUNK_SIZE", "1000000"))
@@ -200,7 +286,7 @@ chunk_size_default = int(os.getenv("UTILITY_ARCHIVE_CHUNK_SIZE", "1000000"))
         "on_failure_callback": alert_via_webhook,
     },
     dag_id="utility_archive",
-    description="Archive raw *_tx tables to GCS/BQ for chains flagged with runs_archive_raw_tx.",
+    description="Archive raw *_tx tables and configured archive_tables to GCS/BQ.",
     tags=["utility", "archive"],
     start_date=datetime(2024, 1, 1),
     schedule="15 16 * * *",
@@ -221,6 +307,22 @@ def utility_archive():
             archive_chain(table, bucket, keep_days, chunk_size)
 
         run_archive()
+
+    for chain_table in eligible_archive_tables:
+        origin_key = chain_table["origin_key"]
+        table_name = chain_table["table_name"]
+
+        @task(task_id=build_task_id("archive_table", origin_key, table_name), execution_timeout=timedelta(hours=2))
+        def run_archive_table(
+            table: str = table_name,
+            origin: str = origin_key,
+            bucket: str = bucket_default,
+            keep_days: int = keep_days_default,
+        ):
+            logger.info("Starting archive task for %s (table: %s)", origin, table)
+            archive_table_by_date(table, origin, bucket, keep_days)
+
+        run_archive_table()
 
 
 utility_archive_dag = utility_archive()
