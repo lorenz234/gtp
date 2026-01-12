@@ -305,7 +305,7 @@ class AddressWithLabel(BaseModel):
 
 class LabelSearchResponse(BaseModel):
     tag_id: str
-    tag_value: str
+    tag_value: Optional[str]
     count: int
     results: List[AddressWithLabel]
     
@@ -925,6 +925,9 @@ async def get_attestations(
     uid: Optional[str] = Query(
         None, description="Filter by specific attestation UID (0x...)"
     ),
+    chain_id: Optional[str] = Query(
+        None, description="Filter by chain_id (e.g. 'eip155:8453')"
+    ),
     attester: Optional[str] = Query(
         None, description="Filter by attester address (0x...)"
     ),
@@ -987,6 +990,11 @@ async def get_attestations(
         where_clauses = []
         params = []
         idx = 1
+        
+        if chain_id:
+            where_clauses.append(f"chain_id = ${idx}")
+            params.append(chain_id)
+            idx += 1
 
         if attester:
             where_clauses.append(f"attester = ${idx}")
@@ -1419,21 +1427,25 @@ async def get_labels_bulk(req: BulkLabelsRequest):
     )
 async def search_addresses_by_tag(
     tag_id: str = Query(..., description="The tag key, e.g. 'usage_category'"),
-    tag_value: str = Query(..., description="The tag value, e.g. 'dex'"),
+    tag_value: Optional[str] = Query(None, description="Optional tag value, e.g. 'dex'"),
     chain_id: Optional[str] = Query(None, description="Optional chain_id filter, e.g. 'eip155:8453'"),
     limit: int = Query(100, ge=1, le=1000, description="Max number of addresses to return"),
 ):
     """
-    Return all addresses that have a specific tag_id=tag_value pair.
+    Return all addresses that have a specific tag_id and optional tag_value.
     """
 
     # Build WHERE dynamically
     where_clauses = [
         "l.tag_id = $1",
-        "l.tag_value = $2",
     ]
-    params = [tag_id, tag_value]
-    next_param = 3
+    params = [tag_id]
+    next_param = 2
+
+    if tag_value is not None:
+        where_clauses.append(f"l.tag_value = ${next_param}")
+        params.append(tag_value)
+        next_param += 1
 
     if chain_id:
         where_clauses.append(f"l.chain_id = ${next_param}")

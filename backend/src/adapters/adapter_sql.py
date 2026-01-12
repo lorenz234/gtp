@@ -333,7 +333,7 @@ class AdapterSQL(AbstractAdapter):
             print(f"...HLL: aggregating + inserting active addresses data for {origin_key} and last {days} days and days_end set to {days_end}...")
             self.db_connector.aggregate_unique_addresses_hll(origin_key, days, days_end)
 
-            if origin_key in [chain.origin_key for chain in self.main_config if chain.runs_aggregate_apps == True] and origin_key not in ['starknet', 'megaeth', 'polygon_pos']:
+            if origin_key in [chain.origin_key for chain in self.main_config if chain.runs_aggregate_apps == True] and origin_key not in ['starknet']:
                 print(f"...HLL: aggregating + inserting app addresses data for {origin_key} and last {days} days and days_end set to {days_end}...")
                 self.db_connector.aggregate_unique_addresses_contracts_hll(origin_key, days, days_end)
             else:
@@ -342,10 +342,6 @@ class AdapterSQL(AbstractAdapter):
         ## run aggregation for weekly active addresses (landing page chart) - this needs to be re-run completely whenever a new chain is added . TODO: re-run this for 1000d once a week (same for all cca_weekly_exclusives)
         print(f"...run cca_weekly_multiple l2s for last {days} days (can take a while for longer timeframes)...")
         self.db_connector.execute_jinja('chain_metrics/upsert_cca_weekly_multiple_l2s.sql.j2', {'days': days})
-
-        ## STOPPED loading this on October 15th, 2024 (currently not used)
-        # print(f'...aggregate_addresses_first_seen_global for last {days} days...')
-        # self.db_connector.aggregate_addresses_first_seen_global(days)
 
     def run_fees_queries(self, origin_keys, days, granularities, metric_keys=None):
         if origin_keys is None:
