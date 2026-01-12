@@ -115,7 +115,7 @@ def main():
                 'to_block': 'latest',
                 'chunk_size': 100000,
                 'topics': [
-                    '0x92a1f7a41a7c585a8b09e25b195e225b1d43248daca46b0faf9e0792777a2229', # Revoke topic of offchain attestations
+                    '0x92a1f7a41a7c585a8b09e25b195e225b1d43248daca46b0faf9e0792777a2229', # Revoke topic of offchain attestations (schema independent)
                     None,
                     None,
                     None
