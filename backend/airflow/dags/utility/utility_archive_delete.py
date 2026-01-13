@@ -358,7 +358,7 @@ def delete_rows_by_date(
     query_start_date: datetime.date,
 ) -> None:
     """
-        Delete rows in DB table for origin_key from query_start_date up to archival_date.
+        Delete rows in DB table for origin_key from query_start_date up to archival_date, day by day.
     """
     if archival_date < query_start_date:
         logger.info(
@@ -369,15 +369,24 @@ def delete_rows_by_date(
             archival_date,
         )
         return
-
-    query = f"""
-        DELETE FROM {table_name}
-        WHERE origin_key = '{origin_key}'
-          AND date <= '{archival_date}'
-          AND date >= '{query_start_date}';
-    """
-    with db_connector.engine.begin() as connection:
-        connection.execute(text(query))
+    
+    current_date = query_start_date
+    while current_date <= archival_date:
+        logger.info(
+            "Deleting date = %s for %s (%s)",
+            current_date,
+            table_name,
+            origin_key,
+        )
+        
+        query = f"""
+            DELETE FROM {table_name}
+            WHERE origin_key = '{origin_key}'
+              AND date = '{current_date}';
+        """
+        with db_connector.engine.begin() as connection:
+            connection.execute(text(query))
+        current_date += timedelta(days=1)
 
 
 def build_task_id(prefix: str, origin_key: str, table_name: str) -> str:
