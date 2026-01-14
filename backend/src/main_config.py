@@ -72,6 +72,8 @@ class MainConfig(BaseModel):
     runs_archive_raw_tx: Optional[bool] = Field(alias="runs_archive_raw_tx", default=None)
     runs_delete_archived_raw_tx: Optional[bool] = Field(alias="runs_delete_archived_raw_tx", default=None)
     
+    ## ARCHIVING
+    archive_tables: Optional[list[str]] = Field(alias="archive_tables", default=None)
 
     ## RPC CONFIG
     backfiller_on: Optional[bool] = Field(alias="backfiller_backfiller_on", default=None)
