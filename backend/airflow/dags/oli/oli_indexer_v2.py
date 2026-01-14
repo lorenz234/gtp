@@ -11,7 +11,7 @@ from src.misc.airflow_utils import alert_via_webhook
         'retry_delay': timedelta(minutes=5),
         'on_failure_callback': lambda context: alert_via_webhook(context, user='lorenz')
     },
-    dag_id='oli_indexer',
+    dag_id='oli_indexer_v2',
     description='Indexes the onchain OLI Label Pool v2. This includes attestations of labels (v2) and trust_lists (v1), aswell as revocations (v.any).',
     tags=['indexing', 'oli', 'raw'],
     start_date=datetime(2026, 1, 8),
