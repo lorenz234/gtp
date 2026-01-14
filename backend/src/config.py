@@ -1500,6 +1500,15 @@ relative_growth_dict_activity = {
         }
 }
 
+relative_growth_dict_activity_higher = {
+        'agg': 'sum',
+        'thresholds': {
+                1: 2,
+                7: 3
+        }
+}
+
+
 relative_growth_dict_value_locked = {
         'agg': 'last',
         'thresholds': {
@@ -1519,21 +1528,21 @@ highlights_daily_thresholds = {
         },
         'fees_paid_usd': {
                 'ath_multiples' : fees_list_usd,
-                'relative_growth' : relative_growth_dict_activity
+                'relative_growth' : relative_growth_dict_activity_higher
         },
         'fees_paid_eth': {
                 'ath_multiples' : fees_list_eth
         },
         'profit_usd': {
                 'ath_multiples' : fees_list_usd,
-                'relative_growth' : relative_growth_dict_activity
+                'relative_growth' : relative_growth_dict_activity_higher
         },
         'profit_eth': {
                 'ath_multiples' : fees_list_eth
         },
         'app_fees_usd': {
                 'ath_multiples' : fees_list_usd,
-                'relative_growth' : relative_growth_dict_activity
+                'relative_growth' : relative_growth_dict_activity_higher
         },
         'app_fees_eth': {
                 'ath_multiples' : fees_list_eth
