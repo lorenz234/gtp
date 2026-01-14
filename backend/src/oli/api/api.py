@@ -683,6 +683,7 @@ def build_row_from_payload(att: AttestationPayload):
         recipient_bytes = hex_to_bytes(recipient_value)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid recipient address")
+    recipient_str = "0x" + recipient_bytes.hex()
 
     # Prepare tags_json for DB
     if decoded_tags_dict is not None:
@@ -695,7 +696,7 @@ def build_row_from_payload(att: AttestationPayload):
         "time": ts,
         "chain_id": decoded_chain_id, 
         "attester": attester_bytes,
-        "recipient": recipient_bytes,
+        "recipient": recipient_str,
         "revoked": False,
         "is_offchain": True,
         "tx_hash": None,
@@ -742,6 +743,7 @@ def build_trust_list_row_from_eas(att: AttestationPayload) -> dict:
     # uid / recipient / tx fields
     uid_bytes       = hex_to_bytes(sig.uid)
     recipient_bytes = hex_to_bytes(msg.recipient) if msg.recipient else None
+    recipient_str = ("0x" + recipient_bytes.hex()) if recipient_bytes is not None else None
     tx_hash_bytes   = None  # offchain (set if you later include onchain TLs)
 
     # times
@@ -752,7 +754,7 @@ def build_trust_list_row_from_eas(att: AttestationPayload) -> dict:
         "uid": uid_bytes,
         "time": time_dt,
         "attester": attester_bytes,
-        "recipient": recipient_bytes,
+        "recipient": recipient_str,
         "revoked": False,
         "is_offchain": True,                      # TL via EAS offchain
         "tx_hash": tx_hash_bytes,
@@ -1037,7 +1039,8 @@ async def get_attestations(
 
         if recipient:
             where_clauses.append(f"recipient = ${idx}")
-            params.append(hex_to_bytes(recipient.lower()))
+            recipient_bytes = hex_to_bytes(recipient.lower())
+            params.append("0x" + recipient_bytes.hex())
             idx += 1
 
         if schema_info:
@@ -1278,12 +1281,10 @@ async def get_labels(
     """Return labels (key/value) for a given address. By default, only the newest per (chain_id, attester, tag_id)."""
 
     # normalize address
-    addr_norm = address.lower()
-    if not addr_norm.startswith("0x"):
-        addr_norm = "0x" + addr_norm
+    addr_norm = normalize_eth_address(address)
 
     where_clauses = ["address = $1"]
-    params = [hex_to_bytes(addr_norm)]
+    params = [addr_norm]
     next_param = 2
 
     if chain_id:
@@ -1364,18 +1365,15 @@ async def get_labels_bulk(req: BulkLabelsRequest):
     normalized_addrs = [normalize_eth_address(a) for a in req.addresses]
     orig_to_norm = {orig: normalize_eth_address(orig) for orig in req.addresses}
 
-    # convert to bytes for DB match
-    addr_bytes_list = [hex_to_bytes(a) for a in normalized_addrs]
-
-    unique_addr_bytes_list = []
+    unique_addr_list = []
     seen = set()
-    for b in addr_bytes_list:
-        if b not in seen:
-            seen.add(b)
-            unique_addr_bytes_list.append(b)
+    for addr in normalized_addrs:
+        if addr not in seen:
+            seen.add(addr)
+            unique_addr_list.append(addr)
 
     # 2. build SQL dynamically based on optional chain_id and include_all
-    params = [unique_addr_bytes_list]
+    params = [unique_addr_list]
     chain_filter_sql = ""
 
     if req.chain_id:
