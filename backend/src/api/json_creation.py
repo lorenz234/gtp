@@ -3075,7 +3075,8 @@ class JSONCreation():
         """
         with self.db_connector.engine.connect() as connection:
             df = pd.read_sql(exec_string, connection)
-        df = db_addresses_to_checksummed_addresses(df, ['attester', 'recipient'])
+        df = db_addresses_to_checksummed_addresses(df, ['attester'])
+        df = string_addresses_to_checksummed_addresses(df, ['recipient'])
 
         upload_parquet_to_cf_s3(self.s3_bucket, f'{self.api_version}/oli/labels_raw', df, self.cf_distribution_id)
         print(f'DONE -- OLI labels_raw.parquet export')
@@ -3086,10 +3087,31 @@ class JSONCreation():
         """
         with self.db_connector.engine.connect() as connection:
             df = pd.read_sql(exec_string, connection)
-        df = db_addresses_to_checksummed_addresses(df, ['address', 'attester'])
+        df = db_addresses_to_checksummed_addresses(df, ['attester'])
+        df = string_addresses_to_checksummed_addresses(df, ['address'])
 
         upload_parquet_to_cf_s3(self.s3_bucket, f'{self.api_version}/oli/labels_decoded', df, self.cf_distribution_id)
         print(f'DONE -- OLI labels_decoded.parquet export')
+        
+    def create_export_project_labels_parquet(self):
+        exec_string = """
+            SELECT 
+                concat('0x',encode(address, 'hex')) as address, 
+                origin_key, 
+                caip2, 
+                contract_name, 
+                owner_project, 
+                usage_category
+            FROM public.vw_oli_label_pool_gold_pivoted_v2
+            where owner_project is not null
+        """
+        
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
+        
+            
+        upload_parquet_to_cf_s3(self.s3_bucket, f'{self.api_version}/oli/project_labels', df, self.cf_distribution_id)
+        print(f'DONE -- OLI project_labels.parquet export')
 
 
     #######################################################################
