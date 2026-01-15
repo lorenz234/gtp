@@ -82,7 +82,7 @@ def main():
 
         # send discord message for new categories
         for row in df_new.itertuples():
-            send_discord_message(f'New OLI usage_category found and synced to oli_categories table: `{row.name}`. Please assign a main category to this new usage_category in the database!', os.getenv('DISCORD_CONTRACTS'))
+            send_discord_message(f'New OLI usage_category found and synced to oli_categories table: `{row.category_id}`. Please assign a main category to this new usage_category in the database unser the table oli_categories!', os.getenv('DISCORD_CONTRACTS'))
 
 
     @task()
