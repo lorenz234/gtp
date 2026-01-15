@@ -63,9 +63,6 @@ def main():
         # get tags from gtp-dna Github
         df = get_all_oli_categories_from_github()
 
-        # add a row to df for testing
-        df = pd.concat([df, pd.DataFrame([{'category_id': 'test_category_123', 'name': 'Test Category 123', 'description': 'This is a test'}])], ignore_index=True)
-
         # drop the column examples
         df = df.drop(columns=['examples'])
         df = df.set_index('category_id')
@@ -82,7 +79,7 @@ def main():
 
         # send discord message for new categories
         for row in df_new.itertuples():
-            send_discord_message(f'New OLI usage_category found and synced to oli_categories table: `{row.name}`. Please assign a main category to this new usage_category in the database!', os.getenv('DISCORD_CONTRACTS'))
+            send_discord_message(f'New OLI usage_category found and synced to oli_categories table: `{row.category_id}`. Please assign a main category to this new usage_category in the database unser the table oli_categories!', os.getenv('DISCORD_CONTRACTS'))
 
 
     @task()

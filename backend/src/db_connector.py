@@ -1808,8 +1808,9 @@ class DbConnector:
         
         ## This function is used for our Airtable setup - it returns all prior attestations made by a specific attester for a specific address on a specific chain
         def get_all_prior_attested_labels(self, address, chain_id, attester):
-                if address.startswith('0x') or address.startswith('\\'):
-                        address = address[2:]
+                address = address.lower()
+                if address.startswith('\\x'):
+                        address = address.replace('\\x', '0x')
                 attester = attester[2:] if attester.startswith('0x') or attester.startswith('\\') else attester
                 exec_string = f'''
                         SELECT 
@@ -1823,12 +1824,12 @@ class DbConnector:
                         FROM public.labels l
                         LEFT JOIN public.sys_main_conf s ON l.chain_id = s.caip2
                         WHERE 
-                                l.address = decode('{address}', 'hex')
+                                l.address = '{address}'
                                 AND l.chain_id = '{chain_id}'
                                 AND l.attester = decode('{attester}', 'hex');
                 '''
                 df = pd.read_sql(exec_string, self.engine.connect())
-                df['address'] = '\\x' + df['address'].apply(lambda x: x.hex())
+                df['address'] = df['address'].str.replace('0x', '\\x')
                 df['attester'] = '\\x' + df['attester'].apply(lambda x: x.hex())
                 return df
         
