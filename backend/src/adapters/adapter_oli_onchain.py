@@ -171,7 +171,10 @@ class AdapterOLIOnchain(AbstractAdapter):
         else:
             # add prefix \x to attester, recipient, tx_hash, uid columns
             df['attester'] = df['attester'].apply(lambda x: '\\x' + x[2:])
-            df['recipient'] = df['recipient'].apply(lambda x: '\\x' + x[2:])
+            if table_name == 'attestations':
+                df['recipient'] = df['recipient'].apply(lambda x: '0x' + x[2:].lower())
+            else:
+                df['recipient'] = df['recipient'].apply(lambda x: '\\x' + x[2:])
             df['tx_hash'] = df['tx_hash'].apply(lambda x: '\\x' + x[2:])
             df['uid'] = df['uid'].apply(lambda x: '\\x' + x[2:])
             # set index uid
