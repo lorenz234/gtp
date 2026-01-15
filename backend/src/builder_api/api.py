@@ -180,36 +180,26 @@ def healthz() -> Dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/project-interactions")
+@app.get("/contract-interactions")
 def builder_interactions(
     wallet: str = Query(..., description="Wallet address to analyze"),
-    base_api_url: str = Query(DEFAULT_BASE_API_URL, description="Blockscout API base URL"),
-    keep_inbound_tx: bool = Query(False, description="Include inbound transactions"),
     startblock: Optional[int] = Query(None, description="Start block"),
     endblock: Optional[int] = Query(None, description="End block"),
-    sort: str = Query("asc", description="Blockscout sort order"),
-    offset: int = Query(1000, description="Blockscout page size"),
     max_txs: int = Query(10_000, description="Maximum transactions to fetch"),
-    sleep_s: float = Query(0.2, description="Sleep between page requests"),
-    api_key: Optional[str] = Query(None, description="Blockscout API key"),
 ) -> Dict[str, Any]:
     try:
         contracts_df = load_contract_labels()
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to load labels: {exc}") from exc
-
+    
     try:
         tx_list = fetch_blockscout_txlist(
             wallet,
-            base_api_url,
-            keep_inbound_tx=keep_inbound_tx,
+            DEFAULT_BASE_API_URL,
+            keep_inbound_tx=False,
             startblock=startblock,
             endblock=endblock,
-            sort=sort,
-            offset=offset,
             max_txs=max_txs,
-            sleep_s=sleep_s,
-            api_key=api_key,
         )
     except requests.RequestException as exc:
         raise HTTPException(status_code=502, detail=f"Blockscout request failed: {exc}") from exc
@@ -233,6 +223,62 @@ def builder_interactions(
     )
 
     data_records = _records_for_json(tx_agg_labeled)
+    return {"wallet": _lower_addr(wallet), "count": len(data_records), "data": data_records}
+
+@app.get("/project-interactions")
+def builder_interactions(
+    wallet: str = Query(..., description="Wallet address to analyze"),
+    startblock: Optional[int] = Query(None, description="Start block"),
+    endblock: Optional[int] = Query(None, description="End block"),
+    max_txs: int = Query(10_000, description="Maximum transactions to fetch"),
+) -> Dict[str, Any]:
+    try:
+        contracts_df = load_contract_labels()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to load labels: {exc}") from exc
+    
+    try:
+        tx_list = fetch_blockscout_txlist(
+            wallet,
+            DEFAULT_BASE_API_URL,
+            keep_inbound_tx=False,
+            startblock=startblock,
+            endblock=endblock,
+            max_txs=max_txs,
+        )
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail=f"Blockscout request failed: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    tx_agg = aggregate_interactions(tx_list)
+    if tx_agg.empty:
+        return {"wallet": _lower_addr(wallet), "count": 0, "data": []}
+
+    tx_agg_labeled = (
+        tx_agg.merge(
+            contracts_df,
+            how="left",
+            left_on="to_address",
+            right_on="address",
+        )
+        .drop(columns=["address"])
+        .sort_values(["tx_count", "total_gas_used"], ascending=[False, False])
+        .reset_index(drop=True)
+    )
+    
+    ## aggregate by owner_project
+    tx_agg_labeled_grouped = (
+        tx_agg_labeled.groupby("owner_project", as_index=False)
+        .agg(
+            tx_count=("tx_count", "sum"),
+            total_gas_used=("total_gas_used", "sum"),
+        )
+        .sort_values(["tx_count", "total_gas_used"], ascending=[False, False])
+        .reset_index(drop=True)
+    )
+
+    data_records = _records_for_json(tx_agg_labeled_grouped)
     return {"wallet": _lower_addr(wallet), "count": len(data_records), "data": data_records}
 
 
