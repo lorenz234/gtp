@@ -63,9 +63,6 @@ def main():
         # get tags from gtp-dna Github
         df = get_all_oli_categories_from_github()
 
-        # add a row to df for testing
-        df = pd.concat([df, pd.DataFrame([{'category_id': 'test_category_123', 'name': 'Test Category 123', 'description': 'This is a test'}])], ignore_index=True)
-
         # drop the column examples
         df = df.drop(columns=['examples'])
         df = df.set_index('category_id')
