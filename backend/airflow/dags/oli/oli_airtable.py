@@ -239,7 +239,7 @@ def etl():
             AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
             api = Api(AIRTABLE_API_KEY)
             table = api.table(AIRTABLE_BASE_ID, 'Label Pool Reattest')
-            df_air['address'] = df_air['address'].apply(lambda x: to_checksum_address('0x' + bytes(x).hex()))
+            df_air['address'] = df_air['address'].apply(lambda x: to_checksum_address(x))
             df_air['attester'] = df_air['attester'].apply(lambda x: to_checksum_address('0x' + bytes(x).hex()))
             
             # exchange the category with the id & make it a list
