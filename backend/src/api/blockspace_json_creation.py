@@ -574,7 +574,7 @@ class BlockspaceJSONCreation():
                     SUM(gas_fees_usd) AS gas_fees_usd,
                     SUM(txcount) AS txcount
                 FROM blockspace_fact_category_level bs_scl
-                LEFT JOIN 
+                INNER JOIN 
                     vw_oli_category_mapping bcm USING (category_id)
                 WHERE date < DATE_TRUNC('day', NOW())
                     {date_where}
