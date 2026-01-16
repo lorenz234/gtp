@@ -273,15 +273,18 @@ def builder_chains() -> Dict[str, Any]:
     data = []
     for cfg in BLOCKSCOUT_CHAINS.values():
         cfg = cfg.copy()
-        cfg["base_api_url"] = _explorer_to_api_url(cfg["explorer_url"])
-        if cfg["key"] == DEFAULT_CHAIN_KEY:
-            cfg["base_api_url"] = DEFAULT_BASE_API_URL
+        ## remove explorer_url
+        del cfg["explorer_url"]
+        
+        # cfg["base_api_url"] = _explorer_to_api_url(cfg["explorer_url"])
+        # if cfg["key"] == DEFAULT_CHAIN_KEY:
+        #     cfg["base_api_url"] = DEFAULT_BASE_API_URL
         data.append(cfg)
     return {"count": len(data), "data": data}
 
 
 @app.get("/wallet/contract-interactions")
-def builder_interactions(
+def wallet_contract_interactions(
     wallet: str = Query(..., description="Wallet address to analyze"),
     chain: Optional[str] = Query(DEFAULT_CHAIN_KEY, description="Chain key or chain id. Default: ethereum"),
     startblock: Optional[int] = Query(None, description="Start block"),
@@ -292,7 +295,7 @@ def builder_interactions(
         contracts_df = load_contract_labels()
         ## filter contracts df to chain only
         chain_cfg = _resolve_chain(chain)
-        contracts_df = contracts_df[contracts_df["caip2"] == f"{chain_cfg['chain_id']}"].copy()    
+        contracts_df = contracts_df[contracts_df["caip2"] == f"eip155:{chain_cfg['chain_id']}"].copy()    
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to load labels: {exc}") from exc
     
@@ -325,12 +328,14 @@ def builder_interactions(
         .sort_values(["tx_count", "total_gas_used"], ascending=[False, False])
         .reset_index(drop=True)
     )
+    
+    tx_agg_labeled = tx_agg_labeled[['to_address', 'tx_count', 'total_gas_used', 'contract_name', 'owner_project', 'usage_category']]
 
     data_records = _records_for_json(tx_agg_labeled)
     return {"wallet": _lower_addr(wallet), "count": len(data_records), "data": data_records}
 
 @app.get("/wallet/project-interactions")
-def builder_interactions(
+def wallet_project_interactions(
     wallet: str = Query(..., description="Wallet address to analyze"),
     chain: Optional[str] = Query(DEFAULT_CHAIN_KEY, description="Chain key or chain id. Default: ethereum"),
     startblock: Optional[int] = Query(None, description="Start block"),
@@ -341,7 +346,7 @@ def builder_interactions(
         contracts_df = load_contract_labels()
         ## filter contracts df to chain only
         chain_cfg = _resolve_chain(chain)
-        contracts_df = contracts_df[contracts_df["caip2"] == f"{chain_cfg['chain_id']}"].copy()    
+        contracts_df = contracts_df[contracts_df["caip2"] == f"eip155:{chain_cfg['chain_id']}"].copy()    
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to load labels: {exc}") from exc
     
@@ -386,6 +391,8 @@ def builder_interactions(
         .reset_index(drop=True)
     )
 
+    tx_agg_labeled_grouped = tx_agg_labeled_grouped[['owner_project', 'tx_count', 'total_gas_used']]
+    
     data_records = _records_for_json(tx_agg_labeled_grouped)
     return {"wallet": _lower_addr(wallet), "count": len(data_records), "data": data_records}
 
