@@ -521,7 +521,7 @@ class BlockspaceJSONCreation():
                 (SUM(txcount) / t.total_txcount) AS txcount_share
             FROM blockspace_fact_category_level bs_scl
             JOIN totals t USING (origin_key)
-            LEFT JOIN 
+            INNER JOIN 
                 vw_oli_category_mapping bcm USING (category_id)
             WHERE date < DATE_TRUNC('day', NOW())
                 {date_where}
@@ -666,9 +666,6 @@ class BlockspaceJSONCreation():
             print(f"...processing timeframe {timeframe} days")
             sub_cat_agg_df = self.get_comparison_aggregate_data_day(timeframe, 'sub_category', chain_keys)
             main_cat_agg_df = self.get_comparison_aggregate_data_day(timeframe, 'main_category', chain_keys)
-            
-            if timeframe == 180:
-                return main_cat_agg_df
             
             timeframe_key = f'{timeframe}d' if timeframe != 'max' else 'max'
 
