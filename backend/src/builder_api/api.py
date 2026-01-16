@@ -10,6 +10,70 @@ from fastapi import FastAPI, HTTPException, Query
 
 
 DEFAULT_BASE_API_URL = os.getenv("BUILDER_BLOCKSCOUT_API_URL", "https://eth.blockscout.com/api")
+DEFAULT_CHAIN_KEY = "ethereum"
+
+BLOCKSCOUT_CHAINS: Dict[str, Dict[str, Any]] = {
+    "ethereum": {
+        "key": "ethereum",
+        "chain_id": 1,
+        "name": "Ethereum",
+        "explorer_url": "https://eth.blockscout.com/",
+    },
+    "arbitrum": {
+        "key": "arbitrum",
+        "chain_id": 42161,
+        "name": "Arbitrum One",
+        "explorer_url": "https://arbitrum.blockscout.com/",
+    },
+    "optimism": {
+        "key": "optimism",
+        "chain_id": 10,
+        "name": "OP Mainnet",
+        "explorer_url": "https://explorer.optimism.io/",
+    },
+    "megaeth": {
+        "key": "megaeth",
+        "chain_id": 4326,
+        "name": "MegaETH",
+        "explorer_url": "https://megaeth.blockscout.com/",
+    },
+    "linea": {
+        "key": "linea",
+        "chain_id": 59144,
+        "name": "Linea",
+        "explorer_url": "https://explorer.linea.build/",
+    },
+    "taiko": {
+        "key": "taiko",
+        "chain_id": 167000,
+        "name": "Taiko",
+        "explorer_url": "https://blockscout.mainnet.taiko.xyz/",
+    },
+    "base": {
+        "key": "base",
+        "chain_id": 8453,
+        "name": "Base",
+        "explorer_url": "https://base.blockscout.com/",
+    },
+    "zksync_era": {
+        "key": "zksync_era",
+        "chain_id": 324,
+        "name": "zkSync Era",
+        "explorer_url": "https://zksync.blockscout.com/",
+    },
+    "scroll": {
+        "key": "scroll",
+        "chain_id": 534352,
+        "name": "Scroll",
+        "explorer_url": "https://scroll.blockscout.com/",
+    },
+    "arbitrum_nova": {
+        "key": "arbitrum_nova",
+        "chain_id": 42170,
+        "name": "Arbitrum Nova",
+        "explorer_url": "https://arbitrum-nova.blockscout.com/",
+    },
+}
 LABELS_URL = os.getenv(
     "BUILDER_LABELS_URL",
     "https://api.growthepie.com/v1/oli/project_labels.parquet",
@@ -26,6 +90,30 @@ def _lower_addr(a: Optional[str]) -> Optional[str]:
         return None
     a = a.strip()
     return a.lower()
+
+
+def _explorer_to_api_url(explorer_url: str) -> str:
+    return f"{explorer_url.rstrip('/')}/api"
+
+
+def _resolve_chain(chain: Optional[str]) -> Dict[str, Any]:
+    if not chain:
+        chain = DEFAULT_CHAIN_KEY
+    chain_key = chain.strip().lower()
+    if chain_key in BLOCKSCOUT_CHAINS:
+        cfg = BLOCKSCOUT_CHAINS[chain_key].copy()
+        cfg["base_api_url"] = _explorer_to_api_url(cfg["explorer_url"])
+        if cfg["key"] == DEFAULT_CHAIN_KEY:
+            cfg["base_api_url"] = DEFAULT_BASE_API_URL
+        return cfg
+    if chain_key.isdigit():
+        for cfg in BLOCKSCOUT_CHAINS.values():
+            if str(cfg["chain_id"]) == chain_key:
+                cfg = cfg.copy()
+                cfg["base_api_url"] = _explorer_to_api_url(cfg["explorer_url"])
+                return cfg
+    supported = ", ".join(sorted(BLOCKSCOUT_CHAINS.keys()))
+    raise HTTPException(status_code=400, detail=f"Unsupported chain '{chain}'. Supported: {supported}")
 
 
 def fetch_blockscout_txlist(
@@ -180,22 +268,38 @@ def healthz() -> Dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/contract-interactions")
+@app.get("/chains")
+def builder_chains() -> Dict[str, Any]:
+    data = []
+    for cfg in BLOCKSCOUT_CHAINS.values():
+        cfg = cfg.copy()
+        cfg["base_api_url"] = _explorer_to_api_url(cfg["explorer_url"])
+        if cfg["key"] == DEFAULT_CHAIN_KEY:
+            cfg["base_api_url"] = DEFAULT_BASE_API_URL
+        data.append(cfg)
+    return {"count": len(data), "data": data}
+
+
+@app.get("/wallet/contract-interactions")
 def builder_interactions(
     wallet: str = Query(..., description="Wallet address to analyze"),
+    chain: Optional[str] = Query(DEFAULT_CHAIN_KEY, description="Chain key or chain id. Default: ethereum"),
     startblock: Optional[int] = Query(None, description="Start block"),
     endblock: Optional[int] = Query(None, description="End block"),
     max_txs: int = Query(10_000, description="Maximum transactions to fetch"),
 ) -> Dict[str, Any]:
     try:
         contracts_df = load_contract_labels()
+        ## filter contracts df to chain only
+        chain_cfg = _resolve_chain(chain)
+        contracts_df = contracts_df[contracts_df["caip2"] == f"{chain_cfg['chain_id']}"].copy()    
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to load labels: {exc}") from exc
     
     try:
         tx_list = fetch_blockscout_txlist(
             wallet,
-            DEFAULT_BASE_API_URL,
+            chain_cfg["base_api_url"],
             keep_inbound_tx=False,
             startblock=startblock,
             endblock=endblock,
@@ -225,22 +329,26 @@ def builder_interactions(
     data_records = _records_for_json(tx_agg_labeled)
     return {"wallet": _lower_addr(wallet), "count": len(data_records), "data": data_records}
 
-@app.get("/project-interactions")
+@app.get("/wallet/project-interactions")
 def builder_interactions(
     wallet: str = Query(..., description="Wallet address to analyze"),
+    chain: Optional[str] = Query(DEFAULT_CHAIN_KEY, description="Chain key or chain id. Default: ethereum"),
     startblock: Optional[int] = Query(None, description="Start block"),
     endblock: Optional[int] = Query(None, description="End block"),
     max_txs: int = Query(10_000, description="Maximum transactions to fetch"),
 ) -> Dict[str, Any]:
     try:
         contracts_df = load_contract_labels()
+        ## filter contracts df to chain only
+        chain_cfg = _resolve_chain(chain)
+        contracts_df = contracts_df[contracts_df["caip2"] == f"{chain_cfg['chain_id']}"].copy()    
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Failed to load labels: {exc}") from exc
     
     try:
         tx_list = fetch_blockscout_txlist(
             wallet,
-            DEFAULT_BASE_API_URL,
+            chain_cfg["base_api_url"],
             keep_inbound_tx=False,
             startblock=startblock,
             endblock=endblock,
