@@ -5,6 +5,7 @@ import asyncio
 import aiohttp
 import redis.asyncio as aioredis
 import os
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from abc import ABC, abstractmethod
 
@@ -96,15 +97,17 @@ class EVMProcessor(BlockchainProcessor):
                     "gasLimit": hex(block.gasLimit),
                 }
             
-            subblock_count = 1
-            if chain_name == 'megaeth':
-                # megaeth returns miniblocks, adjust gas constants
-                block = await web3.eth.get_block('latest', full_transactions=False)
-                subblock_count = block.get('miniBlockCount', 1)
-            
             # Extract all block info from receipts
             first_receipt = receipts[0]
             block_number = first_receipt.blockNumber
+            block = await web3.eth.get_block(block_number, full_transactions=False)
+            block_timestamp = int(block.timestamp)
+            
+            subblock_count = 1
+            if chain_name == 'megaeth':
+                subblock_count = block.get('miniBlockCount', 1)
+            else:
+                block_timestamp = int(block.timestamp)
             
             # Analyze receipts and calculate costs in one pass
             total_gas_used = 0
@@ -212,7 +215,8 @@ class EVMProcessor(BlockchainProcessor):
             block_dict = {
                 "number": hex(block_number),
                 "transactions": [receipt.transactionHash.hex() for receipt in receipts],
-                "timestamp": hex(int(time.time())),
+                "timestamp": hex(block_timestamp),
+                "timestamp_ms": block_timestamp * 1000,
                 "gasUsed": hex(total_gas_used),
                 "gasLimit": None,  # Not available in receipts
                 "tx_cost_avg": avg_cost_eth,
@@ -398,13 +402,20 @@ class LighterProcessor(BlockchainProcessor):
                 logger.error(f"[{chain_name}] Blocks payload empty/wrong shape: {data}")
                 return None
 
-            # Parse (height, size); API says sort=desc, but sort defensively
+            # Parse (height, size, updated_at); API says sort=desc, but sort defensively
             rows = []
             for b in blocks:
                 try:
                     h = int(b["block_height"])
                     sz = int(b.get("block_size", 0))
-                    rows.append((h, sz))
+                    ts = None
+                    updated_at = b.get("updated_at")
+                    if updated_at:
+                        try:
+                            ts = datetime.fromisoformat(updated_at.replace("Z", "+00:00")).timestamp()
+                        except Exception:
+                            ts = None
+                    rows.append((h, sz, ts))
                 except Exception:
                     continue
             if not rows:
@@ -412,11 +423,13 @@ class LighterProcessor(BlockchainProcessor):
                 return None
 
             rows.sort(key=lambda x: x[0])  # oldest -> newest
-            latest_height, latest_size = rows[-1]
-            now_unix = int(time.time())
+            latest_height, latest_size, latest_ts = rows[-1]
+            if latest_ts is None:
+                latest_ts = time.time()
+            now_unix = int(latest_ts)
 
             # Cache some window metadata (informational)
-            total_txs_window = sum(sz for _, sz in rows)
+            total_txs_window = sum(sz for _, sz, _ in rows)
             self.backend.chain_data[chain_name].update({
                 "tps_window_blocks": len(rows),
                 "tps_window_txs": total_txs_window,
@@ -426,13 +439,26 @@ class LighterProcessor(BlockchainProcessor):
 
             # Return a block-like dict for your generic pipeline.
             # We supply tx_count; your calculate_tps() already prefers it.
-            now_ms = int(time.time() * 1000)
+            now_ms = int(latest_ts * 1000)
+            tps_override = None
+            valid_rows = [(h, sz, ts) for h, sz, ts in rows if ts is not None]
+            if len(valid_rows) >= 2:
+                valid_rows.sort(key=lambda x: x[0])
+                t0 = valid_rows[0][2]
+                t1 = valid_rows[-1][2]
+                span = t1 - t0
+                if span > 0:
+                    total_txs = sum(sz for _, sz, _ in valid_rows)
+                    n = len(valid_rows)
+                    effective_span = span * (n / (n - 1))
+                    tps_override = total_txs / effective_span
             return {
                 "number": hex(latest_height),
-                "timestamp": hex(now_ms // 1000),  
+                "timestamp": hex(now_ms // 1000),
                 "timestamp_ms": now_ms,            # <-- new high-res timestamp for TPS math
                 "transactions": [],
                 "tx_count": latest_size,
+                "tps_override": tps_override,
                 "gasUsed": "N/A",
                 "gasLimit": "N/A",
             }
