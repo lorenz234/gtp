@@ -1123,14 +1123,17 @@ def highlights_prep(df, gtp_metrics):
 
         if highlight_type == 'ath_multiple':
             ath_val = int(row['ath_next_threshold'])
-            if ath_val > 1_000_000_000:
+            if metric_key == 'gas_per_second':
+                ath_val = ath_val / 1_000_000
+            
+            if ath_val >= 1_000_000_000:
                 ath_multiple = f"{ath_val / 1_000_000_000:.1f}B"
-            elif ath_val > 1_000_000:
+            elif ath_val >= 1_000_000:
                 ath_multiple = f"{ath_val / 1_000_000:.1f}M"
             elif ath_val > 1_000:
                 ath_multiple = f"{ath_val / 1_000:.1f}K"
             else:
-                ath_multiple = f"{ath_val:,.2f}"
+                ath_multiple = f"{ath_val:,}"
             highlight_text = f"New all-time high, surpassing {prefix}{ath_multiple}{suffix} for the first time"
             header = 'All-Time High'
         elif highlight_type == 'ath_regular':
