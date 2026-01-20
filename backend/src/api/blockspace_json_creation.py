@@ -3,7 +3,7 @@ import simplejson as json
 import pandas as pd
 
 from src.main_config import get_main_config, get_all_l2_config
-from src.misc.helper_functions import upload_json_to_cf_s3, db_addresses_to_checksummed_addresses, fix_dict_nan, empty_cloudfront_cache
+from src.misc.helper_functions import upload_json_to_cf_s3, db_addresses_to_checksummed_addresses, fix_dict_nan, empty_cloudfront_cache, send_discord_message
 from src.db_connector import DbConnector
 
 class BlockspaceJSONCreation():
@@ -370,118 +370,124 @@ class BlockspaceJSONCreation():
                 continue
 
             print(f"Processing {origin_key}")
+            
+            try:
 
-            # get daily data (multiple rows per day - one for each main_category_key)
-            chain_df = self.get_blockspace_overview_daily_data([origin_key])
+                # get daily data (multiple rows per day - one for each main_category_key)
+                chain_df = self.get_blockspace_overview_daily_data([origin_key])
 
-            chain_timeframe_overview_dfs = {}
-            chain_timeframe_totals_dfs = {}
-            for timeframe in overview_timeframes:
-                chain_timeframe_overview_dfs[timeframe] = self.get_blockspace_overview_timeframe_overview([origin_key], timeframe)
-                chain_timeframe_totals_dfs[timeframe] = self.get_blockspace_totals_timeframe([origin_key], timeframe)
+                chain_timeframe_overview_dfs = {}
+                chain_timeframe_totals_dfs = {}
+                for timeframe in overview_timeframes:
+                    chain_timeframe_overview_dfs[timeframe] = self.get_blockspace_overview_timeframe_overview([origin_key], timeframe)
+                    chain_timeframe_totals_dfs[timeframe] = self.get_blockspace_totals_timeframe([origin_key], timeframe)
 
-            chain_name = chain.name
+                chain_name = chain.name
 
-            # create dict for each chain
-            chain_dict = {
-                "chain_name": chain_name,
-                "daily": {
-                    "types": [
-                        "unix",
-                        "gas_fees_eth_absolute",
-                        "gas_fees_usd_absolute",
-                        "txcount_absolute",
-                        "gas_fees_share_eth",
-                        "gas_fees_share_usd",
-                        "txcount_share"
-                    ],
-                    # data for main categories will be added in the for loop below
-                },
-                "overview": {
-                    "types": [
-                        "gas_fees_eth_absolute",
-                        "gas_fees_usd_absolute",
-                        "txcount_absolute",
-                        "gas_fees_share_eth",
-                        "gas_fees_share_usd",
-                        "txcount_share"
-                    ],
-                    # data for timeframes will be added in the for loop below
-                },
-                "totals": {
-                    "types": [
-                        "gas_fees_eth_absolute",
-                        "gas_fees_usd_absolute",
-                        "txcount_absolute"
-                    ],
-                    # data for timeframes will be added in the for loop below
-                }
-            }
-
-            for main_category_key in main_category_keys:
-                # filter the dataframes accordingly, we'll use the chain_totals_df to calculate the gas_fees_share and txcount_share
-                main_category_df = chain_df.loc[(chain_df.main_category_key == main_category_key)]
-
-                # create dict for each main_category_key
-                chain_dict["daily"][main_category_key] = {
-                    "data": []
+                # create dict for each chain
+                chain_dict = {
+                    "chain_name": chain_name,
+                    "daily": {
+                        "types": [
+                            "unix",
+                            "gas_fees_eth_absolute",
+                            "gas_fees_usd_absolute",
+                            "txcount_absolute",
+                            "gas_fees_share_eth",
+                            "gas_fees_share_usd",
+                            "txcount_share"
+                        ],
+                        # data for main categories will be added in the for loop below
+                    },
+                    "overview": {
+                        "types": [
+                            "gas_fees_eth_absolute",
+                            "gas_fees_usd_absolute",
+                            "txcount_absolute",
+                            "gas_fees_share_eth",
+                            "gas_fees_share_usd",
+                            "txcount_share"
+                        ],
+                        # data for timeframes will be added in the for loop below
+                    },
+                    "totals": {
+                        "types": [
+                            "gas_fees_eth_absolute",
+                            "gas_fees_usd_absolute",
+                            "txcount_absolute"
+                        ],
+                        # data for timeframes will be added in the for loop below
+                    }
                 }
 
-                # create list of lists for each main_category_key
-                mk_list = main_category_df[[
-                    'unix', 'gas_fees_eth', 'gas_fees_usd', 'txcount', 'gas_fees_share_eth', 'gas_fees_share_usd', 'txcount_share']].values.tolist()
+                for main_category_key in main_category_keys:
+                    # filter the dataframes accordingly, we'll use the chain_totals_df to calculate the gas_fees_share and txcount_share
+                    main_category_df = chain_df.loc[(chain_df.main_category_key == main_category_key)]
 
-                # add the list of lists to the main_category_key dict
-                chain_dict["daily"][main_category_key]['data'] = mk_list
+                    # create dict for each main_category_key
+                    chain_dict["daily"][main_category_key] = {
+                        "data": []
+                    }
 
+                    # create list of lists for each main_category_key
+                    mk_list = main_category_df[[
+                        'unix', 'gas_fees_eth', 'gas_fees_usd', 'txcount', 'gas_fees_share_eth', 'gas_fees_share_usd', 'txcount_share']].values.tolist()
+
+                    # add the list of lists to the main_category_key dict
+                    chain_dict["daily"][main_category_key]['data'] = mk_list
+
+                    for timeframe in overview_timeframes:
+                        timeframe_key = f'{timeframe}d' if timeframe != 'max' else 'max'
+
+                        # create dict for each timeframe
+                        if timeframe_key not in chain_dict["overview"]:
+                            chain_dict["overview"][timeframe_key] = {}
+
+                        if main_category_key not in chain_dict["overview"][timeframe_key]:
+                            chain_dict["overview"][timeframe_key][main_category_key] = {}
+
+                        # get the averages for timeframe and main_category_key
+                        averages = chain_timeframe_overview_dfs[timeframe].loc[(chain_timeframe_overview_dfs[timeframe].main_category_key == main_category_key)][[
+                            'gas_fees_eth', 'gas_fees_usd', 'txcount', 'gas_fees_share_eth', 'gas_fees_share_usd', 'txcount_share']]
+
+                        # if we have any non-zero values, add list of averages for each timeframe
+                        if averages.any().any():
+                            chain_dict["overview"][timeframe_key][main_category_key]['data'] = averages.values.tolist()[0]
+                        
+
+                        ## add contracts 
+                        top_contracts_gas = self.db_connector.get_contracts_overview(main_category_key, timeframe, [origin_key], contract_limit=50)
+                        # convert address to checksummed string 
+                        top_contracts_gas = db_addresses_to_checksummed_addresses(top_contracts_gas, ['address'])
+
+                        chain_dict["overview"][timeframe_key][main_category_key]['contracts'] = {
+                            "data": top_contracts_gas[
+                                ['address', 'project_name', 'contract_name', "main_category_key", "sub_category_key", "origin_key", "gas_fees_eth", "gas_fees_usd", "txcount"]
+                            ].values.tolist(),
+                            "types": ["address", "project_name", "name", "main_category_key", "sub_category_key", "chain", "gas_fees_absolute_eth", "gas_fees_absolute_usd", "txcount_absolute"]
+                        }
+                    
+                ## add totals per chain
                 for timeframe in overview_timeframes:
                     timeframe_key = f'{timeframe}d' if timeframe != 'max' else 'max'
 
-                    # create dict for each timeframe
-                    if timeframe_key not in chain_dict["overview"]:
-                        chain_dict["overview"][timeframe_key] = {}
+                    if timeframe_key not in chain_dict["totals"]:
+                        chain_dict["totals"][timeframe_key] = {}
 
-                    if main_category_key not in chain_dict["overview"][timeframe_key]:
-                        chain_dict["overview"][timeframe_key][main_category_key] = {}
+                    chain_dict["totals"][timeframe_key]['data'] = chain_timeframe_totals_dfs[timeframe][['gas_fees_eth', 'gas_fees_usd', 'txcount']].values.tolist()[0]
 
-                    # get the averages for timeframe and main_category_key
-                    averages = chain_timeframe_overview_dfs[timeframe].loc[(chain_timeframe_overview_dfs[timeframe].main_category_key == main_category_key)][[
-                        'gas_fees_eth', 'gas_fees_usd', 'txcount', 'gas_fees_share_eth', 'gas_fees_share_usd', 'txcount_share']]
+                chain_dict = fix_dict_nan(chain_dict, f'chains/blockspace/{origin_key}')
 
-                    # if we have any non-zero values, add list of averages for each timeframe
-                    if averages.any().any():
-                        chain_dict["overview"][timeframe_key][main_category_key]['data'] = averages.values.tolist()[0]
-                    
-
-                    ## add contracts 
-                    top_contracts_gas = self.db_connector.get_contracts_overview(main_category_key, timeframe, [origin_key], contract_limit=50)
-                    # convert address to checksummed string 
-                    top_contracts_gas = db_addresses_to_checksummed_addresses(top_contracts_gas, ['address'])
-
-                    chain_dict["overview"][timeframe_key][main_category_key]['contracts'] = {
-                        "data": top_contracts_gas[
-                            ['address', 'project_name', 'contract_name', "main_category_key", "sub_category_key", "origin_key", "gas_fees_eth", "gas_fees_usd", "txcount"]
-                        ].values.tolist(),
-                        "types": ["address", "project_name", "name", "main_category_key", "sub_category_key", "chain", "gas_fees_absolute_eth", "gas_fees_absolute_usd", "txcount_absolute"]
-                    }
+                if self.s3_bucket == None:
+                    self.save_to_json(chain_dict, f'chains/blockspace/{origin_key}')
+                else:
+                    upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/chains/blockspace/{origin_key}', chain_dict, self.cf_distribution_id, invalidate=False)
                 
-            ## add totals per chain
-            for timeframe in overview_timeframes:
-                timeframe_key = f'{timeframe}d' if timeframe != 'max' else 'max'
-
-                if timeframe_key not in chain_dict["totals"]:
-                    chain_dict["totals"][timeframe_key] = {}
-
-                chain_dict["totals"][timeframe_key]['data'] = chain_timeframe_totals_dfs[timeframe][['gas_fees_eth', 'gas_fees_usd', 'txcount']].values.tolist()[0]
-
-            chain_dict = fix_dict_nan(chain_dict, f'chains/blockspace/{origin_key}')
-
-            if self.s3_bucket == None:
-                self.save_to_json(chain_dict, f'chains/blockspace/{origin_key}')
-            else:
-                upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/chains/blockspace/{origin_key}', chain_dict, self.cf_distribution_id, invalidate=False)
-            
-            print(f'-- DONE -- Single chain blockspace export for {origin_key}')
+                print(f'-- DONE -- Single chain blockspace export for {origin_key}')
+            except Exception as e:
+                print(f'-- ERROR -- Single chain blockspace export for {origin_key} failed: {e}')
+                send_discord_message(f'Error: Single Chain Blockspace JSON export failed for {origin_key} failed: {e}')
+                
         empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/chains/blockspace/*')
 
     def get_comparison_aggregate_data_day(self, days, category_type, origin_keys:list):
