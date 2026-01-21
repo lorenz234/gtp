@@ -222,14 +222,21 @@ def _swagger_ui_css() -> str:
       --gtp-shadow: rgba(31, 39, 38, 0.08);
     }
     html, body {
-      background: var(--gtp-bg);
-      color: var(--gtp-text);
-      font-family: "Space Grotesk", "Satoshi", "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+      background: var(--gtp-bg) !important;
+      color: var(--gtp-text) !important;
+      font-family: "Space Grotesk", "Satoshi", "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif !important;
+    }
+    body {
+      background-image: radial-gradient(circle at 75% 10%, rgba(0, 207, 197, 0.22), transparent 45%),
+                        radial-gradient(circle at 15% 5%, rgba(229, 179, 0, 0.18), transparent 35%);
+    }
+    .swagger-ui {
+      color: var(--gtp-text) !important;
     }
     .swagger-ui .topbar {
-      background: var(--gtp-bg);
-      border-bottom: 1px solid var(--gtp-border);
-      box-shadow: 0 2px 16px var(--gtp-shadow);
+      background: var(--gtp-bg) !important;
+      border-bottom: 1px solid var(--gtp-border) !important;
+      box-shadow: 0 2px 16px var(--gtp-shadow) !important;
     }
     .swagger-ui .topbar .link {
       align-items: center;
@@ -241,46 +248,49 @@ def _swagger_ui_css() -> str:
       letter-spacing: 0.02em;
     }
     .swagger-ui .info .title {
-      color: var(--gtp-text);
+      color: var(--gtp-text) !important;
     }
     .swagger-ui .info p, .swagger-ui .info li, .swagger-ui .info a {
-      color: var(--gtp-muted);
+      color: var(--gtp-muted) !important;
     }
     .swagger-ui .opblock {
-      background: #ffffff;
-      border: 1px solid var(--gtp-border);
-      border-radius: 12px;
-      box-shadow: 0 8px 24px var(--gtp-shadow);
+      background: #ffffff !important;
+      border: 1px solid var(--gtp-border) !important;
+      border-radius: 12px !important;
+      box-shadow: 0 8px 24px var(--gtp-shadow) !important;
+    }
+    .swagger-ui .opblock-summary {
+      background: linear-gradient(90deg, rgba(14, 111, 122, 0.12), transparent) !important;
     }
     .swagger-ui .opblock-summary-method {
-      border-radius: 8px;
-      background: var(--gtp-accent);
+      border-radius: 8px !important;
+      background: var(--gtp-accent) !important;
     }
     .swagger-ui .btn.execute {
-      background: var(--gtp-accent);
-      border-color: var(--gtp-accent);
+      background: var(--gtp-accent) !important;
+      border-color: var(--gtp-accent) !important;
     }
     .swagger-ui .btn.execute:hover {
-      background: var(--gtp-accent-2);
-      border-color: var(--gtp-accent-2);
-      color: #062c30;
+      background: var(--gtp-accent-2) !important;
+      border-color: var(--gtp-accent-2) !important;
+      color: #062c30 !important;
     }
     .swagger-ui .btn.authorize {
-      border-color: var(--gtp-accent);
-      color: var(--gtp-accent);
+      border-color: var(--gtp-accent) !important;
+      color: var(--gtp-accent) !important;
     }
     .swagger-ui .scheme-container {
-      background: var(--gtp-bg-2);
-      border: 1px solid var(--gtp-border);
-      border-radius: 12px;
-      box-shadow: 0 6px 16px var(--gtp-shadow);
+      background: var(--gtp-bg-2) !important;
+      border: 1px solid var(--gtp-border) !important;
+      border-radius: 12px !important;
+      box-shadow: 0 6px 16px var(--gtp-shadow) !important;
     }
     .swagger-ui .tab li {
-      color: var(--gtp-muted);
+      color: var(--gtp-muted) !important;
     }
     .swagger-ui .tab li.active {
-      color: var(--gtp-text);
-      border-bottom-color: var(--gtp-accent);
+      color: var(--gtp-text) !important;
+      border-bottom-color: var(--gtp-accent) !important;
     }
     """
     if DOCS_LOGO_URL:
@@ -302,18 +312,28 @@ def _redoc_css() -> str:
       --gtp-accent: #0e6f7a;
     }
     body {
-      background: var(--gtp-bg);
-      color: var(--gtp-text);
-      font-family: "Space Grotesk", "Satoshi", "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+      background: var(--gtp-bg) !important;
+      color: var(--gtp-text) !important;
+      font-family: "Space Grotesk", "Satoshi", "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif !important;
+    }
+    .redoc-wrap {
+      background: var(--gtp-bg) !important;
+    }
+    .menu-content {
+      background: #ffffff !important;
+      border-right: 1px solid rgba(31, 39, 38, 0.08) !important;
     }
     h1, h2, h3, h4, h5 {
-      color: var(--gtp-text);
+      color: var(--gtp-text) !important;
     }
     a {
-      color: var(--gtp-accent);
+      color: var(--gtp-accent) !important;
     }
     .api-content {
-      box-shadow: none;
+      box-shadow: none !important;
+    }
+    .api-info p, .api-info li, .api-info a {
+      color: var(--gtp-muted) !important;
     }
     """
     return css
