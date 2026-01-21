@@ -82,15 +82,17 @@ BLOCKSCOUT_CHAINS: Dict[str, Dict[str, Any]] = {
         "explorer_url": "https://arbitrum-nova.blockscout.com/",
     },
 }
-LABELS_URL = os.getenv(
-    "BUILDER_LABELS_URL",
-    "https://api.growthepie.com/v1/oli/project_labels.parquet",
-)
-LABELS_SOURCE = os.getenv("BUILDER_LABELS_SOURCE", "parquet").lower()
-LABELS_REFRESH_SECONDS = int(os.getenv("BUILDER_LABELS_REFRESH_SECONDS", "86400"))
+LABELS_URL = "https://api.growthepie.com/v1/oli/project_labels.parquet"
+LABELS_SOURCE = "parquet"
+LABELS_REFRESH_SECONDS = 86400 # 24 hours
+
+PROJECTS_METADATA_URL = "https://api.growthepie.com/v1/labels/projects_filtered.json"
+PROJECTS_METADATA_REFRESH_SECONDS = 86400 # 24 hours
 
 _LABELS_CACHE: Optional[pd.DataFrame] = None
 _LABELS_LOADED_AT = 0.0
+_PROJECTS_METADATA_CACHE: Optional[Dict[str, Any]] = None
+_PROJECTS_METADATA_LOADED_AT = 0.0
 
 def hash_presented_key(presented: str) -> Optional[tuple[str, str]]:
     if not presented.startswith(API_KEY_PREFIX_NS):
@@ -348,6 +350,22 @@ def load_contract_labels(force_reload: bool = False) -> pd.DataFrame:
     return contracts_df
 
 
+def load_projects_metadata(force_reload: bool = False) -> Dict[str, Any]:
+    global _PROJECTS_METADATA_CACHE, _PROJECTS_METADATA_LOADED_AT
+
+    if not force_reload and _PROJECTS_METADATA_CACHE is not None:
+        if (time.time() - _PROJECTS_METADATA_LOADED_AT) < PROJECTS_METADATA_REFRESH_SECONDS:
+            return _PROJECTS_METADATA_CACHE
+
+    resp = requests.get(PROJECTS_METADATA_URL, timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+
+    _PROJECTS_METADATA_CACHE = data
+    _PROJECTS_METADATA_LOADED_AT = time.time()
+    return data
+
+
 def _records_for_json(df: pd.DataFrame) -> List[Dict[str, Any]]:
     if df.empty:
         return []
@@ -355,7 +373,7 @@ def _records_for_json(df: pd.DataFrame) -> List[Dict[str, Any]]:
     return df.to_dict(orient="records")
 
 
-app = FastAPI(title="Builder API", dependencies=[Depends(get_api_key)])
+app = FastAPI(title="growthepie Builder API", dependencies=[Depends(get_api_key)])
 
 
 @app.get("/healthz")
@@ -364,7 +382,7 @@ def healthz() -> Dict[str, str]:
 
 
 @app.get("/chains")
-def builder_chains() -> Dict[str, Any]:
+def supported_chains() -> Dict[str, Any]:
     data = []
     for cfg in BLOCKSCOUT_CHAINS.values():
         cfg = cfg.copy()
@@ -378,56 +396,66 @@ def builder_chains() -> Dict[str, Any]:
     return {"count": len(data), "data": data}
 
 
-@app.get("/wallet/contract-interactions")
-def wallet_contract_interactions(
-    wallet: str = Query(..., description="Wallet address to analyze"),
-    chain: Optional[str] = Query(DEFAULT_CHAIN_KEY, description="Chain key or chain id. Default: ethereum"),
-    startblock: Optional[int] = Query(None, description="Start block"),
-    endblock: Optional[int] = Query(None, description="End block"),
-    max_txs: int = Query(10_000, description="Maximum transactions to fetch"),
-) -> Dict[str, Any]:
+@app.get("/projects/metadata")
+def projects_metadata() -> Dict[str, Any]:
     try:
-        contracts_df = load_contract_labels()
-        ## filter contracts df to chain only
-        chain_cfg = _resolve_chain(chain)
-        contracts_df = contracts_df[contracts_df["caip2"] == f"eip155:{chain_cfg['chain_id']}"].copy()    
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to load labels: {exc}") from exc
-    
-    try:
-        tx_list = fetch_blockscout_txlist(
-            wallet,
-            chain_cfg["base_api_url"],
-            keep_inbound_tx=False,
-            startblock=startblock,
-            endblock=endblock,
-            max_txs=max_txs,
-        )
+        return load_projects_metadata()
     except requests.RequestException as exc:
-        raise HTTPException(status_code=502, detail=f"Blockscout request failed: {exc}") from exc
+        raise HTTPException(status_code=502, detail=f"Failed to load project metadata: {exc}") from exc
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=502, detail=f"Invalid project metadata response: {exc}") from exc
 
-    tx_agg = aggregate_interactions(tx_list)
-    if tx_agg.empty:
-        return {"wallet": _lower_addr(wallet), "count": 0, "data": []}
 
-    tx_agg_labeled = (
-        tx_agg.merge(
-            contracts_df,
-            how="left",
-            left_on="to_address",
-            right_on="address",
-        )
-        .drop(columns=["address"])
-        .sort_values(["tx_count", "total_gas_used"], ascending=[False, False])
-        .reset_index(drop=True)
-    )
+# @app.get("/wallet/contract-interactions")
+# def wallet_contract_interactions(
+#     wallet: str = Query(..., description="Wallet address to analyze"),
+#     chain: Optional[str] = Query(DEFAULT_CHAIN_KEY, description="Chain key or chain id. Default: ethereum"),
+#     startblock: Optional[int] = Query(None, description="Start block"),
+#     endblock: Optional[int] = Query(None, description="End block"),
+#     max_txs: int = Query(10_000, description="Maximum transactions to fetch"),
+# ) -> Dict[str, Any]:
+#     try:
+#         contracts_df = load_contract_labels()
+#         ## filter contracts df to chain only
+#         chain_cfg = _resolve_chain(chain)
+#         contracts_df = contracts_df[contracts_df["caip2"] == f"eip155:{chain_cfg['chain_id']}"].copy()    
+#     except Exception as exc:
+#         raise HTTPException(status_code=502, detail=f"Failed to load labels: {exc}") from exc
     
-    tx_agg_labeled = tx_agg_labeled[['to_address', 'tx_count', 'total_gas_used', 'contract_name', 'owner_project', 'usage_category']]
+#     try:
+#         tx_list = fetch_blockscout_txlist(
+#             wallet,
+#             chain_cfg["base_api_url"],
+#             keep_inbound_tx=False,
+#             startblock=startblock,
+#             endblock=endblock,
+#             max_txs=max_txs,
+#         )
+#     except requests.RequestException as exc:
+#         raise HTTPException(status_code=502, detail=f"Blockscout request failed: {exc}") from exc
+#     except ValueError as exc:
+#         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    data_records = _records_for_json(tx_agg_labeled)
-    return {"wallet": _lower_addr(wallet), "count": len(data_records), "data": data_records}
+#     tx_agg = aggregate_interactions(tx_list)
+#     if tx_agg.empty:
+#         return {"wallet": _lower_addr(wallet), "count": 0, "data": []}
+
+#     tx_agg_labeled = (
+#         tx_agg.merge(
+#             contracts_df,
+#             how="left",
+#             left_on="to_address",
+#             right_on="address",
+#         )
+#         .drop(columns=["address"])
+#         .sort_values(["tx_count", "total_gas_used"], ascending=[False, False])
+#         .reset_index(drop=True)
+#     )
+    
+#     tx_agg_labeled = tx_agg_labeled[['to_address', 'tx_count', 'total_gas_used', 'contract_name', 'owner_project', 'usage_category']]
+
+#     data_records = _records_for_json(tx_agg_labeled)
+#     return {"wallet": _lower_addr(wallet), "count": len(data_records), "data": data_records}
 
 @app.get("/wallet/project-interactions")
 def wallet_project_interactions(
