@@ -11,8 +11,9 @@ import pandas as pd
 import requests
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, Security, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.security.api_key import APIKeyHeader
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 
@@ -22,6 +23,9 @@ API_KEY_HEADER = "x-api-key"
 API_KEY_PREFIX_NS = "builder_"
 API_KEY_PEPPER = os.getenv("BUILDER_KEY_PEPPER")
 API_KEY_JSON = os.getenv("BUILDER_API_KEYS_JSON", "")
+API_VERSION = os.getenv("BUILDER_API_VERSION", "0.0.0")
+BUILD_SHA = os.getenv("BUILDER_BUILD_SHA", "unknown")
+DOCS_LOGO_URL = os.getenv("BUILDER_DOCS_LOGO_URL", "")
 
 BLOCKSCOUT_CHAINS: Dict[str, Dict[str, Any]] = {
     "ethereum": {
@@ -204,6 +208,115 @@ class ProjectsMetadataResponse(BaseModel):
         }
     }
 
+
+def _swagger_ui_css() -> str:
+    css = """
+    :root {
+      --gtp-bg: #f0f4f4;
+      --gtp-bg-2: #e8eded;
+      --gtp-text: #1f2726;
+      --gtp-muted: #798b89;
+      --gtp-accent: #0e6f7a;
+      --gtp-accent-2: #00cfc5;
+      --gtp-border: #d7dada;
+      --gtp-shadow: rgba(31, 39, 38, 0.08);
+    }
+    html, body {
+      background: var(--gtp-bg);
+      color: var(--gtp-text);
+      font-family: "Space Grotesk", "Satoshi", "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    }
+    .swagger-ui .topbar {
+      background: var(--gtp-bg);
+      border-bottom: 1px solid var(--gtp-border);
+      box-shadow: 0 2px 16px var(--gtp-shadow);
+    }
+    .swagger-ui .topbar .link {
+      align-items: center;
+      gap: 10px;
+    }
+    .swagger-ui .topbar .link span {
+      color: var(--gtp-text);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .swagger-ui .info .title {
+      color: var(--gtp-text);
+    }
+    .swagger-ui .info p, .swagger-ui .info li, .swagger-ui .info a {
+      color: var(--gtp-muted);
+    }
+    .swagger-ui .opblock {
+      background: #ffffff;
+      border: 1px solid var(--gtp-border);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px var(--gtp-shadow);
+    }
+    .swagger-ui .opblock-summary-method {
+      border-radius: 8px;
+      background: var(--gtp-accent);
+    }
+    .swagger-ui .btn.execute {
+      background: var(--gtp-accent);
+      border-color: var(--gtp-accent);
+    }
+    .swagger-ui .btn.execute:hover {
+      background: var(--gtp-accent-2);
+      border-color: var(--gtp-accent-2);
+      color: #062c30;
+    }
+    .swagger-ui .btn.authorize {
+      border-color: var(--gtp-accent);
+      color: var(--gtp-accent);
+    }
+    .swagger-ui .scheme-container {
+      background: var(--gtp-bg-2);
+      border: 1px solid var(--gtp-border);
+      border-radius: 12px;
+      box-shadow: 0 6px 16px var(--gtp-shadow);
+    }
+    .swagger-ui .tab li {
+      color: var(--gtp-muted);
+    }
+    .swagger-ui .tab li.active {
+      color: var(--gtp-text);
+      border-bottom-color: var(--gtp-accent);
+    }
+    """
+    if DOCS_LOGO_URL:
+        css += f"""
+        .swagger-ui .topbar .link img {{
+          content: url("{DOCS_LOGO_URL}");
+          height: 28px;
+        }}
+        """
+    return css
+
+
+def _redoc_css() -> str:
+    css = """
+    :root {
+      --gtp-bg: #f0f4f4;
+      --gtp-text: #1f2726;
+      --gtp-muted: #798b89;
+      --gtp-accent: #0e6f7a;
+    }
+    body {
+      background: var(--gtp-bg);
+      color: var(--gtp-text);
+      font-family: "Space Grotesk", "Satoshi", "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    }
+    h1, h2, h3, h4, h5 {
+      color: var(--gtp-text);
+    }
+    a {
+      color: var(--gtp-accent);
+    }
+    .api-content {
+      box-shadow: none;
+    }
+    """
+    return css
 def hash_presented_key(presented: str) -> Optional[tuple[str, str]]:
     if not presented.startswith(API_KEY_PREFIX_NS):
         return None
@@ -483,7 +596,49 @@ def _records_for_json(df: pd.DataFrame) -> List[Dict[str, Any]]:
     return df.to_dict(orient="records")
 
 
-app = FastAPI(title="growthepie Builder API", dependencies=[Depends(get_api_key)])
+app = FastAPI(
+    title="growthepie Builder API",
+    dependencies=[Depends(get_api_key)],
+    docs_url=None,
+    redoc_url=None,
+)
+
+
+docs_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+redoc_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+
+@docs_app.get("/", include_in_schema=False)
+def swagger_ui() -> Response:
+    html = get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title="growthepie Builder API Docs",
+        swagger_favicon_url=DOCS_LOGO_URL or None,
+        swagger_ui_parameters={
+            "defaultModelsExpandDepth": -1,
+            "docExpansion": "list",
+            "displayRequestDuration": True,
+        },
+    )
+    body = html.body.decode("utf-8")
+    body = body.replace("</head>", f"<style>{_swagger_ui_css()}</style></head>")
+    return HTMLResponse(body, status_code=html.status_code, headers=dict(html.headers))
+
+
+@redoc_app.get("/", include_in_schema=False)
+def redoc_ui() -> Response:
+    html = get_redoc_html(
+        openapi_url=app.openapi_url,
+        title="growthepie Builder API Docs",
+        redoc_favicon_url=DOCS_LOGO_URL or None,
+    )
+    body = html.body.decode("utf-8")
+    body = body.replace("</head>", f"<style>{_redoc_css()}</style></head>")
+    return HTMLResponse(body, status_code=html.status_code, headers=dict(html.headers))
+
+
+app.mount("/docs", docs_app)
+app.mount("/redoc", redoc_app)
 
 
 @app.exception_handler(HTTPException)
@@ -511,6 +666,17 @@ async def validation_exception_handler(_: Request, exc: RequestValidationError) 
 )
 def healthz() -> Dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get(
+    "/meta",
+    response_model=MetaResponse,
+    tags=["Meta"],
+    summary="Build metadata",
+    description="Returns version and build SHA for this API instance.",
+)
+def api_meta() -> Dict[str, str]:
+    return {"version": API_VERSION, "build_sha": BUILD_SHA}
 
 
 @app.get(
