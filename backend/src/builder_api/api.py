@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, S
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.security.api_key import APIKeyHeader
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 
@@ -209,134 +209,6 @@ class ProjectsMetadataResponse(BaseModel):
     }
 
 
-def _swagger_ui_css() -> str:
-    css = """
-    :root {
-      --gtp-bg: #f0f4f4;
-      --gtp-bg-2: #e8eded;
-      --gtp-text: #1f2726;
-      --gtp-muted: #798b89;
-      --gtp-accent: #0e6f7a;
-      --gtp-accent-2: #00cfc5;
-      --gtp-border: #d7dada;
-      --gtp-shadow: rgba(31, 39, 38, 0.08);
-    }
-    html, body {
-      background: var(--gtp-bg) !important;
-      color: var(--gtp-text) !important;
-      font-family: "Space Grotesk", "Satoshi", "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif !important;
-    }
-    body {
-      background-image: radial-gradient(circle at 75% 10%, rgba(0, 207, 197, 0.22), transparent 45%),
-                        radial-gradient(circle at 15% 5%, rgba(229, 179, 0, 0.18), transparent 35%);
-    }
-    .swagger-ui {
-      color: var(--gtp-text) !important;
-    }
-    .swagger-ui .topbar {
-      background: var(--gtp-bg) !important;
-      border-bottom: 1px solid var(--gtp-border) !important;
-      box-shadow: 0 2px 16px var(--gtp-shadow) !important;
-    }
-    .swagger-ui .topbar .link {
-      align-items: center;
-      gap: 10px;
-    }
-    .swagger-ui .topbar .link span {
-      color: var(--gtp-text);
-      font-weight: 700;
-      letter-spacing: 0.02em;
-    }
-    .swagger-ui .info .title {
-      color: var(--gtp-text) !important;
-    }
-    .swagger-ui .info p, .swagger-ui .info li, .swagger-ui .info a {
-      color: var(--gtp-muted) !important;
-    }
-    .swagger-ui .opblock {
-      background: #ffffff !important;
-      border: 1px solid var(--gtp-border) !important;
-      border-radius: 12px !important;
-      box-shadow: 0 8px 24px var(--gtp-shadow) !important;
-    }
-    .swagger-ui .opblock-summary {
-      background: linear-gradient(90deg, rgba(14, 111, 122, 0.12), transparent) !important;
-    }
-    .swagger-ui .opblock-summary-method {
-      border-radius: 8px !important;
-      background: var(--gtp-accent) !important;
-    }
-    .swagger-ui .btn.execute {
-      background: var(--gtp-accent) !important;
-      border-color: var(--gtp-accent) !important;
-    }
-    .swagger-ui .btn.execute:hover {
-      background: var(--gtp-accent-2) !important;
-      border-color: var(--gtp-accent-2) !important;
-      color: #062c30 !important;
-    }
-    .swagger-ui .btn.authorize {
-      border-color: var(--gtp-accent) !important;
-      color: var(--gtp-accent) !important;
-    }
-    .swagger-ui .scheme-container {
-      background: var(--gtp-bg-2) !important;
-      border: 1px solid var(--gtp-border) !important;
-      border-radius: 12px !important;
-      box-shadow: 0 6px 16px var(--gtp-shadow) !important;
-    }
-    .swagger-ui .tab li {
-      color: var(--gtp-muted) !important;
-    }
-    .swagger-ui .tab li.active {
-      color: var(--gtp-text) !important;
-      border-bottom-color: var(--gtp-accent) !important;
-    }
-    """
-    if DOCS_LOGO_URL:
-        css += f"""
-        .swagger-ui .topbar .link img {{
-          content: url("{DOCS_LOGO_URL}");
-          height: 28px;
-        }}
-        """
-    return css
-
-
-def _redoc_css() -> str:
-    css = """
-    :root {
-      --gtp-bg: #f0f4f4;
-      --gtp-text: #1f2726;
-      --gtp-muted: #798b89;
-      --gtp-accent: #0e6f7a;
-    }
-    body {
-      background: var(--gtp-bg) !important;
-      color: var(--gtp-text) !important;
-      font-family: "Space Grotesk", "Satoshi", "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif !important;
-    }
-    .redoc-wrap {
-      background: var(--gtp-bg) !important;
-    }
-    .menu-content {
-      background: #ffffff !important;
-      border-right: 1px solid rgba(31, 39, 38, 0.08) !important;
-    }
-    h1, h2, h3, h4, h5 {
-      color: var(--gtp-text) !important;
-    }
-    a {
-      color: var(--gtp-accent) !important;
-    }
-    .api-content {
-      box-shadow: none !important;
-    }
-    .api-info p, .api-info li, .api-info a {
-      color: var(--gtp-muted) !important;
-    }
-    """
-    return css
 def hash_presented_key(presented: str) -> Optional[tuple[str, str]]:
     if not presented.startswith(API_KEY_PREFIX_NS):
         return None
@@ -635,7 +507,7 @@ def public_openapi() -> JSONResponse:
 
 @docs_app.get("/", include_in_schema=False)
 def swagger_ui() -> Response:
-    html = get_swagger_ui_html(
+    return get_swagger_ui_html(
         openapi_url="/docs/openapi.json",
         title="growthepie Builder API Docs",
         swagger_favicon_url=DOCS_LOGO_URL or None,
@@ -645,21 +517,15 @@ def swagger_ui() -> Response:
             "displayRequestDuration": True,
         },
     )
-    body = html.body.decode("utf-8")
-    body = body.replace("</head>", f"<style>{_swagger_ui_css()}</style></head>")
-    return HTMLResponse(body, status_code=html.status_code)
 
 
 @redoc_app.get("/", include_in_schema=False)
 def redoc_ui() -> Response:
-    html = get_redoc_html(
+    return get_redoc_html(
         openapi_url="/docs/openapi.json",
         title="growthepie Builder API Docs",
         redoc_favicon_url=DOCS_LOGO_URL or None,
     )
-    body = html.body.decode("utf-8")
-    body = body.replace("</head>", f"<style>{_redoc_css()}</style></head>")
-    return HTMLResponse(body, status_code=html.status_code)
 
 
 app.mount("/docs", docs_app)
