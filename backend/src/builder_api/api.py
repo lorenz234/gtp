@@ -23,9 +23,6 @@ API_KEY_HEADER = "x-api-key"
 API_KEY_PREFIX_NS = "builder_"
 API_KEY_PEPPER = os.getenv("BUILDER_KEY_PEPPER")
 API_KEY_JSON = os.getenv("BUILDER_API_KEYS_JSON", "")
-API_VERSION = os.getenv("BUILDER_API_VERSION", "0.0.0")
-BUILD_SHA = os.getenv("BUILDER_BUILD_SHA", "unknown")
-DOCS_LOGO_URL = os.getenv("BUILDER_DOCS_LOGO_URL", "")
 
 BLOCKSCOUT_CHAINS: Dict[str, Dict[str, Any]] = {
     "ethereum": {
@@ -510,7 +507,6 @@ def swagger_ui() -> Response:
     return get_swagger_ui_html(
         openapi_url="/docs/openapi.json",
         title="growthepie Builder API Docs",
-        swagger_favicon_url=DOCS_LOGO_URL or None,
         swagger_ui_parameters={
             "defaultModelsExpandDepth": -1,
             "docExpansion": "list",
@@ -524,7 +520,6 @@ def redoc_ui() -> Response:
     return get_redoc_html(
         openapi_url="/docs/openapi.json",
         title="growthepie Builder API Docs",
-        redoc_favicon_url=DOCS_LOGO_URL or None,
     )
 
 
@@ -557,18 +552,6 @@ async def validation_exception_handler(_: Request, exc: RequestValidationError) 
 )
 def healthz() -> Dict[str, str]:
     return {"status": "ok"}
-
-
-@app.get(
-    "/meta",
-    response_model=MetaResponse,
-    tags=["Meta"],
-    summary="Build metadata",
-    description="Returns version and build SHA for this API instance.",
-)
-def api_meta() -> Dict[str, str]:
-    return {"version": API_VERSION, "build_sha": BUILD_SHA}
-
 
 @app.get(
     "/chains",
