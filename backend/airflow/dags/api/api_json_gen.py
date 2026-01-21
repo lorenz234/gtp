@@ -20,7 +20,7 @@ api_version = "v1"
 )
 
 def run():
-    @task()
+    @task(execution_timeout=timedelta(minutes=30))
     def run_create_metrics_per_chain_jsons():
         import os
         from src.api.json_gen import JsonGen
@@ -32,7 +32,7 @@ def run():
         json_gen.create_metric_jsons(level='chains')
         json_gen.create_metric_jsons(level='data_availability')
         
-    @task()
+    @task(execution_timeout=timedelta(minutes=30))
     def run_create_chain_overview_jsons():    
         import os
         from src.api.json_gen import JsonGen
@@ -43,7 +43,7 @@ def run():
         json_gen = JsonGen(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
         json_gen.create_chains_jsons()
     
-    @task()
+    @task(execution_timeout=timedelta(minutes=30))
     def run_create_chain_user_insights_jsons():    
         import os
         from src.api.json_gen import JsonGen
