@@ -92,6 +92,17 @@ LABELS_REFRESH_SECONDS = int(os.getenv("BUILDER_LABELS_REFRESH_SECONDS", "86400"
 _LABELS_CACHE: Optional[pd.DataFrame] = None
 _LABELS_LOADED_AT = 0.0
 
+def hash_presented_key(presented: str) -> Optional[tuple[str, str]]:
+    if not presented.startswith(API_KEY_PREFIX_NS):
+        return None
+    try:
+        rest = presented[len(API_KEY_PREFIX_NS):]
+        prefix, secret = rest.split(".", 1)
+    except ValueError:
+        return None
+    key_hash = hashlib.sha256((f"{prefix}.{secret}{API_KEY_PEPPER}").encode()).hexdigest()
+    return prefix, key_hash
+
 def _parse_api_key_json(raw: str) -> Dict[str, str]:
     if not raw:
         return {}
@@ -138,18 +149,6 @@ if not _API_KEY_HASHES:
     )
 
 api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
-
-
-def hash_presented_key(presented: str) -> Optional[tuple[str, str]]:
-    if not presented.startswith(API_KEY_PREFIX_NS):
-        return None
-    try:
-        rest = presented[len(API_KEY_PREFIX_NS):]
-        prefix, secret = rest.split(".", 1)
-    except ValueError:
-        return None
-    key_hash = hashlib.sha256((f"{prefix}.{secret}{API_KEY_PEPPER}").encode()).hexdigest()
-    return prefix, key_hash
 
 
 def get_api_key(
