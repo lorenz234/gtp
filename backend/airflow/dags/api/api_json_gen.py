@@ -68,7 +68,7 @@ def run():
     
     run_create_metrics_per_chain_jsons()
     run_create_chain_overview_jsons()
-    run_create_chain_user_insights_jsons()
+    #run_create_chain_user_insights_jsons()
     #run_create_ecosystem_jsons()
     
 run()
