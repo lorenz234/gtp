@@ -1,16 +1,24 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import os
 import time
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import requests
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Security, status
+from fastapi.security.api_key import APIKeyHeader
 
 
 DEFAULT_BASE_API_URL = os.getenv("BUILDER_BLOCKSCOUT_API_URL", "https://eth.blockscout.com/api")
 DEFAULT_CHAIN_KEY = "ethereum"
+API_KEY_HEADER = "x-api-key"
+API_KEY_PREFIX_NS = "builder_"
+API_KEY_PEPPER = os.getenv("BUILDER_KEY_PEPPER")
+API_KEY_JSON = os.getenv("BUILDER_API_KEYS_JSON", "")
 
 BLOCKSCOUT_CHAINS: Dict[str, Dict[str, Any]] = {
     "ethereum": {
@@ -83,6 +91,94 @@ LABELS_REFRESH_SECONDS = int(os.getenv("BUILDER_LABELS_REFRESH_SECONDS", "86400"
 
 _LABELS_CACHE: Optional[pd.DataFrame] = None
 _LABELS_LOADED_AT = 0.0
+
+def _parse_api_key_json(raw: str) -> Dict[str, str]:
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"BUILDER_API_KEYS_JSON is not valid JSON: {exc}") from exc
+    if not isinstance(data, dict):
+        raise RuntimeError("BUILDER_API_KEYS_JSON must be a JSON object of name: key entries")
+    keys: Dict[str, str] = {}
+    for name, value in data.items():
+        if not isinstance(value, str):
+            raise RuntimeError(f"BUILDER_API_KEYS_JSON value for '{name}' must be a string")
+        value = value.strip()
+        if not value:
+            continue
+        if ":" in value and not value.startswith(API_KEY_PREFIX_NS):
+            prefix, key_hash = value.split(":", 1)
+            prefix = prefix.strip()
+            key_hash = key_hash.strip()
+            if prefix.startswith(API_KEY_PREFIX_NS):
+                prefix = prefix[len(API_KEY_PREFIX_NS):]
+            if not prefix or not key_hash:
+                raise RuntimeError(f"BUILDER_API_KEYS_JSON value for '{name}' must be full api key or prefix:hash")
+            keys[prefix] = key_hash
+            continue
+        parsed = hash_presented_key(value)
+        if not parsed:
+            raise RuntimeError(
+                f"BUILDER_API_KEYS_JSON value for '{name}' must be full api key or prefix:hash",
+            )
+        prefix, key_hash = parsed
+        keys[prefix] = key_hash
+    return keys
+
+
+if not API_KEY_PEPPER:
+    raise RuntimeError("BUILDER_KEY_PEPPER env var must be set")
+
+_API_KEY_HASHES = _parse_api_key_json(API_KEY_JSON)
+if not _API_KEY_HASHES:
+    raise RuntimeError(
+        "Set BUILDER_API_KEYS (prefix:hash list) or BUILDER_API_KEYS_JSON (name: key map)",
+    )
+
+api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
+
+
+def hash_presented_key(presented: str) -> Optional[tuple[str, str]]:
+    if not presented.startswith(API_KEY_PREFIX_NS):
+        return None
+    try:
+        rest = presented[len(API_KEY_PREFIX_NS):]
+        prefix, secret = rest.split(".", 1)
+    except ValueError:
+        return None
+    key_hash = hashlib.sha256((f"{prefix}.{secret}{API_KEY_PEPPER}").encode()).hexdigest()
+    return prefix, key_hash
+
+
+def get_api_key(
+    request: Request,
+    api_key: Optional[str] = Security(api_key_header),
+) -> str:
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing API key - Please provide x-api-key header",
+        )
+
+    parsed = hash_presented_key(api_key)
+    if not parsed:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bad API key format - Please provide a valid x-api-key header",
+        )
+
+    prefix, presented_hash = parsed
+    stored_hash = _API_KEY_HASHES.get(prefix)
+    if not stored_hash or not hmac.compare_digest(stored_hash, presented_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or revoked API key",
+        )
+
+    request.state.api_key_prefix = prefix
+    return prefix
 
 
 def _lower_addr(a: Optional[str]) -> Optional[str]:
@@ -260,7 +356,7 @@ def _records_for_json(df: pd.DataFrame) -> List[Dict[str, Any]]:
     return df.to_dict(orient="records")
 
 
-app = FastAPI(title="Builder API")
+app = FastAPI(title="Builder API", dependencies=[Depends(get_api_key)])
 
 
 @app.get("/healthz")
