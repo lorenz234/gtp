@@ -608,10 +608,15 @@ docs_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 redoc_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
 
+@docs_app.get("/openapi.json", include_in_schema=False)
+def public_openapi() -> JSONResponse:
+    return JSONResponse(app.openapi())
+
+
 @docs_app.get("/", include_in_schema=False)
 def swagger_ui() -> Response:
     html = get_swagger_ui_html(
-        openapi_url=app.openapi_url,
+        openapi_url="/docs/openapi.json",
         title="growthepie Builder API Docs",
         swagger_favicon_url=DOCS_LOGO_URL or None,
         swagger_ui_parameters={
@@ -622,19 +627,19 @@ def swagger_ui() -> Response:
     )
     body = html.body.decode("utf-8")
     body = body.replace("</head>", f"<style>{_swagger_ui_css()}</style></head>")
-    return HTMLResponse(body, status_code=html.status_code, headers=dict(html.headers))
+    return HTMLResponse(body, status_code=html.status_code)
 
 
 @redoc_app.get("/", include_in_schema=False)
 def redoc_ui() -> Response:
     html = get_redoc_html(
-        openapi_url=app.openapi_url,
+        openapi_url="/docs/openapi.json",
         title="growthepie Builder API Docs",
         redoc_favicon_url=DOCS_LOGO_URL or None,
     )
     body = html.body.decode("utf-8")
     body = body.replace("</head>", f"<style>{_redoc_css()}</style></head>")
-    return HTMLResponse(body, status_code=html.status_code, headers=dict(html.headers))
+    return HTMLResponse(body, status_code=html.status_code)
 
 
 app.mount("/docs", docs_app)
