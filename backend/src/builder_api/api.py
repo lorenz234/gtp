@@ -9,8 +9,11 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import requests
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Security, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, Security, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.security.api_key import APIKeyHeader
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 
 DEFAULT_BASE_API_URL = os.getenv("BUILDER_BLOCKSCOUT_API_URL", "https://eth.blockscout.com/api")
@@ -93,6 +96,113 @@ _LABELS_CACHE: Optional[pd.DataFrame] = None
 _LABELS_LOADED_AT = 0.0
 _PROJECTS_METADATA_CACHE: Optional[Dict[str, Any]] = None
 _PROJECTS_METADATA_LOADED_AT = 0.0
+
+class ErrorResponse(BaseModel):
+    detail: str
+    code: str = "http_error"
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {"detail": "Missing API key - Please provide x-api-key header", "code": "http_error"},
+        }
+    }
+
+
+class HealthResponse(BaseModel):
+    status: str
+
+    model_config = {"json_schema_extra": {"example": {"status": "ok"}}}
+
+
+class MetaResponse(BaseModel):
+    version: str
+    build_sha: str
+
+    model_config = {"json_schema_extra": {"example": {"version": "0.0.0", "build_sha": "unknown"}}}
+
+
+class ChainConfig(BaseModel):
+    key: str
+    chain_id: int
+    name: str
+
+
+class ChainsResponse(BaseModel):
+    count: int
+    data: List[ChainConfig]
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "count": 2,
+                "data": [
+                    {"key": "ethereum", "chain_id": 1, "name": "Ethereum"},
+                    {"key": "arbitrum", "chain_id": 42161, "name": "Arbitrum One"},
+                ],
+            }
+        }
+    }
+
+
+class ProjectInteractionsRow(BaseModel):
+    owner_project: Optional[str]
+    tx_count: int
+    total_gas_used: int
+
+
+class ProjectInteractionsResponse(BaseModel):
+    wallet: str
+    count: int
+    data: List[ProjectInteractionsRow]
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "wallet": "0x1234567890abcdef1234567890abcdef12345678",
+                "count": 1,
+                "data": [{"owner_project": "hedgey-finance", "tx_count": 3, "total_gas_used": 210000}],
+            }
+        }
+    }
+
+
+class ProjectsMetadataResponse(BaseModel):
+    data: Dict[str, Any] = Field(..., description="Raw metadata payload from growthepie")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "data": {
+                    "types": [
+                        "owner_project",
+                        "display_name",
+                        "description",
+                        "main_github",
+                        "twitter",
+                        "website",
+                        "logo_path",
+                        "sub_category",
+                        "main_category",
+                        "sub_categories",
+                    ],
+                    "data": [
+                        [
+                            "hedgey-finance",
+                            "Hedgey Finance",
+                            "Hedgey is an onchain platform for token vesting.",
+                            "hedgey-finance",
+                            "hedgeyfinance",
+                            "https://hedgey.finance",
+                            "hedgey-finance.png",
+                            "Yield Vaults",
+                            "Finance",
+                            ["airdrop", "payments", "yield_vaults"],
+                        ]
+                    ],
+                }
+            }
+        }
+    }
 
 def hash_presented_key(presented: str) -> Optional[tuple[str, str]]:
     if not presented.startswith(API_KEY_PREFIX_NS):
@@ -376,12 +486,40 @@ def _records_for_json(df: pd.DataFrame) -> List[Dict[str, Any]]:
 app = FastAPI(title="growthepie Builder API", dependencies=[Depends(get_api_key)])
 
 
-@app.get("/healthz")
+@app.exception_handler(HTTPException)
+async def http_exception_handler(_: Request, exc: HTTPException) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorResponse(detail=str(exc.detail), code="http_error").model_dump(),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content=ErrorResponse(detail=str(exc), code="validation_error").model_dump(),
+    )
+
+
+@app.get(
+    "/healthz",
+    response_model=HealthResponse,
+    tags=["Meta"],
+    summary="Health check",
+    description="Simple liveness endpoint for monitoring.",
+)
 def healthz() -> Dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/chains")
+@app.get(
+    "/chains",
+    response_model=ChainsResponse,
+    tags=["Config"],
+    summary="Supported chains",
+    description="Returns the chain list supported by the growthepie Builder API.",
+)
 def supported_chains() -> Dict[str, Any]:
     data = []
     for cfg in BLOCKSCOUT_CHAINS.values():
@@ -396,10 +534,18 @@ def supported_chains() -> Dict[str, Any]:
     return {"count": len(data), "data": data}
 
 
-@app.get("/projects/metadata")
-def projects_metadata() -> Dict[str, Any]:
+@app.get(
+    "/projects/metadata",
+    response_model=ProjectsMetadataResponse,
+    tags=["Projects"],
+    summary="Project metadata",
+    description="Returns growthepie project metadata.",
+)
+def projects_metadata(response: Response) -> Dict[str, Any]:
     try:
-        return load_projects_metadata()
+        payload = load_projects_metadata()
+        response.headers["Cache-Control"] = f"public, max-age={PROJECTS_METADATA_REFRESH_SECONDS}"
+        return {"data": payload.get("data", payload)}
     except requests.RequestException as exc:
         raise HTTPException(status_code=502, detail=f"Failed to load project metadata: {exc}") from exc
     except ValueError as exc:
@@ -457,7 +603,13 @@ def projects_metadata() -> Dict[str, Any]:
 #     data_records = _records_for_json(tx_agg_labeled)
 #     return {"wallet": _lower_addr(wallet), "count": len(data_records), "data": data_records}
 
-@app.get("/wallet/project-interactions")
+@app.get(
+    "/wallet/project-interactions",
+    response_model=ProjectInteractionsResponse,
+    tags=["Wallet"],
+    summary="Wallet project interactions",
+    description="Aggregates transactions per project for a given wallet.",
+)
 def wallet_project_interactions(
     wallet: str = Query(..., description="Wallet address to analyze"),
     chain: Optional[str] = Query(DEFAULT_CHAIN_KEY, description="Chain key or chain id. Default: ethereum"),
