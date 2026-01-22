@@ -108,7 +108,7 @@ rpc_config = {
         "name": "Lisk",
         "processors": "evm",
         "stack": "op_stack",
-        "sleeper": 3,
+        "sleeper": 5,
         "calc_fees": True,
     },
     "katana": {
