@@ -234,7 +234,7 @@ rpc_config = {
         "name": "Polygon PoS",
         "processors": "evm",
         "stack": "basic",
-        "sleeper": 2,
+        "sleeper": 4,
         "calc_fees": False,
     },
     
@@ -271,7 +271,7 @@ rpc_config = {
         "name": "Lighter",
         "processors": "lighter",
         "calc_fees": False,
-        "sleeper": 3,
+        "sleeper": 5,
         "block_history_len": 20, 
     },
     
