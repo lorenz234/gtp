@@ -759,7 +759,20 @@ class AdapterStablecoinSupply(AbstractAdapter):
             if 'direct' not in self.stables_mapping[chain]:
                 print(f"No direct tokens defined for {chain}")
                 continue
-            
+
+            # custom implementation for Starknet
+            if chain == 'starknet':
+                print(f"Processing direct stablecoins for Starknet using Dune")
+                for stablecoin_id, token_config in self.stables_mapping[chain]['direct'].items():
+                    decimals = self.stables_metadata[stablecoin_id]['decimals']
+                    df_stark = self.get_starknet_direct_supply_dune(token_config['token_address'], self.days, decimals)
+                    df_stark['token_key'] = stablecoin_id
+                    df_stark['origin_key'] = 'starknet'
+                    df_stark['metric_key'] = 'supply_direct'
+                    df_stark = df_stark.set_index(['token_key', 'origin_key', 'metric_key', 'date'])
+                    self.load(df_stark)
+                continue
+                
             if chain not in self.connections:
                 print(f"Error: Chain {chain} not connected, skipping")
                 send_discord_message(f"Stables adapter: {chain} RPC couldn't connect for direct stablecoin supply tracking, skipping for now")
@@ -1099,4 +1112,31 @@ class AdapterStablecoinSupply(AbstractAdapter):
         
         # Set index and return
         df.set_index(['metric_key', 'origin_key', 'date'], inplace=True)
+        return df
+    
+    def get_starknet_direct_supply_dune(self, token_address, days, decimals):
+        """
+        Get direct supply of stablecoin on Starknet via Dune query
+        """
+        from src.adapters.adapter_dune import AdapterDune
+        import os
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        print("Initializing AdapterDune...")
+        ad = AdapterDune(adapter_params, self.db_connector)
+        load_params = {
+                'queries': [
+                    {
+                        'name': 'starknet_stablecoin_totalSupply',
+                        'query_id': 6578181,
+                        'params': {
+                            'days': days,
+                            'address': token_address,
+                            'decimals': decimals
+                        }
+                    }
+                ]
+            }
+        df = ad.extract(load_params)
         return df

@@ -1591,6 +1591,12 @@ stables_mapping = {
                 "0xF6080D9fbEEbcd44D89aFfBFd42F098cbFf92816",  # USDC.e
                 "0xbb3400F107804DFB482565FF1Ec8D8aE66747605"   # USDT
             ]
+        },
+        "direct": {
+            "usdc": {
+                "token_address": "0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb",
+                "method_name": "totalSupply"
+            }
         }
     },
     "optimism": {
