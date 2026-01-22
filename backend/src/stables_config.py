@@ -499,7 +499,32 @@ stables_metadata = {
             "soneium": "0x3f99231dD03a9F0E7e3421c92B7b90fbe012985a"
         }
     },
-
+    "usdm": {
+        "name": "MegaUSD",
+        "symbol": "USDM",
+        "decimals": 18,
+        "coingecko_id": None,
+        "fiat": "usd",
+        "logo": "https://raw.githubusercontent.com/megaeth-labs/mega-tokenlist/main/data/USDM/logo.png",
+        "addresses": {
+            "ethereum": "0xEc2AF1C8B110a61fD9C3Fa6a554a031Ca9943926",
+            "megaeth": "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7"
+        }
+    },
+    "cap_usd": {
+        "name": "Cap USD",
+        "symbol": "CUSD",
+        "decimals": 18,
+        "coingecko_id": None,
+        "fiat": "usd",
+        "logo": "https://raw.githubusercontent.com/megaeth-labs/mega-tokenlist/main/data/CUSD/logo.svg",
+        "addresses": {
+            "ethereum": "0xcCcc62962d17b8914c62D74FfB843d73B2a3cccC",
+            "megaeth": "0xcCcc62962d17b8914c62D74FfB843d73B2a3cccC"
+        }
+    },
+        
+        
     ## EUR
 
     "euro-coin": {
@@ -1797,6 +1822,27 @@ stables_mapping = {
                 "method_name": "totalSupply"
             }
 
+        }
+    },
+    "megaeth": {
+        "bridged": {
+            "ethereum": [
+                "0x0CA3A2FBC3D770b578223FBB6b062fa875a2eE75",  # MegaETH L1StandardBridge escrow
+            ]
+        },
+        "direct": {
+            "usdm": {
+                "token_address": "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
+                "method_name": "totalSupply"
+            },
+            "cap_usd": {
+                "token_address": "0xcCcc62962d17b8914c62D74FfB843d73B2a3cccC",
+                "method_name": "totalSupply"
+            },
+            "tether": {
+                "token_address": "0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb",
+                "method_name": "totalSupply"
+            }
         }
     }
 }

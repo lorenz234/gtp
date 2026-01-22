@@ -2546,7 +2546,7 @@ class JSONCreation():
                 app_dict['contracts_table'][timeframe_key] = contract_dict
 
             app_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-            app_dict = fix_dict_nan(app_dict, f'apps/details/{project}')
+            app_dict = fix_dict_nan(app_dict, f'apps/details/{project}', False)
 
             if self.s3_bucket == None:
                 self.save_to_json(app_dict, f'apps/details/{project}')
