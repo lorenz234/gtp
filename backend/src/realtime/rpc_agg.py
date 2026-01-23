@@ -90,12 +90,17 @@ class EVMProcessor(BlockchainProcessor):
             if not receipts or len(receipts) == 0:
                 # Handle empty blocks - we need to make one minimal call for basic info
                 block = await web3.eth.get_block('latest', full_transactions=False)
+                subblock_count = 1
+                if chain_name == 'megaeth':
+                    subblock_count = block.get('miniBlockCount', 1)
+                    
                 return {
                     "number": hex(block.number),
                     "transactions": [tx.hex() if isinstance(tx, bytes) else tx for tx in block.transactions],
                     "timestamp": hex(block.timestamp),
                     "gasUsed": hex(block.gasUsed),
                     "gasLimit": hex(block.gasLimit),
+                    "subblock_count": subblock_count,
                 }
             
             # Extract all block info from receipts
