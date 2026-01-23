@@ -1043,11 +1043,12 @@ class JSONCreation():
 
         return dict
     
-    def get_default_selection(self, df, top_n=5):
+    def get_selected_chains(self, df, top_n=5, filter_ethereum=True):
         df_tmp = df[df['metric_key'] == 'aa_last7d']
 
         ## filter out Ethereuem and only keep chains that are in the API and have a deployment of "PROD"
-        df_tmp = df_tmp.loc[df_tmp.origin_key != 'ethereum']
+        if filter_ethereum:
+            df_tmp = df_tmp.loc[df_tmp.origin_key != 'ethereum']
         df_tmp = df_tmp.loc[df_tmp.origin_key.isin(self.chains_list_in_api_prod)]
 
         df_tmp = df_tmp.loc[df_tmp.date == df_tmp.date.max()]
@@ -1061,6 +1062,17 @@ class JSONCreation():
         
         print(f'Default selection by aa_last7d: {top_chains}')
         return top_chains
+    
+    def get_searchbar_items(self):
+        search_bar_items = ["Chains", "Metrics", "Applications", "Quick Bites"]
+        
+        df = self.db_connector.execute_jinja('api/select_searchbar_names.sql.j2', load_into_df=True)
+        additional_items = df['name'].tolist()
+        search_bar_items.extend(additional_items)
+        
+        print(f'Search bar items: {search_bar_items}')
+        return search_bar_items
+        
     
     def gen_l2beat_link(self, chain):
         if chain.aliases_l2beat:
@@ -1251,8 +1263,8 @@ class JSONCreation():
         fees_types_api = {key: {sub_key: value for sub_key, value in sub_dict.items() if sub_key != 'metric_keys'} 
                                   for key, sub_dict in self.fees_types.items()}
 
-        default_selection = self.get_default_selection(df_data, top_n=5)
-        default_sorting = ['ethereum'] + self.get_default_selection(df_data, top_n=999)
+        default_selection = self.get_selected_chains(df_data, top_n=5, filter_ethereum=False)
+        default_sorting = ['ethereum'] + self.get_selected_chains(df_data, top_n=999, filter_ethereum=True)
         if private_access:
             # Ensure private_access is first in default_selection and default_sorting
             default_selection = [private_access] + [c for c in default_selection if c != private_access]
@@ -1278,6 +1290,7 @@ class JSONCreation():
             'maturity_levels': self.maturity_levels,
             'main_chart_config': self.main_chart_config,
             'ethereum_events': self.ethereum_events['upgrades'],
+            'searchbar_items': self.get_searchbar_items()
         }
         
         ## enhance metrics_dict with supported chains info
