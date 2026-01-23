@@ -1,0 +1,100 @@
+{#
+    A query to get top 4 stablecoins for ethereum timeseries plus a longtail 'other' category.
+#}
+
+WITH base_data AS (
+    -- Get supply metrics for ethereum
+    SELECT
+        "date",
+        metric_key,
+        token_key,
+        fiat,
+        value,
+        value_usd
+    FROM public.vw_fact_stables_usd
+    WHERE origin_key = 'ethereum'
+),
+bridged_data AS (
+    -- Get bridged supply from all other origins
+    SELECT
+        "date",
+        metric_key,
+        token_key,
+        fiat,
+        value,
+        value_usd
+    FROM public.vw_fact_stables_usd
+    WHERE metric_key = 'supply_bridged'
+),
+combined_data AS (
+    -- Combine both datasets
+    SELECT * FROM base_data
+    UNION ALL
+    SELECT * FROM bridged_data
+),
+adjusted_values AS (
+    -- Apply adjustments: supply_locked is already negative, subtract bridged from supply
+    SELECT
+        "date",
+        token_key,
+        fiat,
+        SUM(CASE
+            WHEN metric_key = 'supply_bridged' THEN -value
+            ELSE value
+        END) as value,
+        SUM(CASE
+            WHEN metric_key = 'supply_bridged' THEN -value_usd
+            ELSE value_usd
+        END) as value_usd
+    FROM combined_data
+    GROUP BY "date", token_key, fiat
+),
+ranked_tokens AS (
+    -- Rank the adjusted groups
+    SELECT
+        "date",
+        token_key,
+        fiat,
+        value,
+        value_usd,
+        ROW_NUMBER() OVER (PARTITION BY "date" ORDER BY value_usd DESC) as rn
+    FROM adjusted_values
+),
+top_4 AS (
+    -- Take top 4 groups
+    SELECT
+        "date",
+        token_key,
+        fiat,
+        value,
+        value_usd
+    FROM ranked_tokens
+    WHERE rn <= 4
+),
+longtail AS (
+    -- Aggregate remaining tokens as "other"
+    SELECT
+        "date",
+        'other' as token_key,
+        NULL as fiat,
+        SUM(value) as value,
+        SUM(value_usd) as value_usd
+    FROM ranked_tokens
+    WHERE rn > 4
+    GROUP BY "date"
+),
+combined AS (
+    SELECT * FROM top_4
+    UNION ALL
+    SELECT * FROM longtail
+)
+SELECT
+    c."date",
+    c.value_usd,
+    COALESCE(sm.symbol, 'other') as symbol
+FROM combined c
+LEFT JOIN public.stables_metadata sm
+    ON c.token_key = sm.token_key
+    AND c.fiat = sm.fiat
+WHERE c."date" != CURRENT_DATE
+ORDER BY c."date" DESC, c.value_usd DESC;

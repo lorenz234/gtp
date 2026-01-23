@@ -1,0 +1,23 @@
+{#
+    A query to get a table of stables per chain for the latest date (yesterday)
+
+    Parameters:
+    - origin_key: The origin_key to filter the data.
+#}
+
+SELECT 
+	t.metric_key,
+	t.fiat, 
+	t.value, 
+	t.value_usd,
+	m.name,
+	m.symbol,
+	m.logo
+FROM public.vw_fact_stables_usd t
+LEFT JOIN public.stables_metadata m
+	ON t.token_key = m.token_key
+	AND t.fiat = m.fiat
+WHERE
+    t.origin_key = '{{origin_key}}'
+    AND t."date" = CURRENT_DATE - INTERVAL '1 day'
+ORDER BY t.value_usd DESC

@@ -1,0 +1,45 @@
+{#
+    A query to get a table of stables for ethereum for the latest date (yesterday)
+#}
+
+SELECT
+	t.origin_key,
+	t.metric_key,
+	t.fiat,
+	t.value,
+	t.value_usd,
+	m.symbol,
+	m.logo
+FROM (
+	SELECT
+		null as origin_key,
+		metric_key,
+		token_key,
+		fiat,
+		value,
+		value_usd
+	FROM public.vw_fact_stables_usd
+	WHERE
+	    origin_key = 'ethereum'
+	    AND "date" = CURRENT_DATE - INTERVAL '1 day'
+	
+	UNION ALL
+	
+	SELECT
+		STRING_AGG(origin_key, ', ') as origin_key,
+		metric_key,
+		token_key,
+		fiat,
+		-SUM(value) as value,
+		-SUM(value_usd) as value_usd
+	FROM public.vw_fact_stables_usd
+	WHERE
+	    metric_key = 'supply_bridged'
+	    AND "date" = CURRENT_DATE - INTERVAL '1 day'
+	GROUP BY metric_key, token_key, fiat
+) t
+LEFT JOIN public.stables_metadata m
+	ON t.token_key = m.token_key
+	AND t.fiat = m.fiat
+
+ORDER BY t.value_usd DESC
