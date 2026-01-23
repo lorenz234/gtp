@@ -39,6 +39,7 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)  # For AUTH if enabled
 REDIS_STREAM_MAXLEN = 500
+RECEIPT_PARSE_LIMIT = 500  # Max number of receipts to parse per block for fee calculations; 0 = no limit
 
 class BlockchainProcessor(ABC):
     """Abstract base class for blockchain processors."""
@@ -102,6 +103,7 @@ class EVMProcessor(BlockchainProcessor):
             block_number = first_receipt.blockNumber
             block = await web3.eth.get_block(block_number, full_transactions=False)
             block_timestamp = int(block.timestamp)
+            block_gas_used = int(block.gasUsed)
             
             subblock_count = 1
             if chain_name == 'megaeth':
@@ -109,8 +111,15 @@ class EVMProcessor(BlockchainProcessor):
             else:
                 block_timestamp = int(block.timestamp)
             
-            # Analyze receipts and calculate costs in one pass
-            total_gas_used = 0
+            if RECEIPT_PARSE_LIMIT > 0 and len(receipts) > RECEIPT_PARSE_LIMIT:
+                logger.info(
+                    f"{chain_name}: Capping receipt parsing at {RECEIPT_PARSE_LIMIT} "
+                    f"out of {len(receipts)} receipts"
+                )
+                receipts = receipts[:RECEIPT_PARSE_LIMIT]
+            
+            # Analyze receipts and calculate costs in one pass (sampled if capped)
+            total_gas_used_sample = 0
             
             native_transfers = []
             erc20_transfers = []
@@ -121,7 +130,7 @@ class EVMProcessor(BlockchainProcessor):
             for receipt in receipts:
                 gas_used = receipt.gasUsed
                 effective_gas_price = receipt.effectiveGasPrice
-                total_gas_used += gas_used
+                total_gas_used_sample += gas_used
                 
                 if effective_gas_price > 0:
                     gas_prices.append(effective_gas_price)    
@@ -189,7 +198,7 @@ class EVMProcessor(BlockchainProcessor):
             median_cost_eth = calculate_median_cost(all_tx)
 
             total_costs_eth = sum(tx['cost_wei'] for tx in all_tx) / 1e18
-            cost_per_gas_eth = total_costs_eth / total_gas_used if total_gas_used > 0 else 0
+            cost_per_gas_eth = total_costs_eth / total_gas_used_sample if total_gas_used_sample > 0 else 0
             
             ## if one of the costs is 0, use the average cost of the others
             if avg_native_cost_eth == 0 and cost_per_gas_eth > 0:
@@ -214,10 +223,10 @@ class EVMProcessor(BlockchainProcessor):
             # Build block dictionary using receipt data and current timestamp
             block_dict = {
                 "number": hex(block_number),
-                "transactions": [receipt.transactionHash.hex() for receipt in receipts],
+                "transactions": [tx.hex() if isinstance(tx, bytes) else tx for tx in block.transactions],
                 "timestamp": hex(block_timestamp),
                 "timestamp_ms": block_timestamp * 1000,
-                "gasUsed": hex(total_gas_used),
+                "gasUsed": hex(block_gas_used),
                 "gasLimit": None,  # Not available in receipts
                 "tx_cost_avg": avg_cost_eth,
                 "tx_cost_avg_usd": avg_cost_usd,
