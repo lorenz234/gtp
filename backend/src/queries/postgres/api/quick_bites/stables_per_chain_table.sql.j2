@@ -5,7 +5,11 @@
     - origin_key: The origin_key to filter the data.
 #}
 
-SELECT 
+SELECT
+    CASE 
+        WHEN t.metric_key = 'supply_bridged' THEN 'ethereum'
+        ELSE null
+    END as origin_key,
 	t.metric_key,
 	t.fiat, 
 	t.value, 
@@ -19,5 +23,5 @@ LEFT JOIN public.stables_metadata m
 	AND t.fiat = m.fiat
 WHERE
     t.origin_key = '{{origin_key}}'
-    AND t."date" = CURRENT_DATE - INTERVAL '1 day'
+    AND t."date" = CURRENT_DATE - INTERVAL '2 day'
 ORDER BY t.value_usd DESC

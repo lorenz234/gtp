@@ -21,7 +21,7 @@ FROM (
 	FROM public.vw_fact_stables_usd
 	WHERE
 	    origin_key = 'ethereum'
-	    AND "date" = CURRENT_DATE - INTERVAL '1 day'
+	    AND "date" = CURRENT_DATE - INTERVAL '2 day'
 	
 	UNION ALL
 	
@@ -35,7 +35,7 @@ FROM (
 	FROM public.vw_fact_stables_usd
 	WHERE
 	    metric_key = 'supply_bridged'
-	    AND "date" = CURRENT_DATE - INTERVAL '1 day'
+	    AND "date" = CURRENT_DATE - INTERVAL '2 day'
 	GROUP BY metric_key, token_key, fiat
 ) t
 LEFT JOIN public.stables_metadata m
