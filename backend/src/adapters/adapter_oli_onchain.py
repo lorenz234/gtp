@@ -98,7 +98,7 @@ class AdapterOLIOnchain(AbstractAdapter):
                         'chain_id': label_data['chain_id'],
                         'tags_json': label_data['tags_json']
                     })
-                elif r['schema'] == '0x9e3f6cfb1f5f8e2f3d3e6a5f4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c':  # Labels v2
+                elif r['schema'] == '0xcff83309b59685fdae9dad7c63d969150676d51d8eeda66799d1c4898b84556a':  # Labels v2
                     # decode label data
                     label_data = self.decode_label_data(r['data'])
                     # split caip10
