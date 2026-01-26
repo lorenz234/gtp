@@ -1,0 +1,78 @@
+WITH 
+chains as (
+	SELECT name
+	FROM public.sys_main_conf
+	where chain_type in ('L2', 'L1') 
+		and api_in_main = true 
+		and api_deployment_flag = 'PROD' 
+		and api_in_apps = true
+	order by random()
+	limit 5
+),
+
+agg AS (
+    SELECT
+        owner_project,
+        SUM(fees_paid_eth) FILTER (
+            WHERE date > current_date - interval '7 days'
+        ) AS cur_7d,
+        SUM(fees_paid_eth) FILTER (
+            WHERE date > current_date - interval '14 days'
+              AND date <= current_date - interval '7 days'
+        ) AS prev_7d
+    FROM public.vw_apps_contract_level_materialized
+    GROUP BY 1
+),
+ranked AS (
+    SELECT
+        owner_project,
+        cur_7d AS value,
+        prev_7d,
+        (cur_7d - prev_7d) AS wow_abs_growth,
+        CASE
+            WHEN prev_7d = 0 OR prev_7d IS NULL THEN NULL
+            ELSE (cur_7d - prev_7d) / prev_7d
+        END AS wow_growth_pct,
+        percent_rank() OVER (ORDER BY cur_7d DESC) AS pr
+    FROM agg
+    WHERE cur_7d IS NOT NULL
+),
+top_projects AS (
+    SELECT
+        r.owner_project,
+        COALESCE(o.display_name, r.owner_project) AS display_name,
+        r.value,
+        r.wow_abs_growth,
+        r.wow_growth_pct
+    FROM ranked r
+    LEFT JOIN oli_oss_directory o
+      ON r.owner_project = o.name
+    WHERE r.pr <= 0.1  -- top 10% by current 7d fees
+)
+
+
+select name 
+from chains
+
+union
+
+(
+  SELECT display_name as name
+  FROM top_projects
+  ORDER BY value DESC NULLS LAST
+  LIMIT 3
+)
+UNION
+(
+  SELECT display_name as name
+  FROM top_projects
+  ORDER BY wow_abs_growth DESC NULLS LAST
+  LIMIT 3
+)
+UNION
+(
+  SELECT display_name as name
+  FROM top_projects
+  ORDER BY wow_growth_pct DESC NULLS LAST
+  LIMIT 3
+);

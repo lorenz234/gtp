@@ -293,6 +293,99 @@ def etl():
 
         # load
         ad.load(df)
+        
+    ###################
+    ## Starknet
+    ###################
+        
+    @task()
+    def run_starknet_contract_level():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'starknet_contract_level_daily',
+                    'query_id': 6587405,
+                    'params': {'days': 2}
+                }
+            ],
+            'prepare_df': 'prepare_df_contract_level_daily',
+            'load_type': 'blockspace_fact_contract_level'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+
+        print(f"Loaded {df.shape[0]} rows for contract level.")
+        
+        # additional prep steps
+        df['origin_key'] = 'starknet'
+        df.set_index(['address', 'date', 'origin_key'], inplace=True)
+
+        # load
+        ad.load(df)
+        
+    @task()
+    def run_starknet_aa():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'starknet_aa',
+                    'query_id': 6598109,
+                    'params': {'days': 2}
+                }
+            ],
+            'prepare_df': 'prepare_df_contract_level_aa_daily',
+            'load_type': 'CUSTOM'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+
+        print(f"Loaded {df.shape[0]} rows for starknet active addresses on contract level.")
+
+        # prepare for fact_active_addresses_contract
+        df_contract_aa = df.copy()
+        df_contract_aa = df_contract_aa[df_contract_aa.address != '<nil>']
+
+        df_contract_aa['origin_key'] = 'starknet'
+        df_contract_aa.set_index(['address', 'date', 'origin_key', 'from_address'], inplace=True)
+        db_connector.upsert_table('fact_active_addresses_contract', df_contract_aa)
+
+        ## Not necessary for Starknet (already covered by raw tx data)
+        # # prepare for fact_active_addresses
+        # df_aa = df.copy()
+        # df_aa = df_aa.drop(columns=['address'])
+        # df_aa = df_aa.drop_duplicates(subset=['date', 'from_address'])
+        # df_aa = df_aa.rename(columns={'from_address': 'address'})
+
+        # # additional prep steps
+        # df_aa['origin_key'] = 'starknet'
+        # df_aa.set_index(['address', 'date', 'origin_key'], inplace=True)
+        # db_connector.upsert_table('fact_active_addresses', df_aa)
+        
+    ###################
+    ## Other tasks
+    ###################
 
     @task()
     def run_glo_holders():
@@ -364,5 +457,9 @@ def etl():
     ## Polygon POS tasks
     run_polygon_contract_level()
     run_polygon_category_level()
+    
+    ## Starknet tasks
+    run_starknet_contract_level()
+    run_starknet_aa()
     
 etl()

@@ -7,7 +7,6 @@
 #   - `stack`: The stack type (e.g., "l1", "op_stack", "nitro", "elastic", "basic") which determines the fee calculation and other processing specifics.
 #   - `sleeper`: The time to wait between requests in seconds.
 #   - `calc_fees`: A boolean indicating whether to calculate fees for transactions on this chain.
-#   - `hide`: A boolean indicating whether to hide this chain from certain displays (not included in all entries).
 
 rpc_config = {
     ## L1
@@ -108,7 +107,7 @@ rpc_config = {
         "name": "Lisk",
         "processors": "evm",
         "stack": "op_stack",
-        "sleeper": 3,
+        "sleeper": 5,
         "calc_fees": True,
     },
     "katana": {
@@ -123,8 +122,7 @@ rpc_config = {
         "processors": "evm",
         "stack": "op_stack",
         "sleeper": 1,
-        "calc_fees": True,
-        "hide": True,
+        "calc_fees": False,
     },
     
     ## Nitro/Arbitrum Orbit chains
@@ -234,7 +232,7 @@ rpc_config = {
         "name": "Polygon PoS",
         "processors": "evm",
         "stack": "basic",
-        "sleeper": 2,
+        "sleeper": 4,
         "calc_fees": False,
     },
     
@@ -271,7 +269,7 @@ rpc_config = {
         "name": "Lighter",
         "processors": "lighter",
         "calc_fees": False,
-        "sleeper": 3,
+        "sleeper": 5,
         "block_history_len": 20, 
     },
     
