@@ -430,7 +430,17 @@ class JsonGen():
         query_params = {"origin_key": origin_key, "days" : days, "limit": limit}
         df = execute_jinja_query(self.db_connector, 'api/select_highlights.sql.j2', query_params, return_df=True)
         if not df.empty:
-            return highlights_prep(df, gtp_metrics_new)
+            highlights =  highlights_prep(df, gtp_metrics_new)
+            ## remove highlights that are excluded for this chain
+            chain = next((c for c in self.main_config if c.origin_key == origin_key), None)
+            for highlight in highlights:
+                if chain:
+                    metric_id = highlight['metric_id']
+                    if metric_id in chain.api_exclude_metrics:
+                        highlight['excluded'] = True
+            highlights = [h for h in highlights if not h.get('excluded', False)]
+            return highlights
+                
         return []
 
     def get_chain_ranking_dict(self, origin_key):
