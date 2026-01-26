@@ -1,0 +1,71 @@
+{#
+    A query to get top 4 stablecoins per chain timeseries plus a longtail 'other' category
+
+    Parameters:
+    - origin_key: The origin_key to filter the data.
+#}
+
+WITH aggregated_tokens AS (
+    -- Step 1: Group/sum by (date, token_key, fiat)
+    SELECT 
+        "date",
+        token_key,
+        fiat,
+        SUM(value) as value,
+        SUM(value_usd) as value_usd
+    FROM public.vw_fact_stables_usd
+    WHERE origin_key = '{{origin_key}}'
+    GROUP BY "date", token_key, fiat
+),
+last_day_totals AS (
+    -- Step 2: Get the last available day and sum by token_key
+    SELECT 
+        token_key,
+        SUM(value_usd) as total_value_usd
+    FROM aggregated_tokens
+    WHERE "date" = (SELECT MAX("date") FROM aggregated_tokens WHERE "date" != CURRENT_DATE)
+    GROUP BY token_key
+),
+top_tokens AS (
+    -- Step 3: Identify the top x token_keys from the last day
+    SELECT token_key
+    FROM last_day_totals
+    ORDER BY total_value_usd DESC
+    LIMIT 6
+),
+top_series AS (
+    -- Step 4: Get full timeseries for top tokens
+    SELECT 
+        a."date",
+        a.token_key,
+        a.fiat,
+        a.value,
+        a.value_usd
+    FROM aggregated_tokens a
+    WHERE a.token_key IN (SELECT token_key FROM top_tokens)
+),
+longtail AS (
+    -- Step 5: Aggregate everything else as 'other'
+    SELECT 
+        a."date",
+        'other' as token_key,
+        NULL as fiat,
+        SUM(a.value) as value,
+        SUM(a.value_usd) as value_usd
+    FROM aggregated_tokens a
+    WHERE a.token_key NOT IN (SELECT token_key FROM top_tokens)
+    GROUP BY a."date"
+),
+combined AS (
+    SELECT * FROM top_series
+    UNION ALL
+    SELECT * FROM longtail
+)
+SELECT 
+    c."date",
+    c.value_usd,
+    COALESCE(sm.symbol, 'other') as symbol
+FROM combined c
+LEFT JOIN public.stables_metadata sm ON c.token_key = sm.token_key
+WHERE c."date" != CURRENT_DATE
+ORDER BY c."date" DESC, c.value_usd DESC;
