@@ -1938,6 +1938,7 @@ class DbConnector:
                         SELECT 
                                 rc.address, 
                                 rc.origin_key,
+                                smc.caip2,
                                 rc._comment,
                                 rc.name AS contract_name,
                                 rc.is_proxy,
@@ -1950,6 +1951,7 @@ class DbConnector:
                                 rc.avg_contract_txcost_eth / mc.avg_chain_txcost_median_eth - 1 AS rel_cost
                         FROM ranked_contracts rc
                         LEFT JOIN chain_txcost mc ON rc.origin_key = mc.origin_key
+                        LEFT JOIN sys_main_conf smc ON rc.origin_key = smc.origin_key
                         WHERE row_num_gas <= {str(int(number_of_contracts/2))} OR row_num_daa <= {str(int(number_of_contracts/2))}
                         ORDER BY origin_key, row_num_gas, row_num_daa
                 '''
