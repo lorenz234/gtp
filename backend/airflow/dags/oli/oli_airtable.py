@@ -182,6 +182,9 @@ def etl():
         df['address'] = df.apply(
                 lambda row: to_checksum_address(row['address']) if row['caip2'].startswith('eip155') else row['address'], axis=1
             )
+        
+        ## drop column caip2
+        df = df.drop(columns=['caip2'])
 
         # remove all duplicates that are still in the airtable due to temp_owner_project
         df_remove = at.read_airtable(table)
