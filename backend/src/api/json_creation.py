@@ -850,6 +850,18 @@ class JSONCreation():
                 ranking_dict = {k: ranking_dict[k] for k in ['stables_mcap','tvl','daa', 'txcount', 'throughput', 'fees','txcosts', 'profit', 'rent_paid',  'market_cap', 'fdv'] if k in ranking_dict}
                 ranking_dict_w_eth = {k: ranking_dict_w_eth[k] for k in ['stables_mcap','tvl','daa', 'txcount', 'throughput', 'fees','txcosts', 'profit', 'rent_paid',  'market_cap', 'fdv'] if k in ranking_dict_w_eth}
 
+                ## top apps
+                if chain.api_in_apps == True:
+                    query_parameters = {
+                        "origin_keys": [chain.origin_key],
+                        "days": 7,
+                        "limit": 5
+                    }
+                    top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", query_parameters, return_df=True)
+                    top_apps_list = top_apps['owner_project'].tolist()
+                else:
+                    top_apps_list = []
+                
                 chains_dict[chain.origin_key] = {
                     "chain_name": chain.name,
                     "technology": chain.metadata_technology,
@@ -859,7 +871,8 @@ class JSONCreation():
                     "user_share": round(self.get_aa_last7d(df, chain.origin_key)/all_users,4),
                     "cross_chain_activity": self.get_cross_chain_activity(df, chain),
                     "ranking": ranking_dict,
-                    "ranking_w_eth": ranking_dict_w_eth
+                    "ranking_w_eth": ranking_dict_w_eth,
+                    "top_apps": top_apps_list
                 }
         
         return chains_dict
