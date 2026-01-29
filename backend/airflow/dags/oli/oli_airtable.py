@@ -177,8 +177,21 @@ def etl():
         # remove duplicates
         df = df.drop_duplicates(subset=['address', 'origin_key'])
 
-        # checksum the addresses
-        df['address'] = df['address'].apply(lambda x: to_checksum_address('0x' + bytes(x).hex()))
+        # normalize addresses to checksum format
+        def normalize_address(row):
+            if row['caip2'].startswith('eip155'):
+                return to_checksum_address(row['address'])
+            addr = row['address']
+            if isinstance(addr, memoryview):
+                addr = addr.tobytes()
+            if isinstance(addr, (bytes, bytearray)):
+                return '0x' + addr.hex()
+            return str(addr)
+
+        df['address'] = df.apply(normalize_address, axis=1)
+        
+        ## drop column caip2
+        df = df.drop(columns=['caip2'])
 
         # remove all duplicates that are still in the airtable due to temp_owner_project
         df_remove = at.read_airtable(table)
@@ -239,7 +252,12 @@ def etl():
             AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
             api = Api(AIRTABLE_API_KEY)
             table = api.table(AIRTABLE_BASE_ID, 'Label Pool Reattest')
-            df_air['address'] = df_air['address'].apply(lambda x: to_checksum_address(x))
+            
+            ## if column chain_id starts with 'eip155' then do checksum address
+            df_air['address'] = df_air.apply(
+                lambda row: to_checksum_address(row['address']) if row['chain_id'].startswith('eip155') else row['address'], axis=1
+            )
+            
             df_air['attester'] = df_air['attester'].apply(lambda x: to_checksum_address('0x' + bytes(x).hex()))
             
             # exchange the category with the id & make it a list
