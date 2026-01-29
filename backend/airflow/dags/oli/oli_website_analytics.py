@@ -39,10 +39,10 @@ def main():
         query_parameters = {}
         df = execute_jinja_query(db_connector, "oli/analytics_all_attesters.sql.j2", query_parameters, return_df=True)
         # get timestamp of 2 days ago
-        timestamp = int(datetime.now().timestamp()) - 2*24*60*60
-        # filter df for only rows where timestamp is greater than timestamp of 2 days ago
-        df = df[(df['last_time_created'] > timestamp) | (df['last_time_created'] == 0)]
-        df = df[(df['last_time_revoked'] > timestamp) | (df['last_time_revoked'] == 0)]
+        threshold_time = datetime.now().astimezone() - timedelta(days=2)
+        # Now compare datetime to datetime
+        df = df[(df['last_time_created'] > threshold_time) | (df['last_time_created'].isna())]
+        df = df[(df['last_time_revoked'] > threshold_time) | (df['last_time_revoked'].isna())]
         # iterate over each attester in df and create custom json file for each attester
         for i, row in df.iterrows():
             query_parameters = {"attester": row['attester']}

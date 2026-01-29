@@ -1,7 +1,7 @@
 SELECT
     '0x' || encode(uid, 'hex') as id,
     '0x' || encode(attester, 'hex') as attester,
-    '0x' || encode(recipient, 'hex') as recipient,
+    recipient,
     is_offchain,
     revoked,
     ipfs_hash,
