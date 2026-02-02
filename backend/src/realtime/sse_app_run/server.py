@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from typing import Dict, List, Any, Set, Optional, Tuple
 
 import redis.asyncio as aioredis
@@ -118,6 +118,17 @@ class RedisSSEServer:
         try: return int(value) if value is not None else default
         except (ValueError, TypeError): return default
 
+    def _parse_iso_to_ms(self, value: str) -> int:
+        if not value:
+            return 0
+        try:
+            dt = datetime.fromisoformat(value)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return int(dt.timestamp() * 1000)
+        except Exception:
+            return 0
+
     def _is_fresh_timestamp(self, timestamp_ms: int, now_ms: Optional[int] = None) -> bool:
         """Check whether a timestamp is within the freshness window."""
         if not timestamp_ms or timestamp_ms < 0:
@@ -231,6 +242,27 @@ class RedisSSEServer:
             
         except Exception as e:
             logger.error(f"Error loading global TPS records: {str(e)}")
+
+    async def _refresh_global_metrics_cache(self) -> None:
+        """Refresh in-memory global ATH/24h values from Redis (supports manual corrections)."""
+        if not self.redis_client:
+            return
+        try:
+            value, ts, ts_ms = await self.redis_client.hmget(
+                RedisKeys.GLOBAL_TPS_ATH, "value", "timestamp", "timestamp_ms"
+            )
+            self.tps_ath = self._safe_float(value, 0.0)
+            self.tps_ath_timestamp = ts or ""
+            self.tps_ath_timestamp_ms = self._safe_int(ts_ms, 0)
+
+            value, ts, ts_ms = await self.redis_client.hmget(
+                RedisKeys.GLOBAL_TPS_24H, "value", "timestamp", "timestamp_ms"
+            )
+            self.tps_24h_high = self._safe_float(value, 0.0)
+            self.tps_24h_high_timestamp = ts or ""
+            self.tps_24h_high_timestamp_ms = self._safe_int(ts_ms, 0)
+        except Exception as e:
+            logger.warning(f"Failed to refresh global metrics cache: {e}")
 
     async def _load_all_chain_metrics(self):
         """Load ATH and 24h high for all chains from Redis concurrently."""
@@ -383,18 +415,17 @@ class RedisSSEServer:
             
             # Check if 24h high is expired or a new high
             is_new_24h_high = False
-            last_24h_ts_str = metrics.get("24h_high_timestamp", "")
-            if last_24h_ts_str:
-                try:
-                    last_24h_dt = datetime.fromisoformat(last_24h_ts_str)
-                    if (now - last_24h_dt) > timedelta(hours=24):
-                       is_new_24h_high = True # Expired, so this is the new high
-                       metrics["24h_high"] = 0
-                       metrics["24h_high_timestamp"] = ""
-                       metrics["24h_high_timestamp_ms"] = 0
-                except ValueError:
-                    is_new_24h_high = True # Invalid timestamp format
-            else: # No previous 24h high
+            last_24h_ts_ms = self._safe_int(metrics.get("24h_high_timestamp_ms", 0), 0)
+            if last_24h_ts_ms <= 0:
+                last_24h_ts_ms = self._parse_iso_to_ms(metrics.get("24h_high_timestamp", ""))
+
+            if last_24h_ts_ms > 0:
+                if timestamp_ms - last_24h_ts_ms > 24 * 60 * 60 * 1000:
+                    is_new_24h_high = True  # Expired, so this is the new high
+                    metrics["24h_high"] = 0
+                    metrics["24h_high_timestamp"] = ""
+                    metrics["24h_high_timestamp_ms"] = 0
+            else:  # No previous valid 24h high timestamp
                 is_new_24h_high = True
 
             if not is_new_24h_high and current_tps > metrics.get("24h_high", 0):
@@ -489,6 +520,7 @@ class RedisSSEServer:
     async def _calculate_global_metrics(self, chain_data: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate global metrics from chain data."""
         try:
+            await self._refresh_global_metrics_cache()
             chain_data, stale_chains = self._filter_fresh_chain_data(chain_data)
             if stale_chains:
                 logger.debug(f"Excluded stale chain data from global metrics: {', '.join(stale_chains)}")
