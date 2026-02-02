@@ -742,7 +742,7 @@ class RtBackend:
             self.chain_data[chain_name]["errors"] += 1
             return None
         
-    def calculate_block_time(self, chain_name: str, current_block_number: int, current_timestamp: int, subblock_count: int = 1) -> float:
+    def calculate_block_time(self, chain_name: str, current_block_number: int, current_timestamp: float, subblock_count: int = 1) -> float:
         """
         Calculate average block time based on current and previous block timestamps.
         Accounts for missed blocks by dividing time difference by number of blocks elapsed.
@@ -806,7 +806,7 @@ class RtBackend:
         tps_override = current_block.get("tps_override")
         if tps_override is not None:
             # --- override path ---
-            block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
+            block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp)
             chain["block_history"].append({
                 "number": current_block_number,
                 "timestamp": current_timestamp,  # float seconds
@@ -817,7 +817,7 @@ class RtBackend:
             if len(chain["block_history"]) > history_len:
                 chain["block_history"] = chain["block_history"][-history_len:]
 
-            self._update_chain_data(chain_name, current_block_number, int(current_timestamp), tx_count, float(tps_override))
+            self._update_chain_data(chain_name, current_block_number, current_timestamp, tx_count, float(tps_override))
             asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, float(tps_override), block_time))
             return float(tps_override)
 
@@ -825,14 +825,14 @@ class RtBackend:
         if chain_name == "megaeth":
             subblock_count = current_block.get("subblock_count", 1)
             ##print(f"megaeth subblock_count: {subblock_count}")
-            block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp), subblock_count)
+            block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp, subblock_count)
         else:
-            block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
+            block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp)
 
         if chain["last_block_number"] is not None:
             blocks_missed = current_block_number - chain["last_block_number"] - 1
             if blocks_missed > 0:
-                self._add_estimated_blocks(chain, blocks_missed, current_block_number, int(current_timestamp), tx_count)
+                self._add_estimated_blocks(chain, blocks_missed, current_block_number, current_timestamp, tx_count)
                 if blocks_missed > 10:
                     logger.warning(f"{chain_name}: Missed {blocks_missed} blocks between {chain['last_block_number']} and {current_block_number}")
 
@@ -847,7 +847,7 @@ class RtBackend:
             chain["block_history"] = chain["block_history"][-history_len:]
 
         tps = self._calculate_tps_from_history(chain["block_history"])
-        self._update_chain_data(chain_name, current_block_number, int(current_timestamp), tx_count, tps)
+        self._update_chain_data(chain_name, current_block_number, current_timestamp, tx_count, tps)
         asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, tps, block_time))
         return tps
 
@@ -932,7 +932,7 @@ class RtBackend:
             logger.error(f"Failed to persist metrics for {chain_name}: {exc}")
         
     def _add_estimated_blocks(self, chain: Dict[str, Any], blocks_missed: int, 
-                             current_block_number: int, current_timestamp: int, current_tx_count: int) -> None:
+                             current_block_number: int, current_timestamp: float, current_tx_count: int) -> None:
         """Add estimated blocks for missed blocks to maintain TPS calculation accuracy."""
         if len(chain["block_history"]) == 0:
             return
@@ -973,7 +973,7 @@ class RtBackend:
         effective_span = span * (n / (n - 1))
         return total_tx / effective_span
         
-    def _update_chain_data(self, chain_name: str, block_number: int, timestamp: int, 
+    def _update_chain_data(self, chain_name: str, block_number: int, timestamp: float, 
                           tx_count: int, tps: float) -> None:
         """Update chain data with new block information."""
         chain = self.chain_data[chain_name]
