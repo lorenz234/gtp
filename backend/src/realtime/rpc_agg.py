@@ -640,6 +640,7 @@ class RtBackend:
                 "ath": 0.0,
                 "ath_timestamp": "",
                 "ath_timestamp_ms": 0,
+                "ath_block_number": 0,
             }
 
     async def _load_chain_ath_metrics(self) -> None:
@@ -658,11 +659,13 @@ class RtBackend:
                     "ath": 0.0,
                     "ath_timestamp": "",
                     "ath_timestamp_ms": 0,
+                    "ath_block_number": 0,
                 })
                 if data:
                     metrics["ath"] = float(data.get("value", metrics["ath"]))
                     metrics["ath_timestamp"] = data.get("timestamp", metrics["ath_timestamp"])
                     metrics["ath_timestamp_ms"] = int(data.get("timestamp_ms", metrics["ath_timestamp_ms"]) or 0)
+                    metrics["ath_block_number"] = int(data.get("block_number", metrics["ath_block_number"]) or 0)
         except Exception as exc:
             logger.warning(f"Failed to load chain ATH metrics: {exc}")
 
@@ -876,9 +879,9 @@ class RtBackend:
         }
         
         await self.publish_to_redis(chain_name, publish_data)
-        await self._record_chain_metrics(chain_name, float(tps), timestamp_ms)
+        await self._record_chain_metrics(chain_name, block_number, float(tps), timestamp_ms)
 
-    async def _record_chain_metrics(self, chain_name: str, tps: float, timestamp_ms: int) -> None:
+    async def _record_chain_metrics(self, chain_name: str, block_number: int, tps: float, timestamp_ms: int) -> None:
         if not self.redis_client:
             return
         if tps <= 0:
@@ -889,6 +892,7 @@ class RtBackend:
             "ath": 0.0,
             "ath_timestamp": "",
             "ath_timestamp_ms": 0,
+            "ath_block_number": 0,
         })
         timestamp_iso = iso_from_ms(timestamp_ms)
         is_new_ath = tps > metrics.get("ath", 0.0)
@@ -898,15 +902,18 @@ class RtBackend:
             metrics["ath"] = tps
             metrics["ath_timestamp"] = timestamp_iso
             metrics["ath_timestamp_ms"] = timestamp_ms
+            metrics["ath_block_number"] = block_number
             pipe.hset(RedisKeys.chain_tps_ath(chain_name), mapping={
                 "value": str(tps),
                 "timestamp": timestamp_iso,
                 "timestamp_ms": str(timestamp_ms),
+                "block_number": str(block_number),
             })
             history_entry = json.dumps({
                 "tps": tps,
                 "timestamp": timestamp_iso,
                 "timestamp_ms": timestamp_ms,
+                "block_number": block_number,
                 "is_ath": True,
             })
             pipe.zadd(RedisKeys.chain_ath_history(chain_name), {history_entry: timestamp_ms})
