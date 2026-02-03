@@ -157,10 +157,10 @@ def highlights_bot():
                 highlights = highlights_prep(df, gtp_metrics_new)
 
                 for highlight in highlights:     
-                    if chain.api_in_main and chain.api_deployment_flag == 'PROD' and metric_id not in chain.api_exclude_metrics:
-                                       
-                        metric_key = highlight['metric_key']
-                        metric_id = highlight['metric_id']
+                    metric_key = highlight['metric_key']
+                    metric_id = highlight['metric_id']
+                    
+                    if chain.api_in_main and chain.api_deployment_flag == 'PROD' and metric_id not in chain.api_exclude_metrics:         
                         date = highlight['date']
                         highlight_type = highlight['type']
                         metric_conf = gtp_metrics_new['chains'][metric_id]

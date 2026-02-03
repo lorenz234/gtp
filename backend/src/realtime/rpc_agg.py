@@ -41,6 +41,20 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)  # For AUTH if enabled
 REDIS_STREAM_MAXLEN = 500
 RECEIPT_PARSE_LIMIT = 500  # Max number of receipts to parse per block for fee calculations; 0 = no limit
 
+
+def _coerce_positive_int(value: Any, default: int = 1) -> int:
+    """Parse ints from decimal/hex strings and clamp to >= 1."""
+    try:
+        if isinstance(value, str):
+            value = value.strip()
+            parsed = int(value, 16) if value.lower().startswith("0x") else int(value)
+        else:
+            parsed = int(value)
+        return parsed if parsed > 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
 class BlockchainProcessor(ABC):
     """Abstract base class for blockchain processors."""
     
@@ -92,7 +106,7 @@ class EVMProcessor(BlockchainProcessor):
                 block = await web3.eth.get_block('latest', full_transactions=False)
                 subblock_count = 1
                 if chain_name == 'megaeth':
-                    subblock_count = block.get('miniBlockCount', 1)
+                    subblock_count = _coerce_positive_int(block.get('miniBlockCount', 1))
                     
                 return {
                     "number": hex(block.number),
@@ -112,7 +126,7 @@ class EVMProcessor(BlockchainProcessor):
             
             subblock_count = 1
             if chain_name == 'megaeth':
-                subblock_count = block.get('miniBlockCount', 1)
+                subblock_count = _coerce_positive_int(block.get('miniBlockCount', 1))
             else:
                 block_timestamp = int(block.timestamp)
             
@@ -640,6 +654,7 @@ class RtBackend:
                 "ath": 0.0,
                 "ath_timestamp": "",
                 "ath_timestamp_ms": 0,
+                "ath_block_number": 0,
             }
 
     async def _load_chain_ath_metrics(self) -> None:
@@ -658,11 +673,13 @@ class RtBackend:
                     "ath": 0.0,
                     "ath_timestamp": "",
                     "ath_timestamp_ms": 0,
+                    "ath_block_number": 0,
                 })
                 if data:
                     metrics["ath"] = float(data.get("value", metrics["ath"]))
                     metrics["ath_timestamp"] = data.get("timestamp", metrics["ath_timestamp"])
                     metrics["ath_timestamp_ms"] = int(data.get("timestamp_ms", metrics["ath_timestamp_ms"]) or 0)
+                    metrics["ath_block_number"] = int(data.get("block_number", metrics["ath_block_number"]) or 0)
         except Exception as exc:
             logger.warning(f"Failed to load chain ATH metrics: {exc}")
 
@@ -739,7 +756,7 @@ class RtBackend:
             self.chain_data[chain_name]["errors"] += 1
             return None
         
-    def calculate_block_time(self, chain_name: str, current_block_number: int, current_timestamp: int, subblock_count: int = 1) -> float:
+    def calculate_block_time(self, chain_name: str, current_block_number: int, current_timestamp: float, subblock_count: int = 1) -> float:
         """
         Calculate average block time based on current and previous block timestamps.
         Accounts for missed blocks by dividing time difference by number of blocks elapsed.
@@ -803,7 +820,7 @@ class RtBackend:
         tps_override = current_block.get("tps_override")
         if tps_override is not None:
             # --- override path ---
-            block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
+            block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp)
             chain["block_history"].append({
                 "number": current_block_number,
                 "timestamp": current_timestamp,  # float seconds
@@ -814,22 +831,22 @@ class RtBackend:
             if len(chain["block_history"]) > history_len:
                 chain["block_history"] = chain["block_history"][-history_len:]
 
-            self._update_chain_data(chain_name, current_block_number, int(current_timestamp), tx_count, float(tps_override))
+            self._update_chain_data(chain_name, current_block_number, current_timestamp, tx_count, float(tps_override))
             asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, float(tps_override), block_time))
             return float(tps_override)
 
         # --- normal path (no override) ---
         if chain_name == "megaeth":
-            subblock_count = current_block.get("subblock_count", 1)
+            subblock_count = _coerce_positive_int(current_block.get("subblock_count", 1))
             ##print(f"megaeth subblock_count: {subblock_count}")
-            block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp), subblock_count)
+            block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp, subblock_count)
         else:
-            block_time = self.calculate_block_time(chain_name, current_block_number, int(current_timestamp))
+            block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp)
 
         if chain["last_block_number"] is not None:
             blocks_missed = current_block_number - chain["last_block_number"] - 1
             if blocks_missed > 0:
-                self._add_estimated_blocks(chain, blocks_missed, current_block_number, int(current_timestamp), tx_count)
+                self._add_estimated_blocks(chain, blocks_missed, current_block_number, current_timestamp, tx_count)
                 if blocks_missed > 10:
                     logger.warning(f"{chain_name}: Missed {blocks_missed} blocks between {chain['last_block_number']} and {current_block_number}")
 
@@ -844,7 +861,7 @@ class RtBackend:
             chain["block_history"] = chain["block_history"][-history_len:]
 
         tps = self._calculate_tps_from_history(chain["block_history"])
-        self._update_chain_data(chain_name, current_block_number, int(current_timestamp), tx_count, tps)
+        self._update_chain_data(chain_name, current_block_number, current_timestamp, tx_count, tps)
         asyncio.create_task(self._publish_chain_update(chain_name, current_block_number, tx_count, gas_used, tps, block_time))
         return tps
 
@@ -876,9 +893,9 @@ class RtBackend:
         }
         
         await self.publish_to_redis(chain_name, publish_data)
-        await self._record_chain_metrics(chain_name, float(tps), timestamp_ms)
+        await self._record_chain_metrics(chain_name, block_number, float(tps), timestamp_ms)
 
-    async def _record_chain_metrics(self, chain_name: str, tps: float, timestamp_ms: int) -> None:
+    async def _record_chain_metrics(self, chain_name: str, block_number: int, tps: float, timestamp_ms: int) -> None:
         if not self.redis_client:
             return
         if tps <= 0:
@@ -889,6 +906,7 @@ class RtBackend:
             "ath": 0.0,
             "ath_timestamp": "",
             "ath_timestamp_ms": 0,
+            "ath_block_number": 0,
         })
         timestamp_iso = iso_from_ms(timestamp_ms)
         is_new_ath = tps > metrics.get("ath", 0.0)
@@ -898,15 +916,18 @@ class RtBackend:
             metrics["ath"] = tps
             metrics["ath_timestamp"] = timestamp_iso
             metrics["ath_timestamp_ms"] = timestamp_ms
+            metrics["ath_block_number"] = block_number
             pipe.hset(RedisKeys.chain_tps_ath(chain_name), mapping={
                 "value": str(tps),
                 "timestamp": timestamp_iso,
                 "timestamp_ms": str(timestamp_ms),
+                "block_number": str(block_number),
             })
             history_entry = json.dumps({
                 "tps": tps,
                 "timestamp": timestamp_iso,
                 "timestamp_ms": timestamp_ms,
+                "block_number": block_number,
                 "is_ath": True,
             })
             pipe.zadd(RedisKeys.chain_ath_history(chain_name), {history_entry: timestamp_ms})
@@ -925,7 +946,7 @@ class RtBackend:
             logger.error(f"Failed to persist metrics for {chain_name}: {exc}")
         
     def _add_estimated_blocks(self, chain: Dict[str, Any], blocks_missed: int, 
-                             current_block_number: int, current_timestamp: int, current_tx_count: int) -> None:
+                             current_block_number: int, current_timestamp: float, current_tx_count: int) -> None:
         """Add estimated blocks for missed blocks to maintain TPS calculation accuracy."""
         if len(chain["block_history"]) == 0:
             return
@@ -966,7 +987,7 @@ class RtBackend:
         effective_span = span * (n / (n - 1))
         return total_tx / effective_span
         
-    def _update_chain_data(self, chain_name: str, block_number: int, timestamp: int, 
+    def _update_chain_data(self, chain_name: str, block_number: int, timestamp: float, 
                           tx_count: int, tps: float) -> None:
         """Update chain data with new block information."""
         chain = self.chain_data[chain_name]

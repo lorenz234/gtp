@@ -122,7 +122,7 @@ rpc_config = {
         "processors": "evm",
         "stack": "op_stack",
         "sleeper": 1,
-        "calc_fees": False,
+        "calc_fees": True,
     },
     
     ## Nitro/Arbitrum Orbit chains
