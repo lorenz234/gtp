@@ -41,6 +41,20 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)  # For AUTH if enabled
 REDIS_STREAM_MAXLEN = 500
 RECEIPT_PARSE_LIMIT = 500  # Max number of receipts to parse per block for fee calculations; 0 = no limit
 
+
+def _coerce_positive_int(value: Any, default: int = 1) -> int:
+    """Parse ints from decimal/hex strings and clamp to >= 1."""
+    try:
+        if isinstance(value, str):
+            value = value.strip()
+            parsed = int(value, 16) if value.lower().startswith("0x") else int(value)
+        else:
+            parsed = int(value)
+        return parsed if parsed > 0 else default
+    except (TypeError, ValueError):
+        return default
+
+
 class BlockchainProcessor(ABC):
     """Abstract base class for blockchain processors."""
     
@@ -92,7 +106,7 @@ class EVMProcessor(BlockchainProcessor):
                 block = await web3.eth.get_block('latest', full_transactions=False)
                 subblock_count = 1
                 if chain_name == 'megaeth':
-                    subblock_count = block.get('miniBlockCount', 1)
+                    subblock_count = _coerce_positive_int(block.get('miniBlockCount', 1))
                     
                 return {
                     "number": hex(block.number),
@@ -112,7 +126,7 @@ class EVMProcessor(BlockchainProcessor):
             
             subblock_count = 1
             if chain_name == 'megaeth':
-                subblock_count = block.get('miniBlockCount', 1)
+                subblock_count = _coerce_positive_int(block.get('miniBlockCount', 1))
             else:
                 block_timestamp = int(block.timestamp)
             
@@ -823,7 +837,7 @@ class RtBackend:
 
         # --- normal path (no override) ---
         if chain_name == "megaeth":
-            subblock_count = current_block.get("subblock_count", 1)
+            subblock_count = _coerce_positive_int(current_block.get("subblock_count", 1))
             ##print(f"megaeth subblock_count: {subblock_count}")
             block_time = self.calculate_block_time(chain_name, current_block_number, current_timestamp, subblock_count)
         else:
