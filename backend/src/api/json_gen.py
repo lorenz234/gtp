@@ -10,7 +10,7 @@ from src.db_connector import DbConnector
 from src.config import gtp_units, gtp_metrics_new, levels_dict
 from src.main_config import MainConfig, get_main_config
 from src.da_config import get_da_config
-from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3, empty_cloudfront_cache, highlights_prep, db_addresses_to_checksummed_addresses
+from src.misc.helper_functions import fix_dict_nan, upload_json_to_cf_s3, empty_cloudfront_cache, highlights_prep, db_addresses_to_checksummed_addresses, send_discord_message
 from src.misc.jinja_helper import execute_jinja_query
 
 # --- IMPORT SCHEMAS ---
@@ -601,15 +601,27 @@ class JsonGen():
             for metric_key in gtp_metrics_new['chains'][metric_id]['metric_keys']:
                 if metric_key in df['metric_key'].values:
                     row = df.loc[df['metric_key'] == metric_key].iloc[0]
-                    y_val = float(row['yesterdays_value']) if 'yesterdays_value' in df.columns else None
-                    
-                    if pd.notna(y_val):
-                        if metric_id not in streaks: streaks[metric_id] = {}
-                        unit = 'value' if len(gtp_metrics_new['chains'][metric_id]['units']) == 1 else metric_key[-3:]
-                        streaks[metric_id][unit] = {
-                            'streak_length': int(row['current_streak_length']),
-                            'yesterday_value': round(y_val, 4)
-                        }
+                    raw_y = row['yesterdays_value'] if 'yesterdays_value' in df.columns else None
+                    if raw_y is None or pd.isna(raw_y):
+                        send_discord_message(f"JSON GEN: Missing yesterdays_value for streaks: chain={origin_key} metric_key={metric_key}")
+                        continue
+
+                    try:
+                        y_val = float(raw_y)
+                    except (TypeError, ValueError):
+                        logging.warning(
+                            "Skipping invalid yesterdays_value for chain=%s metric_key=%s value=%r",
+                            origin_key, metric_key, raw_y
+                        )
+                        send_discord_message(f"JSON GEN: Invalid yesterdays_value for streaks: chain={origin_key} metric_key={metric_key} value={raw_y}")
+                        continue
+
+                    if metric_id not in streaks: streaks[metric_id] = {}
+                    unit = 'value' if len(gtp_metrics_new['chains'][metric_id]['units']) == 1 else metric_key[-3:]
+                    streaks[metric_id][unit] = {
+                        'streak_length': int(row['current_streak_length']),
+                        'yesterday_value': round(y_val, 4)
+                    }
         return streaks
     
     def create_chains_dict(self, origin_key:str) -> Optional[Dict]:
