@@ -1,8 +1,8 @@
 # Token Metadata
 
-# Rule 1: No value increasing stablecoins allowed! e.g. 
-# Rule 2: Stablecoins that mainly wrap other stablecoins are not allowed, unless it is a bridge! e.g. Aave aUSDC, IUSD
-# Rule 3: Only stablecoins that anyone can own are allowed, no institutional only stablecoins! e.g. Blackrock BUIDL
+# Rule 1: No value increasing stablecoins allowed! e.g. sUSDS
+# Rule 2: Stablecoins that mainly wrap other stablecoins are not allowed, unless it is a bridge! e.g. Aave aUSDC, IUSD, dtrinity USD
+# Rule 3: Only stablecoins that anyone can own are allowed! e.g. Blackrock BUIDL
 
 coin_mapping = [
     # circlefin
@@ -21,7 +21,7 @@ coin_mapping = [
         "owner_project": "circlefin",
         "token_id": "circlefin_usdce",
         "symbol": "USDC.e",
-        "coingecko_id": ["usd-coin-ethereum-bridged", "bridged-usdc-polygon-pos-bridge", "stargate-bridged-usdc", "bridged-usd-coin-starkgate", "soneium-bridged-usdc-soneium", "binance-bridged-usdc-bnb-smart-chain", "cronos-bridged-usdc-cronos", "bridged-usd-coin-linea", "bridged-usd-coin-optimism", "bridged-usd-coin-scroll", "zksync-bridged-usdc-zksync", "mantle-bridged-usdc-mantle"],
+        "coingecko_id": ["usd-coin-ethereum-bridged", "bridged-usdc-polygon-pos-bridge", "stargate-bridged-usdc", "bridged-usd-coin-starkgate", "soneium-bridged-usdc-soneium", "binance-bridged-usdc-bnb-smart-chain", "cronos-bridged-usdc-cronos", "bridged-usd-coin-linea", "bridged-usd-coin-optimism", "bridged-usd-coin-scroll", "zksync-bridged-usdc-zksync", "mantle-bridged-usdc-mantle", "bridged-usd-coin-base", "metis-bridged-usdc-metis", "mode-bridged-usdc-mode", "fraxtal-bridged-usdc-fraxtal", "bridged-usd-coin-manta-pacific", "polygon-hermez-bridged-usdc-polygon-zkevm"],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum", # origin chain where the supply is bridged from
         "bridged_origin_token_id": "circlefin_usdc", # supply will be deducted from origin chain USDC supply
@@ -66,7 +66,7 @@ coin_mapping = [
         "owner_project": "tetherto",
         "token_id": "tetherto_usdte",
         "symbol": "USDT.e",
-        "coingecko_id": ["binance-bridged-usdt-bnb-smart-chain", "cronos-bridged-usdt-cronos", "bridged-tether-linea", "tether-rainbow-bridge", "sui-bridged-usdt-sui", "l2-standard-bridged-usdt-base"],
+        "coingecko_id": ["binance-bridged-usdt-bnb-smart-chain", "cronos-bridged-usdt-cronos", "bridged-tether-linea", "tether-rainbow-bridge", "sui-bridged-usdt-sui", "l2-standard-bridged-usdt-base", "polygon-hermez-bridged-usdt-polygon-zkevm", "soneium-bridged-usdt-soneium", "bridged-tether-scroll", "zircuit-bridged-usdt-zircuit", "mode-bridged-usdt-mode", "bridged-tether-manta-pacific"],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "tetherto_usdt",
@@ -133,7 +133,7 @@ coin_mapping = [
         "owner_project": "makerdao",
         "token_id": "makerdao_daie",
         "symbol": "DAI.e",
-        "coingecko_id": ["makerdao-arbitrum-bridged-dai-arbitrum-one", "polygon-pos-bridged-dai-polygon-pos", "makerdao-optimism-bridged-dai-optimism", "bridged-dai-starkgate", "starkgate-bridged-dai-v2-starknet", "l2-standard-bridged-dai-base", "bridged-dai-stablecoin-linea", "zksync-erc20-bridged-dai-zksync", "omnibridge-bridged-dai-gnosis-chain"],
+        "coingecko_id": ["makerdao-arbitrum-bridged-dai-arbitrum-one", "polygon-pos-bridged-dai-polygon-pos", "makerdao-optimism-bridged-dai-optimism", "bridged-dai-starkgate", "starkgate-bridged-dai-v2-starknet", "l2-standard-bridged-dai-base", "bridged-dai-stablecoin-linea", "zksync-erc20-bridged-dai-zksync", "omnibridge-bridged-dai-gnosis-chain", "polygon-zkevm-bridged-dai-polygon-zkevm"],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "makerdao_dai",
@@ -303,6 +303,53 @@ coin_mapping = [
         "fiat": "usd",
         "logo": ""
     },
+    {
+        "owner_project": "liquity",
+        "token_id": "liquity_lusde",
+        "symbol": "LUSD.e",
+        "coingecko_id": [None],
+        "metric_key": "bridged",
+        "bridged_origin_chain": "ethereum",
+        "bridged_origin_token_id": "liquity_lusd",
+        "fiat": "usd",
+        "logo": ""
+    },
+    # uncap-finance
+    {
+        "owner_project": "uncap-finance",
+        "token_id": "uncap_usdu",
+        "symbol": "USDU",
+        "coingecko_id": ["uncap-usd"],
+        "metric_key": "direct",
+        "bridged_origin_chain": None,
+        "bridged_origin_token_id": None,
+        "fiat": "usd",
+        "logo": ""
+    },
+    # fidelity
+    {
+        "owner_project": "fidelity",
+        "token_id": "fidelity_fidd",
+        "symbol": "FIDD",
+        "coingecko_id": ["fidelity-digital-dollar"],
+        "metric_key": "direct",
+        "bridged_origin_chain": None,
+        "bridged_origin_token_id": None,
+        "fiat": "usd",
+        "logo": ""
+    },
+    # blast-io
+    {
+        "owner_project": "blast-io",
+        "token_id": "blast_io_usdb",
+        "symbol": "USDB",
+        "coingecko_id": ["usdb"],
+        "metric_key": "direct",
+        "bridged_origin_chain": None,
+        "bridged_origin_token_id": None,
+        "fiat": "usd",
+        "logo": ""
+    },
     # mountainprotocol
     {
         "owner_project": "mountainprotocol",
@@ -339,6 +386,18 @@ coin_mapping = [
         "fiat": "usd",
         "logo": ""
     },
+    # openusdt (assume all USDT are wrapped on Ethereum)
+    {
+        "owner_project": "openusdt",
+        "token_id": "openusdt",
+        "symbol": "oUSDT",
+        "coingecko_id": ["openusdt"],
+        "metric_key": "direct",
+        "bridged_origin_chain": "ethereum",
+        "bridged_origin_token_id": "tetherto_usdt",
+        "fiat": "usd",
+        "logo": ""
+    },
     # curve
     {
         "owner_project": "curve",
@@ -348,6 +407,17 @@ coin_mapping = [
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
+        "fiat": "usd",
+        "logo": ""
+    },
+    {
+        "owner_project": "curve",
+        "token_id": "curve_crvusde",
+        "symbol": "crvUSD.e",
+        "coingecko_id": [None],
+        "metric_key": "bridged",
+        "bridged_origin_chain": "ethereum",
+        "bridged_origin_token_id": "curve_crvusd",
         "fiat": "usd",
         "logo": ""
     },
@@ -543,6 +613,52 @@ coin_mapping = [
         "fiat": "gbp",
         "logo": ""
     },
+    {
+        "owner_project": "mento-protocol",
+        "token_id": "mento_xofm",
+        "symbol": "XOFm",
+        "coingecko_id": [None],
+        "metric_key": "direct",
+        "bridged_origin_chain": None,
+        "bridged_origin_token_id": None,
+        "fiat": "xof",
+        "logo": ""
+    },
+    # transfero
+    {
+        "owner_project": "transfero",
+        "token_id": "transfero_brz",
+        "symbol": "BRZ",
+        "coingecko_id": ["brz"],
+        "metric_key": "direct",
+        "bridged_origin_chain": None,
+        "bridged_origin_token_id": None,
+        "fiat": "brl",
+        "logo": ""
+    },
+    {
+        "owner_project": "transfero",
+        "token_id": "transfero_arz",
+        "symbol": "ARZ",
+        "coingecko_id": [None],
+        "metric_key": "direct",
+        "bridged_origin_chain": None,
+        "bridged_origin_token_id": None,
+        "fiat": "ars",
+        "logo": ""
+    },
+    # elixir-protocol
+    {
+        "owner_project": "elixir-protocol",
+        "token_id": "elixir_deusd",
+        "symbol": "deUSD",
+        "coingecko_id": ["elixir-deusd"],
+        "metric_key": "direct",
+        "bridged_origin_chain": None,
+        "bridged_origin_token_id": None,
+        "fiat": "usd",
+        "logo": ""
+    },
     # glo-foundation
     {
         "owner_project": "glo-foundation",
@@ -687,10 +803,10 @@ coin_mapping = [
         "fiat": "usd",
         "logo": ""
     },
-    # mzero-labs
+    # mzero-labs (normal M is a wrapper of USDM, USDAI...)
     {
         "owner_project": "mzero-labs",
-        "token_id": "mzer_wm",
+        "token_id": "mzero_wm",
         "symbol": "wM",
         "coingecko_id": ["wrappedm-by-m0"],
         "metric_key": "direct",
@@ -728,7 +844,7 @@ coin_mapping = [
         "owner_project": "megaeth",
         "token_id": "megaeth_usdm",
         "symbol": "USDm",
-        "coingecko_id": [None], ###
+        "coingecko_id": [None],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
@@ -739,7 +855,7 @@ coin_mapping = [
     {
         "owner_project": "cap-money",
         "token_id": "cap_cusd",
-        "symbol": "CUSD",
+        "symbol": "cUSD",
         "coingecko_id": ["cap-usd"],
         "metric_key": "direct",
         "bridged_origin_chain": None,
@@ -750,7 +866,7 @@ coin_mapping = [
     # monerium
     {
         "owner_project": "monerium",
-        "token_id": "EURe_eure",
+        "token_id": "monerium_eure",
         "symbol": "EURe",
         "coingecko_id": ["monerium-eur-money-2"],
         "metric_key": "direct",
@@ -761,7 +877,7 @@ coin_mapping = [
     },
     {
         "owner_project": "monerium",
-        "token_id": "EURe_eureold",
+        "token_id": "monerium_eure_old",
         "symbol": "EURe.old",
         "coingecko_id": ["monerium-eur-money"],
         "metric_key": "direct",
@@ -823,6 +939,18 @@ coin_mapping = [
         "token_id": "coinvertible_usdcv",
         "symbol": "USDCV",
         "coingecko_id": ["usd-coinvertible"],
+        "metric_key": "direct",
+        "bridged_origin_chain": None,
+        "bridged_origin_token_id": None,
+        "fiat": "usd",
+        "logo": ""
+    },
+    # noon-capital
+    {
+        "owner_project": "noon-capital",
+        "token_id": "noon_capital_usn",
+        "symbol": "USN",
+        "coingecko_id": ["noon-usn"],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
@@ -924,7 +1052,7 @@ coin_mapping = [
     },
     {
         "owner_project": "straitsx",
-        "token_id": "straitsx_xeur",
+        "token_id": "straitsx_xidr",
         "symbol": "XIDR",
         "coingecko_id": ["straitsx-indonesia-rupiah"],
         "metric_key": "direct",
@@ -1168,7 +1296,7 @@ address_mapping = {
             "address": "0x853d955acef822db058eb8505911ed77f175b99e",
             "decimals": 18
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0xcacd6fd266af91b8aed52accc382b4e165586e29",
             "decimals": 18
         },
@@ -1272,7 +1400,7 @@ address_mapping = {
             "address": "0x40d16fc0246ad3160ccc09b8d0d3a2cd28ae6c2f",
             "decimals": 18
         },
-        "mzer_wm": {
+        "mzero_wm": {
             "address": "0x437cc33344a0b27a429f795ff6b469c72698b291",
             "decimals": 6
         },
@@ -1284,7 +1412,7 @@ address_mapping = {
             "address": "0xcccc62962d17b8914c62d74ffb843d73b2a3cccc",
             "decimals": 18
         },
-        "EURe_eure": {
+        "monerium_eure": {
             "address": "0x39b8b6385416f4ca36a20319f70d28621895279d",
             "decimals": 18
         },
@@ -1342,10 +1470,6 @@ address_mapping = {
         },
         "straitsx_xusd": {
             "address": "0xc08e7e23c235073c6807c2efe7021304cb7c2815",
-            "decimals": 6
-        },
-        "straitsx_xeur": {
-            "address": "0xebf2096e01455108badcbaf86ce30b6e5a72aa52",
             "decimals": 6
         },
         "a7a5_a7a5": {
@@ -1406,7 +1530,15 @@ address_mapping = {
             "address": "0x3355df6d4c9c3035724fd0e3914de96a5a83aaf4",
             "decimals": 6
         },
-        "": {
+        "tetherto_usdte": {
+            "address": "0x493257fD37EDB34451f62EDf8D2a0C418852bA4C",
+            "decimals": 6
+        },
+        "curve_crvusde": {
+            "address": "0x43cD37CC4B9EC54833c8aC362Dd55E58bFd62b86",
+            "decimals": 18
+        },
+        "makerdao_daie": {
             "address": "0x4b9eb6c0b6ea15176bbf62841c6b2a8a398cb656",
             "decimals": 18
         },
@@ -1414,7 +1546,7 @@ address_mapping = {
             "address": "0x39fe7a0dacce31bd90418e3e659fb0b5f0b3db0d",
             "decimals": 18
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0xea77c590bb36c43ef7139ce649cfbcfd6163170d",
             "decimals": 18
         },
@@ -1440,7 +1572,7 @@ address_mapping = {
             "address": "0x0200c29006150606b650577bbe7b6248f58470c1",
             "decimals": 6
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0x80eede496655fb9047dd39d9f418d5483ed600df",
             "decimals": 18
         },
@@ -1462,7 +1594,19 @@ address_mapping = {
             "address": "0x9151434b16b9763660705744891fa906f660ecc5",
             "decimals": 6
         },
-        "fraxfinance_FRXUSD": {
+        "tetherto_usdte": {
+            "address": "0x588CE4F028D8e7B53B687865d6A67b3A54C75518",
+            "decimals": 6
+        },
+        "makerdao_usds": {
+            "address": "0x7E10036Acc4B56d4dFCa3b77810356CE52313F9C",
+            "decimals": 18
+        },
+        "makerdao_daie": {
+            "address": "0x20CAb320A855b39F724131C69424240519573f81",
+            "decimals": 18
+        },
+        "fraxfinance_frxusd": {
             "address": "0x80eede496655fb9047dd39d9f418d5483ed600df",
             "decimals": 18
         }
@@ -1476,7 +1620,7 @@ address_mapping = {
             "address": "0x78add880a697070c1e765ac44d65323a0dcce913",
             "decimals": 6
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0x80eede496655fb9047dd39d9f418d5483ed600df",
             "decimals": 18
         },
@@ -1492,7 +1636,7 @@ address_mapping = {
             "address": "0x111111d2bf19e43c34263401e0cad979ed1cdb61",
             "decimals": 18
         },
-        "mzer_wm": {
+        "mzero_wm": {
             "address": "0x437cc33344a0b27a429f795ff6b469c72698b291",
             "decimals": 6
         }
@@ -1514,7 +1658,7 @@ address_mapping = {
             "address": "0x820c137fa70c8691f0e44dc420a5e53c168921dc",
             "decimals": 18
         },
-        "": {
+        "makerdao_daie": {
             "address": "0x50c5725949a6f0c72e6c4a641f24049a917db0cb",
             "decimals": 18
         },
@@ -1522,7 +1666,7 @@ address_mapping = {
             "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
             "decimals": 18
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0xe5020a6d073a794b6e7f05678707de47986fb0b6",
             "decimals": 18
         },
@@ -1684,6 +1828,10 @@ address_mapping = {
             "address": "0xccf663b1ff11028f0b19058d0f7b674004a40746",
             "decimals": 18
         },
+        "mento_xofm": {
+            "address": "0x73f93dcc49cb8a239e2032663e9475dd5ef29a08",
+            "decimals": 18
+        },
         "glo_usdglo": {
             "address": "0x4f604735c1cf31399c6e711d5962b2b3e0225ad3",
             "decimals": 18
@@ -1720,9 +1868,13 @@ address_mapping = {
             "address": "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
             "decimals": 6
         },
-        "": {
+        "makerdao_daie": {
             "address": "0x8f3cf7ad23cd3cadbd9735aff958023239c6a063",
             "decimals": 18
+        },
+        "gemini_gusd": {
+            "address": "0xc8a94a3d3d2dabc3c1caffffdca6a7543c3e3e65",
+            "decimals": 2
         },
         "binance_busde": {
             "address": "0x9c9e5fd8bbc25984b178fdce6117defa39d2db39",
@@ -1736,7 +1888,7 @@ address_mapping = {
             "address": "0x45c32fa6df82ead1e2ef74d17b76547eddfaff89",
             "decimals": 18
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0x80eede496655fb9047dd39d9f418d5483ed600df",
             "decimals": 18
         },
@@ -1772,7 +1924,7 @@ address_mapping = {
             "address": "0xfdcc3dd6671eab0709a4c0f3f53de9a333d80798",
             "decimals": 18
         },
-        "EURe_eure": {
+        "monerium_eure": {
             "address": "0xe0aea583266584dafbb3f9c3211d5588c73fea8d",
             "decimals": 18
         },
@@ -1798,10 +1950,6 @@ address_mapping = {
         },
         "straitsx_xsgd": {
             "address": "0xdc3326e71d45186f113a2f448984ca0e8d201995",
-            "decimals": 6
-        },
-        "straitsx_xeur": {
-            "address": "0x2c826035c1c36986117a0e949bd6ad4bab54afe2",
             "decimals": 6
         },
         "apacx_pht": {
@@ -1834,9 +1982,13 @@ address_mapping = {
             "address": "0x6491c05a82219b8d1479057361ff1654749b876b",
             "decimals": 18
         },
-        "": {
+        "makerdao_daie": {
             "address": "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
             "decimals": 18
+        },
+        "stasis_eurs": {
+            "address": "0xd22a58f79e9481d1a88e00c343885a588b34b68b",
+            "decimals": 2
         },
         "ethena_usde": {
             "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
@@ -1854,7 +2006,7 @@ address_mapping = {
             "address": "0x17fc002b466eec40dae837fc4be5c67993ddbd6f",
             "decimals": 18
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0x80eede496655fb9047dd39d9f418d5483ed600df",
             "decimals": 18
         },
@@ -1918,11 +2070,11 @@ address_mapping = {
             "address": "0x7dff72693f6a4149b17e7c6314655f6a9f7c8b33",
             "decimals": 18
         },
-        "mzer_wm": {
+        "mzero_wm": {
             "address": "0x437cc33344a0b27a429f795ff6b469c72698b291",
             "decimals": 6
         },
-        "EURe_eure": {
+        "monerium_eure": {
             "address": "0x0c06ccf38114ddfc35e07427b9424adcca9f44f8",
             "decimals": 18
         },
@@ -1960,7 +2112,19 @@ address_mapping = {
             "address": "0x53c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8",
             "decimals": 6
         },
-        "": {
+        "tetherto_usdte": {
+            "address": "0x068F5c6a61780768455de69077E07e89787839bf8166dEcfBf92B645209c0fB8",
+            "decimals": 6
+        },
+        "liquity_lusde": {
+            "address": "0x070a76fd48ca0Ef910631754d77DD822147Fe98A569b826ec85e3c33fde586aC",
+            "decimals": 18
+        },
+        "agora_ausd": {
+            "address": "0x04887629C229B4eE8E82f3dB4cDdEB1B2c0F084d46f229672623Bd1282Df5931",
+            "decimals": 6
+        },
+        "makerdao_daie": {
             "address": "0x5574eb6b8789a91466f902c380d978e472db68170ff82a5b650b95a58ddf4ad",
             "decimals": 18
         }
@@ -1978,8 +2142,12 @@ address_mapping = {
             "address": "0x01bff41798a0bcf287b996046ca68b395dbc1071",
             "decimals": 6
         },
-        "": {
+        "makerdao_daie": {
             "address": "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
+            "decimals": 18
+        },
+        "makerdao_usds": {
+            "address": "0x4f13a96ec5c4cf34e442b46bbd98a0791f20edc3",
             "decimals": 18
         },
         "ethena_usde": {
@@ -1998,7 +2166,7 @@ address_mapping = {
             "address": "0x2e3d870790dc77a83dd1d18184acc7439a53f475",
             "decimals": 18
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0x80eede496655fb9047dd39d9f418d5483ed600df",
             "decimals": 18
         },
@@ -2036,6 +2204,10 @@ address_mapping = {
         }
     },
     "taiko": {
+        "circlefin_usdc": {
+            "address": "0x07d83526730c7438048d55a4fc0b850e2aab6f0b",
+            "decimals": 6
+        },
         "circlefin_usdce": {
             "address": "0x19e26b0638bf63aa9fa4d14c6baf8d52ebe86c5c",
             "decimals": 6
@@ -2043,11 +2215,19 @@ address_mapping = {
         "curve_crvusd": {
             "address": "0xc8f4518ed4bab9a972808a493107926ce8237068",
             "decimals": 18
+        },
+        "tetherto_usdte": {
+            "address": "0x2def195713cf4a606b49d07e520e22c17899a736",
+            "decimals": 6
         }
     },
     "gravity": {
         "circlefin_usdce": {
             "address": "0xfbda5f676cb37624f28265a144a48b0d6e87d3b6",
+            "decimals": 6
+        },
+        "tetherto_usdte": {
+            "address": "0x816E810f9F787d669FB71932DeabF6c83781Cd48",
             "decimals": 6
         }
     },
@@ -2063,6 +2243,14 @@ address_mapping = {
         "startale_usd": {
             "address": "0x3f99231dd03a9f0e7e3421c92b7b90fbe012985a",
             "decimals": 6
+        },
+        "tetherto_usdte": {
+            "address": "0x3A337a6adA9d885b6Ad95ec48F9b75f197b5AE35",
+            "decimals": 6
+        },
+        "tetherto_usdt0": {
+            "address": "0x102d758f688a4C1C5a80b116bD945d4455460282",
+            "decimals": 6
         }
     },
     "linea": {
@@ -2074,7 +2262,7 @@ address_mapping = {
             "address": "0xa219439258ca9da29e9cc4ce5596924745e12b93",
             "decimals": 6
         },
-        "": {
+        "makerdao_daie": {
             "address": "0x4af15ec2a0bd43db75dd04e62faa3b8ef36b00d5",
             "decimals": 18
         },
@@ -2082,7 +2270,7 @@ address_mapping = {
             "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
             "decimals": 18
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0xc7346783f5e645aa998b106ef9e7f499528673d8",
             "decimals": 18
         },
@@ -2090,8 +2278,12 @@ address_mapping = {
             "address": "0xaca92e438df0b2401ff60da7e4337b687a2435da",
             "decimals": 6
         },
-        "EURe_eure": {
+        "monerium_eure": {
             "address": "0x3ff47c5bf409c86533fe1f4907524d304062428d",
+            "decimals": 18
+        },
+        "paxosglobal_usdp": {
+            "address": "0xd2bc272ea0154a93bf00191c8a1db23e67643ec5",
             "decimals": 18
         }
     },
@@ -2104,7 +2296,7 @@ address_mapping = {
             "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
             "decimals": 18
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0x397f939c3b91a74c321ea7129396492ba9cdce82",
             "decimals": 18
         },
@@ -2112,8 +2304,42 @@ address_mapping = {
             "address": "0x0a3bb08b3a15a19b4de82f8acfc862606fb69a2d",
             "decimals": 18
         },
-        "EURe_eure": {
+        "monerium_eure": {
             "address": "0xd7bb130a48595fcdf9480e36c1ae97ff2938ac21",
+            "decimals": 18
+        },
+        "makerdao_daie": {
+            "address": "0xcA77eB3fEFe3725Dc33bccB54eDEFc3D9f764f97",
+            "decimals": 18
+        },
+        "liquity_lusd": {
+            "address": "0xeDEAbc3A1e7D21fE835FFA6f83a710c70BB1a051",
+            "decimals": 18
+        }
+    },
+    "mantle": {
+        "circlefin_usdce": {
+            "address": "0x09bc4e0d864854c6afb6eb9a9cdf58ac190d0df9",
+            "decimals": 6
+        },
+        "tetherto_usdt0": {
+            "address": "0x779ded0c9e1022225f8e0630b35a9b54be713736",
+            "decimals": 6
+        },
+        "ethena_usde": {
+            "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
+            "decimals": 18
+        },
+        "agora_ausd": {
+            "address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+            "decimals": 6
+        },
+        "avalon_usda": {
+            "address": "0x075df695b8e7f4361fa7f8c1426c63f11b06e326",
+            "decimals": 18
+        },
+        "worldlibertyfinancial_usd1": {
+            "address": "0x111111d2bf19e43c34263401e0cad979ed1cdb61",
             "decimals": 18
         }
     },
@@ -2121,12 +2347,24 @@ address_mapping = {
         "tetherto_usdt0": {
             "address": "0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb",
             "decimals": 6
+        },
+        "megaeth_usdm": {
+            "address": "0xFAfDdbb3FC7688494971a79cc65DCa3EF82079E7",
+            "decimals": 18
+        },
+        "cap_cusd": {
+            "address": "0xcCcc62962d17b8914c62D74FfB843d73B2a3cccC",
+            "decimals": 18
         }
     },
     "zircuit": {
         "ethena_usde": {
             "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
             "decimals": 18
+        },
+        "circlefin_usdc": {
+            "address": "0x3b952c8C9C44e8Fe201e2b26F6B2200203214cfF",
+            "decimals": 6
         }
     },
     "metis": {
@@ -2136,6 +2374,18 @@ address_mapping = {
         },
         "alchemix_alusd": {
             "address": "0x303241e2b3b4aed0bb0f8623e7442368fed8faf3",
+            "decimals": 18
+        },
+        "tetherto_usdte": {
+            "address": "0xbB06DCA3AE6887fAbF931640f67cab3e3a16F4dC",
+            "decimals": 6
+        },
+        "makerdao_daie": {
+            "address": "0x4651b38e7ec14bb3db731369bfe5b08f2466bd0a",
+            "decimals": 18
+        },
+        "binance_busde": {
+            "address": "0xb809cda0c2f79f43248C32b5DcB09d5cD26BbF10",
             "decimals": 18
         }
     },
@@ -2150,9 +2400,13 @@ address_mapping = {
             "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
             "decimals": 18
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0x80eede496655fb9047dd39d9f418d5483ed600df",
             "decimals": 18
+        },
+        "tetherto_usdt0": {
+            "address": "0x102d758f688a4C1C5a80b116bD945d4455460282",
+            "decimals": 6
         }
     },
     "fraxtal": {
@@ -2160,7 +2414,7 @@ address_mapping = {
             "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
             "decimals": 18
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0xfc00000000000000000000000000000000000001",
             "decimals": 18
         },
@@ -2170,6 +2424,10 @@ address_mapping = {
         },
         "agora_ausd": {
             "address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
+            "decimals": 6
+        },
+        "tetherto_usdte": {
+            "address": "0x4d15ea9c2573addaed814e48c148b5262694646a",
             "decimals": 6
         }
     },
@@ -2181,6 +2439,10 @@ address_mapping = {
         "izumi_iusd": {
             "address": "0x078f712f038a95beea94f036cadb49188a90604b",
             "decimals": 18
+        },
+        "makerdao_daie": {
+            "address": "0x1c466b9371f8aba0d7c458be10a62192fcb8aa71",
+            "decimals": 18
         }
     },
     "blast": {
@@ -2188,7 +2450,7 @@ address_mapping = {
             "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
             "decimals": 18
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0x80eede496655fb9047dd39d9f418d5483ed600df",
             "decimals": 18
         },
@@ -2202,7 +2464,7 @@ address_mapping = {
             "address": "0xff8544fed5379d9ffa8d47a74ce6b91e632ac44d",
             "decimals": 18
         },
-        "fraxfinance_FRXUSD": {
+        "fraxfinance_frxusd": {
             "address": "0x80eede496655fb9047dd39d9f418d5483ed600df",
             "decimals": 18
         }
