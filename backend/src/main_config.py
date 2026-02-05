@@ -42,6 +42,7 @@ class MainConfig(BaseModel):
     aliases_l2beat: Optional[str] = Field(alias="aliases_l2beat", default=None)
     aliases_l2beat_slug: Optional[str] = Field(alias="aliases_l2beat_slug", default=None)
     aliases_coingecko: Optional[str] = Field(alias="aliases_coingecko", default=None)
+    aliases_coingecko_chain: Optional[str] = Field(alias="aliases_coingecko_chain", default=None)
     aliases_rhino: Optional[str] = Field(alias="aliases_rhino", default=None)
     aliases_blockscout_url: Optional[str] = Field(alias="aliases_blockscout_url", default=None)
     aliases_defillama: Optional[str] = Field(alias="aliases_defillama", default=None)
