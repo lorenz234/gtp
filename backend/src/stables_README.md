@@ -9,6 +9,12 @@ This document explains the structure and maintenance workflow for stablecoin met
 1. `stables_metadata`: per‑stablecoin metadata.
 2. `address_mapping`: per‑chain token address + decimals mapping keyed by `token_id`.
 
+## T3 Rules
+
+1. No value‑increasing stablecoins allowed (e.g. sUSDS).
+2. Stablecoins that mainly wrap other stablecoins are not allowed, unless it is a bridge (e.g. Aave aUSDC, IUSD, dtrinity USD).
+3. Only stablecoins that anyone can own are allowed (e.g. Blackrock BUIDL).
+
 ## `stables_metadata`
 
 Example entry:
