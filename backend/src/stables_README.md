@@ -56,7 +56,7 @@ ORDER BY date DESC;
 - We track **local token addresses on each chain** (not bridge contracts).
 - Always track `decimals` per address because decimal places can differ across chains.
 
-If `coingecko_id` is provided in `stables_metadata`, you can generate new mappings via the script below. It prints a full `address_mapping` blob for copy‑paste into `stables_config_v2.py`. **Do not comment the `address_mapping` section in the file**, to keep auto‑generated diffs clean.
+If `coingecko_id` is provided in `stables_metadata`, you can generate new mappings via the script below. It prints a full `address_mapping` blob for copy‑paste into `stables_config_v2.py`. **Do not comment the `address_mapping` section in the file**, to keep auto‑generated diffs clean. Also make sure `aliases_coingecko_chain` is populated in the gtp_dna GitHub chain mapping.
 
 ### Semi‑automated update script
 
@@ -86,10 +86,8 @@ config = config.loc[config["aliases_coingecko_chain"].notnull()]
 config = config.set_index("aliases_coingecko_chain")
 origin_key_mapping = config.to_dict()["origin_key"]
 
-# Which token_ids to check
-# Use ['*'] for all, or a specific list like ['circlefin_usdc', 'tetherto_usdt']
-# token_ids_to_check = ['*']
-token_ids_to_check = ["circlefin_usdce"]
+# Which token_ids to check, use ['*'] for all, or a specific list like ['circlefin_usdc', 'tetherto_usdt']
+token_ids_to_check = ['*']
 
 address_mapping_cg = {}
 unrecognised_chains = set()
