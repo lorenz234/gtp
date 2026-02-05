@@ -13,7 +13,7 @@ from src.misc.airflow_utils import alert_via_webhook
     },
     dag_id='oli_indexer_ipfs',
     description='Uploads offchain OLI attestations to IPFS and updates the database with the IPFS hashes',
-    tags=['indexing', 'oli', 'raw'],
+    tags=['oli'],
     start_date=datetime(2025, 10, 27),
     schedule='*/30 * * * *',  # Runs every 30 minutes
     catchup=False  # Prevents backfilling

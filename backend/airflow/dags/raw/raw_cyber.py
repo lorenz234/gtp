@@ -13,7 +13,7 @@ from src.misc.airflow_utils import alert_via_webhook
     },
     dag_id='raw_cyber',
     description='Load raw tx data from Cyber',
-    tags=['raw', 'near-real-time', 'rpc', 'new-setup'],
+    tags=['raw', 'rpc'],
     start_date=datetime(2023, 9, 1),
     schedule='1/10 * * * *'
 )
