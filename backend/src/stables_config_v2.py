@@ -1519,6 +1519,30 @@ address_mapping = {
         "aegis-im_yusd": {
             "address": "0x4274cd7277c7bb0806bd5fe84b9adae466a8da0a",
             "decimals": 18
+        },
+        "fidelity_fidd": {
+            "address": "0x7c135549504245b5eae64fc0e99fa5ebabb8e35d",
+            "decimals": 18
+        },
+        "transfero_brz": {
+            "address": "0x01d33fd36ec67c6ada32cf36b31e88ee190b1839",
+            "decimals": 18
+        },
+        "elixir_deusd": {
+            "address": "0x15700b564ca08d9439c58ca5053166e8317aa138",
+            "decimals": 18
+        },
+        "monerium_eure_old": {
+            "address": "0x3231cb76718cdef2155fc47b5286d82e6eda273f",
+            "decimals": 18
+        },
+        "noon_capital_usn": {
+            "address": "0xda67b4284609d2d48e5d10cfac411572727dc1ed",
+            "decimals": 18
+        },
+        "straitsx_xidr": {
+            "address": "0xebf2096e01455108badcbaf86ce30b6e5a72aa52",
+            "decimals": 6
         }
     },
     "zksync_era": {
@@ -1557,6 +1581,10 @@ address_mapping = {
         "mountainprotocol_usdm": {
             "address": "0x7715c206a14ac93cb1a6c0316a6e5f8ad7c9dc31",
             "decimals": 18
+        },
+        "noon_capital_usn": {
+            "address": "0x0469d9d1de0ee58fa1153ef00836b9bbcb84c0b6",
+            "decimals": 18
         }
     },
     "ink": {
@@ -1583,6 +1611,10 @@ address_mapping = {
         "aave_gho": {
             "address": "0xfc421ad3c883bf9e7c4f42de845c4e4405799e73",
             "decimals": 18
+        },
+        "openusdt": {
+            "address": "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+            "decimals": 6
         }
     },
     "unichain": {
@@ -1609,6 +1641,10 @@ address_mapping = {
         "fraxfinance_frxusd": {
             "address": "0x80eede496655fb9047dd39d9f418d5483ed600df",
             "decimals": 18
+        },
+        "openusdt": {
+            "address": "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+            "decimals": 6
         }
     },
     "plume": {
@@ -1639,6 +1675,10 @@ address_mapping = {
         "mzero_wm": {
             "address": "0x437cc33344a0b27a429f795ff6b469c72698b291",
             "decimals": 6
+        },
+        "elixir_deusd": {
+            "address": "0x1271656f45e251f588847721ba2c561dd1f0223f",
+            "decimals": 18
         }
     },
     "base": {
@@ -1761,6 +1801,14 @@ address_mapping = {
         "openedenhq_usdo": {
             "address": "0xad55aebc9b8c03fc43cd9f62260391c13c23e7c0",
             "decimals": 18
+        },
+        "circlefin_usdce": {
+            "address": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+            "decimals": 6
+        },
+        "openusdt": {
+            "address": "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+            "decimals": 6
         }
     },
     "celo": {
@@ -1963,6 +2011,18 @@ address_mapping = {
         "bilira-org_tryb": {
             "address": "0x4fb71290ac171e1d144f7221d882becac7196eb5",
             "decimals": 6
+        },
+        "transfero_brz": {
+            "address": "0x4ed141110f6eeeaba9a1df36d8c26f684d2475dc",
+            "decimals": 18
+        },
+        "monerium_eure_old": {
+            "address": "0x18ec0a6e18e5bc3784fdd3a3634b31245ab704f6",
+            "decimals": 18
+        },
+        "straitsx_xidr": {
+            "address": "0x2c826035c1c36986117a0e949bd6ad4bab54afe2",
+            "decimals": 6
         }
     },
     "arbitrum": {
@@ -2127,6 +2187,14 @@ address_mapping = {
         "makerdao_daie": {
             "address": "0x5574eb6b8789a91466f902c380d978e472db68170ff82a5b650b95a58ddf4ad",
             "decimals": 18
+        },
+        "uncap_usdu": {
+            "address": "0x2F94539F80158f9a48a7acF3747718dfBec9B6f639E2742c1FB44aE7ab5AA04",
+            "decimals": 18
+        },
+        "noon_capital_usn": {
+            "address": "0x1e6545cab7ba4ac866768ba5e1bd540893762286ed3fea7f9c02bfa147e135b",
+            "decimals": 18
         }
     },
     "optimism": {
@@ -2201,6 +2269,10 @@ address_mapping = {
         "frankencoin_zchf": {
             "address": "0xd4dd9e2f021bb459d5a5f6c24c12fe09c5d45553",
             "decimals": 18
+        },
+        "openusdt": {
+            "address": "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+            "decimals": 6
         }
     },
     "taiko": {
@@ -2250,6 +2322,10 @@ address_mapping = {
         },
         "tetherto_usdt0": {
             "address": "0x102d758f688a4C1C5a80b116bD945d4455460282",
+            "decimals": 6
+        },
+        "openusdt": {
+            "address": "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
             "decimals": 6
         }
     },
@@ -2315,6 +2391,10 @@ address_mapping = {
         "liquity_lusd": {
             "address": "0xeDEAbc3A1e7D21fE835FFA6f83a710c70BB1a051",
             "decimals": 18
+        },
+        "tetherto_usdte": {
+            "address": "0xf55bec9cafdbe8730f096aa55dad6d22d44099df",
+            "decimals": 6
         }
     },
     "mantle": {
@@ -2365,6 +2445,10 @@ address_mapping = {
         "circlefin_usdc": {
             "address": "0x3b952c8C9C44e8Fe201e2b26F6B2200203214cfF",
             "decimals": 6
+        },
+        "tetherto_usdte": {
+            "address": "0x46dda6a5a559d861c06ec9a95fb395f5c3db0742",
+            "decimals": 6
         }
     },
     "metis": {
@@ -2387,6 +2471,10 @@ address_mapping = {
         "binance_busde": {
             "address": "0xb809cda0c2f79f43248C32b5DcB09d5cD26BbF10",
             "decimals": 18
+        },
+        "circlefin_usdce": {
+            "address": "0xea32a96608495e54156ae48931a7c20f0dcc1a21",
+            "decimals": 6
         }
     },
     "swell": {
@@ -2406,6 +2494,18 @@ address_mapping = {
         },
         "tetherto_usdt0": {
             "address": "0x102d758f688a4C1C5a80b116bD945d4455460282",
+            "decimals": 6
+        },
+        "circlefin_usdce": {
+            "address": "0xd988097fb8612cc24eec14542bc03424c656005f",
+            "decimals": 6
+        },
+        "tetherto_usdte": {
+            "address": "0xf0f161fda2712db8b566946122a5af183995e2ed",
+            "decimals": 6
+        },
+        "openusdt": {
+            "address": "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
             "decimals": 6
         }
     },
@@ -2429,6 +2529,14 @@ address_mapping = {
         "tetherto_usdte": {
             "address": "0x4d15ea9c2573addaed814e48c148b5262694646a",
             "decimals": 6
+        },
+        "circlefin_usdce": {
+            "address": "0xdcc0f2d8f90fde85b10ac1c8ab57dc0ae946a543",
+            "decimals": 6
+        },
+        "openusdt": {
+            "address": "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+            "decimals": 6
         }
     },
     "manta": {
@@ -2443,6 +2551,14 @@ address_mapping = {
         "makerdao_daie": {
             "address": "0x1c466b9371f8aba0d7c458be10a62192fcb8aa71",
             "decimals": 18
+        },
+        "circlefin_usdce": {
+            "address": "0xb73603c5d87fa094b7314c74ace2e64d165016fb",
+            "decimals": 6
+        },
+        "tetherto_usdte": {
+            "address": "0xf417f5a458ec102b90352f697d6e2ac3a3d2851f",
+            "decimals": 6
         }
     },
     "blast": {
@@ -2457,6 +2573,10 @@ address_mapping = {
         "anzen_usdz": {
             "address": "0x52056ed29fe015f4ba2e3b079d10c0b87f46e8c6",
             "decimals": 18
+        },
+        "blast_io_usdb": {
+            "address": "0x4300000000000000000000000000000000000003",
+            "decimals": 18
         }
     },
     "polygon_zkevm": {
@@ -2466,6 +2586,18 @@ address_mapping = {
         },
         "fraxfinance_frxusd": {
             "address": "0x80eede496655fb9047dd39d9f418d5483ed600df",
+            "decimals": 18
+        },
+        "circlefin_usdce": {
+            "address": "0xa8ce8aee21bc2a48a5ef670afcc9274c7bbbc035",
+            "decimals": 6
+        },
+        "tetherto_usdte": {
+            "address": "0x1e4a5963abfd975d8c9021ce480b42188849d41d",
+            "decimals": 6
+        },
+        "makerdao_daie": {
+            "address": "0xc5015b9d9161dca7e18e32f6f25c4ad850731fd4",
             "decimals": 18
         }
     }
