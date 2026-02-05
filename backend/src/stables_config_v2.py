@@ -21,7 +21,7 @@ coin_mapping = [
         "owner_project": "circlefin",
         "token_id": "circlefin_usdce",
         "symbol": "USDC.e",
-        "coingecko_id": ["usd-coin-ethereum-bridged", "bridged-usdc-polygon-pos-bridge", "stargate-bridged-usdc", "bridged-usd-coin-starkgate", "soneium-bridged-usdc-soneium", "binance-bridged-usdc-bnb-smart-chain", "cronos-bridged-usdc-cronos", "bridged-usd-coin-linea", "bridged-usd-coin-optimism", "bridged-usd-coin-scroll", "zksync-bridged-usdc-zksync", "mantle-bridged-usdc-mantle", "bridged-usd-coin-base", "metis-bridged-usdc-metis", "mode-bridged-usdc-mode", "fraxtal-bridged-usdc-fraxtal", "bridged-usd-coin-manta-pacific", "polygon-hermez-bridged-usdc-polygon-zkevm"],
+        "coingecko_id": ["usd-coin-ethereum-bridged", "bridged-usdc-polygon-pos-bridge", "stargate-bridged-usdc", "bridged-usd-coin-starkgate", "soneium-bridged-usdc-soneium", "binance-bridged-usdc-bnb-smart-chain", "cronos-bridged-usdc-cronos", "bridged-usd-coin-linea", "bridged-usd-coin-optimism", "bridged-usd-coin-scroll", "zksync-bridged-usdc-zksync", "mantle-bridged-usdc-mantle", "bridged-usd-coin-base", "metis-bridged-usdc-metis", "mode-bridged-usdc-mode", "fraxtal-bridged-usdc-fraxtal", "bridged-usd-coin-manta-pacific", "polygon-hermez-bridged-usdc-polygon-zkevm", "zora-bridged-usdc-zora"],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum", # origin chain where the supply is bridged from
         "bridged_origin_token_id": "circlefin_usdc", # supply will be deducted from origin chain USDC supply
@@ -2599,6 +2599,55 @@ address_mapping = {
         "makerdao_daie": {
             "address": "0xc5015b9d9161dca7e18e32f6f25c4ad850731fd4",
             "decimals": 18
+        }
+    },
+    "arbitrum_nova": {
+        "circlefin_usdce": {
+            "address": "0x750ba8b76187092B0D1E87E28daaf484d1b5273b",
+            "decimals": 6
+        },
+        "tetherto_usdte": {
+            "address": "0xeD9d63a96c27f87B07115b56b2e3572827f21646",
+            "decimals": 6
+        },
+        "makerdao_daie": {
+            "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
+            "decimals": 18
+        }
+    },
+    "redstone": {
+        "circlefin_usdce": {
+            "address": "0xD5d59fC063e7548b6015A36fEb10B875924A19be",
+            "decimals": 6
+        }
+    },
+    "mint": {
+        "track_on_l1": [
+            "0x2b3F201543adF73160bA42E1a5b7750024F30420"
+        ]
+    },
+    "zora": {
+        "circlefin_usdce": {
+            "address": "0xcccccccc7021b32ebb4e8c08314bd62f7c653ec4",
+            "decimals": 6
+        }
+    },
+    "imx": {
+        "track_on_l1": [
+            "0x5FDCCA53617f4d2b9134B29090C87D01058e27e9"
+        ]
+    },
+    "loopring": {
+        "track_on_l1": [
+            "0x674bdf20A0F284D710BC40872100128e2d66Bd3f",
+            "0x7D3D221A8D8AbDd868E8e88811fFaF033e68E108",
+            "0xD97D09f3bd931a14382ac60f156C1285a56Bb51B"
+        ]
+    },
+    "lisk": {
+        "openusdt": {
+            "address": "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
+            "decimals": 6
         }
     }
 }
