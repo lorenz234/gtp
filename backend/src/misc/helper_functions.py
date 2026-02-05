@@ -205,7 +205,12 @@ def prepare_df_kpis(df, metric_key, origin_key):
 ## convert df address columns to checksummed addresses
 def db_addresses_to_checksummed_addresses(df, address_cols):
     for col in address_cols:
-        df[col] = df[col].apply(lambda x: eth_utils.to_checksum_address(bytes(x)))
+        df[col] = df[col].apply(
+            lambda x: eth_utils.to_checksum_address('0x' + bytes(x).hex())
+            if x is not None and isinstance(x, (bytes, bytearray, memoryview)) and len(bytes(x)) == 20
+            ## elese just to string
+            else str(x) if x is not None else x
+        )
     return df
 
 def string_addresses_to_checksummed_addresses(df, address_cols):
