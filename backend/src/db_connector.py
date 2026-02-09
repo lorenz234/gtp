@@ -2219,6 +2219,18 @@ class DbConnector:
                         print(f"Error retrieving a synced rpc for {origin_key}.")
                         print(e)
                         return None
+        
+        def get_all_rpcs_for_chain(self, origin_key:str):
+                query = f"SELECT url FROM sys_rpc_config WHERE origin_key = '{origin_key}'"
+                try:
+                        with self.engine.connect() as connection:
+                                result = connection.execute(text(query))
+                                rpcs = [row[0] for row in result.fetchall()]
+                                return rpcs
+                except Exception as e:
+                        print(f"Error retrieving rpcs for {origin_key}.")
+                        print(e)
+                        return []
                 
         def get_block_by_date(self, table_name:str, date:datetime):
                 # Check if the table has a 'block_timestamp' column
