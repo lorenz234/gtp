@@ -45,6 +45,10 @@ class MainConfig(BaseModel):
     aliases_rhino: Optional[str] = Field(alias="aliases_rhino", default=None)
     aliases_blockscout_url: Optional[str] = Field(alias="aliases_blockscout_url", default=None)
     aliases_defillama: Optional[str] = Field(alias="aliases_defillama", default=None)
+    aliases_dune: Optional[str] = Field(alias="aliases_dune", default=None)
+
+    ## DEPLOYMENTS
+    deployed_supplyreader: Optional[str] = Field(alias="deployed_supplyreader", default=None)
 
     ## METADATA
     metadata_chain_type: Optional[str] = Field(alias="metadata_chain_type", default="others")
