@@ -15,7 +15,7 @@ CET = timezone("Europe/Paris")
     },
     dag_id='other_highlights_bot',
     description='Send highlights from growthepie.com to Discord and Telegram',
-    tags=['ai', 'milestones', 'metrics', 'social', 'twitter', 'charts'],
+    tags=['highlights',],
     start_date=CET.convert(datetime(2023, 9, 1, 8, 0)),
     schedule='30 8 * * *', ## CET TIMEZONE here instead of UTC
     catchup=False  # Ensures only future runs are scheduled, not backfilled

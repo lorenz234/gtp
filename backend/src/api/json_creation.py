@@ -2480,6 +2480,8 @@ class JSONCreation():
         """
         with self.db_connector.engine.connect() as connection:
             df = pd.read_sql(exec_string, connection)
+            
+        ## convert address to checksummed address for contracts that have a valid address
         df = db_addresses_to_checksummed_addresses(df, ['address'])
 
         return df

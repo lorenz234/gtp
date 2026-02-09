@@ -12,7 +12,7 @@ from src.misc.airflow_utils import alert_via_webhook
     },
     dag_id='metrics_eigenda',
     description='Load data from EigenDA API.',
-    tags=['EigenDA', 'fact_kpi'],
+    tags=['metrics', 'daily'],
     start_date=datetime(2024, 7, 22),
     schedule='30 3 * * *'  # Run daily at 3:30 AM. Needs to be before metrics_sql dag
 )

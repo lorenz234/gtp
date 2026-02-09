@@ -13,7 +13,7 @@ from src.misc.airflow_utils import alert_via_webhook
     },
     dag_id='oli_mev_contract_airtable',
     description='Update Airtable with MEV contract data',
-    tags=['oli', 'daily', 'mev'],
+    tags=['oli', 'daily'],
     start_date=datetime(2025, 5, 26),
     schedule='00 09 * * *'
 )

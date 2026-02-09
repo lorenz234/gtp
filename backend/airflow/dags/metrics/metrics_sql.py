@@ -7,7 +7,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description="Run some sql aggregations on database.",
     tags=["metrics", "daily"],
     start_date=datetime(2023, 4, 24),
-    schedule="30 4 * * *",          # runs 04:30 
+    schedule="30 3 * * *",          # runs 03:30 
     catchup=False,
     default_args={
         "owner": "mseidl",

@@ -13,7 +13,7 @@ from src.misc.airflow_utils import alert_via_webhook
     },
     dag_id='oli_indexer',
     description='Indexes the onchain OLI Label Pool. This includes attestations of labels (v1)',
-    tags=['indexing', 'oli', 'raw'],
+    tags=['oli'],
     start_date=datetime(2025, 10, 27), # CAN BE DELETED ON DATE 31.03.2026
     schedule='*/30 * * * *',  # Runs every 30 minutes
     catchup=False  # Prevents backfilling
