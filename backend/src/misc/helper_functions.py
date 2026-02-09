@@ -209,7 +209,7 @@ def db_addresses_to_checksummed_addresses(df, address_cols):
             lambda x: eth_utils.to_checksum_address('0x' + bytes(x).hex())
             if x is not None and isinstance(x, (bytes, bytearray, memoryview)) and len(bytes(x)) == 20
             ## elese just to string
-            else str(x) if x is not None else x
+            else '0x' + x.tobytes().hex() if x is not None else x
         )
     return df
 
