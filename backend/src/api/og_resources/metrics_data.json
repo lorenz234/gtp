@@ -5,13 +5,13 @@
       "category": "activity",
       "page": {
         "title": "Active Addresses",
-        "description": "The number of distinct wallet addresses that actively interacted with a blockchain. This includes addresses that initiated a transaction or executed a smart contract call — in other words, addresses that were active onchain.",
+        "description": "The number of distinct wallet addresses that actively interacted with a blockchain. This includes addresses that initiated a transaction or executed a smart contract call \u2014 in other words, addresses that were active onchain.",
         "why": "Active addresses is a key onchain metric for measuring user activity and engagement on a blockchain network. While not a perfect proxy for unique users - since one person can control multiple wallets - it still provides valuable insight into how many independent participants are interacting with the network over time.",
         "calculation": "At growthepie, we analyze every transaction and count unique 'from' addresses per time period (daily, weekly, or monthly). Unlike some other data providers, we exclude 'to' addresses, since they represent passive recipients rather than active participants. This approach ensures that our active address metric reflects real user-initiated activity. This onchain metric is also often called 'Daily Active Users (DAU)', 'Unique Wallets (UW)', or 'Number of Users'.",
         "how_gamed": "Active address is one of the most contentious metrics. Its counts can be inflated through sybil behavior, where many fake wallets are created to simulate activity - often during airdrops or incentive campaigns. For this reason, it's best to always interpret active addresses alongside other onchain metrics like Chain Revenue or Total Value Secured as well as looking into the most active contracts on this chain to get a full picture of real network engagement.",
         "interpretation": "A rising number of active addresses generally indicates growing user interest and adoption of the blockchain, while a declining count may signal waning engagement. However, it's important to consider active addresses in context with other metrics, as high activity doesn't always equate to a healthy or valuable network.",
         "icon": "gtp-metrics-activeaddresses"
-    },
+      },
       "icon": "gtp-metrics-activeaddresses",
       "key": "daa",
       "rootKey": "metricsDailyActiveAddresses"
@@ -27,7 +27,7 @@
         "how_gamed": "Transaction count can be artificially inflated through spam transactions or micro-transactions that do not represent meaningful activity on the network. Especially since transaction costs dropped for Layer 2s (after the Dencun upgrade in March 2024). Also worth noting: transaction can vary in complexity. The gas used for a transaction can range from 21,000 for a simple ETH transfer to several hundred thousand for more complex interactions. This metric is best analyzed together with Chain Revenue or Transaction Costs. If users have to pay high fees to get their transactions in they are less likely to spam the network.",
         "interpretation": "A rising transaction count generally indicates growing user interest and adoption of the blockchain, while a declining count may signal waning engagement. However, it's important to consider transaction count in context with other metrics, as high activity doesn't always equate to a healthy or valuable network.",
         "icon": "gtp-metrics-transactioncount"
-    },
+      },
       "icon": "gtp-metrics-transactioncount",
       "key": "txcount",
       "rootKey": "metricsTxCount"
@@ -43,7 +43,7 @@
         "how_gamed": "Since throughput focuses on gas used rather than transaction count, it is less susceptible to manipulation through small spam transactions. However, it is still possible that larger transactions could be used to flood the network. This metric is best analyzed together with Chain Revenue or Transaction Costs. If users have to pay high fees to get their transactions in they are less likely to spam the network.",
         "interpretation": "The throughput chart often appears as a flat line for some chains (i.e. Base) because they operate well below their maximum capacity (block gas target). If a chain is operating close to its maximum throughput, it may experience congestion and higher fees during periods of high demand.",
         "icon": "gtp-metrics-throughput"
-    },
+      },
       "icon": "gtp-metrics-throughput",
       "key": "throughput",
       "rootKey": "throughput"
@@ -59,7 +59,7 @@
         "how_gamed": "Stablecoin supply is generally a very reliable metric, since stablecoins are typically backed by real-world assets (either cash or treasuries). This makes it more difficult to artificially inflate this metric compared to other value-based metrics (like Total Value Secured).",
         "interpretation": "A rising stablecoin supply generally indicates growing user interest and trust in the blockchain, while a declining supply may signal waning confidence. However, it's important to consider stablecoin supply in context with other metrics, as high stablecoin holdings don't always equate to a healthy or valuable network.",
         "icon": "gtp-metrics-stablecoinmarketcap"
-    },
+      },
       "icon": "gtp-metrics-stablecoinmarketcap",
       "key": "stables_mcap",
       "rootKey": "metricsStablesMcap"
@@ -75,7 +75,7 @@
         "how_gamed": "Total Value Secured can be artificially inflated through the use of wrapped tokens or other synthetic assets that do not represent real value. Additionally, the use of bridges to transfer assets between chains can also lead to double-counting of value if not properly accounted for. For these reasons, it's important to interpret TVS alongside other metrics like Chain Revenue or Stablecoin Supply to get a full picture of a chain's health.",
         "interpretation": "A rising TVS generally indicates growing user interest and trust in the blockchain, while a declining TVS may signal waning confidence. However, it's important to consider TVS in context with other metrics, as high TVS doesn't always equate to a healthy or valuable network.",
         "icon": "gtp-metrics-totalvaluelocked"
-    },
+      },
       "icon": "gtp-metrics-totalvaluelocked",
       "key": "tvl",
       "rootKey": "metricsTvl"
@@ -94,7 +94,7 @@
         "icon": "gtp-metrics-transactioncosts",
         "showGwei": true,
         "reversePerformer": true
-    },
+      },
       "icon": "gtp-metrics-transactioncosts",
       "key": "txcosts",
       "rootKey": "metricsTxCosts"
@@ -110,7 +110,7 @@
         "how_gamed": "Chain revenue is hard to manipulate directly, since it is determined by real user fees paid to the network. However, chains can also introduce fee incentives or subsidies (i.e. in gas fee credits) to encourage usage, which can temporarily boost revenue figures. Therefore, it's important to interpret this metric alongside other indicators of network health and adoption.",
         "interpretation": "A rising revenue generally indicates growing user interest and adoption of the blockchain, while a declining revenue may signal waning engagement. The more users are willing to pay fees to use the chain, the more valuable the chain's applications and security are perceived to be.",
         "icon": "gtp-metrics-feespaidbyusers"
-    },
+      },
       "icon": "gtp-metrics-feespaidbyusers",
       "key": "fees",
       "rootKey": "metricsFeesPaidToEthereum"
@@ -126,7 +126,7 @@
         "how_gamed": "We saw very little attempts to game this metric so far, since it reflects real costs that Layer 2s have to pay to operate.",
         "interpretation": "The amount of rent paid to L1 mostly depends on the gas prices on Ethereum as well as the amount of data that Layer 2s post on L1. Higher rent payments generally indicate that Layer 2s are actively utilizing Ethereum's security and data availability features, while lower payments may suggest reduced activity or alternative approaches to data posting (i.e. alternative DA Layers like EigenDA).",
         "icon": "gtp-metrics-rentpaidtol1"
-    },
+      },
       "icon": "gtp-metrics-rentpaidtol1",
       "key": "rent_paid",
       "rootKey": "metricsRentPaid"
@@ -142,7 +142,7 @@
         "how_gamed": "The main angle to game Onchain Profit is through providing gas fee subsidies, which can artificially inflate revenue figures. Therefore, it's important to interpret this metric alongside other indicators of network health and adoption.",
         "interpretation": "A positive onchain profit indicates that the Layer 2 is generating more revenue than it is spending on data posting, suggesting a sustainable business model. Conversely, a negative profit may signal financial challenges or inefficiencies in the L2's operations. However, offchain costs and fees subsidies are not included in this metric and should be considered separately when evaluating overall profitability.",
         "icon": "gtp-metrics-onchainprofit"
-    },
+      },
       "icon": "gtp-metrics-onchainprofit",
       "key": "profit",
       "rootKey": "metricsEarnings"
@@ -153,14 +153,14 @@
       "page": {
         "title": "Fully Diluted Valuation",
         "description": "The Fully Diluted Valuation is the theoretical market cap of a token if all its planned tokens (total supply) were issued at the current price.",
-        "formula": "FDV = Total Token Supply × Token Price",
+        "formula": "FDV = Total Token Supply \u00d7 Token Price",
         "why": "FDV helps investors understand the potential size and value of a token, which can be useful for comparing similar assets and assessing the risk of dilution. Note: A token can be related to multiple chains (i.e. MATIC is connected to Polygon zkEVM and Polygon PoS)",
         "calculation": "At growthepie, we calculate the Fully Diluted Valuation (FDV) by multiplying the total token supply by the current market price of the token. The total token supply includes all tokens that are planned to be issued, not just those currently in circulation. By using the current market price, we provide an accurate measure of the theoretical market cap if all tokens were issued at that price.",
         "how_gamed": "FDV can be misleading if a large portion of the total supply is locked, vested, or otherwise not in circulation (low-float token). Investors should consider the token's issuance schedule and lock-up periods when evaluating FDV.",
         "interpretation": "A general high FDV indicates that investors value this token highly. A high FDV relative to the current market cap (-> low issuance rate) may indicate potential dilution risk.",
         "icon": "gtp-metrics-fdv",
         "showGwei": false
-    },
+      },
       "icon": "gtp-metrics-fdv",
       "key": "fdv",
       "rootKey": "metricsFullyDilutedValuation"
@@ -170,13 +170,13 @@
       "category": "economics",
       "page": {
         "title": "Market Cap",
-        "formula": "MC = Circulating Token Supply × Token Price",
+        "formula": "MC = Circulating Token Supply \u00d7 Token Price",
         "description": "The Market Cap is the total value of all circulating tokens, calculated by multiplying the current price of a single token by the total number of tokens in circulation.",
         "why": "Market cap is an important metric because it provides a quick snapshot of a token's market dominance, helping investors assess its popularity. It is important though to also consider a tokens issuance rate (Circulating supply / Total supply) to paint a full picture. Note: A token can be related to multiple chains (i.e. MATIC is connected to Polygon zkEVM and Polygon PoS).",
         "interpretation": "A higher market cap generally indicates a more reputable and higher value project, while a lower market cap may suggest less interest or confidence. However, market cap isn't solely linked to a project's quality, as it can be influenced by factors like market sentiment, token supply, treasury sizes, voting rights, etc.",
         "icon": "gtp-metrics-marketcap",
         "showGwei": false
-    },
+      },
       "icon": "gtp-metrics-marketcap",
       "key": "market_cap",
       "rootKey": "marketCap"
@@ -190,7 +190,7 @@
         "why": "App Revenue is a key metric for assessing the financial health and success of applications on a blockchain. It reflects the total amount of fees generated by applications, which can be used to measure their popularity and effectiveness. A high App Revenue indicates that users find the applications valuable and are willing to pay for them, while a low App Revenue may suggest that the applications are not meeting user needs or expectations.",
         "interpretation": "A rising App Revenue generally indicates growing user interest and adoption of the applications on the blockchain, while a declining revenue may signal waning engagement. However, it's important to consider App Revenue in context with other metrics, as high revenue doesn't always equate to a healthy or valuable application ecosystem.",
         "icon": "gtp-metrics-feespaidbyusers"
-    },
+      },
       "icon": "gtp-metrics-feespaidbyusers",
       "key": "app_revenue",
       "rootKey": "metricsAppRevenue"
@@ -257,6 +257,2465 @@
         "reversePerformer": true
       },
       "key": "fees_per_mbyte"
+    }
+  },
+  "screenshot_status": {
+    "landing": {
+      "updated": false
+    },
+    "application-overview": {
+      "updated": false
+    },
+    "economics": {
+      "updated": false
+    },
+    "ecosystem": {
+      "updated": false
+    },
+    "fundamentals/daily-active-addresses": {
+      "updated": false
+    },
+    "fundamentals/transaction-count": {
+      "updated": false
+    },
+    "fundamentals/throughput": {
+      "updated": false
+    },
+    "fundamentals/stablecoin-market-cap": {
+      "updated": false
+    },
+    "fundamentals/total-value-secured": {
+      "updated": false
+    },
+    "fundamentals/transaction-costs": {
+      "updated": false
+    },
+    "fundamentals/fees-paid-by-users": {
+      "updated": false
+    },
+    "fundamentals/rent-paid": {
+      "updated": false
+    },
+    "fundamentals/profit": {
+      "updated": false
+    },
+    "fundamentals/fully-diluted-valuation": {
+      "updated": false
+    },
+    "fundamentals/market-cap": {
+      "updated": false
+    },
+    "fundamentals/app-revenue": {
+      "updated": false
+    },
+    "blockspace/chain-overview": {
+      "updated": false
+    },
+    "blockspace/category-comparison": {
+      "updated": false
+    },
+    "data-availability/fees-paid-per-megabyte": {
+      "updated": false
+    },
+    "data-availability/blob-count": {
+      "updated": false
+    },
+    "data-availability/da-consumers": {
+      "updated": false
+    },
+    "data-availability/data-posted": {
+      "updated": false
+    },
+    "data-availability/fees-paid": {
+      "updated": false
+    },
+    "data-availability": {
+      "updated": false
+    },
+    "quick-bites": {
+      "updated": false
+    },
+    "quick-bites/fusaka": {
+      "updated": false
+    },
+    "quick-bites/linea-burn": {
+      "updated": false
+    },
+    "quick-bites/eth-supply": {
+      "updated": false
+    },
+    "quick-bites/ethereum-scaling": {
+      "updated": false
+    },
+    "quick-bites/arbitrum-hyperliquid-bridge": {
+      "updated": false
+    },
+    "quick-bites/test-bite": {
+      "updated": false
+    },
+    "quick-bites/pectra-upgrade": {
+      "updated": false
+    },
+    "quick-bites/arbitrum-timeboost": {
+      "updated": false
+    },
+    "quick-bites/base-commerce": {
+      "updated": false
+    },
+    "quick-bites/robinhood-stock": {
+      "updated": false
+    },
+    "quick-bites/anniversary-report": {
+      "updated": false
+    },
+    "quick-bites/stablecoin": {
+      "updated": false
+    },
+    "chains/ethereum": {
+      "updated": false
+    },
+    "chains/arbitrum": {
+      "updated": false
+    },
+    "chains/arbitrum-nova": {
+      "updated": false
+    },
+    "chains/base": {
+      "updated": false
+    },
+    "chains/blast": {
+      "updated": false
+    },
+    "chains/celo": {
+      "updated": false
+    },
+    "chains/derive": {
+      "updated": false
+    },
+    "chains/fraxtal": {
+      "updated": false
+    },
+    "chains/gravity": {
+      "updated": false
+    },
+    "chains/immutable-x": {
+      "updated": false
+    },
+    "chains/ink": {
+      "updated": false
+    },
+    "chains/linea": {
+      "updated": false
+    },
+    "chains/lisk": {
+      "updated": false
+    },
+    "chains/loopring": {
+      "updated": false
+    },
+    "chains/manta": {
+      "updated": false
+    },
+    "chains/mantle": {
+      "updated": false
+    },
+    "chains/megaeth": {
+      "updated": false
+    },
+    "chains/metis": {
+      "updated": false
+    },
+    "chains/mode": {
+      "updated": false
+    },
+    "chains/optimism": {
+      "updated": false
+    },
+    "chains/orderly": {
+      "updated": false
+    },
+    "chains/plume": {
+      "updated": false
+    },
+    "chains/polygon-pos": {
+      "updated": false
+    },
+    "chains/redstone": {
+      "updated": false
+    },
+    "chains/scroll": {
+      "updated": false
+    },
+    "chains/soneium": {
+      "updated": false
+    },
+    "chains/starknet": {
+      "updated": false
+    },
+    "chains/swell": {
+      "updated": false
+    },
+    "chains/taiko": {
+      "updated": false
+    },
+    "chains/unichain": {
+      "updated": false
+    },
+    "chains/worldchain": {
+      "updated": false
+    },
+    "chains/zksync-era": {
+      "updated": false
+    },
+    "chains/zora": {
+      "updated": false
+    },
+    "applications/hedgey-finance": {
+      "updated": false
+    },
+    "applications/aerodrome-finance": {
+      "updated": false
+    },
+    "applications/bitget": {
+      "updated": false
+    },
+    "applications/pimlicolabs": {
+      "updated": false
+    },
+    "applications/sharpelabs": {
+      "updated": false
+    },
+    "applications/arkham-ex": {
+      "updated": false
+    },
+    "applications/joonix": {
+      "updated": false
+    },
+    "applications/eywa-protocol": {
+      "updated": false
+    },
+    "applications/pika-protocol": {
+      "updated": false
+    },
+    "applications/jumptask": {
+      "updated": false
+    },
+    "applications/0xeigenlabs": {
+      "updated": false
+    },
+    "applications/ra-exchange": {
+      "updated": false
+    },
+    "applications/cyberkongz": {
+      "updated": false
+    },
+    "applications/anime-xyz": {
+      "updated": false
+    },
+    "applications/gamee": {
+      "updated": false
+    },
+    "applications/bounce-finance": {
+      "updated": false
+    },
+    "applications/encointer": {
+      "updated": false
+    },
+    "applications/kucoin": {
+      "updated": false
+    },
+    "applications/icecreamswap": {
+      "updated": false
+    },
+    "applications/camelotlabs": {
+      "updated": false
+    },
+    "applications/hana-network": {
+      "updated": false
+    },
+    "applications/tokepad-smolstudios": {
+      "updated": false
+    },
+    "applications/cryptorubic": {
+      "updated": false
+    },
+    "applications/wardenprotocol": {
+      "updated": false
+    },
+    "applications/raiinmaker": {
+      "updated": false
+    },
+    "applications/mento-protocol": {
+      "updated": false
+    },
+    "applications/swellnetwork": {
+      "updated": false
+    },
+    "applications/olympus": {
+      "updated": false
+    },
+    "applications/uniswap": {
+      "updated": false
+    },
+    "applications/ergopad": {
+      "updated": false
+    },
+    "applications/orbs-network": {
+      "updated": false
+    },
+    "applications/bitgo": {
+      "updated": false
+    },
+    "applications/tarot-finance": {
+      "updated": false
+    },
+    "applications/chonks-xyz": {
+      "updated": false
+    },
+    "applications/leetswap": {
+      "updated": false
+    },
+    "applications/rango-exchange": {
+      "updated": false
+    },
+    "applications/eugenix.io": {
+      "updated": false
+    },
+    "applications/qorpo-world": {
+      "updated": false
+    },
+    "applications/dark-shuffle-provable-games": {
+      "updated": false
+    },
+    "applications/elephant-protocol": {
+      "updated": false
+    },
+    "applications/khans-io": {
+      "updated": false
+    },
+    "applications/reown-com": {
+      "updated": false
+    },
+    "applications/curve": {
+      "updated": false
+    },
+    "applications/planet-ix": {
+      "updated": false
+    },
+    "applications/impactmarket": {
+      "updated": false
+    },
+    "applications/apollox-finance": {
+      "updated": false
+    },
+    "applications/0xsend": {
+      "updated": false
+    },
+    "applications/mitosis-org": {
+      "updated": false
+    },
+    "applications/omni-network": {
+      "updated": false
+    },
+    "applications/nethermindeth": {
+      "updated": false
+    },
+    "applications/fun-xyz": {
+      "updated": false
+    },
+    "applications/rubyscore": {
+      "updated": false
+    },
+    "applications/woonetwork": {
+      "updated": false
+    },
+    "applications/livepeer": {
+      "updated": false
+    },
+    "applications/lingocoin": {
+      "updated": false
+    },
+    "applications/lighter-xyz": {
+      "updated": false
+    },
+    "applications/paypal": {
+      "updated": false
+    },
+    "applications/seamless-protocol": {
+      "updated": false
+    },
+    "applications/pepe-unchained": {
+      "updated": false
+    },
+    "applications/trugly": {
+      "updated": false
+    },
+    "applications/revox-readon": {
+      "updated": false
+    },
+    "applications/eoracle": {
+      "updated": false
+    },
+    "applications/altcoinexchange": {
+      "updated": false
+    },
+    "applications/playnance": {
+      "updated": false
+    },
+    "applications/sentioxyz": {
+      "updated": false
+    },
+    "applications/maple-labs": {
+      "updated": false
+    },
+    "applications/shapeshift": {
+      "updated": false
+    },
+    "applications/coinsender": {
+      "updated": false
+    },
+    "applications/orbitdb": {
+      "updated": false
+    },
+    "applications/tornadocash": {
+      "updated": false
+    },
+    "applications/gmx-io": {
+      "updated": false
+    },
+    "applications/sosovalue": {
+      "updated": false
+    },
+    "applications/cookie-base-finance": {
+      "updated": false
+    },
+    "applications/karafuru": {
+      "updated": false
+    },
+    "applications/avive-world": {
+      "updated": false
+    },
+    "applications/thales": {
+      "updated": false
+    },
+    "applications/krebitdao": {
+      "updated": false
+    },
+    "applications/coinsquare": {
+      "updated": false
+    },
+    "applications/bingtellar": {
+      "updated": false
+    },
+    "applications/looksrare": {
+      "updated": false
+    },
+    "applications/symbiosis-finance": {
+      "updated": false
+    },
+    "applications/worldcoin": {
+      "updated": false
+    },
+    "applications/fren-pet": {
+      "updated": false
+    },
+    "applications/milkalliance": {
+      "updated": false
+    },
+    "applications/omniswap-omnibtc": {
+      "updated": false
+    },
+    "applications/blocto": {
+      "updated": false
+    },
+    "applications/relaychain": {
+      "updated": false
+    },
+    "applications/particle-network": {
+      "updated": false
+    },
+    "applications/solidly": {
+      "updated": false
+    },
+    "applications/api3-dao": {
+      "updated": false
+    },
+    "applications/dragon-city": {
+      "updated": false
+    },
+    "applications/metagame-metafam": {
+      "updated": false
+    },
+    "applications/nftearth": {
+      "updated": false
+    },
+    "applications/mantlenetworkio": {
+      "updated": false
+    },
+    "applications/bobanetwork": {
+      "updated": false
+    },
+    "applications/fireflyprotocol": {
+      "updated": false
+    },
+    "applications/slingshot": {
+      "updated": false
+    },
+    "applications/yoink": {
+      "updated": false
+    },
+    "applications/maticslot": {
+      "updated": false
+    },
+    "applications/perpetual-protocol": {
+      "updated": false
+    },
+    "applications/lifinance": {
+      "updated": false
+    },
+    "applications/steer-protocol": {
+      "updated": false
+    },
+    "applications/warpx": {
+      "updated": false
+    },
+    "applications/cliqueofficial": {
+      "updated": false
+    },
+    "applications/nillion": {
+      "updated": false
+    },
+    "applications/skate-org": {
+      "updated": false
+    },
+    "applications/kemonokaki": {
+      "updated": false
+    },
+    "applications/rarible": {
+      "updated": false
+    },
+    "applications/zeroexchange": {
+      "updated": false
+    },
+    "applications/holonym-foundation": {
+      "updated": false
+    },
+    "applications/myshell-ai": {
+      "updated": false
+    },
+    "applications/bananagun": {
+      "updated": false
+    },
+    "applications/whiteblock": {
+      "updated": false
+    },
+    "applications/chronosex": {
+      "updated": false
+    },
+    "applications/ethereum-attestation-service": {
+      "updated": false
+    },
+    "applications/vaultka-project": {
+      "updated": false
+    },
+    "applications/smasher-fun": {
+      "updated": false
+    },
+    "applications/blockchain-kami": {
+      "updated": false
+    },
+    "applications/skytopialabs": {
+      "updated": false
+    },
+    "applications/layerbank": {
+      "updated": false
+    },
+    "applications/pheasant-network": {
+      "updated": false
+    },
+    "applications/renegade-fi": {
+      "updated": false
+    },
+    "applications/oogaverse": {
+      "updated": false
+    },
+    "applications/talentprotocol": {
+      "updated": false
+    },
+    "applications/multicaller-vectorized": {
+      "updated": false
+    },
+    "applications/delabs": {
+      "updated": false
+    },
+    "applications/intract-quest": {
+      "updated": false
+    },
+    "applications/randomizerai": {
+      "updated": false
+    },
+    "applications/werate-io": {
+      "updated": false
+    },
+    "applications/bridgers": {
+      "updated": false
+    },
+    "applications/foundation-app": {
+      "updated": false
+    },
+    "applications/xterio": {
+      "updated": false
+    },
+    "applications/chiliz": {
+      "updated": false
+    },
+    "applications/beefy-finance": {
+      "updated": false
+    },
+    "applications/artblocks": {
+      "updated": false
+    },
+    "applications/rabbithole": {
+      "updated": false
+    },
+    "applications/primus": {
+      "updated": false
+    },
+    "applications/alienbase-xyz": {
+      "updated": false
+    },
+    "applications/pcmlabs": {
+      "updated": false
+    },
+    "applications/tradegen": {
+      "updated": false
+    },
+    "applications/basedmining": {
+      "updated": false
+    },
+    "applications/layer3xyz": {
+      "updated": false
+    },
+    "applications/collab-land": {
+      "updated": false
+    },
+    "applications/holograph": {
+      "updated": false
+    },
+    "applications/aigo-network": {
+      "updated": false
+    },
+    "applications/syscall-sdk": {
+      "updated": false
+    },
+    "applications/phoenix": {
+      "updated": false
+    },
+    "applications/traderjoe-xyz": {
+      "updated": false
+    },
+    "applications/morphex-labs": {
+      "updated": false
+    },
+    "applications/metaverse-hq": {
+      "updated": false
+    },
+    "applications/xbull": {
+      "updated": false
+    },
+    "applications/flockerz": {
+      "updated": false
+    },
+    "applications/velaexchange": {
+      "updated": false
+    },
+    "applications/rainbow": {
+      "updated": false
+    },
+    "applications/optimism": {
+      "updated": false
+    },
+    "applications/focustree": {
+      "updated": false
+    },
+    "applications/brla-digital": {
+      "updated": false
+    },
+    "applications/tofunft": {
+      "updated": false
+    },
+    "applications/genieswap": {
+      "updated": false
+    },
+    "applications/pirate-nation": {
+      "updated": false
+    },
+    "applications/strongblock": {
+      "updated": false
+    },
+    "applications/bitcoinjs": {
+      "updated": false
+    },
+    "applications/smoldapp": {
+      "updated": false
+    },
+    "applications/debridge-finance": {
+      "updated": false
+    },
+    "applications/idexo": {
+      "updated": false
+    },
+    "applications/hashflow": {
+      "updated": false
+    },
+    "applications/nutsfinance": {
+      "updated": false
+    },
+    "applications/radiant-capital": {
+      "updated": false
+    },
+    "applications/tx-city": {
+      "updated": false
+    },
+    "applications/gammastrategies": {
+      "updated": false
+    },
+    "applications/rendernetwork": {
+      "updated": false
+    },
+    "applications/zertosh": {
+      "updated": false
+    },
+    "applications/spotzero-game": {
+      "updated": false
+    },
+    "applications/easpulse": {
+      "updated": false
+    },
+    "applications/museumofcryptoart": {
+      "updated": false
+    },
+    "applications/farcasterxyz": {
+      "updated": false
+    },
+    "applications/starkdefi": {
+      "updated": false
+    },
+    "applications/sonex": {
+      "updated": false
+    },
+    "applications/bybit": {
+      "updated": false
+    },
+    "applications/bloinx": {
+      "updated": false
+    },
+    "applications/argentlabs": {
+      "updated": false
+    },
+    "applications/myswap-xyz": {
+      "updated": false
+    },
+    "applications/cvex": {
+      "updated": false
+    },
+    "applications/toshi-the-cat": {
+      "updated": false
+    },
+    "applications/poolshark": {
+      "updated": false
+    },
+    "applications/fiat24": {
+      "updated": false
+    },
+    "applications/nex": {
+      "updated": false
+    },
+    "applications/ethena-labs": {
+      "updated": false
+    },
+    "applications/clob": {
+      "updated": false
+    },
+    "applications/venice-ai": {
+      "updated": false
+    },
+    "applications/alchemy-pay": {
+      "updated": false
+    },
+    "applications/gnosis": {
+      "updated": false
+    },
+    "applications/kyber-swap": {
+      "updated": false
+    },
+    "applications/stackup": {
+      "updated": false
+    },
+    "applications/autolayer": {
+      "updated": false
+    },
+    "applications/defi-llama": {
+      "updated": false
+    },
+    "applications/bitgifty": {
+      "updated": false
+    },
+    "applications/clanker-devco": {
+      "updated": false
+    },
+    "applications/superchamps": {
+      "updated": false
+    },
+    "applications/odos-xyz": {
+      "updated": false
+    },
+    "applications/plasma-group": {
+      "updated": false
+    },
+    "applications/capfina": {
+      "updated": false
+    },
+    "applications/redstone-finance": {
+      "updated": false
+    },
+    "applications/bebop-dex": {
+      "updated": false
+    },
+    "applications/gelato": {
+      "updated": false
+    },
+    "applications/singnet": {
+      "updated": false
+    },
+    "applications/kernel-community": {
+      "updated": false
+    },
+    "applications/stampnetwork": {
+      "updated": false
+    },
+    "applications/propy": {
+      "updated": false
+    },
+    "applications/otherside": {
+      "updated": false
+    },
+    "applications/ubeswap": {
+      "updated": false
+    },
+    "applications/beaverbuild": {
+      "updated": false
+    },
+    "applications/gogocoin": {
+      "updated": false
+    },
+    "applications/gearbox-fi": {
+      "updated": false
+    },
+    "applications/nexofinance": {
+      "updated": false
+    },
+    "applications/dex-screener": {
+      "updated": false
+    },
+    "applications/planet-pay": {
+      "updated": false
+    },
+    "applications/0xsequence": {
+      "updated": false
+    },
+    "applications/immutable": {
+      "updated": false
+    },
+    "applications/vesync": {
+      "updated": false
+    },
+    "applications/omniaprotocol": {
+      "updated": false
+    },
+    "applications/doodles": {
+      "updated": false
+    },
+    "applications/10k-swap": {
+      "updated": false
+    },
+    "applications/seconds-money": {
+      "updated": false
+    },
+    "applications/mimic-finance": {
+      "updated": false
+    },
+    "applications/avantis-labs": {
+      "updated": false
+    },
+    "applications/upcx-io": {
+      "updated": false
+    },
+    "applications/0xhoneyjar": {
+      "updated": false
+    },
+    "applications/frenpet-xyz": {
+      "updated": false
+    },
+    "applications/solv-finance": {
+      "updated": false
+    },
+    "applications/post-tech": {
+      "updated": false
+    },
+    "applications/worldlibertyfinancial": {
+      "updated": false
+    },
+    "applications/unstoppabledomains": {
+      "updated": false
+    },
+    "applications/verasity-io": {
+      "updated": false
+    },
+    "applications/ontomir-network": {
+      "updated": false
+    },
+    "applications/originworld": {
+      "updated": false
+    },
+    "applications/xpet-tech": {
+      "updated": false
+    },
+    "applications/kgen-kratos": {
+      "updated": false
+    },
+    "applications/dexgridpr": {
+      "updated": false
+    },
+    "applications/bedrock-technology": {
+      "updated": false
+    },
+    "applications/graph-protocol": {
+      "updated": false
+    },
+    "applications/buildonhybrid": {
+      "updated": false
+    },
+    "applications/carv-protocol": {
+      "updated": false
+    },
+    "applications/decentraland": {
+      "updated": false
+    },
+    "applications/fees-wtf": {
+      "updated": false
+    },
+    "applications/wintermute": {
+      "updated": false
+    },
+    "applications/beanstalkfarms": {
+      "updated": false
+    },
+    "applications/humanity-protocol": {
+      "updated": false
+    },
+    "applications/gameswift": {
+      "updated": false
+    },
+    "applications/fuellabs": {
+      "updated": false
+    },
+    "applications/iounet": {
+      "updated": false
+    },
+    "applications/battledog-games": {
+      "updated": false
+    },
+    "applications/jedi-swap": {
+      "updated": false
+    },
+    "applications/diadata-org": {
+      "updated": false
+    },
+    "applications/rcpswap": {
+      "updated": false
+    },
+    "applications/luncosim": {
+      "updated": false
+    },
+    "applications/fuul-protocol": {
+      "updated": false
+    },
+    "applications/yubiai": {
+      "updated": false
+    },
+    "applications/virtual-protocol": {
+      "updated": false
+    },
+    "applications/third-web": {
+      "updated": false
+    },
+    "applications/stix-protocol": {
+      "updated": false
+    },
+    "applications/xsaiyan-tech": {
+      "updated": false
+    },
+    "applications/0xpolygon": {
+      "updated": false
+    },
+    "applications/rhinofi": {
+      "updated": false
+    },
+    "applications/layerswap": {
+      "updated": false
+    },
+    "applications/blur-io": {
+      "updated": false
+    },
+    "applications/transit-finance": {
+      "updated": false
+    },
+    "applications/spaceandtime": {
+      "updated": false
+    },
+    "applications/festify-celo": {
+      "updated": false
+    },
+    "applications/mxczkevm": {
+      "updated": false
+    },
+    "applications/verified-usd": {
+      "updated": false
+    },
+    "applications/alchemyplatform": {
+      "updated": false
+    },
+    "applications/gamerboom": {
+      "updated": false
+    },
+    "applications/blob-arena": {
+      "updated": false
+    },
+    "applications/orderlynetwork": {
+      "updated": false
+    },
+    "applications/betfin": {
+      "updated": false
+    },
+    "applications/axelar": {
+      "updated": false
+    },
+    "applications/owlto-finance": {
+      "updated": false
+    },
+    "applications/balancer": {
+      "updated": false
+    },
+    "applications/resolv-usr": {
+      "updated": false
+    },
+    "applications/galxe": {
+      "updated": false
+    },
+    "applications/moonwell-fi": {
+      "updated": false
+    },
+    "applications/stakedao": {
+      "updated": false
+    },
+    "applications/rivalz_ai": {
+      "updated": false
+    },
+    "applications/portal-gaming": {
+      "updated": false
+    },
+    "applications/dzapio": {
+      "updated": false
+    },
+    "applications/nostra-finance": {
+      "updated": false
+    },
+    "applications/qidao-mai-finance": {
+      "updated": false
+    },
+    "applications/roost": {
+      "updated": false
+    },
+    "applications/lavanet": {
+      "updated": false
+    },
+    "applications/rss3-network": {
+      "updated": false
+    },
+    "applications/ethxy-game": {
+      "updated": false
+    },
+    "applications/l3e7-io": {
+      "updated": false
+    },
+    "applications/alpha-sol": {
+      "updated": false
+    },
+    "applications/mantradao": {
+      "updated": false
+    },
+    "applications/btcsuite": {
+      "updated": false
+    },
+    "applications/tabichain": {
+      "updated": false
+    },
+    "applications/mexc": {
+      "updated": false
+    },
+    "applications/silo-finance": {
+      "updated": false
+    },
+    "applications/walletconnect": {
+      "updated": false
+    },
+    "applications/standardweb3": {
+      "updated": false
+    },
+    "applications/moxie": {
+      "updated": false
+    },
+    "applications/lootsurvivor-provable-games": {
+      "updated": false
+    },
+    "applications/friend-tech": {
+      "updated": false
+    },
+    "applications/treasureproject": {
+      "updated": false
+    },
+    "applications/whiterock": {
+      "updated": false
+    },
+    "applications/scroll-tech": {
+      "updated": false
+    },
+    "applications/brave": {
+      "updated": false
+    },
+    "applications/offchainlabs": {
+      "updated": false
+    },
+    "applications/maverickprotocol": {
+      "updated": false
+    },
+    "applications/secondlive": {
+      "updated": false
+    },
+    "applications/oasisprotocol": {
+      "updated": false
+    },
+    "applications/0xastra": {
+      "updated": false
+    },
+    "applications/band-protocol": {
+      "updated": false
+    },
+    "applications/zkbridge": {
+      "updated": false
+    },
+    "applications/xen-crypto-faircrypto": {
+      "updated": false
+    },
+    "applications/celo-org": {
+      "updated": false
+    },
+    "applications/blockrockettech": {
+      "updated": false
+    },
+    "applications/interport-finance": {
+      "updated": false
+    },
+    "applications/xaigames": {
+      "updated": false
+    },
+    "applications/binance": {
+      "updated": false
+    },
+    "applications/monerium": {
+      "updated": false
+    },
+    "applications/saharaai": {
+      "updated": false
+    },
+    "applications/adsbaazar": {
+      "updated": false
+    },
+    "applications/acrypto-s": {
+      "updated": false
+    },
+    "applications/linea-voyage": {
+      "updated": false
+    },
+    "applications/paima-studios": {
+      "updated": false
+    },
+    "applications/anyswap": {
+      "updated": false
+    },
+    "applications/ping-observer": {
+      "updated": false
+    },
+    "applications/stablepay": {
+      "updated": false
+    },
+    "applications/topstrike-io": {
+      "updated": false
+    },
+    "applications/pulsechain": {
+      "updated": false
+    },
+    "applications/mcollina": {
+      "updated": false
+    },
+    "applications/magpieprotocol": {
+      "updated": false
+    },
+    "applications/opxfinance": {
+      "updated": false
+    },
+    "applications/eclipse-xyz": {
+      "updated": false
+    },
+    "applications/worldbrain": {
+      "updated": false
+    },
+    "applications/opepe": {
+      "updated": false
+    },
+    "applications/cyberconnecthq": {
+      "updated": false
+    },
+    "applications/metatdex": {
+      "updated": false
+    },
+    "applications/beethoven-x": {
+      "updated": false
+    },
+    "applications/coinvise": {
+      "updated": false
+    },
+    "applications/crossmint": {
+      "updated": false
+    },
+    "applications/b3": {
+      "updated": false
+    },
+    "applications/layer-zero": {
+      "updated": false
+    },
+    "applications/ethcoin-org": {
+      "updated": false
+    },
+    "applications/hyperlane-xyz": {
+      "updated": false
+    },
+    "applications/filecoin-project": {
+      "updated": false
+    },
+    "applications/sigmabot": {
+      "updated": false
+    },
+    "applications/wally": {
+      "updated": false
+    },
+    "applications/kim-protocol": {
+      "updated": false
+    },
+    "applications/paraswap": {
+      "updated": false
+    },
+    "applications/manta-network": {
+      "updated": false
+    },
+    "applications/injectivelabs": {
+      "updated": false
+    },
+    "applications/myria": {
+      "updated": false
+    },
+    "applications/granary": {
+      "updated": false
+    },
+    "applications/changenow": {
+      "updated": false
+    },
+    "applications/clashofcoins": {
+      "updated": false
+    },
+    "applications/impermax-finance": {
+      "updated": false
+    },
+    "applications/space-id": {
+      "updated": false
+    },
+    "applications/cointool": {
+      "updated": false
+    },
+    "applications/pancakeswap": {
+      "updated": false
+    },
+    "applications/umaprotocol": {
+      "updated": false
+    },
+    "applications/zklinkprotocol": {
+      "updated": false
+    },
+    "applications/morkiexyz": {
+      "updated": false
+    },
+    "applications/titanx-win": {
+      "updated": false
+    },
+    "applications/eth-infinitism-account-abstraction": {
+      "updated": false
+    },
+    "applications/galagames": {
+      "updated": false
+    },
+    "applications/extra-finance": {
+      "updated": false
+    },
+    "applications/gnosischain": {
+      "updated": false
+    },
+    "applications/mountainprotocol": {
+      "updated": false
+    },
+    "applications/ethereal": {
+      "updated": false
+    },
+    "applications/alchemix": {
+      "updated": false
+    },
+    "applications/semperai": {
+      "updated": false
+    },
+    "applications/lumoz": {
+      "updated": false
+    },
+    "applications/tlx-protocol": {
+      "updated": false
+    },
+    "applications/bitkeep": {
+      "updated": false
+    },
+    "applications/syndicateprotocol": {
+      "updated": false
+    },
+    "applications/bitquery": {
+      "updated": false
+    },
+    "applications/clashmon": {
+      "updated": false
+    },
+    "applications/puffer-fi": {
+      "updated": false
+    },
+    "applications/superform-xyz": {
+      "updated": false
+    },
+    "applications/onchain_heritage": {
+      "updated": false
+    },
+    "applications/comet": {
+      "updated": false
+    },
+    "applications/1-inch": {
+      "updated": false
+    },
+    "applications/vnx-li": {
+      "updated": false
+    },
+    "applications/gopluslabs": {
+      "updated": false
+    },
+    "applications/biconomy": {
+      "updated": false
+    },
+    "applications/sendingme": {
+      "updated": false
+    },
+    "applications/daniel-arsham": {
+      "updated": false
+    },
+    "applications/stargate-finance": {
+      "updated": false
+    },
+    "applications/masa-finance": {
+      "updated": false
+    },
+    "applications/derivexyz": {
+      "updated": false
+    },
+    "applications/illuviumgame": {
+      "updated": false
+    },
+    "applications/l2pass": {
+      "updated": false
+    },
+    "applications/bglabs": {
+      "updated": false
+    },
+    "applications/kintoxyz": {
+      "updated": false
+    },
+    "applications/backed": {
+      "updated": false
+    },
+    "applications/unishopteam": {
+      "updated": false
+    },
+    "applications/zora": {
+      "updated": false
+    },
+    "applications/liquity": {
+      "updated": false
+    },
+    "applications/boredtopia": {
+      "updated": false
+    },
+    "applications/skyarkchronicles": {
+      "updated": false
+    },
+    "applications/renzo-protocol": {
+      "updated": false
+    },
+    "applications/earnm": {
+      "updated": false
+    },
+    "applications/synthswap": {
+      "updated": false
+    },
+    "applications/daos-world": {
+      "updated": false
+    },
+    "applications/synfutures": {
+      "updated": false
+    },
+    "applications/stakestone": {
+      "updated": false
+    },
+    "applications/defirex": {
+      "updated": false
+    },
+    "applications/dmailofficial": {
+      "updated": false
+    },
+    "applications/kleros": {
+      "updated": false
+    },
+    "applications/bitssa": {
+      "updated": false
+    },
+    "applications/network-status-im": {
+      "updated": false
+    },
+    "applications/quickswap": {
+      "updated": false
+    },
+    "applications/uxuycom": {
+      "updated": false
+    },
+    "applications/venus-protocol": {
+      "updated": false
+    },
+    "applications/avnu-labs": {
+      "updated": false
+    },
+    "applications/lighter-dex": {
+      "updated": false
+    },
+    "applications/coresky": {
+      "updated": false
+    },
+    "applications/ekuboprotocol": {
+      "updated": false
+    },
+    "applications/art-peace": {
+      "updated": false
+    },
+    "applications/gyrostable": {
+      "updated": false
+    },
+    "applications/xy-finance": {
+      "updated": false
+    },
+    "applications/tndpay": {
+      "updated": false
+    },
+    "applications/aethir": {
+      "updated": false
+    },
+    "applications/bigtime-gg": {
+      "updated": false
+    },
+    "applications/celsiusnetwork": {
+      "updated": false
+    },
+    "applications/velodrome": {
+      "updated": false
+    },
+    "applications/orbiter-finance": {
+      "updated": false
+    },
+    "applications/seal-inc": {
+      "updated": false
+    },
+    "applications/autonomi": {
+      "updated": false
+    },
+    "applications/paxosglobal": {
+      "updated": false
+    },
+    "applications/quantnetwork": {
+      "updated": false
+    },
+    "applications/movement-labs": {
+      "updated": false
+    },
+    "applications/blockzerolabs": {
+      "updated": false
+    },
+    "applications/xprotocol-org": {
+      "updated": false
+    },
+    "applications/aavegotchi": {
+      "updated": false
+    },
+    "applications/noxa-fun": {
+      "updated": false
+    },
+    "applications/manifold": {
+      "updated": false
+    },
+    "applications/etherfi": {
+      "updated": false
+    },
+    "applications/firebird-finance": {
+      "updated": false
+    },
+    "applications/polygon-hermez": {
+      "updated": false
+    },
+    "applications/umbra-scopelift": {
+      "updated": false
+    },
+    "applications/hippospace": {
+      "updated": false
+    },
+    "applications/nomis-cc": {
+      "updated": false
+    },
+    "applications/gomblegames": {
+      "updated": false
+    },
+    "applications/kumbaya-xyz": {
+      "updated": false
+    },
+    "applications/apex-protocol": {
+      "updated": false
+    },
+    "applications/ipld": {
+      "updated": false
+    },
+    "applications/zetamarkets": {
+      "updated": false
+    },
+    "applications/megapunks": {
+      "updated": false
+    },
+    "applications/sandbox": {
+      "updated": false
+    },
+    "applications/defisaver": {
+      "updated": false
+    },
+    "applications/renproject": {
+      "updated": false
+    },
+    "applications/dodoex": {
+      "updated": false
+    },
+    "applications/cipher-fan": {
+      "updated": false
+    },
+    "applications/amptoken": {
+      "updated": false
+    },
+    "applications/0xproject": {
+      "updated": false
+    },
+    "applications/blast-io": {
+      "updated": false
+    },
+    "applications/beammw": {
+      "updated": false
+    },
+    "applications/dop-org": {
+      "updated": false
+    },
+    "applications/starknet-io": {
+      "updated": false
+    },
+    "applications/synapse": {
+      "updated": false
+    },
+    "applications/symm-io": {
+      "updated": false
+    },
+    "applications/iron-bank": {
+      "updated": false
+    },
+    "applications/npc-com": {
+      "updated": false
+    },
+    "applications/polyhedra-network": {
+      "updated": false
+    },
+    "applications/zerodev": {
+      "updated": false
+    },
+    "applications/pegaxy": {
+      "updated": false
+    },
+    "applications/self-celo": {
+      "updated": false
+    },
+    "applications/allbridge": {
+      "updated": false
+    },
+    "applications/vooi": {
+      "updated": false
+    },
+    "applications/realms-eternum": {
+      "updated": false
+    },
+    "applications/dmail-ai": {
+      "updated": false
+    },
+    "applications/moonpay": {
+      "updated": false
+    },
+    "applications/yugalabs": {
+      "updated": false
+    },
+    "applications/pyth-network": {
+      "updated": false
+    },
+    "applications/arbitrumfoundation": {
+      "updated": false
+    },
+    "applications/succinctlabs": {
+      "updated": false
+    },
+    "applications/growthepie": {
+      "updated": false
+    },
+    "applications/yieldflow": {
+      "updated": false
+    },
+    "applications/base-org": {
+      "updated": false
+    },
+    "applications/sushi": {
+      "updated": false
+    },
+    "applications/cargox-platform": {
+      "updated": false
+    },
+    "applications/nfts2me": {
+      "updated": false
+    },
+    "applications/cookie3": {
+      "updated": false
+    },
+    "applications/coinlist-co": {
+      "updated": false
+    },
+    "applications/gemini-ex": {
+      "updated": false
+    },
+    "applications/coinbase": {
+      "updated": false
+    },
+    "applications/multicall-mds1": {
+      "updated": false
+    },
+    "applications/plumenetwork": {
+      "updated": false
+    },
+    "applications/pow-idle-clicker": {
+      "updated": false
+    },
+    "applications/rebootgg": {
+      "updated": false
+    },
+    "applications/zklend": {
+      "updated": false
+    },
+    "applications/pwndao": {
+      "updated": false
+    },
+    "applications/witnet": {
+      "updated": false
+    },
+    "applications/smartlayer-network": {
+      "updated": false
+    },
+    "applications/king-protocol": {
+      "updated": false
+    },
+    "applications/tip-me": {
+      "updated": false
+    },
+    "applications/conduitxyz": {
+      "updated": false
+    },
+    "applications/cheersonbase": {
+      "updated": false
+    },
+    "applications/swapbased": {
+      "updated": false
+    },
+    "applications/moolamarket": {
+      "updated": false
+    },
+    "applications/guildxyz": {
+      "updated": false
+    },
+    "applications/fetchai": {
+      "updated": false
+    },
+    "applications/itheum": {
+      "updated": false
+    },
+    "applications/ebioro": {
+      "updated": false
+    },
+    "applications/concrete-xyz": {
+      "updated": false
+    },
+    "applications/minteo": {
+      "updated": false
+    },
+    "applications/metamask": {
+      "updated": false
+    },
+    "applications/fibrous-finance": {
+      "updated": false
+    },
+    "applications/ondoprotocol": {
+      "updated": false
+    },
+    "applications/chain": {
+      "updated": false
+    },
+    "applications/matter-labs": {
+      "updated": false
+    },
+    "applications/ape-store": {
+      "updated": false
+    },
+    "applications/zkswap-finance": {
+      "updated": false
+    },
+    "applications/astraly-labs": {
+      "updated": false
+    },
+    "applications/angle-protocol": {
+      "updated": false
+    },
+    "applications/gainsnetwork": {
+      "updated": false
+    },
+    "applications/d-hedge": {
+      "updated": false
+    },
+    "applications/param-gaming": {
+      "updated": false
+    },
+    "applications/lombard-finance": {
+      "updated": false
+    },
+    "applications/goatgaming": {
+      "updated": false
+    },
+    "applications/changeth": {
+      "updated": false
+    },
+    "applications/degen-token": {
+      "updated": false
+    },
+    "applications/realmverse": {
+      "updated": false
+    },
+    "applications/monad": {
+      "updated": false
+    },
+    "applications/zondax": {
+      "updated": false
+    },
+    "applications/wormgate-io": {
+      "updated": false
+    },
+    "applications/synthetix": {
+      "updated": false
+    },
+    "applications/tetherto": {
+      "updated": false
+    },
+    "applications/zerion": {
+      "updated": false
+    },
+    "applications/daobase-ai": {
+      "updated": false
+    },
+    "applications/okx": {
+      "updated": false
+    },
+    "applications/etherspot": {
+      "updated": false
+    },
+    "applications/aori-io": {
+      "updated": false
+    },
+    "applications/magicnewton": {
+      "updated": false
+    },
+    "applications/host-it": {
+      "updated": false
+    },
+    "applications/impossiblefinance": {
+      "updated": false
+    },
+    "applications/bitwave": {
+      "updated": false
+    },
+    "applications/bebe-dog": {
+      "updated": false
+    },
+    "applications/caldera": {
+      "updated": false
+    },
+    "applications/sparkdotfi": {
+      "updated": false
+    },
+    "applications/soneium": {
+      "updated": false
+    },
+    "applications/supswap": {
+      "updated": false
+    },
+    "applications/aave": {
+      "updated": false
+    },
+    "applications/flood-protocol": {
+      "updated": false
+    },
+    "applications/opensea": {
+      "updated": false
+    },
+    "applications/cryptantcrab": {
+      "updated": false
+    },
+    "applications/hana-finance": {
+      "updated": false
+    },
+    "applications/crossy-fluffle": {
+      "updated": false
+    },
+    "applications/glo-foundation": {
+      "updated": false
+    },
+    "applications/arbswap-official": {
+      "updated": false
+    },
+    "applications/matr1x": {
+      "updated": false
+    },
+    "applications/roycoprotocol": {
+      "updated": false
+    },
+    "applications/sonic-labs": {
+      "updated": false
+    },
+    "applications/candide-labs": {
+      "updated": false
+    },
+    "applications/solaxy-io": {
+      "updated": false
+    },
+    "applications/unioverse": {
+      "updated": false
+    },
+    "applications/aevoxyz": {
+      "updated": false
+    },
+    "applications/dydx": {
+      "updated": false
+    },
+    "applications/morpho-org": {
+      "updated": false
+    },
+    "applications/web3-protocol": {
+      "updated": false
+    },
+    "applications/betmode": {
+      "updated": false
+    },
+    "applications/enjin": {
+      "updated": false
+    },
+    "applications/rating-wtf": {
+      "updated": false
+    },
+    "applications/reservoirprotocol": {
+      "updated": false
+    },
+    "applications/upn-university": {
+      "updated": false
+    },
+    "applications/stackexchange": {
+      "updated": false
+    },
+    "applications/ichifarm": {
+      "updated": false
+    },
+    "applications/aboard-exchange": {
+      "updated": false
+    },
+    "applications/pendle-finance": {
+      "updated": false
+    },
+    "applications/vesuxyz": {
+      "updated": false
+    },
+    "applications/axios": {
+      "updated": false
+    },
+    "applications/kromatika-finance": {
+      "updated": false
+    },
+    "applications/lido": {
+      "updated": false
+    },
+    "applications/solana-labs": {
+      "updated": false
+    },
+    "applications/stakeland": {
+      "updated": false
+    },
+    "applications/thronedex": {
+      "updated": false
+    },
+    "applications/maestro-bots": {
+      "updated": false
+    },
+    "applications/taiko": {
+      "updated": false
+    },
+    "applications/openocean-finance": {
+      "updated": false
+    },
+    "applications/blockfi": {
+      "updated": false
+    },
+    "applications/worldofdypians": {
+      "updated": false
+    },
+    "applications/crypto-com": {
+      "updated": false
+    },
+    "applications/eisen-labs": {
+      "updated": false
+    },
+    "applications/depayfi": {
+      "updated": false
+    },
+    "applications/binusu": {
+      "updated": false
+    },
+    "applications/safe-global": {
+      "updated": false
+    },
+    "applications/ponzi-land": {
+      "updated": false
+    },
+    "applications/exactly": {
+      "updated": false
+    },
+    "applications/worldshardsgame": {
+      "updated": false
+    },
+    "applications/usdxtoken": {
+      "updated": false
+    },
+    "applications/rubicon": {
+      "updated": false
+    },
+    "applications/duality-solutions": {
+      "updated": false
+    },
+    "applications/ruby-protocol": {
+      "updated": false
+    },
+    "applications/sound-xyz": {
+      "updated": false
+    },
+    "applications/nicetrade": {
+      "updated": false
+    },
+    "applications/onyx-protocol": {
+      "updated": false
+    },
+    "applications/ramsesexchange": {
+      "updated": false
+    },
+    "applications/ethereum-org-website-ethereum": {
+      "updated": false
+    },
+    "applications/extended-exchange": {
+      "updated": false
+    },
+    "applications/plaza-finance": {
+      "updated": false
+    },
+    "applications/allunity": {
+      "updated": false
+    },
+    "applications/abra": {
+      "updated": false
+    },
+    "applications/dfarchon": {
+      "updated": false
+    },
+    "applications/bitskico": {
+      "updated": false
+    },
+    "applications/kelp-dao": {
+      "updated": false
+    },
+    "applications/cowprotocol": {
+      "updated": false
+    },
+    "applications/kraken": {
+      "updated": false
+    },
+    "applications/kaito": {
+      "updated": false
+    },
+    "applications/bitmex": {
+      "updated": false
+    },
+    "applications/haiko-xyz": {
+      "updated": false
+    },
+    "applications/mon-protocol": {
+      "updated": false
+    },
+    "applications/aperture-finance": {
+      "updated": false
+    },
+    "applications/simpleswap-io": {
+      "updated": false
+    },
+    "applications/hop-protocol": {
+      "updated": false
+    },
+    "applications/polymarket": {
+      "updated": false
+    },
+    "applications/chainbase-labs": {
+      "updated": false
+    },
+    "applications/zed-run": {
+      "updated": false
+    },
+    "applications/linagee-name-registrar": {
+      "updated": false
+    },
+    "applications/mavia-gg": {
+      "updated": false
+    },
+    "applications/yieldbricks": {
+      "updated": false
+    },
+    "applications/pods-media": {
+      "updated": false
+    },
+    "applications/circlefin": {
+      "updated": false
+    },
+    "applications/storj": {
+      "updated": false
+    },
+    "applications/robinhood": {
+      "updated": false
+    },
+    "applications/degenwallet": {
+      "updated": false
+    },
+    "applications/spartadex": {
+      "updated": false
+    },
+    "applications/3box": {
+      "updated": false
+    },
+    "applications/revolut": {
+      "updated": false
+    },
+    "applications/axieinfinity": {
+      "updated": false
+    },
+    "applications/magpiexyz": {
+      "updated": false
+    },
+    "applications/upbots": {
+      "updated": false
+    },
+    "applications/ensdomains": {
+      "updated": false
+    },
+    "applications/codechecks": {
+      "updated": false
+    },
+    "applications/clover-network": {
+      "updated": false
+    },
+    "applications/containerd": {
+      "updated": false
+    },
+    "applications/onchaingm": {
+      "updated": false
+    },
+    "applications/orbix": {
+      "updated": false
+    },
+    "applications/nanidao": {
+      "updated": false
+    },
+    "applications/router-protocol": {
+      "updated": false
+    },
+    "applications/elixir-protocol": {
+      "updated": false
+    },
+    "applications/qiibee": {
+      "updated": false
+    },
+    "applications/json5": {
+      "updated": false
+    },
+    "applications/0xsquid": {
+      "updated": false
+    },
+    "applications/mxlet": {
+      "updated": false
+    },
+    "applications/wormhole": {
+      "updated": false
+    },
+    "applications/bald-memecoin": {
+      "updated": false
+    },
+    "applications/ethsign": {
+      "updated": false
+    },
+    "applications/wieldlabs": {
+      "updated": false
+    },
+    "applications/chainlink": {
+      "updated": false
+    },
+    "applications/sipher-odyssey": {
+      "updated": false
+    },
+    "applications/zkcodex": {
+      "updated": false
+    },
+    "applications/sunflower-land": {
+      "updated": false
+    },
+    "applications/rexas-finance": {
+      "updated": false
+    },
+    "applications/bancorprotocol": {
+      "updated": false
+    },
+    "applications/lens-protocol": {
+      "updated": false
+    },
+    "applications/r-cryptocurrency-moon": {
+      "updated": false
+    },
+    "applications/across": {
+      "updated": false
+    },
+    "applications/mania-fun": {
+      "updated": false
+    },
+    "applications/compound-finance": {
+      "updated": false
+    },
+    "applications/infinigods-kingofdestiny": {
+      "updated": false
+    },
+    "applications/reserve-protocol": {
+      "updated": false
+    },
+    "applications/dinoswap": {
+      "updated": false
+    },
+    "applications/loopring": {
+      "updated": false
+    },
+    "applications/gooddollar": {
+      "updated": false
+    },
+    "applications/layer-edge": {
+      "updated": false
+    },
+    "applications/rai-finance": {
+      "updated": false
+    },
+    "applications/fluid-instadapp": {
+      "updated": false
+    },
+    "applications/pentagon-games": {
+      "updated": false
+    },
+    "applications/kip-protocol": {
+      "updated": false
+    },
+    "applications/fun-token": {
+      "updated": false
+    },
+    "applications/ark-digital": {
+      "updated": false
+    },
+    "applications/makerdao": {
+      "updated": false
+    },
+    "applications/swapmode": {
+      "updated": false
+    },
+    "applications/createx": {
+      "updated": false
+    },
+    "applications/inverse-finance": {
+      "updated": false
+    },
+    "applications/eagleai-labs": {
+      "updated": false
+    },
+    "applications/thorchain": {
+      "updated": false
+    },
+    "applications/z80dev-ethxy_poker": {
+      "updated": false
+    },
+    "applications/moonveil": {
+      "updated": false
+    },
+    "applications/mode-network": {
+      "updated": false
+    },
+    "applications/javsphere": {
+      "updated": false
+    },
+    "applications/holochain": {
+      "updated": false
+    },
+    "applications/solady-vectorized": {
+      "updated": false
+    },
+    "applications/gasdotzip": {
+      "updated": false
+    },
+    "applications/connext": {
+      "updated": false
+    },
+    "applications/lightchain-ai": {
+      "updated": false
+    },
+    "applications/coinpassport": {
+      "updated": false
+    },
+    "applications/sorare": {
+      "updated": false
+    },
+    "applications/mieke-marple": {
+      "updated": false
+    },
+    "applications/coolcatsnft": {
+      "updated": false
+    },
+    "applications/warren": {
+      "updated": false
+    },
+    "applications/celo-dollar": {
+      "updated": false
+    },
+    "applications/xone-chain": {
+      "updated": false
+    },
+    "applications/mayan-finance": {
+      "updated": false
+    },
+    "applications/oinc": {
+      "updated": false
+    },
+    "applications/symmetryinvestments": {
+      "updated": false
+    },
+    "applications/slender": {
+      "updated": false
+    },
+    "applications/sectoronedex": {
+      "updated": false
+    },
+    "applications/pandas": {
+      "updated": false
+    },
+    "applications/dyor-net": {
+      "updated": false
+    },
+    "applications/idexio": {
+      "updated": false
+    },
+    "applications/unibot": {
+      "updated": false
+    },
+    "applications/opendao-protocols": {
+      "updated": false
+    },
+    "applications/volume-li": {
+      "updated": false
+    },
+    "applications/zkube": {
+      "updated": false
+    },
+    "applications/ionicprotocol": {
+      "updated": false
+    },
+    "applications/creator-bid": {
+      "updated": false
+    },
+    "applications/darkmachine-game": {
+      "updated": false
+    },
+    "applications/base-name-service": {
+      "updated": false
+    },
+    "applications/socket": {
+      "updated": false
+    },
+    "applications/infinex-xyz": {
+      "updated": false
+    },
+    "applications/maia-dao": {
+      "updated": false
+    },
+    "applications/hmxorg": {
+      "updated": false
+    },
+    "applications/mellow-finance": {
+      "updated": false
+    },
+    "applications/currentx-dex": {
+      "updated": false
+    },
+    "applications/mcdexio": {
+      "updated": false
+    },
+    "applications/alt-research": {
+      "updated": false
+    },
+    "applications/ensofinance": {
+      "updated": false
+    },
+    "applications/sportsbet-io": {
+      "updated": false
+    },
+    "applications/merchant-moe": {
+      "updated": false
+    },
+    "applications/incognitochain": {
+      "updated": false
+    },
+    "applications/zircuit-labs": {
+      "updated": false
+    },
+    "applications/open-runes": {
+      "updated": false
+    },
+    "applications/bradfitz": {
+      "updated": false
+    },
+    "applications/pool-together": {
+      "updated": false
+    },
+    "applications/megaeth": {
+      "updated": false
+    },
+    "applications/blazingapp": {
+      "updated": false
+    },
+    "applications/boundless-network": {
+      "updated": false
+    },
+    "applications/buffer-finance": {
+      "updated": false
+    },
+    "applications/prismfi": {
+      "updated": false
+    },
+    "applications/earnbit": {
+      "updated": false
+    },
+    "applications/mintdotfun": {
+      "updated": false
+    },
+    "applications/dolomite-exchange": {
+      "updated": false
+    },
+    "applications/dps-game": {
+      "updated": false
+    },
+    "applications/plastiks-io": {
+      "updated": false
+    },
+    "applications/alaya-ai": {
+      "updated": false
+    },
+    "applications/syncrobit": {
+      "updated": false
+    },
+    "applications/meru": {
+      "updated": false
+    },
+    "applications/coinpayments": {
+      "updated": false
+    },
+    "applications/chef": {
+      "updated": false
+    },
+    "applications/remix-ethereum": {
+      "updated": false
+    },
+    "applications/pingu-exchange": {
+      "updated": false
+    },
+    "applications/rustcrypto": {
+      "updated": false
+    },
+    "applications/gitcoin": {
+      "updated": false
+    },
+    "applications/sturdyfi": {
+      "updated": false
     }
   }
 }
