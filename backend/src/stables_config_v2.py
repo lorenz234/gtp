@@ -100,7 +100,7 @@ coin_mapping = [
         "token_id": "tetherto_ausdt",
         "symbol": "AUSDT",
         "coingecko_id": ["usa"],
-        "metric_key": "alloy-tether",
+        "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
@@ -975,7 +975,7 @@ coin_mapping = [
         "token_id": "anchored_coins_aeur",
         "symbol": "AEUR",
         "coingecko_id": ["anchored-coins-eur"],
-        "metric_key": "",
+        "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "",
@@ -1232,10 +1232,10 @@ coin_mapping = [
 ]
 
 # postgres table for fact_stables:
-# date | token_id | metric_key | address | decimals | value
+# date | origin_key | token_id | address || decimals | value
 
 # postgres table for sys_stables:
-# owner_project | token_id | symbol | coingecko_id | metric_key | bridged_origin_chain | bridged_origin_token_id | fiat | logo
+# token_id | owner_project | symbol | coingecko_id | metric_key | bridged_origin_chain | bridged_origin_token_id | fiat | logo
 
 # Token Address Mapping
 address_mapping = {
@@ -2378,10 +2378,6 @@ address_mapping = {
         },
         "izumi_iusd": {
             "address": "0x0a3bb08b3a15a19b4de82f8acfc862606fb69a2d",
-            "decimals": 18
-        },
-        "monerium_eure": {
-            "address": "0xd7bb130a48595fcdf9480e36c1ae97ff2938ac21",
             "decimals": 18
         },
         "makerdao_daie": {
