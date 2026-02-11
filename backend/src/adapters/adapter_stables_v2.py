@@ -1,3 +1,5 @@
+from itertools import chain
+from logging import config
 import time
 import os 
 import pandas as pd
@@ -27,8 +29,12 @@ class AdapterStablecoinSupply(AbstractAdapter):
         self.current_rpc = None
         self.list_of_rpcs = None
 
-        # dune adapter for backfilling historical data
+        # adapter for getting data
         self.dune_adapter = None
+        self.SupplyReader = None
+
+        # abi for reading totalSupply directly from ERC20 contracts
+        self.erc20_abi = [{"constant": True,"inputs": [],"name": "totalSupply","outputs": [{"name": "", "type": "uint256"}],"type": "function"}]
 
         # load chain main config from db
         self.config = self.db_connector.get_table("sys_main_conf")
@@ -60,7 +66,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             token_ids = [coin['token_id'] for coin in self.coin_mapping]
         
         # load current progress from db
-        db_progress = self.check_db_for_current_data()
+        db_progress = self.get_db_progress()
 
         # iterate through each chain and get data
         for chain in chains:
@@ -98,75 +104,178 @@ class AdapterStablecoinSupply(AbstractAdapter):
         if self.config[self.config['origin_key'] == chain]['aliases_dune'].iloc[0] is not None:
             print(f"Chain '{chain}' is listed on Dune, using Dune adapter to get stablecoin data.")
             df = self.pull_from_dune(chain, token_ids, db_progress)
+            if df is not None:
+                return df
+
+        # else scrape using rpc calls & SupplyReader (if deployed on the chain)
+        df = self.pull_from_rpc(chain, token_ids, db_progress)
+        if df is not None:
             return df
-        else:
-            print(f"Chain '{chain}' is not listed on Dune, skipping Dune adapter.")
-
-        # if chain has SupplyReader deployed, use that to get the data
-        # ...
-
-        # if chain does not have any of the above options, scrape using manual rpc calls
-        # ...
+        
+        # if we cannot get any data for the chain, log a warning
+        print(f"Could not get stablecoin supply data for chain '{chain}' using any method!")
+        return None
 
     def pull_from_dune(self, chain, token_ids, db_progress):
         # get dune chain id from config
         dune_chain_id = self.config[self.config['origin_key'] == chain]['aliases_dune'].iloc[0]
 
-        # filter token_addresses, token_decimals and token_ids based on token_ids list
-        chain_token_addresses = [
-            self.address_mapping[chain][token]['address'] 
-            for token in self.address_mapping[chain]
-            if token in token_ids
-        ]
-        chain_token_decimals = [
-            self.address_mapping[chain][token]['decimals'] 
-            for token in self.address_mapping[chain]
-            if token in token_ids
-        ]
-        chain_token_ids = [
-            token for token in self.address_mapping[chain]
-            if token in token_ids
-        ]
+        # create specific chain db_progress df (includes new coins and removes already upto-date coins)
+        db_progress_chain = self.get_db_progress_chain(chain, token_ids, db_progress)
 
-        # see if we have new coins which would require a full backfill
-        new_coins = [token for token in chain_token_ids if token not in db_progress[db_progress['origin_key'] == chain]['token_id'].unique()]
-
-        # filter out yesterdays date in db_progress
-        date_yesterday = (datetime.now() - timedelta(days=1)).date()
-        db_progress = db_progress[db_progress['date'] != date_yesterday]
-
-        # special case for starknet
+        ##### special case for starknet
         if chain == 'starknet':
             return None
 
-        # if we have even just one "new_coins", might aswell backfill all token_ids using dune
-        if len(new_coins) > 0:
-            print(f"New coins for chain '{chain}' found, which are not in the database and will be backfilled using Dune: {new_coins}")
+        # one df
+        df_all = None
+
+        # pull in new coins with complete history
+        if len(db_progress_chain[db_progress_chain['date'].isna()]) > 0:
+            new_coins = db_progress_chain[db_progress_chain['date'].isna()]['token_id'].tolist()
+            print(f"New coins for chain '{chain}' found, backfilled complete history using Dune: {new_coins}")
             df = self.backfill_dune(
                 chain, 
                 dune_chain_id, 
-                chain_token_addresses,
-                chain_token_ids, 
-                chain_token_decimals
+                db_progress_chain[db_progress_chain['date'].isna()]['address'].tolist(),
+                new_coins,
+                db_progress_chain[db_progress_chain['date'].isna()]['decimals'].tolist()
             )
             if df is not None:
-                return df
+                df_all = pd.concat([df_all, df], ignore_index=True) if df_all is not None else df
         
-        # if we already have data for token_ids in the db, we can use the more efficient SupplyReader delta script to only get the new datapoints
-        if len(db_progress) > 0:
+        # pull in existing coins only for the last few missing recent days
+        if len(db_progress_chain[db_progress_chain['date'].notna()]) > 0:
             df = self.read_total_supplies_dune(
                 chain, 
                 dune_chain_id,
-                db_progress[db_progress['origin_key'] == chain]['address'].tolist(),
-                db_progress[db_progress['origin_key'] == chain]['token_id'].tolist(),
-                db_progress[db_progress['origin_key'] == chain]['decimals'].tolist(),
-                db_progress[db_progress['origin_key'] == chain]['value'].tolist(),
-                db_progress[db_progress['origin_key'] == chain]['date'].tolist()
+                db_progress_chain[db_progress_chain['date'].notna()]['address'].tolist(),
+                db_progress_chain[db_progress_chain['date'].notna()]['token_id'].tolist(),
+                db_progress_chain[db_progress_chain['date'].notna()]['decimals'].tolist(),
+                db_progress_chain[db_progress_chain['date'].notna()]['value'].tolist(),
+                db_progress_chain[db_progress_chain['date'].notna()]['date'].tolist()
             )
             if df is not None:
-                return df
+                df_all = pd.concat([df_all, df], ignore_index=True) if df_all is not None else df
         
-        print(f"Nothing to backfill for chain '{chain}'.")
+        # return and print report
+        if df_all is not None:
+            print(f"Successfully pulled stablecoin supply data for chain '{chain}' from Dune for {len(df_all)} records.")
+        else:
+            print(f"No new stablecoin supply data for chain '{chain}' found on Dune.")
+        return df_all
+
+    def pull_from_rpc(self, chain, token_ids, db_progress):
+        # create new w3 instance for the chain
+        w3 = self.get_new_w3(chain)
+
+        # check if SupplyReader is deployed on the chain, if yes create adapter instance
+        is_supplyreader_deployed_date = pd.to_datetime(config[config['origin_key'] == chain]['deployed_supplyreader'].iloc[0]).date()
+        is_supplyreader_deployed = is_supplyreader_deployed_date != None
+        if is_supplyreader_deployed:
+            SupplyReader = SupplyReaderAdapter(w3)
+
+        # create specific chain db_progress df (includes new coins and removes already upto-date coins)
+        db_progress_chain = self.get_db_progress_chain(chain, token_ids, db_progress)
+
+        # keep track of everything
+        df_all = pd.DataFrame()
+
+        ## pull in complete history for new coins
+        if len(db_progress_chain[db_progress_chain['date'].isna()]) > 0:
+            print(f"Found {len(db_progress_chain[db_progress_chain['date'].isna()])} new coins for chain {chain}. Pulling in complete history for these coins.")
+            block_date_mapping = self.get_last_block_of_day_from_db(chain, '2000-01-01')
+            db_progress_chain_new_coins = db_progress_chain[db_progress_chain['date'].isna()].reset_index(drop=True)
+            for index, row in block_date_mapping.iterrows():
+                block_number = row['value']
+                date = row['date']
+
+                # use SupplyReader
+                if is_supplyreader_deployed and is_supplyreader_deployed_date <= date:
+                    supplies = SupplyReader.get_total_supplies(
+                        db_progress_chain_new_coins['address'].tolist(),
+                        block_number
+                    )
+                    print(f"Used SupplyReader on chain {chain} on block {block_number} and date {date} for {len(supplies)} coins. {supplies}") ###
+                    df_supplies = db_progress_chain_new_coins[['origin_key', 'token_id', 'address', 'decimals']].copy()
+                    df_supplies['value'] = pd.Series(supplies) / (10 ** df_supplies['decimals'])
+                    df_supplies['date'] = date
+                    df_all = pd.concat([df_all, df_supplies], ignore_index=True)
+                    # remove coins from db_progress_chain_new_coins if supply is 0 (TODO: remove row also when call fails due to contract not yet being deployed?)
+                    if 0 in supplies:
+                        zero_supply_coins = db_progress_chain_new_coins[db_progress_chain_new_coins['token_id'].isin([db_progress_chain_new_coins['token_id'][i] for i, s in enumerate(supplies) if s == 0])]
+                        db_progress_chain_new_coins = db_progress_chain_new_coins[~db_progress_chain_new_coins['token_id'].isin(zero_supply_coins['token_id'])]
+                        print(f"Removed {len(zero_supply_coins)} coins with 0 supply from db_progress_chain_new_coins for chain {chain} on date {date}.")
+
+                # single RPC calls
+                else:
+                    for index, row in db_progress_chain_new_coins.iterrows():
+                        origin_key = row['origin_key']
+                        token_id = row['token_id']
+                        address = row['address']
+                        decimals = row['decimals']
+                        try:
+                            supply = self.get_total_supply_at_block(w3, address, block_number, decimals)
+                            df_all = pd.concat([df_all, pd.DataFrame({
+                                'origin_key': [origin_key],
+                                'token_id': [token_id],
+                                'address': [address.lower()],
+                                'decimals': [decimals],
+                                'value': [supply],
+                                'date': [date]
+                            })], ignore_index=True)
+                            print(f"Used single RPC call to get total supply for {token_id} on chain {origin_key} for date {date} at block {block_number}: {supply}")
+                            if supply == 0: # remove row from db_progress_chain_new_coins if supply is 0
+                                db_progress_chain_new_coins = db_progress_chain_new_coins[db_progress_chain_new_coins['token_id'] != token_id]
+                        except Exception as e:
+                            if "Could not decode contract function call" in str(e): # remove row from db_progress_chain_new_coins if contract not yet deployed
+                                print(f"Contract for token_id {token_id} not yet deployed {date}.")
+                                db_progress_chain_new_coins = db_progress_chain_new_coins[db_progress_chain_new_coins['token_id'] != token_id]
+                            else:
+                                print(f"Error pulling total supply for {token_id} on chain {origin_key} for date {date}: {e}")
+        
+        ## pull in existing coins only for the last few missing recent days
+        if len(db_progress_chain[db_progress_chain['date'].notna()]) > 0:
+            block_date_mapping = self.get_last_block_of_day_from_db(chain, (db_progress_chain['date'].min() + pd.Timedelta(days=1)).isoformat())
+            
+            for index, row in block_date_mapping.iterrows():
+                block_number = row['value']
+                date = row['date']
+
+                # use SupplyReader
+                if is_supplyreader_deployed and is_supplyreader_deployed_date <= date:
+                    db_progress_chain_date = db_progress_chain[db_progress_chain['date'] < date]
+                    supplies = SupplyReader.get_total_supplies(
+                        db_progress_chain_date['address'].tolist(),
+                        block_number
+                    )
+                    print(f"Used SupplyReader on chain {chain} on block {block_number} and date {date} for {len(supplies)} coins.")
+                    df_supplies = db_progress_chain_date[['origin_key', 'token_id', 'address', 'decimals']].copy()
+                    df_supplies['value'] = pd.Series(supplies) / (10 ** df_supplies['decimals'])
+                    df_supplies['date'] = date
+                    df_all = pd.concat([df_all, df_supplies], ignore_index=True)
+
+                # single RPC calls
+                else:
+                    db_progress_chain_date = db_progress_chain[db_progress_chain['date'] < date]
+                    for index, row in db_progress_chain_date.iterrows():
+                        origin_key = row['origin_key']
+                        token_id = row['token_id']
+                        address = row['address']
+                        decimals = row['decimals']
+                        try:
+                            supply = self.get_total_supply_at_block(w3, address, block_number, decimals)
+                            df_all = pd.concat([df_all, pd.DataFrame({
+                                'origin_key': [origin_key],
+                                'token_id': [token_id],
+                                'address': [address.lower()],
+                                'decimals': [decimals],
+                                'value': [supply],
+                                'date': [date]
+                            })], ignore_index=True)
+                            print(f"Used single RPC call to get total supply for {token_id} on chain {origin_key} for date {date} at block {block_number}: {supply}")
+                        except Exception as e:
+                            print(f"Error pulling total supply for {token_id} on chain {origin_key} for date {date} using single RPC call: {e}")
 
     #-#-#-# Raw Helper Functions #-#-#-#
 
@@ -253,18 +362,18 @@ class AdapterStablecoinSupply(AbstractAdapter):
         
         return df
 
-    def read_total_supplies_SupplyReader(self, w3: Web3, token_addresses: list, token_decimals: list, block_number: int = None):
+    def read_total_supplies_SupplyReader(self, token_addresses: list, token_decimals: list, block_number: int = None):
         """
         Using SupplyReader to read total supplies for 
         """
         try:
-            SupplyReader = SupplyReaderAdapter(w3)
-            supplies = SupplyReader.get_total_supplies(token_addresses, block_number)
+            supplies = self.SupplyReader.get_total_supplies(token_addresses, block_number)
             supplies = [supply / (10 ** decimals) for supply, decimals in zip(supplies, token_decimals)]
             return supplies
         except Exception as e:
             print(f"Error reading total supplies with SupplyReader on chain {self.current_chain} with RPC {self.current_rpc} for contracts {token_addresses}: {e}")
-            return None
+            self.SupplyReader = SupplyReaderAdapter(self.get_new_w3(self.current_chain))
+            return self.read_total_supplies_SupplyReader(token_addresses, token_decimals, block_number)
         
     def get_new_w3(self, chain: str):
         """
@@ -297,7 +406,34 @@ class AdapterStablecoinSupply(AbstractAdapter):
             print(f"Rotating w3 instance to new RPC for chain: {chain} to new RPC: {self.current_rpc}")
             return Web3(Web3.HTTPProvider(self.current_rpc))
 
-    def check_db_for_current_data(self):
+    def update_sys_stables_v2(self, coin_mapping):
+        """
+        Function to update the sys_stables_v2 table with the latest stablecoin metadata from the config file.
+        """
+        try:
+            self.db_connector.delete_all_rows("sys_stables_v2")
+            df = pd.DataFrame(coin_mapping).set_index('token_id')
+            self.db_connector.upsert_table("sys_stables_v2", df)
+            print(f"{len(df)} rows inserted into sys_stables_v2.")
+        except Exception as e:
+            print(f"Error updating sys_stables_v2 table: {e}")
+
+    def get_last_block_of_day_from_db(self, chain: str, start_date: str):
+        query = f"""
+            SELECT
+                DATE("date" - INTERVAL '1 day') as "date",
+                CAST(value - 1 AS INTEGER) as value
+            FROM public.fact_kpis
+            WHERE
+                metric_key = 'first_block_of_day'
+                AND origin_key = '{chain}'
+                AND "date" > '{start_date}'
+            ORDER BY "date" DESC
+        """
+        result = self.db_connector.execute_query(query, load_df=True)
+        return result
+    
+    def get_db_progress(self):
         """
         Function to check what stablecoin data we already have in our database and filled until which date.
         """
@@ -324,14 +460,27 @@ class AdapterStablecoinSupply(AbstractAdapter):
         result = self.db_connector.execute_query(query, load_df=True)
         return result
 
-    def update_sys_stables_v2(self, coin_mapping):
-        """
-        Function to update the sys_stables_v2 table with the latest stablecoin metadata from the config file.
-        """
-        try:
-            self.db_connector.delete_all_rows("sys_stables_v2")
-            df = pd.DataFrame(coin_mapping).set_index('token_id')
-            self.db_connector.upsert_table("sys_stables_v2", df)
-            print(f"{len(df)} rows inserted into sys_stables_v2.")
-        except Exception as e:
-            print(f"Error updating sys_stables_v2 table: {e}")
+    def get_db_progress_chain(self, chain: str, token_ids: list, db_progress: pd.DataFrame):
+        # filter token_ids down to what is actully deployed on this chain
+        chain_token_ids = [token for token in self.address_mapping[chain] if token in token_ids]
+        # see if we have new coins
+        new_coins = [token for token in chain_token_ids if token not in db_progress[db_progress['origin_key'] == chain]['token_id'].unique()]
+        # add the new coins to db_progress
+        db_progress_chain = pd.concat([db_progress[db_progress['origin_key'] == chain], pd.DataFrame({
+            'origin_key': [chain] * len(new_coins),
+            'token_id': new_coins,
+            'address': [self.address_mapping[chain][token]['address'] for token in new_coins],
+            'decimals': [self.address_mapping[chain][token]['decimals'] for token in new_coins],
+            'value': [None] * len(new_coins),
+            'date': [None] * len(new_coins)
+        })], ignore_index=True)
+        # filter out yesterdays date
+        date_yesterday = (datetime.now() - timedelta(days=1)).date()
+        db_progress_chain = db_progress_chain[db_progress_chain['date'] != date_yesterday]
+        return db_progress_chain
+    
+    def get_total_supply_at_block(self, w3: Web3, address: str, block_number: int, decimals: int = 18) -> float:
+        """Get ERC20 total supply at a specific block height."""
+        contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=self.erc20_abi)
+        total_supply = contract.functions.totalSupply().call(block_identifier=block_number)
+        return total_supply / (10 ** decimals)
