@@ -96,8 +96,12 @@ token_ids_to_check = ['monerium_eure']
 
 # Define exclusions upfront
 exclude = [
-    {"origin_key": "scroll", "token_id": "monerium_eure"},
-    {"origin_key": "ethereum", "token_id": "anchored_coins_achf"},
+    {"origin_key": "scroll", "token_id": "monerium_eure"}, # unused as of Feb 2026
+    {"origin_key": "ethereum", "token_id": "anchored_coins_achf"}, # unused as of Feb 2026
+    {"origin_key": "plume", "token_id": "agora_ausd"}, # unused as of Feb 2026
+    {"origin_key": "polygon_pos", "token_id": "allunity_eurau"}, # unused as of Feb 2026
+    {"origin_key": "optimism", "token_id": "allunity_eurau"}, # unused as of Feb 2026
+    {"origin_key": "fraxtal", "token_id": "agora_ausd"}, # unused as of Feb 2026
 ]
 
 address_mapping_cg = {}
