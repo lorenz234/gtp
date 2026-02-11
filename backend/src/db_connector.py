@@ -942,6 +942,77 @@ class DbConnector:
                         with connection.begin():
                                 connection.execute(text(exec_string))
                 print(f"...data inserted successfully for {chain} and {days}.")
+                
+        def get_blockspace_contracts_hourly(self, chain, hours):
+                ## Mantle and Metis store fees in own tokens: hence different logic for gas_fees_eth and gas_fees_usd
+                if chain in ['mantle', 'metis', 'celo']:
+                        additional_cte = f"""
+                                , token_price AS (
+                                        SELECT "date", value
+                                        FROM public.fact_kpis
+                                        WHERE origin_key = '{chain}' and metric_key = 'price_usd'
+                                )
+                        """
+                        tx_fee_eth_string = 'tx_fee * mp.value / p.value'
+                        tx_fee_usd_string = 'tx_fee * mp.value'                        
+                        additional_join = """LEFT JOIN token_price mp on date_trunc('day', tx.block_timestamp) = mp."date" """
+                else:
+                        additional_cte = ''
+                        tx_fee_eth_string = 'tx_fee'
+                        tx_fee_usd_string = 'tx_fee * p.value'                       
+                        additional_join = ''
+
+                exec_string = f'''
+                        with eth_price as (
+                                SELECT "date", value
+                                FROM fact_kpis
+                                WHERE metric_key = 'price_usd' and origin_key = 'ethereum'
+                        )
+
+                        {additional_cte}
+                        
+                        INSERT INTO blockspace_fact_contract_level_hourly (address, hour, gas_fees_eth, gas_fees_usd, txcount, daa, origin_key, success_rate, median_tx_fee, gas_used)
+                                select
+                                        to_address as address,
+                                        date_trunc('hour', block_timestamp) as hour,
+                                        sum({tx_fee_eth_string}) as gas_fees_eth,
+                                        sum({tx_fee_usd_string}) as gas_fees_usd,
+                                        count(*) as txcount,
+                                        count(distinct from_address) as daa,
+                                        '{chain}' as origin_key,
+                                        sum(status)*1.0/count(*) as success_rate,
+                                        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tx_fee) AS median_tx_fee,
+                                        sum(gas_used) as gas_used
+                                from {chain}_tx tx 
+                                LEFT JOIN eth_price p on date_trunc('day', tx.block_timestamp) = p."date"
+                                {additional_join}
+                                where block_timestamp < DATE_TRUNC('hour', NOW())
+                                        and block_timestamp >= DATE_TRUNC('hour', NOW() - INTERVAL '{hours} hours')
+                                        and empty_input = false -- we don't have to store addresses that received native transfers
+                                        and tx_fee > 0 -- no point in counting txs with 0 fees (most likely system tx)
+                                        and to_address <> '' 
+                                        and to_address is not null -- filter out contract creations arbitrum, optimism
+                                        and to_address <> '\\x0000000000000000000000000000000000008006' -- filter out contract creations zksync
+                                        and to_address <> 'None' -- filter out zora and pgn contract creation
+                                group by 1,2
+                                having count(*) > 1
+                        ON CONFLICT (origin_key, hour, address)
+                        DO UPDATE SET
+                                txcount = EXCLUDED.txcount,
+                                daa = EXCLUDED.daa,
+                                gas_fees_eth = EXCLUDED.gas_fees_eth,
+                                gas_fees_usd = EXCLUDED.gas_fees_usd,
+                                success_rate = EXCLUDED.success_rate,
+                                median_tx_fee = EXCLUDED.median_tx_fee,
+                                gas_used = EXCLUDED.gas_used;
+                '''
+                # df = pd.read_sql(exec_string, self.engine.connect())
+                # return df
+
+                with self.engine.connect() as connection:
+                        with connection.begin():
+                                connection.execute(text(exec_string))
+                print(f"...data inserted successfully for {chain} and {hours} hours.")
 
         
         # This function is used to get the native_transfer daily aggregate per chain. The data will be loaded into fact_sub_category_level table        
