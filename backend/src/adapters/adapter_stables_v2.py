@@ -6,9 +6,17 @@ from web3 import Web3
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.adapter_SupplyReader import SupplyReaderAdapter
 
+#!# 'dune' query for totalSupply logic only works on 95% of the stablecoins! It tracks transfers events to 0x0 and from 0x0. Not all stables follow that logic.
+#!# 'rpc' requires 'first_block_of_day' data to be available in the database.
+
 class AdapterStablecoinSupply(AbstractAdapter):
     """
     Adapter for scraping stablecoin supply across different chains.
+
+    Args:
+        adapter_params (dict): Dictionary containing parameters for the adapter. Expected keys are:
+        - nothing
+        db_connector: Database connector instance for interacting with the database.
     """
     def __init__(self, adapter_params:dict, db_connector):
         super().__init__("Stablecoin Adapter v2", adapter_params, db_connector)
@@ -47,7 +55,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             extract_params (dict): Dictionary containing the parameters for extraction. Expected keys are:
             - origin_keys (list): List of chain names to extract data for.  Use ['*'] for all.
             - token_ids (list): List of token_ids to extract data for. Use ['*'] for all.
-            - method (str): Method to use for extraction. Options are 'dune', 'rpc', or 'auto'. Default is 'auto', which will try 'dune' first and fall back to 'rpc' if 'dune' fails or is not available for the chain.
+            - method (str): Method to use for extraction. Options are 'dune', 'rpc', or 'auto'. Default is 'auto', which will try 'dune' and fall back to 'rpc'. 'rpc' requires 'first_block_of_day' data to be available in the database for the chain!
         """
         # all data combined
         df_all = None
@@ -91,6 +99,13 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
     # load data into db
     def load(self, df, table_name: str="fact_stables_v2"):
+        """
+        Load the extracted data into the database.
+
+        Args:
+            df (DataFrame): DataFrame from extract as is.
+            table_name (str): Name of the table to load the data into. Default is "fact_stables_v2".
+        """
         df = df.set_index(['origin_key', 'token_id', 'address', 'date'])
         self.db_connector.upsert_table(table_name, df)
         print(f"Loaded {len(df)} records into {table_name}.")
@@ -99,11 +114,13 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
     def get_stablecoin_data_for_chain(self, chain, token_ids, db_progress, method='auto'):
         """
-        Arguments:
+        Function to get stablecoin supply data for a specific chain and (multiple) token_ids using the specified method.
+        
+        Args:
             chain (str): The origin_key of the chain to get data for.
             token_ids (list): List of token_ids to get data for.
             db_progress (DataFrame): DataFrame containing the current progress of data collection for all chains and token_ids.
-            method (str): Method to use for getting data. Options are 'dune', 'rpc', or 'auto'. Default is 'auto', which will try 'dune' first and fall back to 'rpc' if 'dune' fails or is not available for the chain.
+            method (str): Method to use for getting data. Options are 'dune', 'rpc', or 'auto'. Default is 'auto', which will try 'dune' and fall back to 'rpc'. 'rpc' requires 'first_block_of_day' data to be available in the database for the chain!
         """
         # if chain is listed on dune, use that to get the data
         if self.config[self.config['origin_key'] == chain]['aliases_dune'].iloc[0] is not None and method in ['auto', 'dune']:
