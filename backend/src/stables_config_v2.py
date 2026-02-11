@@ -1448,10 +1448,6 @@ address_mapping = {
             "address": "0xa40640458fbc27b6eefedea1e9c9e17d4cee7a21",
             "decimals": 18
         },
-        "anchored_coins_achf": {
-            "address": "0x653aab62056b92641116d63927de6141d780e596",
-            "decimals": 18
-        },
         "stablr_eurr": {
             "address": "0x50753cfaf86c094925bf976f218d043f8791e408",
             "decimals": 6

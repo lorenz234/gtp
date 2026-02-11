@@ -97,6 +97,7 @@ token_ids_to_check = ['monerium_eure']
 # Define exclusions upfront
 exclude = [
     {"origin_key": "scroll", "token_id": "monerium_eure"},
+    {"origin_key": "ethereum", "token_id": "anchored_coins_achf"},
 ]
 
 address_mapping_cg = {}
