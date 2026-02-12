@@ -35,14 +35,15 @@ def etl():
         # Initialize the Stablecoin Adapter
         stablecoin_adapter = AdapterStablecoinSupply(adapter_params, db_connector)
 
-        # Step 1: Get block data for all chains
+        # MOVED TO NEW DAG CALLED: utility_first_block
+        """# Step 1: Get block data for all chains
         print("Step 1: Collecting block data...")
         block_params = {
             'days': days, 
             'load_type': 'block_data'
         }
         stablecoin_adapter.extract(block_params, update=True)
-        print(f"Loaded block records")
+        print(f"Loaded block records")"""
 
         # Step 2: Get bridged stablecoin supply
         print("\nStep 2: Collecting bridged stablecoin data...")
