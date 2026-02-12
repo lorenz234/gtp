@@ -150,7 +150,9 @@ def get_archive_dates(
     if df.is_empty() or df["min_date"].is_null().all():
         return []
     min_date = min_date_override or df["min_date"][0]
-    if isinstance(min_date, str):
+    if isinstance(min_date, datetime):
+        min_date = min_date.date()
+    elif isinstance(min_date, str):
         min_date = datetime.strptime(min_date, "%Y-%m-%d").date()
     return [min_date + timedelta(days=offset) for offset in range((archival_date - min_date).days + 1)]
 
