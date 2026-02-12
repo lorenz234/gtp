@@ -73,7 +73,6 @@ import time
 import requests
 from src.stables_config_v2 import coin_mapping, address_mapping
 
-
 def get_coin_data(coin_id):
     response = requests.get(
         f"https://pro-api.coingecko.com/api/v3/coins/{coin_id}",
@@ -81,7 +80,6 @@ def get_coin_data(coin_id):
     )
     time.sleep(1)  # avoid rate limits
     return response.json()
-
 
 # Load aliases_coingecko_chain <> origin_key mapping
 from src.db_connector import DbConnector
@@ -94,6 +92,17 @@ origin_key_mapping = config.to_dict()["origin_key"]
 
 # Which token_ids to check, use ['*'] for all, or a specific list like ['circlefin_usdc', 'tetherto_usdt']
 token_ids_to_check = ['*']
+token_ids_to_check = ['monerium_eure']
+
+# Define exclusions upfront
+exclude = [
+    {"origin_key": "scroll", "token_id": "monerium_eure"}, # unused as of Feb 2026
+    {"origin_key": "ethereum", "token_id": "anchored_coins_achf"}, # unused as of Feb 2026
+    {"origin_key": "plume", "token_id": "agora_ausd"}, # unused as of Feb 2026
+    {"origin_key": "polygon_pos", "token_id": "allunity_eurau"}, # unused as of Feb 2026
+    {"origin_key": "optimism", "token_id": "allunity_eurau"}, # unused as of Feb 2026
+    {"origin_key": "fraxtal", "token_id": "agora_ausd"}, # unused as of Feb 2026
+]
 
 address_mapping_cg = {}
 unrecognised_chains = set()
@@ -110,6 +119,15 @@ for coin in coin_mapping:
             if origin_key is None:
                 unrecognised_chains.add(chain)
                 continue
+            
+            # Check if this combination should be excluded
+            if any(
+                exc["origin_key"] == origin_key and exc["token_id"] == coin["token_id"]
+                for exc in exclude
+            ):
+                print(f"Excluding {coin['token_id']} on {origin_key} (as per exclusion list)")
+                continue
+            
             address_mapping_cg.setdefault(origin_key, {})[coin["token_id"]] = {
                 "address": coin_data["detail_platforms"][chain]["contract_address"],
                 "decimals": coin_data["detail_platforms"][chain]["decimal_place"],
@@ -127,10 +145,7 @@ for chain in address_mapping_cg:
 
 # Report unknown chains
 if unrecognised_chains:
-    print(
-        "The following Coingecko chains are not recognised. "
-        "Please map them in sys_main_conf (aliases_coingecko_chain):"
-    )
+    print("The following Coingecko chains are not recognised. Map them in sys_main_conf (aliases_coingecko_chain):")
     for chain in unrecognised_chains:
         print(f"- {chain}")
 

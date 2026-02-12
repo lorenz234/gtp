@@ -100,7 +100,7 @@ coin_mapping = [
         "token_id": "tetherto_ausdt",
         "symbol": "AUSDT",
         "coingecko_id": ["usa"],
-        "metric_key": "alloy-tether",
+        "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
@@ -975,7 +975,7 @@ coin_mapping = [
         "token_id": "anchored_coins_aeur",
         "symbol": "AEUR",
         "coingecko_id": ["anchored-coins-eur"],
-        "metric_key": "",
+        "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "",
@@ -1232,10 +1232,10 @@ coin_mapping = [
 ]
 
 # postgres table for fact_stables:
-# date | token_id | metric_key | address | decimals | value
+# date | origin_key | token_id | address || decimals | value
 
 # postgres table for sys_stables:
-# owner_project | token_id | symbol | coingecko_id | metric_key | bridged_origin_chain | bridged_origin_token_id | fiat | logo
+# token_id | owner_project | symbol | coingecko_id | metric_key | bridged_origin_chain | bridged_origin_token_id | fiat | logo
 
 # Token Address Mapping
 address_mapping = {
@@ -1448,10 +1448,6 @@ address_mapping = {
             "address": "0xa40640458fbc27b6eefedea1e9c9e17d4cee7a21",
             "decimals": 18
         },
-        "anchored_coins_achf": {
-            "address": "0x653aab62056b92641116d63927de6141d780e596",
-            "decimals": 18
-        },
         "stablr_eurr": {
             "address": "0x50753cfaf86c094925bf976f218d043f8791e408",
             "decimals": 6
@@ -1659,10 +1655,6 @@ address_mapping = {
         "fraxfinance_frxusd": {
             "address": "0x80eede496655fb9047dd39d9f418d5483ed600df",
             "decimals": 18
-        },
-        "agora_ausd": {
-            "address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
-            "decimals": 6
         },
         "plumenetwork_pusd": {
             "address": "0xdddd73f5df1f0dc31373357beac77545dc5a6f3f",
@@ -1988,10 +1980,6 @@ address_mapping = {
             "address": "0xe0b52e49357fd4daf2c15e02058dce6bc0057db4",
             "decimals": 18
         },
-        "allunity_eurau": {
-            "address": "0x4933a85b5b5466fbaf179f72d3de273c287ec2c2",
-            "decimals": 6
-        },
         "frankencoin_zchf": {
             "address": "0xd4dd9e2f021bb459d5a5f6c24c12fe09c5d45553",
             "decimals": 18
@@ -2262,10 +2250,6 @@ address_mapping = {
             "address": "0x4f604735c1cf31399c6e711d5962b2b3e0225ad3",
             "decimals": 18
         },
-        "allunity_eurau": {
-            "address": "0x4933a85b5b5466fbaf179f72d3de273c287ec2c2",
-            "decimals": 6
-        },
         "frankencoin_zchf": {
             "address": "0xd4dd9e2f021bb459d5a5f6c24c12fe09c5d45553",
             "decimals": 18
@@ -2378,10 +2362,6 @@ address_mapping = {
         },
         "izumi_iusd": {
             "address": "0x0a3bb08b3a15a19b4de82f8acfc862606fb69a2d",
-            "decimals": 18
-        },
-        "monerium_eure": {
-            "address": "0xd7bb130a48595fcdf9480e36c1ae97ff2938ac21",
             "decimals": 18
         },
         "makerdao_daie": {
@@ -2521,10 +2501,6 @@ address_mapping = {
         "curve_crvusd": {
             "address": "0xb102f7efa0d5de071a8d37b3548e1c7cb148caf3",
             "decimals": 18
-        },
-        "agora_ausd": {
-            "address": "0x00000000efe302beaa2b3e6e1b18d08d69a9012a",
-            "decimals": 6
         },
         "tetherto_usdte": {
             "address": "0x4d15ea9c2573addaed814e48c148b5262694646a",

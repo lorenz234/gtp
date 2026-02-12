@@ -67,19 +67,19 @@ def main():
         df = df.drop(columns=['examples'])
         df = df.set_index('category_id')
 
-        # get tags from oli_tags table to compare
+        # get tags from oli_categories table to compare
         df_existing = db_connector.get_table('oli_categories') # we have 4 more in our db than on Github: 'unlabeled', 'total_usage', 'contract_deployment', 'native_transfer'
 
         # find new tags - add .copy() to avoid SettingWithCopyWarning
         df_new = df[~df.index.isin(df_existing['category_id'])].copy()
         df_new['main_category_id'] = 'unlabeled' # temporarily set all new categories to 'unlabeled' main category
 
-        # upsert/update all oli_tags table
+        # upsert/update all oli_categories table
         db_connector.upsert_table('oli_categories', df_new)
 
         # send discord message for new categories
         for row in df_new.itertuples():
-            send_discord_message(f'New OLI usage_category found and synced to oli_categories table: `{row.category_id}`. Please assign a main category to this new usage_category in the database unser the table oli_categories!', os.getenv('DISCORD_CONTRACTS'))
+            send_discord_message(f'New OLI usage_category found and synced to oli_categories table: `{row.name}`. Please assign a main category to this new usage_category in the database under the table oli_categories!', os.getenv('DISCORD_CONTRACTS'))
 
 
     @task()
