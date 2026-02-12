@@ -18,7 +18,8 @@ from src.api.schemas import (
     MetricResponse, MetricDetails, 
     ChainOverviewResponse, ChainData, ChainAchievements,
     StreaksResponse, EcosystemResponse, 
-    UserInsightsResponse, UserInsightsData
+    UserInsightsResponse, UserInsightsData,
+    TreeMapResponse
 )
 
 # --- Set up a proper logger ---
@@ -531,6 +532,107 @@ class JsonGen():
             df = execute_jinja_query(self.db_connector, "api/select_blockspace_main_categories.sql.j2", {"origin_key": chain.origin_key, "days": 7}, return_df=True) 
             return { "types": df.columns.tolist(), "data": df.values.tolist()}
         return {"types": [], "data": []}
+
+    def create_blockspace_tree_map_json(self):
+        chain_list = [
+            chain.origin_key
+            for chain in self.main_config
+            if chain.api_in_main
+            and chain.api_in_apps
+            and (self.api_version == 'dev' or chain.api_deployment_flag == 'PROD')
+        ]
+
+        if not chain_list:
+            logging.warning("No chains eligible for blockspace tree map export.")
+            return
+
+        query = f"""
+            WITH base AS (
+                SELECT 
+                    fact.date,
+                    concat('0x', encode(fact.address, 'hex')) AS address,
+                    fact.origin_key,
+                    oli.contract_name,
+                    coalesce(oli.owner_project, 'unlabeled') AS owner_project,
+                    coalesce(cat.main_category_id, 'unlabeled') AS main_category_key,
+                    coalesce(oli.usage_category, 'unlabeled') AS sub_category_key,
+                    sum(fact.txcount) AS txcount,
+                    sum(fact.gas_fees_eth) AS fees_paid_eth,
+                    sum(fact.gas_fees_usd) AS fees_paid_usd,
+                    sum(fact.daa) AS daa
+                FROM blockspace_fact_contract_level fact
+                LEFT JOIN vw_oli_label_pool_gold_pivoted_v2 oli USING (address, origin_key)
+                LEFT JOIN oli_categories cat ON oli.usage_category = cat.category_id::text
+                WHERE date >= current_date - interval '7 days'
+                    AND origin_key IN ({','.join([f"'{chain}'" for chain in chain_list])})
+                GROUP BY 1,2,3,4,5,6,7
+                ),
+                unlabeled AS (
+                SELECT * FROM base
+                WHERE sub_category_key = 'unlabeled'
+                ),
+                ranked AS (
+                SELECT
+                    *,
+                    row_number() OVER (PARTITION BY date, origin_key ORDER BY txcount DESC) AS rn
+                FROM unlabeled
+                ),
+                top20 AS (
+                SELECT * FROM ranked WHERE rn <= 20
+                ),
+                others AS (
+                SELECT
+                    date,
+                    'all others' AS address,
+                    origin_key,
+                    'Unlabeled (Others)' AS contract_name,
+                    'unlabeled' AS owner_project,
+                    'unlabeled' AS main_category_key,
+                    'unlabeled' AS sub_category_key,
+                    sum(txcount) AS txcount,
+                    sum(fees_paid_eth) AS fees_paid_eth,
+                    sum(fees_paid_usd) AS fees_paid_usd,
+                    sum(daa) AS daa
+                FROM ranked
+                WHERE rn > 20
+                GROUP BY 1,3
+                ),
+                labeled AS (
+                SELECT * FROM base
+                WHERE sub_category_key <> 'unlabeled'
+                )
+                SELECT * FROM labeled
+                UNION ALL
+                SELECT date, address, origin_key, contract_name, owner_project, main_category_key, sub_category_key, txcount, fees_paid_eth, fees_paid_usd, daa
+                FROM top20
+                UNION ALL
+                SELECT * FROM others;
+        """
+
+        df = self.db_connector.execute_query(query, load_df=True)
+        if df.empty:
+            logging.warning("No data returned for blockspace tree map export.")
+            return
+
+        df['date'] = df['date'].astype(str)
+
+        try:
+            response_model = TreeMapResponse(
+                data={'types': df.columns.to_list(), 'data': df.values.tolist()},
+                last_updated_utc=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            )
+            tree_map_dict = fix_dict_nan(response_model.model_dump(mode='json'), 'blockspace/tree_map')
+        except Exception as e:
+            logging.error(f"Tree map validation failed: {e}")
+            return
+
+        s3_path = f'{self.api_version}/blockspace/tree_map'
+        if self.s3_bucket:
+            upload_json_to_cf_s3(self.s3_bucket, s3_path, tree_map_dict, self.cf_distribution_id, invalidate=False)
+        else:
+            self._save_to_json(tree_map_dict, s3_path)
+
+        logging.info('DONE -- Tree Map')
 
     def get_ecosystem_dict(self, origin_keys: List[str]) -> dict:
         top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", {"origin_keys": origin_keys, "days": 7, "limit": 5000}, return_df=True)

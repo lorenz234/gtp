@@ -32,6 +32,7 @@ class AdapterL2Beat(AbstractAdapter):
         ## Set variables
         origin_keys = load_params['origin_keys']
         self.load_type = load_params['load_type']
+        self.l2beat_chains = load_params.get('l2beat_chains', None)
 
         projects = [chain for chain in main_conf if chain.aliases_l2beat is not None]
         
@@ -48,6 +49,8 @@ class AdapterL2Beat(AbstractAdapter):
                 projects_to_load=projects_to_load)
         elif self.load_type == 'sys_l2beat':
             df = self.extract_sys_l2beat()
+        elif self.load_type == 'txcount':
+            df = self.extract_txcount(self.l2beat_chains)
         else:
             raise NotImplementedError(f"load_type {self.load_type} not recognized")
 
@@ -55,7 +58,7 @@ class AdapterL2Beat(AbstractAdapter):
         return df 
 
     def load(self, df:pd.DataFrame):
-        if self.load_type == 'tvs':
+        if self.load_type == 'tvs' or self.load_type == 'txcount':
             upserted, tbl_name = upsert_to_kpis(df, self.db_connector)
             print_load(self.name, upserted, tbl_name)
         elif self.load_type == 'stages':
@@ -69,6 +72,48 @@ class AdapterL2Beat(AbstractAdapter):
 
     ## ----------------- Helper functions --------------------
 
+    def extract_txcount(self, l2beat_chains):
+        dfMain = get_df_kpis()
+        for chain in l2beat_chains:
+            origin_key = chain ## L2BEAT naming
+            naming = chain
+            
+            if origin_key == 'ethereum':
+                continue
+
+            url = f"https://l2beat.com/api/scaling/activity/{naming}?range=max"       
+            print(url)
+            response_json = api_get_call(url, sleeper=10, retries=10)
+            if response_json['success']:
+                df = pd.json_normalize(response_json['data']['chart'], record_path=['data'], sep='_')
+
+                ## only keep the columns 0 (date), 1 (txcount)
+                df = df.iloc[:,[0,1]]
+                df['date'] = pd.to_datetime(df[0],unit='s')
+                df['date'] = df['date'].dt.date
+                df.drop([0], axis=1, inplace=True)
+                
+                ## rename col 1 into value
+                df.rename(columns={1: 'value'}, inplace=True)
+                df = df[['date','value']]
+                df['metric_key'] = 'txcount'
+                df['origin_key'] = origin_key
+
+                today = datetime.today().strftime('%Y-%m-%d')
+                df.drop(df[df.date == today].index, inplace=True, errors='ignore')
+                df.value.fillna(0, inplace=True)
+                dfMain = pd.concat([dfMain,df])
+
+                print(f"...{self.name} - loaded TXCOUNT for {origin_key}. Shape: {df.shape}")
+                time.sleep(10)
+            else:
+                print(f'Error loading TVS data for {origin_key}')
+                send_discord_message(f'L2Beat: Error loading TVS data for {origin_key}. Other chains are not impacted.', self.webhook)            
+
+        dfMain.drop_duplicates(subset=['metric_key', 'origin_key', 'date'], inplace=True)
+        dfMain.set_index(['metric_key', 'origin_key', 'date'], inplace=True)
+        return dfMain
+    
     def extract_tvs(self, projects_to_load):
         dfMain = get_df_kpis()
         for chain in projects_to_load:

@@ -1085,7 +1085,15 @@ def get_current_file_list(repo_name, file_path, github_token):
     df_duplicates = df[df.duplicated(subset=["name"], keep=False)]
     df_duplicates = df_duplicates[df_duplicates["logo_path"].str.contains(".png")]
     df = df[~df["logo_path"].isin(df_duplicates["logo_path"])]
-    print(f"..removed {len(df_duplicates)} duplicates with .png in the filename.")
+    
+    print(f"..removed {len(df_duplicates)} duplicates with .png in the filename. Removed {df_duplicates['logo_path'].tolist()}")
+    
+    ## if there are still duplicates in the "name" column, remove the ones with .jpg in the "logo_path" column
+    df_duplicates = df[df.duplicated(subset=["name"], keep=False)]
+    df_duplicates = df_duplicates[df_duplicates["logo_path"].str.contains(".jpg")]
+    df = df[~df["logo_path"].isin(df_duplicates["logo_path"])]
+    
+    print(f"..removed {len(df_duplicates)} duplicates with .jpg in the filename. Removed {df_duplicates['logo_path'].tolist()}")
 
     df.set_index("name", inplace=True)
     return df

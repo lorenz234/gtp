@@ -25,6 +25,7 @@ BASE_URL = 'https://www.growthepie.com'
 
 # Path to backdrop image (same directory as this script)
 OG_BACKDROP_PATH = SCRIPT_DIR / "og_resources/og_backdrop.png"
+METRICS_DATA_PATH = SCRIPT_DIR / "og_resources/metrics_data.json"
 
 # OG Image dimensions
 OG_WIDTH = 1200
@@ -69,6 +70,26 @@ DA_DIRECTORIES = {
 QUICK_BITES_GITHUB_API = "https://api.github.com/repos/growthepie/gtp-frontend/contents/public/quick-bites"
 QUICK_BITES_RAW_BASE = "https://raw.githubusercontent.com/growthepie/gtp-frontend/main/public/quick-bites"
 QUICK_BITES_LOCAL_DIR = SCRIPT_DIR / "og_resources/quick-bites"
+
+
+def load_screenshot_status():
+    """Load the screenshot status from metrics_data.json. Returns a dict of route -> {"updated": bool}."""
+    if METRICS_DATA_PATH.exists():
+        with open(METRICS_DATA_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("screenshot_status", {})
+    return {}
+
+
+def save_screenshot_status(status):
+    """Save the screenshot status back into metrics_data.json under 'screenshot_status'."""
+    data = {}
+    if METRICS_DATA_PATH.exists():
+        with open(METRICS_DATA_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    data["screenshot_status"] = status
+    with open(METRICS_DATA_PATH, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
 
 def sync_quick_bites_from_github():
@@ -625,8 +646,7 @@ def get_template_configs():
 
     # Load metrics data from local JSON file
     metrics = {}
-    metrics_json_path = SCRIPT_DIR / "og_resources/metrics_data.json"
-    with open(metrics_json_path, "r", encoding="utf-8") as f:
+    with open(METRICS_DATA_PATH, "r", encoding="utf-8") as f:
         metrics = json.load(f)
     
     page_groups = get_page_groups_from_sitemap()
@@ -814,10 +834,14 @@ def run_template_generation(s3_bucket,
                            cf_distribution_id,
                            api_version,
                            user=None,
-                           is_local_test=False):
-    """Generate OG images from HTML templates"""
+                           is_local_test=False,
+                           force=False):
+    """Generate OG images from HTML templates.
+
+    Set force=True to regenerate all screenshots regardless of status.
+    """
     print("Running HTML template-based OG image generation")
-    
+
     # Sync quick-bites images from GitHub before generating
     sync_quick_bites_from_github()
 
@@ -832,13 +856,28 @@ def run_template_generation(s3_bucket,
 
     uploaded_paths = []
     template_configs = get_template_configs()
-    
+    screenshot_status = load_screenshot_status()
+
+    # Pre-populate all routes with {"updated": false} if not already present
+    for key in template_configs:
+        for option in template_configs[key]["options"]:
+            path_joined = "/".join(option["path_list"])
+            if path_joined not in screenshot_status:
+                screenshot_status[path_joined] = {"updated": False}
+    save_screenshot_status(screenshot_status)
+
+    skipped = 0
 
     for key in template_configs:
         for option in template_configs[key]["options"]:
             path_joined = "/".join(option["path_list"])
             output_path = main_path / f"{path_joined}.png"
             s3_path = f'{api_version}/og_images/{path_joined}'
+
+            # Skip if already updated (unless force=True)
+            if not force and screenshot_status.get(path_joined, {}).get("updated", False):
+                skipped += 1
+                continue
 
             try:
                 # Ensure parent directory exists
@@ -857,22 +896,28 @@ def run_template_generation(s3_bucket,
                     upload_image_to_cf_s3(
                         s3_bucket, s3_path, str(output_path), cf_distribution_id, 'png', invalidate=False)
                     uploaded_paths.append(s3_path)
+
+                # Mark this route as updated
+                screenshot_status[path_joined] = {"updated": True}
+                save_screenshot_status(screenshot_status)
             except Exception as exc:
                 print(f"Error processing image for {option['label']}")
                 import traceback
                 traceback.print_exc()
-                
+
                 if not is_local_test:
                     try:
                         send_discord_message(f"Error processing image for {option['label']}")
                     except Exception as notify_exc:
                         print(f"Failed to notify Discord: {notify_exc}")
 
+    print(f"Screenshot generation complete: {len(uploaded_paths)} generated, {skipped} skipped (already updated)")
+
     if not is_local_test and uploaded_paths:
         print("Emptying cloudfront cache")
         empty_cloudfront_cache(cf_distribution_id, f'/{api_version}/og_images/*')
 
 
-# For testing
-#if __name__ == "__main__":
-#    run_template_generation("", "", "v1", user="local", is_local_test=True)
+
+if __name__ == "__main__":
+   run_template_generation("", "", "v1", user="local", is_local_test=True)

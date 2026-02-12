@@ -108,3 +108,9 @@ class UserInsightsData(BaseModel):
 class UserInsightsResponse(BaseResponse):
     """Output for /chains/{origin_key}/user_insights"""
     data: UserInsightsData
+
+# --- 5. Blockspace Tree Map ---
+
+class TreeMapResponse(BaseResponse):
+    """Output for /blockspace/tree_map"""
+    data: JsonTable
