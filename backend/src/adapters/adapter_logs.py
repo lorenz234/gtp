@@ -16,7 +16,7 @@ class AdapterLogs(AbstractAdapter):
         contract_address: str - the contract address to extract logs from
         from_block: int - the starting block number
         to_block: int - the ending block number
-        topics: list - list of log topics to filter by
+        topics: str or list - topic0 or list of topics (that all have to be included e.g. [topic0, None, topic2]) to filter by
         chunk_size: int - number of blocks to process in each chunk (default on most free rpcs: 1000)
     """
     def extract(self, extract_params:dict):

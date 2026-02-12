@@ -81,7 +81,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
             # check if chain is in mapping, if not skip and log warning
             if chain not in self.address_mapping:
-                print(f"Chain '{chain}' not found in address mapping, skipping. Please check the file: src/stables_config_v2.py.")
+                print(f"No stablecoins in address mapping for chain '{chain}', skipping. Please check the file: src/stables_config_v2.py.")
                 continue
 
             # get df with totalSupplies
