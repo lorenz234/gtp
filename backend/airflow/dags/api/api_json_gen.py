@@ -54,6 +54,17 @@ def run():
         json_gen = JsonGen(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
         json_gen.create_user_insights_json()
         
+    @task(execution_timeout=timedelta(minutes=30))
+    def run_create_treemap_json():
+        import os
+        from src.api.json_gen import JsonGen
+        from src.db_connector import DbConnector
+        
+        db_connector = DbConnector()
+
+        json_gen = JsonGen(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
+        json_gen.create_blockspace_tree_map_json()
+        
     # @task()
     # def run_create_ecosystem_jsons():    
     #     import os
@@ -70,5 +81,6 @@ def run():
     run_create_chain_overview_jsons()
     #run_create_chain_user_insights_jsons()
     #run_create_ecosystem_jsons()
+    run_create_treemap_json()
     
 run()

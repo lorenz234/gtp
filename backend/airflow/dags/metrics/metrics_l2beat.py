@@ -36,6 +36,26 @@ def etl():
         df = ad.extract(load_params)
         # load
         ad.load(df)
+        
+    @task()
+    def run_txcount():
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_l2beat import AdapterL2Beat
+
+        adapter_params = {}
+        load_params = {
+            'origin_keys' : None,
+            'load_type' : 'txcount',
+            'l2beat_chains' : ['lighter']
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterL2Beat(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+        # load
+        ad.load(df)
 
     @task()
     def run_stages():
@@ -78,4 +98,5 @@ def etl():
     run_tvs()
     run_stages()
     run_sys_table()
+    run_txcount()
 etl()
