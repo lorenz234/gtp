@@ -73,7 +73,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             metric_keys = ['total_supply'] # 'volume' and 'transactions' ... not implemented yet
 
         # get db_progress, DataFrame that keeps track of which coins, chains and metric_keys are up to date. Used to determine from which day onwards to pull data.
-        db_progress = self.get_db_progress(chains, token_ids, metric_keys)
+        db_progress = self.get_db_progress()
 
         # iterate through each chain and get data
         for chain in chains:
@@ -154,7 +154,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         is_supplyreader_deployed_date = (pd.to_datetime(supplyreader_deployed_raw).date() if is_supplyreader_deployed else None)
 
         # create specific chain db_progress df (includes new coins and removes already upto-date coins)
-        db_progress_filtered = self.get_db_progress_filtered(chain, token_ids, db_progress)
+        db_progress_filtered = self.get_db_progress_filtered(chain, 'total_supply', token_ids, db_progress)
 
         # keep track of everything
         df_supplies_all = pd.DataFrame()
