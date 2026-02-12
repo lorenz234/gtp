@@ -218,7 +218,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             
             block_date_mapping = self.get_last_block_of_day_from_db(chain, '2000-01-01')
             if len(block_date_mapping) == 0: # raise error if we have no 'first_block_of_day' data for the chain
-                print(f"ERROR: No block date mapping found for chain {chain}.")
+                print(f"ERROR: Missing dates in block date mapping for chain {chain}.")
                 raise ValueError(f"No block date mapping found for chain {chain}. Cannot pull complete history for new coins. Please check if 'first_block_of_day' data is available in db.")
             
             db_progress_chain_new_coins = db_progress_chain[db_progress_chain['date'].isna()].reset_index(drop=True)
