@@ -131,12 +131,21 @@ def get_archive_dates(
     archival_date: date,
     min_date_override: Optional[date] = None,
 ) -> List[date]:
-    query = f"""
-        SELECT MIN(date) AS min_date
-        FROM {table_name}
-        WHERE origin_key = '{origin_key}'
-          AND date <= '{archival_date}'
-    """
+    
+    if table_name.endswith("_hourly"):
+        query = f"""
+            SELECT MIN(date_trunc('day', hour)) AS min_date
+            FROM {table_name}
+            WHERE origin_key = '{origin_key}'
+            AND hour <= '{archival_date}'
+        """
+    else:
+        query = f"""
+            SELECT MIN(date) AS min_date
+            FROM {table_name}
+            WHERE origin_key = '{origin_key}'
+            AND date <= '{archival_date}'
+        """
     df = pl.read_database_uri(query=query, uri=db_connector.uri)
     if df.is_empty() or df["min_date"].is_null().all():
         return []
@@ -296,12 +305,20 @@ def archive_table_by_date(
         return
 
     for archive_date in dates:
-        query = f"""
-            SELECT *
-            FROM {table_name}
-            WHERE origin_key = '{origin_key}'
-              AND date = '{archive_date}'
-        """
+        if table_name.endswith("_hourly"):
+            query = f"""
+                SELECT *,  date_trunc('day', hour) AS date
+                FROM {table_name}
+                WHERE origin_key = '{origin_key}'
+                AND date_trunc('day', hour) = '{archive_date}'
+            """
+        else:
+            query = f"""
+                SELECT *
+                FROM {table_name}
+                WHERE origin_key = '{origin_key}'
+                AND date = '{archive_date}'
+            """
         df = pl.read_database_uri(query=query, uri=db_connector.uri)
         if df.is_empty():
             logger.info("No data for %s %s on %s.", table_name, origin_key, archive_date)
