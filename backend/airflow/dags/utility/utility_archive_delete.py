@@ -103,6 +103,7 @@ def get_archive_window(
 def get_archive_window_by_date(
     db_connector: DbConnector,
     keep_postgres_days: int,
+    keep_postgres_days_hourly: int,
     table_name: str,
     origin_key: str,
     query_start_override: Optional[str],
@@ -113,7 +114,10 @@ def get_archive_window_by_date(
         Query start date: either from override or min DB date (origin-specific)
     """
     today = datetime.now().date()
-    archival_date = today - timedelta(days=keep_postgres_days)
+    if table_name.endswith("_hourly"):
+        archival_date = today - timedelta(days=keep_postgres_days_hourly)
+    else:
+        archival_date = today - timedelta(days=keep_postgres_days)
 
     if query_start_override:
         query_start_date = datetime.strptime(query_start_override, "%Y-%m-%d").date()
@@ -211,14 +215,24 @@ def get_db_count_by_date(
     """
         Return count of rows in DB table between archival_date and query_start_date for origin_key.
     """
-    query = f""" 
-    SELECT 
-        COUNT(*)
-    FROM {table_name}
-    WHERE date <= '{archival_date}'
-      AND date >= '{query_start_date}'
-      AND origin_key = '{origin_key}'
-    """
+    if table_name.endswith("_hourly"):
+        query = f""" 
+        SELECT 
+            COUNT(*)
+        FROM {table_name}
+        WHERE date_trunc('day', hour) <= '{archival_date}'
+          AND date_trunc('day', hour) >= '{query_start_date}'
+          AND origin_key = '{origin_key}'
+        """
+    else:
+        query = f""" 
+        SELECT 
+            COUNT(*)
+        FROM {table_name}
+        WHERE date <= '{archival_date}'
+        AND date >= '{query_start_date}'
+        AND origin_key = '{origin_key}'
+        """
     with db_connector.engine.connect() as connection:
         result = connection.execute(text(query))
         return int(result.scalar() or 0)
@@ -301,12 +315,20 @@ def get_db_min_date_by_origin(
         Return None if no rows found.
         Why? To know from which date we can start comparing with BQ.
     """
-    query = f"""  
-    SELECT  
-        MIN(date) 
-    FROM {table_name} 
-    WHERE origin_key = '{origin_key}'
-    """ 
+    if table_name.endswith("_hourly"):
+        query = f"""  
+        SELECT  
+            MIN(date_trunc('day', hour)) as date 
+        FROM {table_name} 
+        WHERE origin_key = '{origin_key}'
+        """
+    else:
+        query = f"""  
+        SELECT  
+            MIN(date) 
+        FROM {table_name} 
+        WHERE origin_key = '{origin_key}'
+        """ 
     with db_connector.engine.connect() as connection: 
         result = connection.execute(text(query)) 
         min_date = result.scalar() 
@@ -448,6 +470,7 @@ def run_check_and_delete_by_date(
     table_name: str,
     origin_key: str,
     keep_postgres_days: int,
+    keep_postgres_days_hourly: int,
     query_start_override: Optional[str],
     diff_threshold: int,
 ) -> None:
@@ -458,7 +481,7 @@ def run_check_and_delete_by_date(
     db_connector = DbConnector()
 
     archival_date, query_start_date = get_archive_window_by_date(
-        db_connector, keep_postgres_days, table_name, origin_key, query_start_override
+        db_connector, keep_postgres_days, keep_postgres_days_hourly, table_name, origin_key, query_start_override
     )
 
     logger.info("Archival date (before here stuff gets deleted): %s", archival_date)
@@ -510,6 +533,7 @@ def utility_archive_delete():
     eligible_chains = get_eligible_chains() # chains flagged for delete and with existing table
     eligible_archive_tables = get_eligible_archive_tables()
     keep_days_default = 35 # keep this many days in Postgres
+    keep_days_hourly_default = 10 # for hourly tables, keep fewer days to reduce deletion load
     query_start_override_default = None # e.g. '2024-01-01' to override query start date
     diff_threshold_default = 10 # max allowed difference between BQ and Postgres counts
     batch_size_default = 10_000 # delete this many blocks at once
@@ -549,6 +573,7 @@ def utility_archive_delete():
             table: str = table_name,
             origin: str = origin_key,
             keep_days: int = keep_days_default,
+            keep_days_hourly: int = keep_days_hourly_default,
             query_start_override: Optional[str] = query_start_override_default,
             diff_threshold: int = diff_threshold_default,
         ):
@@ -557,6 +582,7 @@ def utility_archive_delete():
                 table,
                 origin,
                 keep_days,
+                keep_days_hourly,
                 query_start_override,
                 diff_threshold,
             )
