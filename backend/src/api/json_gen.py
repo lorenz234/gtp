@@ -739,7 +739,7 @@ class JsonGen():
                     row = df.loc[df['metric_key'] == metric_key].iloc[0]
                     raw_y = row['yesterdays_value'] if 'yesterdays_value' in df.columns else None
                     if raw_y is None or pd.isna(raw_y):
-                        if origin_key not in ['imx',]: # These chains don't have yesterdays_value, so we can skip the warning
+                        if origin_key not in ['imx']: # These chains don't have yesterdays_value, so we can skip the warning
                             send_discord_message(f"JSON GEN: Missing yesterdays_value for streaks: chain={origin_key} metric_key={metric_key}")
                             continue
 
