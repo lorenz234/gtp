@@ -2344,3 +2344,25 @@ class DbConnector:
                 with self.engine.connect() as connection:
                         block_number = connection.execute(text(query)).scalar()
                 return int(block_number)
+        
+        def get_first_block_of_the_day_range(self, chain: str, from_date: str, to_date: str='latest'):
+                # make sure from_date & to_date are in the correct format
+                from_date = datetime.strptime(from_date, '%Y-%m-%d').date()
+                if to_date != 'latest':
+                        to_date = datetime.strptime(to_date, '%Y-%m-%d').date()
+                else:
+                        to_date = datetime.today().date()
+                query = f"""
+                        SELECT date, value AS block
+                        FROM public.fact_kpis
+                        WHERE 
+                                metric_key = 'first_block_of_day'
+                                AND origin_key = '{chain}'
+                                AND date >= '{from_date}'
+                                AND date <= '{to_date}'
+                        ORDER BY date DESC; -- desc order here is important, please do not change!
+                """
+                with self.engine.connect() as connection:
+                        result = connection.execute(text(query))
+                        blocks = {row[0].strftime('%Y-%m-%d'): int(row[1]) for row in result}
+                return blocks

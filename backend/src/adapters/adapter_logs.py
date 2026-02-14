@@ -169,4 +169,10 @@ class AdapterLogs(AbstractAdapter):
                 decoded_logs.append(log) # Event not in our ABI
 
         return decoded_logs
+    
+    def get_topic0_by_event_name(self, event_name: str):
+        for topic0, event in self.event_map.items():
+            if event_name.lower() + '(' in str(event).lower():
+                return '0x' + topic0
+        return None
         
