@@ -18,6 +18,12 @@ class EIP8004Adapter(AbstractAdapter):
         self.address_identity = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
         self.abi_identity = json.loads('[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address","name":"target","type":"address"}],"name":"AddressEmptyCode","type":"error"},{"inputs":[{"internalType":"address","name":"implementation","type":"address"}],"name":"ERC1967InvalidImplementation","type":"error"},{"inputs":[],"name":"ERC1967NonPayable","type":"error"},{"inputs":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"uint256","name":"tokenId","type":"uint256"},{"internalType":"address","name":"owner","type":"address"}],"name":"ERC721IncorrectOwner","type":"error"},{"inputs":[{"internalType":"address","name":"operator","type":"address"},{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"ERC721InsufficientApproval","type":"error"},{"inputs":[{"internalType":"address","name":"approver","type":"address"}],"name":"ERC721InvalidApprover","type":"error"},{"inputs":[{"internalType":"address","name":"operator","type":"address"}],"name":"ERC721InvalidOperator","type":"error"},{"inputs":[{"internalType":"address","name":"owner","type":"address"}],"name":"ERC721InvalidOwner","type":"error"},{"inputs":[{"internalType":"address","name":"receiver","type":"address"}],"name":"ERC721InvalidReceiver","type":"error"},{"inputs":[{"internalType":"address","name":"sender","type":"address"}],"name":"ERC721InvalidSender","type":"error"},{"inputs":[{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"ERC721NonexistentToken","type":"error"},{"inputs":[],"name":"FailedCall","type":"error"},{"inputs":[],"name":"InvalidInitialization","type":"error"},{"inputs":[],"name":"NotInitializing","type":"error"},{"inputs":[{"internalType":"address","name":"owner","type":"address"}],"name":"OwnableInvalidOwner","type":"error"},{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"OwnableUnauthorizedAccount","type":"error"},{"inputs":[],"name":"UUPSUnauthorizedCallContext","type":"error"},{"inputs":[{"internalType":"bytes32","name":"slot","type":"bytes32"}],"name":"UUPSUnsupportedProxiableUUID","type":"error"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"},{"indexed":true,"internalType":"address","name":"approved","type":"address"},{"indexed":true,"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"Approval","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"},{"indexed":true,"internalType":"address","name":"operator","type":"address"},{"indexed":false,"internalType":"bool","name":"approved","type":"bool"}],"name":"ApprovalForAll","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"_fromTokenId","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"_toTokenId","type":"uint256"}],"name":"BatchMetadataUpdate","type":"event"},{"anonymous":false,"inputs":[],"name":"EIP712DomainChanged","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint64","name":"version","type":"uint64"}],"name":"Initialized","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"agentId","type":"uint256"},{"indexed":true,"internalType":"string","name":"indexedMetadataKey","type":"string"},{"indexed":false,"internalType":"string","name":"metadataKey","type":"string"},{"indexed":false,"internalType":"bytes","name":"metadataValue","type":"bytes"}],"name":"MetadataSet","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"_tokenId","type":"uint256"}],"name":"MetadataUpdate","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"previousOwner","type":"address"},{"indexed":true,"internalType":"address","name":"newOwner","type":"address"}],"name":"OwnershipTransferred","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"agentId","type":"uint256"},{"indexed":false,"internalType":"string","name":"agentURI","type":"string"},{"indexed":true,"internalType":"address","name":"owner","type":"address"}],"name":"Registered","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":true,"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"Transfer","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"agentId","type":"uint256"},{"indexed":false,"internalType":"string","name":"newURI","type":"string"},{"indexed":true,"internalType":"address","name":"updatedBy","type":"address"}],"name":"URIUpdated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"implementation","type":"address"}],"name":"Upgraded","type":"event"},{"inputs":[],"name":"UPGRADE_INTERFACE_VERSION","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"approve","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"owner","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"eip712Domain","outputs":[{"internalType":"bytes1","name":"fields","type":"bytes1"},{"internalType":"string","name":"name","type":"string"},{"internalType":"string","name":"version","type":"string"},{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"address","name":"verifyingContract","type":"address"},{"internalType":"bytes32","name":"salt","type":"bytes32"},{"internalType":"uint256[]","name":"extensions","type":"uint256[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"getAgentWallet","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"getApproved","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"},{"internalType":"string","name":"metadataKey","type":"string"}],"name":"getMetadata","outputs":[{"internalType":"bytes","name":"","type":"bytes"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"getVersion","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"pure","type":"function"},{"inputs":[],"name":"initialize","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"address","name":"operator","type":"address"}],"name":"isApprovedForAll","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"isAuthorizedOrOwner","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"ownerOf","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"proxiableUUID","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"register","outputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"string","name":"agentURI","type":"string"},{"components":[{"internalType":"string","name":"metadataKey","type":"string"},{"internalType":"bytes","name":"metadataValue","type":"bytes"}],"internalType":"struct IdentityRegistryUpgradeable.MetadataEntry[]","name":"metadata","type":"tuple[]"}],"name":"register","outputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"string","name":"agentURI","type":"string"}],"name":"register","outputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"renounceOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"from","type":"address"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"safeTransferFrom","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"from","type":"address"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"tokenId","type":"uint256"},{"internalType":"bytes","name":"data","type":"bytes"}],"name":"safeTransferFrom","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"},{"internalType":"string","name":"newURI","type":"string"}],"name":"setAgentURI","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"},{"internalType":"address","name":"newWallet","type":"address"},{"internalType":"uint256","name":"deadline","type":"uint256"},{"internalType":"bytes","name":"signature","type":"bytes"}],"name":"setAgentWallet","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"operator","type":"address"},{"internalType":"bool","name":"approved","type":"bool"}],"name":"setApprovalForAll","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"},{"internalType":"string","name":"metadataKey","type":"string"},{"internalType":"bytes","name":"metadataValue","type":"bytes"}],"name":"setMetadata","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"bytes4","name":"interfaceId","type":"bytes4"}],"name":"supportsInterface","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"symbol","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"tokenURI","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"from","type":"address"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"tokenId","type":"uint256"}],"name":"transferFrom","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"agentId","type":"uint256"}],"name":"unsetAgentWallet","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newImplementation","type":"address"},{"internalType":"bytes","name":"data","type":"bytes"}],"name":"upgradeToAndCall","outputs":[],"stateMutability":"payable","type":"function"}]')
 
+        # keep track of which chain/rpc is currently being used
+        self.current_chain = None
+        self.current_rpc = None
+        self.list_of_rpcs = None
+        self.current_rpc_index = 0
+
 
     def extract(self, extract_params: dict):
         self.all_events_implemented = ['URIUpdated', 'Registered', 'ResponseAppended', 'NewFeedback']
@@ -46,9 +52,7 @@ class EIP8004Adapter(AbstractAdapter):
             # get block_date_map for this chain
             block_date_map = self.db_connector.get_first_block_of_the_day_range(chain, df_progress_chain['date'].min().strftime('%Y-%m-%d'))
             print(f"Block date map for {chain}: {block_date_map}")
-            
-            # get a w3 instance for this chain using the rpc map
-            w3 = Web3(Web3.HTTPProvider(rpc_map[rpc_map['origin_key'] == chain]['url'].values[2]))
+            self.get_new_w3(chain, rpc_map)
             
             for event in events:
                 if event in ['URIUpdated', 'Registered']:
@@ -57,8 +61,6 @@ class EIP8004Adapter(AbstractAdapter):
                 elif event in ['ResponseAppended', 'NewFeedback']:
                     contract_address = self.address_reputation
                     contract_abi = self.abi_reputation
-                
-                ad = AdapterLogs(w3, contract_abi)
 
                 # loop through all days, extract logs, aggregate and merge into df_all
                 for date in list(block_date_map)[1:]:
@@ -68,7 +70,7 @@ class EIP8004Adapter(AbstractAdapter):
                         # extract
                         from_block = block_date_map[date]
                         to_block = block_date_map[(pd.Timestamp(date) + pd.Timedelta(days=1)).strftime('%Y-%m-%d')] - 1
-                        daily_logs = self.extract_logs(ad, contract_address, event, from_block, to_block)
+                        daily_logs = self.extract_logs(chain, rpc_map, contract_abi, contract_address, event, from_block, to_block)
                         print(f"Extracting {event} for {chain} on {date} starting from block {from_block} to {to_block}")
 
                         # aggregate
@@ -91,26 +93,75 @@ class EIP8004Adapter(AbstractAdapter):
 
     #-#-# helper functions #-#-#
 
-    def extract_logs(self, ad, contract_address, event, from_block, to_block):
-        data = ad.extract({
-            'contract_address': contract_address,
-            'from_block': from_block,
-            'to_block': to_block,
-            'topics': ad.get_topic0_by_event_name(event),
-            'chunk_size': 1000,
-            'decode': True
-        })
-        return data
+    def _call_with_rpc_failover(self, chain: str, rpc_map: pd.DataFrame, call_fn):
+        """
+        Execute a read-only chain call and rotate through chain RPCs on failures.
+        """
+        self.get_new_w3(chain, rpc_map)
+        max_attempts = len(self.list_of_rpcs)
+        last_error = None
+
+        for attempt in range(max_attempts):
+            rotate = attempt > 0
+            w3 = self.get_new_w3(chain, rpc_map, rotate=rotate)
+            try:
+                return call_fn(w3)
+            except Exception as e:
+                last_error = e
+                print(
+                    f"RPC call failed on chain {chain} with RPC {self.current_rpc} "
+                    f"(rpcs {attempt + 1}/{max_attempts}): {e}"
+                )
+
+        raise RuntimeError(
+            f"RPC call failed on chain {chain} after trying {max_attempts} RPC endpoints."
+        ) from last_error
+
+    def extract_logs(self, chain, rpc_map, contract_abi, contract_address, event, from_block, to_block):
+        def _call_fn(w3):
+            ad = AdapterLogs(w3, contract_abi)
+            return ad.extract({
+                'contract_address': contract_address,
+                'from_block': from_block,
+                'to_block': to_block,
+                'topics': ad.get_topic0_by_event_name(event),
+                'chunk_size': 1000,
+                'decode': True
+            })
+
+        return self._call_with_rpc_failover(chain, rpc_map, _call_fn)
+
+    def get_new_w3(self, chain: str, rpc_map: pd.DataFrame, rotate: bool = False):
+        """
+        Create a new Web3 instance for a chain and optionally rotate to the next RPC.
+        """
+        if self.current_chain != chain or self.list_of_rpcs is None:
+            chain_rpcs = rpc_map[rpc_map['origin_key'] == chain]['url'].tolist()
+            # remove nulls and duplicates while preserving order
+            self.list_of_rpcs = [rpc for rpc in dict.fromkeys(chain_rpcs) if rpc]
+            if len(self.list_of_rpcs) == 0:
+                raise ValueError(f"No RPCs found for chain {chain}.")
+
+            self.current_chain = chain
+            self.current_rpc_index = 0
+            self.current_rpc = self.list_of_rpcs[self.current_rpc_index]
+            print(f"Switched w3 instance to new chain: {chain} with RPC: {self.current_rpc}")
+        elif rotate:
+            self.current_rpc_index = (self.current_rpc_index + 1) % len(self.list_of_rpcs)
+            self.current_rpc = self.list_of_rpcs[self.current_rpc_index]
+            print(f"Rotating w3 instance to new RPC for chain: {chain} to RPC: {self.current_rpc}")
+
+        return Web3(Web3.HTTPProvider(self.current_rpc))
     
-    def get_df_progress(self): ####
+    def get_df_progress(self):
         # get current progress for all chains and events from db
         df = self.db_connector.execute_query(f"""
             SELECT
-                null AS origin_key,
-                null AS event,
-                null AS date
+                origin_key,
+                event,
+                MAX(date) AS date
             FROM public.eip8004
-            GROUP BY 1,2,3
+            GROUP BY origin_key, event
         """, load_df=True)
         return df
     
@@ -122,7 +173,7 @@ class EIP8004Adapter(AbstractAdapter):
                 df_chain = pd.concat([df_chain, pd.DataFrame({
                     'origin_key': [chain],
                     'event': [event],
-                    'date': [pd.Timestamp(2026,2,13)]#[pd.Timestamp(2026,1,29)] # first time EIP8004 was deployed
+                    'date': [pd.Timestamp(2026,1,29)] # first time EIP8004 was deployed
                 })], ignore_index=True)
         return df_chain
 
@@ -141,8 +192,6 @@ class EIP8004Adapter(AbstractAdapter):
         """,
         load_df=True)
         return df
-
-    import pandas as pd
 
     def aggregate_daily_logs(self, daily_logs, event):
         """
