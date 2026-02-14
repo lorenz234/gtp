@@ -1,6 +1,5 @@
 from datetime import datetime,timedelta
-from airflow.decorators import dag, task 
-from src.db_connector import DbConnector
+from airflow.decorators import dag, task
 from src.misc.airflow_utils import alert_via_webhook
 
 @dag(
