@@ -33,6 +33,8 @@ class EIP8004Adapter(AbstractAdapter):
         
         if chains == ['*']:
             chains = rpc_map['origin_key'].unique().tolist()
+        if events == ['*']:
+            events = self.all_events_implemented
         print(f"Following chains selected: {chains}")
         print(f"Following events selected: {events}")
 
@@ -47,7 +49,7 @@ class EIP8004Adapter(AbstractAdapter):
 
             # get df_progress_chain
             df_progress_chain = self.get_df_progress_chain(df_progress, chain)
-            print(f"Progress for {chain}: {df_progress_chain}") ###
+            #print(f"Progress for {chain}: {df_progress_chain}")
 
             # get block_date_map for this chain
             block_date_map = self.db_connector.get_first_block_of_the_day_range(chain, df_progress_chain['date'].min().strftime('%Y-%m-%d'))
@@ -55,6 +57,7 @@ class EIP8004Adapter(AbstractAdapter):
             self.get_new_w3(chain, rpc_map)
             
             for event in events:
+                print(f"- Processing {event}")
                 if event in ['URIUpdated', 'Registered']:
                     contract_address = self.address_identity
                     contract_abi = self.abi_identity
@@ -71,7 +74,7 @@ class EIP8004Adapter(AbstractAdapter):
                         from_block = block_date_map[date]
                         to_block = block_date_map[(pd.Timestamp(date) + pd.Timedelta(days=1)).strftime('%Y-%m-%d')] - 1
                         daily_logs = self.extract_logs(chain, rpc_map, contract_abi, contract_address, event, from_block, to_block)
-                        print(f"Extracting {event} for {chain} on {date} starting from block {from_block} to {to_block}")
+                        print(f"-- Extracting {date} starting from block {from_block} to {to_block}")
 
                         # aggregate
                         df = self.aggregate_daily_logs(daily_logs, event)
@@ -86,6 +89,8 @@ class EIP8004Adapter(AbstractAdapter):
     def load(self, df:pd.DataFrame, table=None):
         if table is None:
             table = 'eip8004'
+        # remove null bytes from AI garbage
+        df['detail'] = df['detail'].apply(lambda x: self.remove_null_bytes(x) if pd.notna(x) else x)
         # set index
         df = df.set_index(['origin_key', 'event', 'date'])
         self.db_connector.upsert_table(table, df)
@@ -163,6 +168,8 @@ class EIP8004Adapter(AbstractAdapter):
             FROM public.eip8004
             GROUP BY origin_key, event
         """, load_df=True)
+        # turn date into Timestamp and add 1 day
+        df['date'] = pd.to_datetime(df['date']) + pd.Timedelta(days=1)
         return df
     
     def get_df_progress_chain(self, df_progress, chain):
@@ -173,7 +180,7 @@ class EIP8004Adapter(AbstractAdapter):
                 df_chain = pd.concat([df_chain, pd.DataFrame({
                     'origin_key': [chain],
                     'event': [event],
-                    'date': [pd.Timestamp(2026,1,29)] # first time EIP8004 was deployed
+                    'date': [pd.Timestamp(2026,1,29)] # first time EIP8004 was deployed, might makes sense to adjust over time as contracts are deployed to other chains later.
                 })], ignore_index=True)
         return df_chain
 
@@ -189,6 +196,7 @@ class EIP8004Adapter(AbstractAdapter):
                 mc.api_deployment_flag = 'PROD' 
                 AND mc.chain_type IN ('L2', 'L1') 
                 AND mc.evm_chain_id IS NOT NULL
+                AND rpc.url != 'https://eth.merkle.io' -- has gaps in historical data...
         """,
         load_df=True)
         return df
@@ -290,3 +298,13 @@ class EIP8004Adapter(AbstractAdapter):
         
         return df
                 
+    def remove_null_bytes(self, obj):
+        """Recursively remove null bytes from dict/list/str"""
+        if isinstance(obj, dict):
+            return {key: self.remove_null_bytes(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self.remove_null_bytes(item) for item in obj]
+        elif isinstance(obj, str):
+            return obj.replace('\x00', '')
+        else:
+            return obj
