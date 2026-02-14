@@ -131,17 +131,28 @@ def get_archive_dates(
     archival_date: date,
     min_date_override: Optional[date] = None,
 ) -> List[date]:
-    query = f"""
-        SELECT MIN(date) AS min_date
-        FROM {table_name}
-        WHERE origin_key = '{origin_key}'
-          AND date <= '{archival_date}'
-    """
+    
+    if table_name.endswith("_hourly"):
+        query = f"""
+            SELECT MIN(date_trunc('day', hour)) AS min_date
+            FROM {table_name}
+            WHERE origin_key = '{origin_key}'
+            AND hour <= '{archival_date}'
+        """
+    else:
+        query = f"""
+            SELECT MIN(date) AS min_date
+            FROM {table_name}
+            WHERE origin_key = '{origin_key}'
+            AND date <= '{archival_date}'
+        """
     df = pl.read_database_uri(query=query, uri=db_connector.uri)
     if df.is_empty() or df["min_date"].is_null().all():
         return []
     min_date = min_date_override or df["min_date"][0]
-    if isinstance(min_date, str):
+    if isinstance(min_date, datetime):
+        min_date = min_date.date()
+    elif isinstance(min_date, str):
         min_date = datetime.strptime(min_date, "%Y-%m-%d").date()
     return [min_date + timedelta(days=offset) for offset in range((archival_date - min_date).days + 1)]
 
@@ -262,6 +273,7 @@ def archive_table_by_date(
     origin_key: str,
     bucket_name: str,
     keep_postgres_days: int,
+    keep_postgres_days_hourly: int,
 ) -> None:
     """Archive non-tx tables by date for a single origin_key."""
     credentials_info = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
@@ -271,7 +283,10 @@ def archive_table_by_date(
     )
     db_connector = DbConnector()
 
-    archival_date = datetime.now().date() - timedelta(days=keep_postgres_days)
+    if table_name.endswith("_hourly"):
+        archival_date = datetime.now().date() - timedelta(days=keep_postgres_days_hourly)
+    else:
+        archival_date = datetime.now().date() - timedelta(days=keep_postgres_days)
     logger.info("Archival date cutoff: %s", archival_date)
 
     bq_max_date = get_bq_max_date(bq_client, table_name, origin_key, archival_date)
@@ -296,12 +311,20 @@ def archive_table_by_date(
         return
 
     for archive_date in dates:
-        query = f"""
-            SELECT *
-            FROM {table_name}
-            WHERE origin_key = '{origin_key}'
-              AND date = '{archive_date}'
-        """
+        if table_name.endswith("_hourly"):
+            query = f"""
+                SELECT *,  date_trunc('day', hour) AS date
+                FROM {table_name}
+                WHERE origin_key = '{origin_key}'
+                AND date_trunc('day', hour) = '{archive_date}'
+            """
+        else:
+            query = f"""
+                SELECT *
+                FROM {table_name}
+                WHERE origin_key = '{origin_key}'
+                AND date = '{archive_date}'
+            """
         df = pl.read_database_uri(query=query, uri=db_connector.uri)
         if df.is_empty():
             logger.info("No data for %s %s on %s.", table_name, origin_key, archive_date)
@@ -327,6 +350,7 @@ eligible_chains = get_eligible_chains()
 eligible_archive_tables = get_eligible_archive_tables()
 bucket_default = os.getenv("UTILITY_ARCHIVE_BUCKET", "gtp-archive")
 keep_days_default = int(os.getenv("UTILITY_ARCHIVE_KEEP_POSTGRES_DAYS", "30"))
+keep_days_hourly_default = int(os.getenv("UTILITY_ARCHIVE_KEEP_POSTGRES_DAYS_HOURLY", "7"))
 chunk_size_default = int(os.getenv("UTILITY_ARCHIVE_CHUNK_SIZE", "1000000"))
 
 
@@ -358,7 +382,6 @@ def utility_archive():
         ):
             logger.info("Starting archive task for %s (table: %s)", origin_key, table)
             archive_chain(table, bucket, keep_days, chunk_size)
-
         run_archive()
 
     for chain_table in eligible_archive_tables:
@@ -371,9 +394,10 @@ def utility_archive():
             origin: str = origin_key,
             bucket: str = bucket_default,
             keep_days: int = keep_days_default,
+            keep_days_hourly: int = keep_days_hourly_default
         ):
             logger.info("Starting archive task for %s (table: %s)", origin, table)
-            archive_table_by_date(table, origin, bucket, keep_days)
+            archive_table_by_date(table, origin, bucket, keep_days, keep_days_hourly)
 
         run_archive_table()
 

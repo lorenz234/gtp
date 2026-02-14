@@ -634,6 +634,40 @@ class JsonGen():
 
         logging.info('DONE -- Tree Map')
 
+    def temp_megaeth_apps_export(self): 
+        query = """
+            SELECT "date", owner_project, sum(txcount) as txcount
+            FROM public.vw_apps_contract_level_materialized
+            where origin_key = 'megaeth'
+            group by 1,2
+            order by 1 desc
+        """
+
+        df =self.db_connector.execute_query(query, True)
+        
+        if df.empty:
+            logging.warning("No data returned for blockspace tree map export.")
+            return
+
+        df['date'] = df['date'].astype(str)
+        
+        data_dict = {
+             "data": {
+                 'types': df.columns.to_list(), 
+                  'data': df.values.tolist()
+            },
+            "last_updated_utc": datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        }
+        data_dict = fix_dict_nan(data_dict, 'export/megaeth_apps')
+
+        s3_path = f'{self.api_version}/export/megaeth_apps'
+        if self.s3_bucket:
+            upload_json_to_cf_s3(self.s3_bucket, s3_path, data_dict, self.cf_distribution_id, invalidate=False)
+        else:
+            self._save_to_json(data_dict, s3_path)
+
+        logging.info('DONE -- MegaETH Apps Export')
+
     def get_ecosystem_dict(self, origin_keys: List[str]) -> dict:
         top_apps = execute_jinja_query(self.db_connector, "api/select_top_apps.sql.j2", {"origin_keys": origin_keys, "days": 7, "limit": 5000}, return_df=True)
         if top_apps.empty: return {} # Handle empty case
@@ -705,8 +739,9 @@ class JsonGen():
                     row = df.loc[df['metric_key'] == metric_key].iloc[0]
                     raw_y = row['yesterdays_value'] if 'yesterdays_value' in df.columns else None
                     if raw_y is None or pd.isna(raw_y):
-                        send_discord_message(f"JSON GEN: Missing yesterdays_value for streaks: chain={origin_key} metric_key={metric_key}")
-                        continue
+                        if origin_key not in ['imx']: # These chains don't have yesterdays_value, so we can skip the warning
+                            send_discord_message(f"JSON GEN: Missing yesterdays_value for streaks: chain={origin_key} metric_key={metric_key}")
+                            continue
 
                     try:
                         y_val = float(raw_y)
