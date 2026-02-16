@@ -537,7 +537,7 @@ def run_check_and_delete_by_date(
 def utility_archive_delete():
     eligible_chains = get_eligible_chains() # chains flagged for delete and with existing table
     eligible_archive_tables = get_eligible_archive_tables()
-    keep_days_default = 35 # keep this many days in Postgres
+    keep_days_default = 20 # keep this many days in Postgres
     keep_days_hourly_default = 10 # for hourly tables, keep fewer days to reduce deletion load
     query_start_override_default = None # e.g. '2024-01-01' to override query start date
     diff_threshold_default = 10 # max allowed difference between BQ and Postgres counts
