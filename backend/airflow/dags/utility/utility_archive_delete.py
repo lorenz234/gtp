@@ -318,7 +318,7 @@ def get_db_min_date_by_origin(
     if table_name.endswith("_hourly"):
         query = f"""  
         SELECT  
-            MIN(date_trunc('day', hour)) as date 
+            MIN(date_trunc('day', hour)::date) as date 
         FROM {table_name} 
         WHERE origin_key = '{origin_key}'
         """
