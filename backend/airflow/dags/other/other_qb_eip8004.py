@@ -30,4 +30,6 @@ def run_dag():
         })
         ad.load(df)
         
+    scrape_eip8004_events()
+        
 run_dag()
