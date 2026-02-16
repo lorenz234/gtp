@@ -400,11 +400,16 @@ def delete_rows_by_date(
             table_name,
             origin_key,
         )
-        
+
+        if table_name.endswith("_hourly"):
+            date_filter = f"date_trunc('day', hour) = '{current_date}'"
+        else:
+            date_filter = f"date = '{current_date}'"
+
         query = f"""
             DELETE FROM {table_name}
             WHERE origin_key = '{origin_key}'
-              AND date = '{current_date}';
+              AND {date_filter};
         """
         with db_connector.engine.begin() as connection:
             connection.execute(text(query))
