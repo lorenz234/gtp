@@ -2400,23 +2400,42 @@ class JSONCreation():
         chains_str = ', '.join([f"'{chain}'" for chain in chains])
 
         exec_string = f"""
-            SELECT 
-                owner_project, 
-                origin_key,
-                date, 
-                SUM(txcount) as txcount,
-                SUM(fees_paid_eth) AS fees_paid_eth,
-                SUM(fees_paid_usd) AS fees_paid_usd,
-                SUM(daa) AS daa
-            FROM vw_apps_contract_level_materialized AS fact
-            WHERE 
-                owner_project = '{owner_project}'
-                AND fact.origin_key IN ({chains_str})
-            GROUP BY 1,2,3
+            with metrics_raw as (
+                SELECT 
+                    origin_key,
+                    date, 
+                    SUM(txcount) as txcount,
+                    SUM(fees_paid_eth) AS fees_paid_eth,
+                    SUM(fees_paid_usd) AS fees_paid_usd
+                FROM vw_apps_contract_level_materialized AS fact
+                WHERE 
+                    owner_project = '{owner_project}'
+                    AND fact.origin_key IN ({chains_str})
+                GROUP BY 1,2
+            ),
+            
+            daa as (
+                SELECT 
+                    date,
+                    origin_key,
+                    coalesce(hll_cardinality(hll_union_agg(hll_addresses))::int, 0) as daa
+                FROM public.fact_active_addresses_contract_hll fact
+                JOIN vw_oli_label_pool_gold_pivoted_v2 oli USING (address, origin_key)
+                WHERE 
+                    owner_project = '{owner_project}'
+                    AND fact.origin_key IN ({chains_str})	
+                group by 1,2
+            )
+            
+            select 
+                r.*,
+                daa
+            from metrics_raw r
+            left join daa using (date, origin_key)
         """
         with self.db_connector.engine.connect() as connection:
             df = pd.read_sql(exec_string, connection)
-        df = df.drop(columns='owner_project')
+
         ## date to datetime column in
         df['date'] = pd.to_datetime(df['date'])
 
