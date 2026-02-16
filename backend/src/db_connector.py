@@ -239,10 +239,7 @@ class DbConnector:
                 return val
         
         def get_blockspace_max_date(self, origin_key:str):
-                if origin_key == 'imx':
-                        exec_string = text(f"SELECT MAX(date) as val FROM blockspace_fact_sub_category_level WHERE origin_key = '{origin_key}'")                   
-                else:
-                        exec_string = text(f"SELECT MAX(date) as val FROM blockspace_fact_contract_level WHERE origin_key = '{origin_key}'")
+                exec_string = text(f"SELECT MAX(date) as val FROM blockspace_fact_contract_level WHERE origin_key = '{origin_key}'")
 
                 with self.engine.connect() as connection:
                         row = connection.execute(exec_string).mappings().first()
@@ -639,20 +636,6 @@ class DbConnector:
                 '''
                 df = pd.read_sql(exec_string, self.engine.connect())
                 return df
-        
-        def get_latest_imx_refresh_date(self, tbl_name):
-                if tbl_name == 'imx_orders':
-                        exec_string = f"SELECT MAX(updated_timestamp) as last_refresh FROM {tbl_name};"
-                else:
-                        exec_string = f"SELECT MAX(timestamp) as last_refresh FROM {tbl_name};"
-
-                with self.engine.connect() as connection:
-                        last_refresh = connection.execute(text(exec_string)).scalar()
-
-                if last_refresh is None:
-                        return '2021-01-01 00:00:00.000000'
-                else:
-                        return str(last_refresh)
                 
         def get_metric_sources(self, metric_key:str, origin_keys:list):
                 if len(origin_keys) == 0:
@@ -685,72 +668,21 @@ class DbConnector:
                                 raise ValueError("days_end must be smaller than days")
                         days_end_string = f"DATE_TRUNC('day', NOW() - INTERVAL '{days_end} days')"
 
-                if chain == 'imx':
-                        exec_string = f'''
-                                with union_all as (
-                                        SELECT 
-                                                DATE_TRUNC('day', "timestamp") AS day
-                                                , "user" as address
-                                        FROM imx_deposits id 
-                                        WHERE "timestamp" < {days_end_string}
-                                                AND "timestamp" >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
-                                        
-                                        UNION ALL
-                                        
-                                        SELECT 
-                                                date_trunc('day', "timestamp") as day 
-                                                , "sender" as address
-                                        FROM imx_withdrawals  
-                                        WHERE "timestamp" < {days_end_string}
-                                                AND "timestamp" >= date_trunc('day',now() - INTERVAL '{days} days')
-
-                                        UNION ALL 
-                                        
-                                        SELECT 
-                                                date_trunc('day', "updated_timestamp") as day 
-                                                , "user" as address
-
-                                        FROM imx_orders   
-                                        WHERE updated_timestamp < {days_end_string}
-                                                AND updated_timestamp >= date_trunc('day',now() - INTERVAL '{days} days')
-                                                
-                                        UNION ALL
-                                        
-                                        SELECT 
-                                                date_trunc('day', "timestamp") as day
-                                                , "user" as address
-                                        FROM imx_transfers
-                                        WHERE "timestamp" < {days_end_string}
-                                                AND "timestamp" >= date_trunc('day',now() - INTERVAL '{days} days')
-                                )
-
-                                INSERT INTO fact_active_addresses (address, date, origin_key, txcount)
-                                        SELECT                                                
-                                                address,
-                                                day as date,
-                                                '{chain}' as origin_key,
-                                                count(*) as txcount
-                                        FROM union_all
-                                        GROUP BY 1,2,3
-                                ON CONFLICT (origin_key, date, address)
-                                DO UPDATE SET txcount = EXCLUDED.txcount;
-                        '''
-                else:
-                        exec_string = f'''
-                                INSERT INTO fact_active_addresses (address, date, origin_key, txcount)
-                                        SELECT 
-                                                from_address as address,
-                                                date_trunc('day', block_timestamp) as date,                                                
-                                                '{chain}' as origin_key,
-                                                count(*) as txcount
-                                        FROM {chain}_tx
-                                        WHERE block_timestamp < {days_end_string}
-                                                AND block_timestamp >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
-                                                and from_address is not null
-                                        GROUP BY 1,2,3
-                                ON CONFLICT (origin_key, date, address)
-                                DO UPDATE SET txcount = EXCLUDED.txcount;
-                        '''
+                exec_string = f'''
+                        INSERT INTO fact_active_addresses (address, date, origin_key, txcount)
+                                SELECT 
+                                        from_address as address,
+                                        date_trunc('day', block_timestamp) as date,                                                
+                                        '{chain}' as origin_key,
+                                        count(*) as txcount
+                                FROM {chain}_tx
+                                WHERE block_timestamp < {days_end_string}
+                                        AND block_timestamp >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
+                                        and from_address is not null
+                                GROUP BY 1,2,3
+                        ON CONFLICT (origin_key, date, address)
+                        DO UPDATE SET txcount = EXCLUDED.txcount;
+                '''
 
                 with self.engine.connect() as connection:
                         with connection.begin():
@@ -1220,27 +1152,6 @@ class DbConnector:
                 df = pd.read_sql(exec_string, self.engine.connect())
                 return df
         
-
-        def get_blockspace_total_imx(self, days):
-                exec_string = f'''
-                        SELECT 
-                                "date", 
-                                'total_usage' as category_id,
-                                'imx' as origin_key,
-                                sum(gas_fees_eth) as gas_fees_eth,
-                                sum(gas_fees_usd) as gas_fees_usd, 
-                                sum(txcount) as txcount,
-                                sum(daa) as daa
-                        FROM public.blockspace_fact_category_level
-                        where origin_key = 'imx'
-                                and category_id not in ('total_usage')
-                                and "date" < DATE_TRUNC('day', NOW())
-                                and "date" >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
-                        group by 1
-                        '''
-                df = pd.read_sql(exec_string, self.engine.connect())
-                return df
-        
         def get_blockspace_total_starknet(self, days):
                 exec_string = f'''
                         SELECT 
@@ -1594,109 +1505,6 @@ class DbConnector:
                 df = pd.read_sql(exec_string, self.engine.connect())
                 return df
         
-        def get_blockspace_imx(self, days):
-                exec_string = f'''
-                         with 
-                                cte_imx_deposits as (
-                                        select 
-                                                date_trunc('day', "timestamp") as day, 
-                                                'bridge' as category_id,
-                                                Count(*) as txcount                    
-                                        from imx_deposits
-                                        WHERE timestamp < date_trunc('day', now())
-                                                AND timestamp >= date_trunc('day',now()) - interval '{days} days'
-                                        group by 1
-                                ),	
-                                cte_imx_mints as (
-                                                select 
-                                                        date_trunc('day', "timestamp") as day, 
-                                                        'non_fungible_tokens' as category_id,
-                                                        Count(*) as txcount 
-                                                from imx_mints
-                                                WHERE timestamp < date_trunc('day', now())
-                                                        AND timestamp >= date_trunc('day',now()) - interval '{days}  days'
-                                                group by 1
-                                        ),    
-                                cte_imx_trades as (
-                                        select 
-                                                date_trunc('day', "timestamp") as day, 
-                                                'nft_marketplace' as category_id,
-                                                Count(*) as txcount                        
-                                        from imx_trades
-                                        WHERE timestamp < date_trunc('day', now())
-                                                AND timestamp >= date_trunc('day',now()) - interval '{days}  days'
-                                        group by 1
-                                ),    
-                                cte_imx_transfers_erc20 as (
-                                        select 
-                                                date_trunc('day', "timestamp") as day,
-                                                'fungible_tokens' as category_id,
-                                                Count(*) as txcount
-                                        from imx_transfers
-                                        WHERE timestamp < date_trunc('day', now())
-                                                AND timestamp >= date_trunc('day',now()) - interval '{days}  days'
-                                                and token_type = 'ERC20'
-                                        group by 1
-                                ),
-                                cte_imx_transfers_erc721 as (
-                                        select 
-                                                date_trunc('day', "timestamp") as day,
-                                                'non_fungible_tokens' as category_id,
-                                                Count(*) as txcount
-                                        from imx_transfers
-                                        WHERE timestamp < date_trunc('day', now())
-                                                AND timestamp >= date_trunc('day',now()) - interval '{days} days'
-                                                and token_type = 'ERC721'
-                                        group by 1
-                                ),
-                                cte_imx_transfers_eth as (
-                                        select 
-                                                date_trunc('day', "timestamp") as day,
-                                                'native_transfer' as category_id,
-                                                Count(*) as txcount
-                                        from imx_transfers
-                                        WHERE timestamp < date_trunc('day', now())
-                                                AND timestamp >= date_trunc('day',now()) - interval '{days} days'
-                                                and token_type = 'ETH'
-                                        group by 1
-                                ),
-                                cte_imx_withdrawals as (
-                                        select 
-                                        date_trunc('day', "timestamp") as day, 
-                                        'bridge' as category_id,
-                                        Count(*) as txcount     
-                                        from imx_withdrawals  
-                                        WHERE timestamp < date_trunc('day', now())
-                                                AND timestamp >= date_trunc('day',now()) - interval '{days} days'
-                                        group by 1
-                                ),
-                                unioned as (
-                                        select * from cte_imx_deposits
-                                        union all
-                                        select * from cte_imx_mints
-                                        union all
-                                        select * from cte_imx_withdrawals
-                                        union all
-                                        select * from cte_imx_trades
-                                        union all
-                                        select * from cte_imx_transfers_erc20 
-                                        union all
-                                        select * from cte_imx_transfers_erc721 
-                                        union all
-                                        select * from cte_imx_transfers_eth
-                                )
-                                select 
-                                        day as date, 
-                                        category_id,
-                                        'imx' as origin_key,
-                                        SUM(txcount) as txcount 
-                                from unioned 
-                                group by 1,2
-                        '''
-                df = pd.read_sql(exec_string, self.engine.connect())
-                return df
-        
-
         # function to return the most used contracts by chain (used for blockscout adapter)
         def get_most_used_contracts(self, number_of_contracts, origin_key, days):
                 number_of_contracts = int(number_of_contracts)
