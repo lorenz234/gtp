@@ -41,49 +41,111 @@ def run_dag():
         from src.db_connector import DbConnector
         db_connector = DbConnector()
         
-        # json 1: feedback count, average rating, and unique clients per agent
+        # json 1: table, top200 AI agents with metadata based on feedback count (gamable metric... no way around this)
         query = f"""
+            WITH feedback AS (
+                SELECT
+                    origin_key,
+                    agent_id,
+                    COUNT(*) AS feedback_count_all,
+                    COUNT(*) FILTER (
+                        WHERE agent_details->>'rating' ~ '^[0-9]+\.?[0-9]*$'
+                        AND (agent_details->>'rating')::numeric BETWEEN 0 AND 100
+                    ) AS feedback_count_valid,
+                    ROUND(AVG((agent_details->>'rating')::numeric) FILTER (
+                        WHERE agent_details->>'rating' ~ '^[0-9]+\.?[0-9]*$'
+                        AND (agent_details->>'rating')::numeric BETWEEN 0 AND 100
+                    ), 2) AS avg_rating,
+                    COUNT(DISTINCT agent_details->>'client') AS unique_clients
+                FROM public.vw_eip8004_agents
+                WHERE
+                    event = 'NewFeedback'
+                    AND agent_details ? 'rating'
+                GROUP BY origin_key, agent_id
+            ),
+            uri_safe AS (
+                SELECT
+                    origin_key,
+                    agent_id,
+                    uri_json,
+                    CASE WHEN jsonb_typeof(uri_json->'services') = 'array'
+                        THEN uri_json->'services'
+                        ELSE '[]'::jsonb
+                    END AS services
+                FROM public.eip8004_uri
+            )
             SELECT
-                origin_key,
-                agent_id,
-                COUNT(*) AS feedback_count_all,
-                COUNT(*) FILTER (
-                    WHERE agent_details->>'rating' ~ '^[0-9]+\.?[0-9]*$'
-                    AND (agent_details->>'rating')::numeric BETWEEN 0 AND 100
-                ) AS feedback_count_valid,
-                ROUND(AVG((agent_details->>'rating')::numeric) FILTER (
-                    WHERE agent_details->>'rating' ~ '^[0-9]+\.?[0-9]*$'
-                    AND (agent_details->>'rating')::numeric BETWEEN 0 AND 100
-                ), 2) AS avg_rating,
-                COUNT(DISTINCT agent_details->>'client') AS unique_clients
-            FROM public.vw_eip8004_agents
-            WHERE
-                event = 'NewFeedback'
-                AND agent_details ? 'rating'
-            GROUP BY origin_key, agent_id
-            ORDER BY unique_clients DESC;
+                v.origin_key,
+                v.agent_id,
+                u.uri_json->>'name' AS name,
+                u.uri_json->>'image' AS image,
+                u.uri_json->>'description' AS description,
+                (u.uri_json->>'x402Support')::boolean AS x402_support,
+                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem WHERE elem->>'name' = 'web' LIMIT 1) AS service_web_endpoint,
+                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem WHERE elem->>'name' = 'MCP' LIMIT 1) AS service_mcp_endpoint,
+                v.feedback_count_all,
+                v.feedback_count_valid,
+                v.avg_rating,
+                v.unique_clients
+            FROM feedback v
+            LEFT JOIN uri_safe u
+                ON v.origin_key = u.origin_key
+                AND v.agent_id = u.agent_id
+            ORDER BY v.unique_clients desc
+            limit 200;
         """
         df = db_connector.execute_query(query, fetch=True)
 
-        # json 2 - event count per origin key
+        # json 2 - chart, cumulative sum of total count 'Registered' and 'NewFeedback' events per day
         query = f"""
-            SELECT 
-                origin_key, 
-                event, 
-                COUNT(*) AS event_count
+            SELECT
+                date,
+                event,
+                COUNT(*) AS daily_count,
+                (SUM(COUNT(*)) OVER (PARTITION BY event ORDER BY date))::integer AS cumulative_sum
             FROM public.vw_eip8004_agents
-            GROUP BY origin_key, event
-            ORDER BY event_count DESC;
+            WHERE event IN ('Registered', 'NewFeedback')
+            GROUP BY date, event
+            ORDER BY date, event;
         """
-        df_events = db_connector.execute_query(query, fetch=True)
+        df_cumulative = db_connector.execute_query(query, fetch=True)
 
-        # json 3 - cumulative count of 'Registered' events per origin key over time
+        # json 3 - table, breakdown by origin_key
+        query = f"""
+        SELECT 
+            v.origin_key,
+            MIN(v.date) FILTER (WHERE v.event = 'Registered') AS first_registered_date,
+            COUNT(*) FILTER (WHERE v.event = 'Registered') AS total_registered,
+            u.valid_registrations,
+            COUNT(*) FILTER (WHERE v.event = 'NewFeedback') AS total_feedback,
+            COUNT(DISTINCT v.agent_details->>'owner') FILTER (WHERE v.event = 'Registered') AS unique_owners,
+            CASE 
+                WHEN COUNT(DISTINCT v.agent_details->>'owner') FILTER (WHERE v.event = 'Registered') > 0 
+                THEN (ROUND(
+                    COUNT(*) FILTER (WHERE v.event = 'Registered')::numeric / 
+                    COUNT(DISTINCT v.agent_details->>'owner') FILTER (WHERE v.event = 'Registered')::numeric, 
+                    2
+                ))::float
+                ELSE NULL
+            END AS agents_per_owner
+        FROM public.vw_eip8004_agents v
+        LEFT JOIN (
+            SELECT origin_key, COUNT(*) AS valid_registrations
+            FROM public.eip8004_uri
+            WHERE uri_json != '{}'
+            GROUP BY origin_key
+        ) u ON v.origin_key = u.origin_key
+        GROUP BY v.origin_key, u.valid_registrations
+        ORDER BY total_registered DESC;
+        """
+
+        # json 3 chart, cumulative count of 'Registered' events per origin key over time
         query = f"""
             SELECT
                 origin_key,
                 date,
-                COUNT(*) AS event_count,
-                SUM(COUNT(*)) OVER (PARTITION BY origin_key ORDER BY date) AS cumulative_sum
+                COUNT(*) AS registered_count,
+                SUM(COUNT(*)) OVER (PARTITION BY origin_key ORDER BY date) AS registered_cum_sum
             FROM public.vw_eip8004_agents
             WHERE event = 'Registered'
             GROUP BY origin_key, date
@@ -91,25 +153,56 @@ def run_dag():
         """
         df_registered = db_connector.execute_query(query, fetch=True)
 
-        # json 4 - kpis for events count
+        # json 4 kpis, total agents, unique owners, agents with feedback
         query = f"""
-            SELECT 
-                event, 
-                COUNT(*) AS event_count
+            SELECT 'total_agents' AS kpi, COUNT(*) AS value
             FROM public.vw_eip8004_agents
-            GROUP BY event
-            ORDER BY event_count DESC;
+            WHERE event = 'Registered'
+
+            UNION ALL
+
+            SELECT 'unique_owners' AS kpi, COUNT(DISTINCT agent_details->>'owner') AS value
+            FROM public.vw_eip8004_agents
+            WHERE event = 'Registered'
+
+            UNION ALL
+
+            SELECT 'agents_with_feedback' AS kpi, COUNT(*) AS value
+            FROM (
+                SELECT origin_key, agent_id
+                FROM public.vw_eip8004_agents
+                WHERE event = 'NewFeedback'
+                GROUP BY 1, 2
+            ) sub;
         """
         df_kpis = db_connector.execute_query(query, fetch=True)
 
-        # json 5 - kpi for unique owners
+        # json 5 chart, percentage of agents with invalid URI metadata
         query = f"""
             SELECT 
-                COUNT(DISTINCT agent_details->>'owner') AS unique_owners
-            FROM public.vw_eip8004_agents
-            WHERE event = 'Registered';
+                v.date,
+                CASE WHEN u.uri_json = '{}' OR u.uri_json IS NULL THEN 'invalid_uri' ELSE 'valid_uri' END AS status,
+                COUNT(*) AS value
+            FROM public.vw_eip8004_agents v
+            LEFT JOIN public.eip8004_uri u 
+                ON v.origin_key = u.origin_key 
+                AND v.agent_id = u.agent_id
+            WHERE v.event = 'Registered'
+            GROUP BY 1, 2
+            ORDER BY 1;
         """
-        df_owners = db_connector.execute_query(query, fetch=True)
+        df_invalid_uri = db_connector.execute_query(query, fetch=True)
+
+        # json 6 kpis, totals of agents valid vs invalid URIs
+        query = f"""
+            SELECT 
+                CASE WHEN uri_json = '{}' THEN 'empty_uri' ELSE 'valid_uri' END AS status,
+                COUNT(*) AS value,
+                ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2)::float AS percentage
+            FROM public.eip8004_uri
+            GROUP BY 1;
+        """
+        df_uri_quality = db_connector.execute_query(query, fetch=True)
 
         # json 6 
 
