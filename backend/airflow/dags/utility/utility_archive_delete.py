@@ -318,7 +318,7 @@ def get_db_min_date_by_origin(
     if table_name.endswith("_hourly"):
         query = f"""  
         SELECT  
-            MIN(date_trunc('day', hour)) as date 
+            MIN(date_trunc('day', hour)::date) as date 
         FROM {table_name} 
         WHERE origin_key = '{origin_key}'
         """
@@ -400,11 +400,16 @@ def delete_rows_by_date(
             table_name,
             origin_key,
         )
-        
+
+        if table_name.endswith("_hourly"):
+            date_filter = f"date_trunc('day', hour) = '{current_date}'"
+        else:
+            date_filter = f"date = '{current_date}'"
+
         query = f"""
             DELETE FROM {table_name}
             WHERE origin_key = '{origin_key}'
-              AND date = '{current_date}';
+              AND {date_filter};
         """
         with db_connector.engine.begin() as connection:
             connection.execute(text(query))
@@ -532,7 +537,7 @@ def run_check_and_delete_by_date(
 def utility_archive_delete():
     eligible_chains = get_eligible_chains() # chains flagged for delete and with existing table
     eligible_archive_tables = get_eligible_archive_tables()
-    keep_days_default = 35 # keep this many days in Postgres
+    keep_days_default = 20 # keep this many days in Postgres
     keep_days_hourly_default = 10 # for hourly tables, keep fewer days to reduce deletion load
     query_start_override_default = None # e.g. '2024-01-01' to override query start date
     diff_threshold_default = 10 # max allowed difference between BQ and Postgres counts

@@ -19,9 +19,10 @@ from src.misc.airflow_utils import alert_via_webhook
 def run_dag():
 
     @task
-    def scrape_eip8004_events():
+    def get_eip8004_events():
         from src.adapters.adapter_eip8004 import EIP8004Adapter
         from src.db_connector import DbConnector
+        
         db_connector = DbConnector()
         ad = EIP8004Adapter({}, db_connector)
         df = ad.extract({
@@ -112,4 +113,6 @@ def run_dag():
 
         # json 6 
 
+    get_eip8004_events()
+        
 run_dag()

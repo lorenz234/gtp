@@ -29,7 +29,7 @@ def etl():
         hours = 3
 
         for chain in main_config:
-            if chain.runs_aggregate_blockspace and chain.origin_key not in ['starknet', 'imx', 'polygon_pos', 'megaeth']:
+            if chain.runs_aggregate_blockspace and chain.origin_key not in ['starknet', 'polygon_pos', 'megaeth']:
                 print(f"Updating blockspace data for {chain.origin_key} and last {hours} hours...")
                 db_connector.get_blockspace_contracts_hourly(chain.origin_key, hours)
                 

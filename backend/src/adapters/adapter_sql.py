@@ -63,7 +63,7 @@ class AdapterSQL(AbstractAdapter):
             df = self.db_connector.get_values_in_usd(metric_keys, days, origin_keys)
 
         elif load_type == 'economics':
-            ##exclude_chains = ['imx', 'mantle'] ## chains that should be excluded from profit calc
+            ##exclude_chains = ['mantle'] ## chains that should be excluded from profit calc
             exclude_chains = [chain.origin_key for chain in self.main_config if 'profit' in chain.api_exclude_metrics]
             print(f'...excluding chains from profit calculation: {exclude_chains}')
 
@@ -226,23 +226,8 @@ class AdapterSQL(AbstractAdapter):
                 days = get_missing_days_blockspace(self.db_connector, chain)
             else:
                 days = days
-
-            if chain == 'imx':
-                print(f"...aggregating imx data for last {days} days...")
-                df = self.db_connector.get_blockspace_imx(days)
-                df.set_index(['date', 'category_id' ,'origin_key'], inplace=True)
-
-                print(f"...upserting imx data . Total rows: {df.shape[0]}...")
-                self.db_connector.upsert_table('blockspace_fact_category_level', df)
-
-                ## determin total usage
-                print(f"...aggregating total usage for imx and last {days} days...")
-                df = self.db_connector.get_blockspace_total_imx(days)
-                df.set_index(['date', 'category_id' ,'origin_key'], inplace=True)
-                print(f"...upserting total usage usage for imx. Total rows: {df.shape[0]}...")
-                self.db_connector.upsert_table('blockspace_fact_category_level', df)
                 
-            elif chain in ['megaeth', 'polygon_pos', 'starknet']:
+            if chain in ['megaeth', 'polygon_pos', 'starknet']:
                 if chain == 'starknet':
                     ## determin total usage
                     print(f"...aggregating total usage for starknet and last {days} days...")

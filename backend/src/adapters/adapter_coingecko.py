@@ -34,7 +34,7 @@ class AdapterCoingecko(AbstractAdapter):
         origin_keys:list - the projects that this metric should be loaded for. If None, all available projects will be loaded
         days:str - days of historical data that should be loaded, starting from today. Can be set to 'max'
         vs_currencies:list - list of currencies that we load financials for. E.g. eth, usd
-        load_type:str - can be project or imx_tokens 
+        load_type:str - can be project
     """
     def extract(self, load_params:dict):
 
@@ -61,8 +61,6 @@ class AdapterCoingecko(AbstractAdapter):
                 ,metric_keys=metric_keys
                 ,granularity=self.granularity
                 )
-        elif self.load_type == 'imx_tokens':
-            df = self.extract_imx_tokens()
         elif self.load_type == 'direct':
             metric_keys = load_params['metric_keys']
             coingecko_ids = load_params['coingecko_ids']
@@ -92,9 +90,6 @@ class AdapterCoingecko(AbstractAdapter):
             else:
                 self.db_connector.upsert_table('fact_kpis_granular', df)
                 print_load(self.name, df.shape[0], 'fact_kpis_granular')
-        elif self.load_type == 'imx_tokens':
-            self.db_connector.upsert_table('prices_daily', df)
-            print_load(self.name, df.shape[0], 'prices_daily')
         else:
             raise ValueError(f"load_type {self.load_type} not supported")        
 
@@ -179,48 +174,4 @@ class AdapterCoingecko(AbstractAdapter):
             ## remove duplicates and set index
             dfMain.drop_duplicates(subset=['metric_key', 'origin_key', 'date'], inplace=True)
             dfMain.set_index(['metric_key', 'origin_key', 'date'], inplace=True)
-        return dfMain
-    
-    def get_imx_tokens(self, db_connector):
-        exec_string = f'''
-            SELECT 
-                    "name", 
-                    symbol, 
-                    decimals, 
-                    case when "name" = 'Ethereum' then null else concat('\\x', encode(token_address, 'hex'))end as token_address ,
-                    coingecko_id 
-            FROM public.imx_tokens
-            where coingecko_id is not null
-        '''
-        df = pd.read_sql(exec_string, db_connector.engine.connect())
-        return df
-
-    def extract_imx_tokens(self):
-        df_tokens = self.get_imx_tokens(self.db_connector)
-
-        dfMain = pd.DataFrame()
-        ## iterate over all tokens
-        for index, row in df_tokens.iterrows():
-            print(f"... loading price for {row['symbol']} with coingecko_id {row['coingecko_id']}")
-            url = f"https://api.coingecko.com/api/v3/coins/{row['coingecko_id']}/market_chart?vs_currency=usd&days=2000&interval=daily"
-            response = api_get_call(url)
-            df = pd.DataFrame(response['prices'], columns=['timestamp', 'price'])
-            df['token_symbol'] = row['symbol']
-            df['token_address'] = row['token_address']
-
-            dfMain = pd.concat([dfMain, df])
-            time.sleep(7)
-
-        ## unix timestamp to date
-        dfMain['date'] = pd.to_datetime(dfMain['timestamp'], unit='ms')
-        dfMain['date'] = dfMain['date'].dt.date
-        dfMain.drop(columns=['timestamp'], inplace=True)
-
-        ##change column price to price_usd
-        dfMain.rename(columns={'price': 'price_usd'}, inplace=True)
-
-        ## drop duplicates in date and token_symbol
-        dfMain.drop_duplicates(subset=['date', 'token_symbol'], inplace=True)
-
-        dfMain.set_index(['date', 'token_symbol'], inplace=True)
         return dfMain

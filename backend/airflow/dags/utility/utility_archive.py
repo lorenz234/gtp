@@ -348,10 +348,10 @@ def build_task_id(prefix: str, origin_key: str, table_name: str) -> str:
 # --------------------------------------------------------------------------- #
 eligible_chains = get_eligible_chains()
 eligible_archive_tables = get_eligible_archive_tables()
-bucket_default = os.getenv("UTILITY_ARCHIVE_BUCKET", "gtp-archive")
-keep_days_default = int(os.getenv("UTILITY_ARCHIVE_KEEP_POSTGRES_DAYS", "30"))
-keep_days_hourly_default = int(os.getenv("UTILITY_ARCHIVE_KEEP_POSTGRES_DAYS_HOURLY", "7"))
-chunk_size_default = int(os.getenv("UTILITY_ARCHIVE_CHUNK_SIZE", "1000000"))
+bucket_default = "gtp-archive"
+keep_days_default = 14
+keep_days_hourly_default = 7
+chunk_size_default = 1_000_000
 
 
 @dag(
