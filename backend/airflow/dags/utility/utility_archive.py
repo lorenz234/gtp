@@ -37,7 +37,7 @@ def get_bq_max_block(client: bigquery.Client, table_name: str) -> Optional[int]:
     SELECT 
         MAX(block_number) AS max_block
     FROM `growthepie.gtp_archive.{table_name}` 
-    WHERE date > '2020-01-01'
+    WHERE date > '2025-07-01'
     """
     try:
         results = client.query(query).result()
