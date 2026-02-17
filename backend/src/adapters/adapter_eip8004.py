@@ -447,6 +447,11 @@ class EIP8004Adapter(AbstractAdapter):
         return df
     
     def get_db_progress_uri_from_df(self, df, chains):
+        # if df is empty, we can stop here
+        if df.empty:
+            print("Provided df for URI extraction is empty, cannot extract URIs.")
+            return pd.DataFrame() # return empty dataframe
+        
         # Filter events and chains
         filtered = df[
             (df['event'].isin(['URIUpdated', 'Registered'])) &
