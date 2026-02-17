@@ -38,22 +38,28 @@ def run_dag():
 
     @task
     def create_jsons_for_quick_bite():
+        import os
+        import pandas as pd
         from src.db_connector import DbConnector
+        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan, empty_cloudfront_cache
+
         db_connector = DbConnector()
-        
+        s3_bucket = os.getenv("S3_CF_BUCKET")
+        cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
+
         # json 1: table, top200 AI agents with metadata based on feedback count (gamable metric... no way around this)
-        query = f"""
+        query = """
             WITH feedback AS (
                 SELECT
                     origin_key,
                     agent_id,
                     COUNT(*) AS feedback_count_all,
                     COUNT(*) FILTER (
-                        WHERE agent_details->>'rating' ~ '^[0-9]+\.?[0-9]*$'
+                        WHERE agent_details->>'rating' ~ '^[0-9]+\\.?[0-9]*$'
                         AND (agent_details->>'rating')::numeric BETWEEN 0 AND 100
                     ) AS feedback_count_valid,
                     ROUND(AVG((agent_details->>'rating')::numeric) FILTER (
-                        WHERE agent_details->>'rating' ~ '^[0-9]+\.?[0-9]*$'
+                        WHERE agent_details->>'rating' ~ '^[0-9]+\\.?[0-9]*$'
                         AND (agent_details->>'rating')::numeric BETWEEN 0 AND 100
                     ), 2) AS avg_rating,
                     COUNT(DISTINCT agent_details->>'client') AS unique_clients
@@ -94,10 +100,60 @@ def run_dag():
             ORDER BY v.unique_clients desc
             limit 200;
         """
-        df = db_connector.execute_query(query, fetch=True)
+        df_top_agents = db_connector.execute_query(query, load_df=True)
+
+        top_agents_columns = [
+            "origin_key",
+            "agent_id",
+            "name",
+            "image",
+            "description",
+            "x402_support",
+            "service_web_endpoint",
+            "service_mcp_endpoint",
+            "feedback_count_all",
+            "feedback_count_valid",
+            "avg_rating",
+            "unique_clients",
+        ]
+        top_agents_types = [
+            "string",
+            "number",
+            "string",
+            "string",
+            "string",
+            "boolean",
+            "string",
+            "string",
+            "number",
+            "number",
+            "number",
+            "number",
+        ]
+        top_agents_rows = [
+            [row[col] for col in top_agents_columns]
+            for _, row in df_top_agents.iterrows()
+        ]
+        top_agents_dict = {
+            "data": {
+                "top_agents": {
+                    "columns": top_agents_columns,
+                    "types": top_agents_types,
+                    "rows": top_agents_rows,
+                }
+            }
+        }
+        top_agents_dict = fix_dict_nan(top_agents_dict, "eip8004_top_agents", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/top_agents",
+            top_agents_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
 
         # json 2 - chart, cumulative sum of total count 'Registered' and 'NewFeedback' events per day
-        query = f"""
+        query = """
             SELECT
                 date,
                 event,
@@ -108,10 +164,38 @@ def run_dag():
             GROUP BY date, event
             ORDER BY date, event;
         """
-        df_cumulative = db_connector.execute_query(query, fetch=True)
+        df_cumulative = db_connector.execute_query(query, load_df=True)
+        df_cumulative["unix_timestamp"] = pd.to_datetime(df_cumulative["date"]).astype(int) // 10**6
+        df_cumulative = df_cumulative.sort_values(["date", "event"]).reset_index(drop=True)
+        cumulative_dict = {
+            "data": {
+                "events_cumulative": {
+                    "daily": {
+                        "types": ["unix", "event", "daily_count", "cumulative_sum"],
+                        "values": [
+                            [
+                                int(row["unix_timestamp"]),
+                                row["event"],
+                                int(row["daily_count"]),
+                                int(row["cumulative_sum"]),
+                            ]
+                            for _, row in df_cumulative.iterrows()
+                        ],
+                    }
+                }
+            }
+        }
+        cumulative_dict = fix_dict_nan(cumulative_dict, "eip8004_events_cumulative", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/events_cumulative",
+            cumulative_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
 
         # json 3 - table, breakdown by origin_key
-        query = f"""
+        query = """
         SELECT 
             v.origin_key,
             MIN(v.date) FILTER (WHERE v.event = 'Registered') AS first_registered_date,
@@ -138,9 +222,55 @@ def run_dag():
         GROUP BY v.origin_key, u.valid_registrations
         ORDER BY total_registered DESC;
         """
+        df_origin_breakdown = db_connector.execute_query(query, load_df=True)
+        if "first_registered_date" in df_origin_breakdown.columns:
+            df_origin_breakdown["first_registered_date"] = (
+                pd.to_datetime(df_origin_breakdown["first_registered_date"], errors="coerce")
+                .dt.strftime("%Y-%m-%d")
+            )
+
+        origin_breakdown_columns = [
+            "origin_key",
+            "first_registered_date",
+            "total_registered",
+            "valid_registrations",
+            "total_feedback",
+            "unique_owners",
+            "agents_per_owner",
+        ]
+        origin_breakdown_types = [
+            "string",
+            "string",
+            "number",
+            "number",
+            "number",
+            "number",
+            "number",
+        ]
+        origin_breakdown_rows = [
+            [row[col] for col in origin_breakdown_columns]
+            for _, row in df_origin_breakdown.iterrows()
+        ]
+        origin_breakdown_dict = {
+            "data": {
+                "origin_breakdown": {
+                    "columns": origin_breakdown_columns,
+                    "types": origin_breakdown_types,
+                    "rows": origin_breakdown_rows,
+                }
+            }
+        }
+        origin_breakdown_dict = fix_dict_nan(origin_breakdown_dict, "eip8004_origin_breakdown", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/origin_breakdown",
+            origin_breakdown_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
 
         # json 3 chart, cumulative count of 'Registered' events per origin key over time
-        query = f"""
+        query = """
             SELECT
                 origin_key,
                 date,
@@ -151,10 +281,38 @@ def run_dag():
             GROUP BY origin_key, date
             ORDER BY date DESC, origin_key;
         """
-        df_registered = db_connector.execute_query(query, fetch=True)
+        df_registered = db_connector.execute_query(query, load_df=True)
+        df_registered["unix_timestamp"] = pd.to_datetime(df_registered["date"]).astype(int) // 10**6
+        df_registered = df_registered.sort_values(["date", "origin_key"]).reset_index(drop=True)
+        registered_dict = {
+            "data": {
+                "registered_cumulative": {
+                    "daily": {
+                        "types": ["unix", "origin_key", "registered_count", "registered_cum_sum"],
+                        "values": [
+                            [
+                                int(row["unix_timestamp"]),
+                                row["origin_key"],
+                                int(row["registered_count"]),
+                                int(row["registered_cum_sum"]),
+                            ]
+                            for _, row in df_registered.iterrows()
+                        ],
+                    }
+                }
+            }
+        }
+        registered_dict = fix_dict_nan(registered_dict, "eip8004_registered_cumulative", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/registered_cumulative",
+            registered_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
 
         # json 4 kpis, total agents, unique owners, agents with feedback
-        query = f"""
+        query = """
             SELECT 'total_agents' AS kpi, COUNT(*) AS value
             FROM public.vw_eip8004_agents
             WHERE event = 'Registered'
@@ -175,10 +333,20 @@ def run_dag():
                 GROUP BY 1, 2
             ) sub;
         """
-        df_kpis = db_connector.execute_query(query, fetch=True)
+        df_kpis = db_connector.execute_query(query, load_df=True)
+        kpi_values = {row["kpi"]: row["value"] for _, row in df_kpis.iterrows()}
+        kpis_dict = {"data": kpi_values}
+        kpis_dict = fix_dict_nan(kpis_dict, "eip8004_kpis", send_notification=True)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/kpis",
+            kpis_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
 
         # json 5 chart, percentage of agents with invalid URI metadata
-        query = f"""
+        query = """
             SELECT 
                 v.date,
                 CASE WHEN u.uri_json = '{}' OR u.uri_json IS NULL THEN 'invalid_uri' ELSE 'valid_uri' END AS status,
@@ -191,10 +359,37 @@ def run_dag():
             GROUP BY 1, 2
             ORDER BY 1;
         """
-        df_invalid_uri = db_connector.execute_query(query, fetch=True)
+        df_invalid_uri = db_connector.execute_query(query, load_df=True)
+        df_invalid_uri["unix_timestamp"] = pd.to_datetime(df_invalid_uri["date"]).astype(int) // 10**6
+        df_invalid_uri = df_invalid_uri.sort_values(["date", "status"]).reset_index(drop=True)
+        invalid_uri_dict = {
+            "data": {
+                "invalid_uri_daily": {
+                    "daily": {
+                        "types": ["unix", "status", "value"],
+                        "values": [
+                            [
+                                int(row["unix_timestamp"]),
+                                row["status"],
+                                int(row["value"]),
+                            ]
+                            for _, row in df_invalid_uri.iterrows()
+                        ],
+                    }
+                }
+            }
+        }
+        invalid_uri_dict = fix_dict_nan(invalid_uri_dict, "eip8004_invalid_uri_daily", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/invalid_uri_daily",
+            invalid_uri_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
 
         # json 6 kpis, totals of agents valid vs invalid URIs
-        query = f"""
+        query = """
             SELECT 
                 CASE WHEN uri_json = '{}' THEN 'empty_uri' ELSE 'valid_uri' END AS status,
                 COUNT(*) AS value,
@@ -202,10 +397,34 @@ def run_dag():
             FROM public.eip8004_uri
             GROUP BY 1;
         """
-        df_uri_quality = db_connector.execute_query(query, fetch=True)
+        df_uri_quality = db_connector.execute_query(query, load_df=True)
+        uri_quality_dict = {
+            "data": {
+                "uri_quality": {
+                    "columns": ["status", "value", "percentage"],
+                    "types": ["string", "number", "number"],
+                    "rows": [
+                        [row["status"], row["value"], row["percentage"]]
+                        for _, row in df_uri_quality.iterrows()
+                    ],
+                }
+            }
+        }
+        uri_quality_dict = fix_dict_nan(uri_quality_dict, "eip8004_uri_quality", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/uri_quality",
+            uri_quality_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
 
-        # json 6 
+        # Invalidate the whole eip8004 quick-bite folder once all uploads are done.
+        empty_cloudfront_cache(cf_distribution_id, "/v1/quick-bites/eip8004/*")
 
-    get_eip8004_events()
+    get_eip8004_events_task = get_eip8004_events()
+    create_jsons_for_quick_bite_task = create_jsons_for_quick_bite()
+
+    get_eip8004_events_task >> create_jsons_for_quick_bite_task
         
 run_dag()
