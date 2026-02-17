@@ -1,5 +1,9 @@
+import base64
+import time
 import pandas as pd
-import json 
+import json
+
+import requests 
 
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.adapters.adapter_logs import AdapterLogs
@@ -89,6 +93,10 @@ class EIP8004Adapter(AbstractAdapter):
     def load(self, df:pd.DataFrame, table=None):
         if table is None:
             table = 'eip8004'
+        if df.empty:
+            print("No new data to load.")
+            return
+        df = df.copy()
         # remove null bytes from AI garbage
         df['detail'] = df['detail'].apply(lambda x: self.remove_null_bytes(x) if pd.notna(x) else x)
         # set index
@@ -96,7 +104,68 @@ class EIP8004Adapter(AbstractAdapter):
         self.db_connector.upsert_table(table, df)
         print(f"Loaded {len(df)} rows into {table} table.")
 
+
+    def extract_uri(self, extract_params: dict):
+        """
+        Scrapes the data behind the URIs.
+
+        Arguments in extract_params:
+        - chains: list of chains to extract URIs for, default is all chains in rpc map
+        - df: the df from extract function, if provided to know indexing progress
+        - days_back: if df is not provided, how many days back to extract URIs for, default is all (will pull in event "Registered" and "URIUpdated" from db to know which URIs to scrape)
+        """
+        chains = extract_params.get('chains', ['*'])
+        df_extract = extract_params.get('df', None)
+        days_back = extract_params.get('days_back', None)
+        if chains == ['*']:
+            rpc_map = self.get_origin_keys_with_rpcs()
+            chains = rpc_map['origin_key'].unique().tolist()
+        print(f"Following chains selected for URI extraction: {chains}")
+        if df_extract is None and days_back is None:
+            print("No df provided for URI extraction, extracting all URIs from database.")
+            db_progress_uri = self.get_db_progress_uri(chains)
+        elif df_extract is None and days_back is not None:
+            print(f"No df provided for URI extraction, extracting URIs from database for the last {days_back} days.")
+            db_progress_uri = self.get_db_progress_uri(chains, days_back=days_back)
+        elif df_extract is not None:
+            db_progress_uri = self.get_db_progress_uri_from_df(df_extract, chains)
+        else:
+            print("Invalid parameters for URI extraction passed, please either provide the df from extract, or specify days_back for extracting URIs.")
+            return pd.DataFrame()
+        
+        data = []
+        for index, row in db_progress_uri.iterrows():
+            uri = row['uri']
+            try:
+                info = self.scrape_agent_info(uri)
+            except Exception as e:
+                print(f"Error scraping {uri}: {e}")
+                info = None
+            data.append({
+                'origin_key': row['origin_key'],
+                'agent_id': row['agent_id'],
+                'uri_json': json.dumps(info if info is not None else {})
+            })
+        df = pd.DataFrame(data)
+        return df
+    
+    def load_uri(self, df:pd.DataFrame, table=None):
+        if table is None:
+            table = 'eip8004_uri'
+        if df.empty:
+            print("No new uri-data to load.")
+            return
+        df = df.copy()
+        # remove null bytes from AI garbage
+        df['uri_json'] = df['uri_json'].apply(lambda x: self.remove_null_bytes(x) if pd.notna(x) else x)
+        # set index
+        df = df.set_index(['origin_key', 'agent_id'])
+        self.db_connector.upsert_table(table, df)
+        print(f"Loaded {len(df)} rows into {table} table.")
+
+
     #-#-# helper functions #-#-#
+
 
     def _call_with_rpc_failover(self, chain: str, rpc_map: pd.DataFrame, call_fn):
         """
@@ -308,3 +377,135 @@ class EIP8004Adapter(AbstractAdapter):
             return obj.replace('\x00', '')
         else:
             return obj
+        
+    #-#-# helper functions to scrape URI #-#-#
+        
+    def scrape_agent_info(self, uri: str):
+        """Scrape agent info from URI - supports base64, IPFS, HTTPS, and JSON strings"""
+        if "base64" in uri: # base64 encoded JSON
+            return self.decode_base64(uri)
+        elif "ipfs" in uri and uri[0] != '{': # ipfs hash
+            return self.fetch_ipfs(uri)
+        elif uri.startswith('https://') or uri.startswith('http://'): # url
+            return self.fetch_http(uri)
+        else: # assume it's a raw JSON string
+            return json.loads(uri)
+
+    def decode_base64(self, uri: str):
+        """Extract and decode base64 JSON from the URI"""
+        base64_string = uri.split(',')[1]
+        decoded = base64.b64decode(base64_string).decode('utf-8')
+        return json.loads(decoded)
+
+    def fetch_ipfs(self, uri: str):
+        """Extract IPFS hash and fetch JSON"""
+        # Extract hash from either ipfs:// or https://ipfs.io/ipfs/
+        if uri.startswith('ipfs://'):
+            ipfs_hash = uri.replace('ipfs://', '')
+        else:
+            ipfs_hash = uri.split('/ipfs/')[-1]
+        # Make API call
+        url = f'https://ipfs.io/ipfs/{ipfs_hash}'
+        time.sleep(1)  # Add delay to avoid rate limits
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    
+    def fetch_http(self, uri: str):
+        """Fetch JSON from HTTPS/HTTP URL"""
+        response = requests.get(uri, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    
+    def get_db_progress_uri(self, chains, days_back=None):
+        days_back_filter = f"AND date >= CURRENT_DATE - INTERVAL '{days_back} days'" if days_back else ""
+        # get current progress for URI extraction from db
+        df = self.db_connector.execute_query(f"""
+            SELECT
+                origin_key,
+                agent_id,
+                COALESCE(
+                    (array_agg(agent_details ORDER BY date DESC) FILTER (WHERE event = 'URIUpdated'))[1],
+                    (array_agg(agent_details ORDER BY date DESC) FILTER (WHERE event = 'Registered'))[1]
+                )->>'uri' AS uri
+            FROM (
+                SELECT
+                    origin_key,
+                    date,
+                    event,
+                    (jsonb_each(detail)).key::integer AS agent_id,
+                    (jsonb_each(detail)).value->-1 AS agent_details
+                FROM eip8004
+                WHERE 
+                    event IN ('URIUpdated', 'Registered')
+                    AND origin_key IN ({','.join(f"'{chain}'" for chain in chains)})
+                    {days_back_filter}
+            ) sub
+            GROUP BY origin_key, agent_id
+            ORDER BY origin_key, agent_id;
+        """, load_df=True)
+        return df
+    
+    def get_db_progress_uri_from_df(self, df, chains):
+        # Filter events and chains
+        filtered = df[
+            (df['event'].isin(['URIUpdated', 'Registered'])) &
+            (df['origin_key'].isin(chains))
+        ].copy()
+
+        # if filtered is empty, we can stop here
+        if filtered.empty:
+            print("No events found for the specified chains and events.")
+            return pd.DataFrame() # return empty dataframe
+
+        # Explode detail dict into rows: each key = agent_id, value = agent_details
+        filtered['detail_expanded'] = filtered['detail'].apply(
+            lambda d: {int(k): v for k, v in d.items()} if isinstance(d, dict) else {}
+        )
+        exploded = filtered.explode('detail_expanded') # expand dict to rows
+
+        # Rebuild as proper rows with agent_id and agent_details
+        rows = []
+        for _, row in filtered.iterrows():
+            if isinstance(row['detail'], dict):
+                for k, v in row['detail'].items():
+                    agent_details = v[-1] if isinstance(v, list) and len(v) > 0 else v
+                    rows.append({
+                        'origin_key': row['origin_key'],
+                        'date': row['date'],
+                        'event': row['event'],
+                        'agent_id': int(k),
+                        'agent_details': agent_details
+                    })
+
+        sub = pd.DataFrame(rows)
+
+        # Sort by date desc so first() gives the newest
+        sub = sub.sort_values('date', ascending=False)
+
+        # For each group, prefer URIUpdated over Registered
+        def get_uri(group):
+            uri_updated = group[group['event'] == 'URIUpdated']
+            registered = group[group['event'] == 'Registered']
+
+            if not uri_updated.empty:
+                agent_details = uri_updated.iloc[0]['agent_details']
+            elif not registered.empty:
+                agent_details = registered.iloc[0]['agent_details']
+            else:
+                return None
+
+            # Extract uri from agent_details
+            if isinstance(agent_details, dict):
+                return agent_details.get('uri')
+            return None
+
+        result = (
+            sub.groupby(['origin_key', 'agent_id'])
+            .apply(get_uri)
+            .reset_index()
+            .rename(columns={0: 'uri'})
+            .sort_values(['origin_key', 'agent_id'])
+        )
+
+        return result
