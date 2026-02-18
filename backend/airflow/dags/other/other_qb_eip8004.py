@@ -167,21 +167,42 @@ def run_dag():
         df_cumulative = db_connector.execute_query(query, load_df=True)
         df_cumulative["unix_timestamp"] = pd.to_datetime(df_cumulative["date"]).astype(int) // 10**6
         df_cumulative = df_cumulative.sort_values(["date", "event"]).reset_index(drop=True)
+
+        # Pivot event series into chart columns (one column per event)
+        df_cumulative_wide = (
+            df_cumulative.pivot_table(
+                index="unix_timestamp",
+                columns="event",
+                values="cumulative_sum",
+                aggfunc="last",
+            )
+            .sort_index()
+            .fillna(0)
+        )
+        df_daily_wide = (
+            df_cumulative.pivot_table(
+                index="unix_timestamp",
+                columns="event",
+                values="daily_count",
+                aggfunc="last",
+            )
+            .sort_index()
+            .fillna(0)
+        )
+
+        df_cumulative_wide.columns = [f"{col}_cumulative_sum" for col in df_cumulative_wide.columns]
+        df_daily_wide.columns = [f"{col}_daily_count" for col in df_daily_wide.columns]
+
+        df_cumulative_wide = pd.concat([df_cumulative_wide, df_daily_wide], axis=1).reset_index()
+        event_columns = [col for col in df_cumulative_wide.columns if col != "unix_timestamp"]
         cumulative_dict = {
             "data": {
-                "events_cumulative": {
-                    "daily": {
-                        "types": ["unix", "event", "daily_count", "cumulative_sum"],
-                        "values": [
-                            [
-                                int(row["unix_timestamp"]),
-                                row["event"],
-                                int(row["daily_count"]),
-                                int(row["cumulative_sum"]),
-                            ]
-                            for _, row in df_cumulative.iterrows()
-                        ],
-                    }
+                "timeseries": {
+                    "types": ["unix"] + event_columns,
+                    "values": [
+                        [int(row["unix_timestamp"])] + [int(row[col]) for col in event_columns]
+                        for _, row in df_cumulative_wide.iterrows()
+                    ],
                 }
             }
         }
@@ -269,36 +290,70 @@ def run_dag():
             invalidate=False,
         )
 
-        # json 3 chart, cumulative count of 'Registered' events per origin key over time
+        # json 3 chart, count of 'Registered' events per origin key over time
         query = """
             SELECT
-                origin_key,
-                date,
-                COUNT(*) AS registered_count,
-                SUM(COUNT(*)) OVER (PARTITION BY origin_key ORDER BY date) AS registered_cum_sum
-            FROM public.vw_eip8004_agents
-            WHERE event = 'Registered'
-            GROUP BY origin_key, date
-            ORDER BY date DESC, origin_key;
+                v.origin_key,
+                s.name_short,
+                s.colors->'dark'->>0 AS color,
+                v.date,
+                COUNT(*) AS registered_count
+            FROM public.vw_eip8004_agents v
+            LEFT JOIN public.sys_main_conf s ON v.origin_key = s.origin_key
+            WHERE v.event = 'Registered'
+            GROUP BY v.origin_key, s.name_short, s.colors->'dark'->>0, v.date
+            ORDER BY v.date DESC, v.origin_key;
         """
         df_registered = db_connector.execute_query(query, load_df=True)
         df_registered["unix_timestamp"] = pd.to_datetime(df_registered["date"]).astype(int) // 10**6
         df_registered = df_registered.sort_values(["date", "origin_key"]).reset_index(drop=True)
+
+        # Pivot origin_key series into dynamic chart columns (supports new origin_keys automatically)
+        df_registered_daily_wide = (
+            df_registered.pivot_table(
+                index="unix_timestamp",
+                columns="origin_key",
+                values="registered_count",
+                aggfunc="last",
+            )
+            .sort_index()
+            .fillna(0)
+        )
+
+        origin_keys = df_registered_daily_wide.columns.tolist()
+        name_short_map = (
+            df_registered[["origin_key", "name_short"]]
+            .drop_duplicates(subset=["origin_key"])
+            .set_index("origin_key")["name_short"]
+            .to_dict()
+        )
+        color_map = (
+            df_registered[["origin_key", "color"]]
+            .drop_duplicates(subset=["origin_key"])
+            .set_index("origin_key")["color"]
+            .to_dict()
+        )
+        chain_names = [
+            name_short_map.get(origin_key) if pd.notna(name_short_map.get(origin_key)) else origin_key
+            for origin_key in origin_keys
+        ]
+        chain_colors = [
+            color_map.get(origin_key) if pd.notna(color_map.get(origin_key)) else None
+            for origin_key in origin_keys
+        ]
+        df_registered_daily_wide.columns = [f"{col}_registered_count" for col in origin_keys]
+        df_registered_wide = df_registered_daily_wide.reset_index()
+        registered_columns = [col for col in df_registered_wide.columns if col != "unix_timestamp"]
         registered_dict = {
             "data": {
-                "registered_cumulative": {
-                    "daily": {
-                        "types": ["unix", "origin_key", "registered_count", "registered_cum_sum"],
-                        "values": [
-                            [
-                                int(row["unix_timestamp"]),
-                                row["origin_key"],
-                                int(row["registered_count"]),
-                                int(row["registered_cum_sum"]),
-                            ]
-                            for _, row in df_registered.iterrows()
-                        ],
-                    }
+                "names": chain_names,
+                "colors": chain_colors,
+                "timeseries": {
+                    "types": ["unix"] + registered_columns,
+                    "values": [
+                        [int(row["unix_timestamp"])] + [int(row[col]) for col in registered_columns]
+                        for _, row in df_registered_wide.iterrows()
+                    ],
                 }
             }
         }
@@ -362,20 +417,26 @@ def run_dag():
         df_invalid_uri = db_connector.execute_query(query, load_df=True)
         df_invalid_uri["unix_timestamp"] = pd.to_datetime(df_invalid_uri["date"]).astype(int) // 10**6
         df_invalid_uri = df_invalid_uri.sort_values(["date", "status"]).reset_index(drop=True)
+        df_invalid_uri_wide = (
+            df_invalid_uri.pivot_table(
+                index="unix_timestamp",
+                columns="status",
+                values="value",
+                aggfunc="last",
+            )
+            .sort_index()
+            .fillna(0)
+            .reset_index()
+        )
+        status_columns = [col for col in df_invalid_uri_wide.columns if col != "unix_timestamp"]
         invalid_uri_dict = {
             "data": {
-                "invalid_uri_daily": {
-                    "daily": {
-                        "types": ["unix", "status", "value"],
-                        "values": [
-                            [
-                                int(row["unix_timestamp"]),
-                                row["status"],
-                                int(row["value"]),
-                            ]
-                            for _, row in df_invalid_uri.iterrows()
-                        ],
-                    }
+                "timeseries": {
+                    "types": ["unix"] + status_columns,
+                    "values": [
+                        [int(row["unix_timestamp"])] + [int(row[col]) for col in status_columns]
+                        for _, row in df_invalid_uri_wide.iterrows()
+                    ],
                 }
             }
         }
