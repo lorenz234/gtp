@@ -71,10 +71,38 @@ class JsonGen():
             json.dump(data, fp, ignore_nan=True)
 
     def _get_raw_data_single_ok(self, origin_key: str, metric_key: str, days: Optional[int] = None) -> pd.DataFrame:
-        """Get fact kpis from the database for a specific metric key."""
+        """Get fact kpis from the database for a specific metric key (daily)."""
         logging.debug(f"Fetching raw data for origin_key={origin_key}, metric_key={metric_key}, days={days}")
         query_parameters = {'origin_key': origin_key, 'metric_key': metric_key, 'days': days}
         df = self.db_connector.execute_jinja("api/select_fact_kpis.sql.j2", query_parameters, load_into_df=True)
+        
+        if df.empty:
+            return pd.DataFrame()
+            
+        df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
+        df.sort_values(by=['date'], inplace=True, ascending=True)
+        df['metric_key'] = metric_key
+        
+        # NOTE: Ideally move these calcs to SQL or Config
+        if metric_key == 'gas_per_second':
+            # Convert gas_per_second from gas units to millions of gas units for easier readability
+            df['value'] = df['value'] / 1_000_000
+        if metric_key == 'da_data_posted_bytes':
+            # Convert da_data_posted_bytes from bytes to gigabytes for easier readability
+            df['value'] = df['value'] / 1024 / 1024 / 1024
+
+        return df
+    
+    def _get_raw_data_single_ok_granular(self, origin_key: str, metric_key: str, days: Optional[int] = None, granularity: str = 'hourly') -> pd.DataFrame:
+        """Get fact kpis from the database for a specific metric key (granular)."""
+        logging.debug(f"Fetching granular data for origin_key={origin_key}, metric_key={metric_key}, days={days}, granularity={granularity}")
+        query_parameters = {
+            'origin_key': origin_key,
+            'metric_key': metric_key,
+            'days': days,
+            'granularity': granularity
+        }
+        df = self.db_connector.execute_jinja("api/select_fact_kpis_granular.sql.j2", query_parameters, load_into_df=True)
         
         if df.empty:
             return pd.DataFrame()
@@ -127,6 +155,24 @@ class JsonGen():
 
         df_list = [
             self._prepare_metric_key_data(self._get_raw_data_single_ok(origin_key, mk, days), mk, max_date_fill)
+            for mk in metric_keys
+        ]
+
+        valid_dfs = [df for df in df_list if not df.empty]
+        if not valid_dfs:
+            return pd.DataFrame()
+
+        df_full = pd.concat(valid_dfs, ignore_index=True)
+        df_pivot = df_full.pivot(index='date', columns='metric_key', values='value').sort_index()
+        return df_pivot
+
+    def _get_prepared_timeseries_df_granular(self, origin_key: str, metric_keys: List[str], days: int, granularity: str = 'hourly') -> pd.DataFrame:
+        """
+        Fetches, prepares, and pivots the granular timeseries data for given metric keys,
+        returning a single DataFrame.
+        """
+        df_list = [
+            self._prepare_metric_key_data(self._get_raw_data_single_ok_granular(origin_key, mk, days, granularity), mk, False)
             for mk in metric_keys
         ]
 
@@ -295,6 +341,16 @@ class JsonGen():
         monthly_list, monthly_cols = self._format_df_for_json(monthly_df, metric_dict['units'])
         quarterly_list, quarterly_cols = self._format_df_for_json(quarterly_df, metric_dict['units'])
 
+        hourly_timeseries = None
+        hourly_changes = None
+        if metric_dict.get('hourly_available', False):
+            hourly_df = self._get_prepared_timeseries_df_granular(origin_key, metric_dict['metric_keys'], days=7, granularity='hourly')
+            hourly_list, hourly_cols = self._format_df_for_json(hourly_df, metric_dict['units'])
+            hourly_timeseries = {'types': hourly_cols, 'data': hourly_list}
+
+            hourly_periods = {'1d': 24, '2d': 48, '3d': 72}
+            hourly_changes = self._create_changes_dict(hourly_df, metric_id, level, hourly_periods, 1, AGG_METHOD_LAST)
+
         # --- CHANGES ---
         daily_periods = {'1d': 1, '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
         weekly_periods = {'7d': 7, '28d': 28, '84d': 84, '365d': 365}
@@ -323,27 +379,35 @@ class JsonGen():
 
         # --- BUILD PYDANTIC MODEL ---
         try:
+            timeseries_dict = {
+                'daily': {'types': daily_cols, 'data': daily_list},
+                'weekly': {'types': weekly_cols, 'data': weekly_list},
+                'monthly': {'types': monthly_cols, 'data': monthly_list},
+                'quarterly': {'types': quarterly_cols, 'data': quarterly_list},
+                'daily_7d_rolling': daily_7d_dict
+            }
+            if hourly_timeseries is not None:
+                timeseries_dict['hourly'] = hourly_timeseries
+
+            changes_dict = {
+                'daily': daily_changes,
+                'weekly': weekly_changes,
+                'monthly': monthly_changes,
+                # 'quarterly': None (Dictionaries allow omitting optional keys)
+            }
+            if hourly_changes is not None:
+                changes_dict['hourly'] = hourly_changes
+
             response_model = MetricResponse(
                 details=MetricDetails(
                     metric_id=metric_id,
                     metric_name=metric_dict['name'],
                     
                     # Update 1: Pass Dicts directly
-                    timeseries={
-                        'daily': {'types': daily_cols, 'data': daily_list},
-                        'weekly': {'types': weekly_cols, 'data': weekly_list},
-                        'monthly': {'types': monthly_cols, 'data': monthly_list},
-                        'quarterly': {'types': quarterly_cols, 'data': quarterly_list},
-                        'daily_7d_rolling': daily_7d_dict
-                    },
+                    timeseries=timeseries_dict,
                     
                     # Update 2: Pass Dicts directly
-                    changes={
-                        'daily': daily_changes,
-                        'weekly': weekly_changes,
-                        'monthly': monthly_changes,
-                        # 'quarterly': None (Dictionaries allow omitting optional keys)
-                    },
+                    changes=changes_dict,
                     
                     # Update 3: Pass Dicts directly
                     summary={
