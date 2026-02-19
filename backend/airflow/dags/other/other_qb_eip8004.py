@@ -29,8 +29,463 @@ def run_dag():
             'chains': ['*'],
             'events': ['*']
         })
+        df_uri = ad.extract_uri({
+            'chains': ['*'],
+            'df': df # alternatively: 'days_back': 3, scrapes metadata behind all URIs from the last 3 days
+        })
         ad.load(df)
-        
-    get_eip8004_events()
+        ad.load_uri(df_uri)
+
+    @task
+    def create_jsons_for_quick_bite():
+        import os
+        import pandas as pd
+        from src.db_connector import DbConnector
+        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan, empty_cloudfront_cache
+
+        db_connector = DbConnector()
+        s3_bucket = os.getenv("S3_CF_BUCKET")
+        cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
+
+        # json 1: table, top200 AI agents with metadata based on feedback count (gamable metric... no way around this)
+        query = """
+            WITH feedback AS (
+                SELECT
+                    origin_key,
+                    agent_id,
+                    COUNT(*) AS feedback_count_all,
+                    COUNT(*) FILTER (
+                        WHERE agent_details->>'rating' ~ '^[0-9]+\\.?[0-9]*$'
+                        AND (agent_details->>'rating')::numeric BETWEEN 0 AND 100
+                    ) AS feedback_count_valid,
+                    ROUND(AVG((agent_details->>'rating')::numeric) FILTER (
+                        WHERE agent_details->>'rating' ~ '^[0-9]+\\.?[0-9]*$'
+                        AND (agent_details->>'rating')::numeric BETWEEN 0 AND 100
+                    ), 2) AS avg_rating,
+                    COUNT(DISTINCT agent_details->>'client') AS unique_clients
+                FROM public.vw_eip8004_agents
+                WHERE
+                    event = 'NewFeedback'
+                    AND agent_details ? 'rating'
+                GROUP BY origin_key, agent_id
+            ),
+            uri_safe AS (
+                SELECT
+                    origin_key,
+                    agent_id,
+                    uri_json,
+                    CASE WHEN jsonb_typeof(uri_json->'services') = 'array'
+                        THEN uri_json->'services'
+                        ELSE '[]'::jsonb
+                    END AS services
+                FROM public.eip8004_uri
+            )
+            SELECT
+                v.origin_key,
+                v.agent_id,
+                u.uri_json->>'name' AS name,
+                u.uri_json->>'image' AS image,
+                u.uri_json->>'description' AS description,
+                (u.uri_json->>'x402Support')::boolean AS x402_support,
+                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem WHERE elem->>'name' = 'web' LIMIT 1) AS service_web_endpoint,
+                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem WHERE elem->>'name' = 'MCP' LIMIT 1) AS service_mcp_endpoint,
+                v.feedback_count_all,
+                v.feedback_count_valid,
+                v.avg_rating,
+                v.unique_clients
+            FROM feedback v
+            LEFT JOIN uri_safe u
+                ON v.origin_key = u.origin_key
+                AND v.agent_id = u.agent_id
+            ORDER BY v.unique_clients desc
+            limit 200;
+        """
+        df_top_agents = db_connector.execute_query(query, load_df=True)
+
+        top_agents_columns = [
+            "origin_key",
+            "agent_id",
+            "name",
+            "image",
+            "description",
+            "x402_support",
+            "service_web_endpoint",
+            "service_mcp_endpoint",
+            "feedback_count_all",
+            "feedback_count_valid",
+            "avg_rating",
+            "unique_clients",
+        ]
+        top_agents_types = [
+            "string",
+            "number",
+            "string",
+            "string",
+            "string",
+            "boolean",
+            "string",
+            "string",
+            "number",
+            "number",
+            "number",
+            "number",
+        ]
+        top_agents_rows = [
+            [row[col] for col in top_agents_columns]
+            for _, row in df_top_agents.iterrows()
+        ]
+        top_agents_dict = {
+            "data": {
+                "top_agents": {
+                    "columns": top_agents_columns,
+                    "types": top_agents_types,
+                    "rows": top_agents_rows,
+                }
+            }
+        }
+        top_agents_dict = fix_dict_nan(top_agents_dict, "eip8004_top_agents", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/top_agents",
+            top_agents_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
+
+        # json 2 - chart, cumulative sum of total count 'Registered' and 'NewFeedback' events per day
+        query = """
+            SELECT
+                date,
+                event,
+                COUNT(*) AS daily_count,
+                (SUM(COUNT(*)) OVER (PARTITION BY event ORDER BY date))::integer AS cumulative_sum
+            FROM public.vw_eip8004_agents
+            WHERE event IN ('Registered', 'NewFeedback')
+            GROUP BY date, event
+            ORDER BY date, event;
+        """
+        df_cumulative = db_connector.execute_query(query, load_df=True)
+        df_cumulative["unix_timestamp"] = pd.to_datetime(df_cumulative["date"]).astype(int) // 10**6
+        df_cumulative = df_cumulative.sort_values(["date", "event"]).reset_index(drop=True)
+
+        # Pivot event series into chart columns (one column per event)
+        df_cumulative_wide = (
+            df_cumulative.pivot_table(
+                index="unix_timestamp",
+                columns="event",
+                values="cumulative_sum",
+                aggfunc="last",
+            )
+            .sort_index()
+            .fillna(0)
+        )
+        df_daily_wide = (
+            df_cumulative.pivot_table(
+                index="unix_timestamp",
+                columns="event",
+                values="daily_count",
+                aggfunc="last",
+            )
+            .sort_index()
+            .fillna(0)
+        )
+
+        df_cumulative_wide.columns = [f"{col}_cumulative_sum" for col in df_cumulative_wide.columns]
+        df_daily_wide.columns = [f"{col}_daily_count" for col in df_daily_wide.columns]
+
+        df_cumulative_wide = pd.concat([df_cumulative_wide, df_daily_wide], axis=1).reset_index()
+        event_columns = [col for col in df_cumulative_wide.columns if col != "unix_timestamp"]
+        cumulative_dict = {
+            "data": {
+                "timeseries": {
+                    "types": ["unix"] + event_columns,
+                    "values": [
+                        [int(row["unix_timestamp"])] + [int(row[col]) for col in event_columns]
+                        for _, row in df_cumulative_wide.iterrows()
+                    ],
+                }
+            }
+        }
+        cumulative_dict = fix_dict_nan(cumulative_dict, "eip8004_events_cumulative", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/events_cumulative",
+            cumulative_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
+
+        # json 3 - table, breakdown by origin_key
+        query = """
+        SELECT 
+            v.origin_key,
+            MIN(v.date) FILTER (WHERE v.event = 'Registered') AS first_registered_date,
+            COUNT(*) FILTER (WHERE v.event = 'Registered') AS total_registered,
+            u.valid_registrations,
+            COUNT(*) FILTER (WHERE v.event = 'NewFeedback') AS total_feedback,
+            COUNT(DISTINCT v.agent_details->>'owner') FILTER (WHERE v.event = 'Registered') AS unique_owners,
+            CASE 
+                WHEN COUNT(DISTINCT v.agent_details->>'owner') FILTER (WHERE v.event = 'Registered') > 0 
+                THEN (ROUND(
+                    COUNT(*) FILTER (WHERE v.event = 'Registered')::numeric / 
+                    COUNT(DISTINCT v.agent_details->>'owner') FILTER (WHERE v.event = 'Registered')::numeric, 
+                    2
+                ))::float
+                ELSE NULL
+            END AS agents_per_owner
+        FROM public.vw_eip8004_agents v
+        LEFT JOIN (
+            SELECT origin_key, COUNT(*) AS valid_registrations
+            FROM public.eip8004_uri
+            WHERE uri_json != '{}'
+            GROUP BY origin_key
+        ) u ON v.origin_key = u.origin_key
+        GROUP BY v.origin_key, u.valid_registrations
+        ORDER BY total_registered DESC;
+        """
+        df_origin_breakdown = db_connector.execute_query(query, load_df=True)
+        if "first_registered_date" in df_origin_breakdown.columns:
+            df_origin_breakdown["first_registered_date"] = (
+                pd.to_datetime(df_origin_breakdown["first_registered_date"], errors="coerce")
+                .dt.strftime("%Y-%m-%d")
+            )
+
+        origin_breakdown_columns = [
+            "origin_key",
+            "first_registered_date",
+            "total_registered",
+            "valid_registrations",
+            "total_feedback",
+            "unique_owners",
+            "agents_per_owner",
+        ]
+        origin_breakdown_types = [
+            "string",
+            "string",
+            "number",
+            "number",
+            "number",
+            "number",
+            "number",
+        ]
+        origin_breakdown_rows = [
+            [row[col] for col in origin_breakdown_columns]
+            for _, row in df_origin_breakdown.iterrows()
+        ]
+        origin_breakdown_dict = {
+            "data": {
+                "origin_breakdown": {
+                    "columns": origin_breakdown_columns,
+                    "types": origin_breakdown_types,
+                    "rows": origin_breakdown_rows,
+                }
+            }
+        }
+        origin_breakdown_dict = fix_dict_nan(origin_breakdown_dict, "eip8004_origin_breakdown", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/origin_breakdown",
+            origin_breakdown_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
+
+        # json 3 chart, count of 'Registered' events per origin key over time
+        query = """
+            SELECT
+                v.origin_key,
+                s.name_short,
+                s.colors->'dark'->>0 AS color,
+                v.date,
+                COUNT(*) AS registered_count
+            FROM public.vw_eip8004_agents v
+            LEFT JOIN public.sys_main_conf s ON v.origin_key = s.origin_key
+            WHERE v.event = 'Registered'
+            GROUP BY v.origin_key, s.name_short, s.colors->'dark'->>0, v.date
+            ORDER BY v.date DESC, v.origin_key;
+        """
+        df_registered = db_connector.execute_query(query, load_df=True)
+        df_registered["unix_timestamp"] = pd.to_datetime(df_registered["date"]).astype(int) // 10**6
+        df_registered = df_registered.sort_values(["date", "origin_key"]).reset_index(drop=True)
+
+        # Pivot origin_key series into dynamic chart columns (supports new origin_keys automatically)
+        df_registered_daily_wide = (
+            df_registered.pivot_table(
+                index="unix_timestamp",
+                columns="origin_key",
+                values="registered_count",
+                aggfunc="last",
+            )
+            .sort_index()
+            .fillna(0)
+        )
+
+        origin_keys = df_registered_daily_wide.columns.tolist()
+        name_short_map = (
+            df_registered[["origin_key", "name_short"]]
+            .drop_duplicates(subset=["origin_key"])
+            .set_index("origin_key")["name_short"]
+            .to_dict()
+        )
+        color_map = (
+            df_registered[["origin_key", "color"]]
+            .drop_duplicates(subset=["origin_key"])
+            .set_index("origin_key")["color"]
+            .to_dict()
+        )
+        chain_names = [
+            name_short_map.get(origin_key) if pd.notna(name_short_map.get(origin_key)) else origin_key
+            for origin_key in origin_keys
+        ]
+        chain_colors = [
+            color_map.get(origin_key) if pd.notna(color_map.get(origin_key)) else None
+            for origin_key in origin_keys
+        ]
+        df_registered_daily_wide.columns = [f"{col}_registered_count" for col in origin_keys]
+        df_registered_wide = df_registered_daily_wide.reset_index()
+        registered_columns = [col for col in df_registered_wide.columns if col != "unix_timestamp"]
+        registered_dict = {
+            "data": {
+                "names": chain_names,
+                "colors": chain_colors,
+                "timeseries": {
+                    "types": ["unix"] + registered_columns,
+                    "values": [
+                        [int(row["unix_timestamp"])] + [int(row[col]) for col in registered_columns]
+                        for _, row in df_registered_wide.iterrows()
+                    ],
+                }
+            }
+        }
+        registered_dict = fix_dict_nan(registered_dict, "eip8004_registered_cumulative", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/registered_cumulative",
+            registered_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
+
+        # json 4 kpis, total agents, unique owners, agents with feedback
+        query = """
+            SELECT 'total_agents' AS kpi, COUNT(*) AS value
+            FROM public.vw_eip8004_agents
+            WHERE event = 'Registered'
+
+            UNION ALL
+
+            SELECT 'unique_owners' AS kpi, COUNT(DISTINCT agent_details->>'owner') AS value
+            FROM public.vw_eip8004_agents
+            WHERE event = 'Registered'
+
+            UNION ALL
+
+            SELECT 'agents_with_feedback' AS kpi, COUNT(*) AS value
+            FROM (
+                SELECT origin_key, agent_id
+                FROM public.vw_eip8004_agents
+                WHERE event = 'NewFeedback'
+                GROUP BY 1, 2
+            ) sub;
+        """
+        df_kpis = db_connector.execute_query(query, load_df=True)
+        kpi_values = {row["kpi"]: row["value"] for _, row in df_kpis.iterrows()}
+        kpis_dict = {"data": kpi_values}
+        kpis_dict = fix_dict_nan(kpis_dict, "eip8004_kpis", send_notification=True)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/kpis",
+            kpis_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
+
+        # json 5 chart, percentage of agents with invalid URI metadata
+        query = """
+            SELECT 
+                v.date,
+                CASE WHEN u.uri_json = '{}' OR u.uri_json IS NULL THEN 'invalid_uri' ELSE 'valid_uri' END AS status,
+                COUNT(*) AS value
+            FROM public.vw_eip8004_agents v
+            LEFT JOIN public.eip8004_uri u 
+                ON v.origin_key = u.origin_key 
+                AND v.agent_id = u.agent_id
+            WHERE v.event = 'Registered'
+            GROUP BY 1, 2
+            ORDER BY 1;
+        """
+        df_invalid_uri = db_connector.execute_query(query, load_df=True)
+        df_invalid_uri["unix_timestamp"] = pd.to_datetime(df_invalid_uri["date"]).astype(int) // 10**6
+        df_invalid_uri = df_invalid_uri.sort_values(["date", "status"]).reset_index(drop=True)
+        df_invalid_uri_wide = (
+            df_invalid_uri.pivot_table(
+                index="unix_timestamp",
+                columns="status",
+                values="value",
+                aggfunc="last",
+            )
+            .sort_index()
+            .fillna(0)
+            .reset_index()
+        )
+        status_columns = [col for col in df_invalid_uri_wide.columns if col != "unix_timestamp"]
+        invalid_uri_dict = {
+            "data": {
+                "timeseries": {
+                    "types": ["unix"] + status_columns,
+                    "values": [
+                        [int(row["unix_timestamp"])] + [int(row[col]) for col in status_columns]
+                        for _, row in df_invalid_uri_wide.iterrows()
+                    ],
+                }
+            }
+        }
+        invalid_uri_dict = fix_dict_nan(invalid_uri_dict, "eip8004_invalid_uri_daily", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/invalid_uri_daily",
+            invalid_uri_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
+
+        # json 6 kpis, totals of agents valid vs invalid URIs
+        query = """
+            SELECT 
+                CASE WHEN uri_json = '{}' THEN 'empty_uri' ELSE 'valid_uri' END AS status,
+                COUNT(*) AS value,
+                ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2)::float AS percentage
+            FROM public.eip8004_uri
+            GROUP BY 1;
+        """
+        df_uri_quality = db_connector.execute_query(query, load_df=True)
+        uri_quality_dict = {
+            "data": {
+                "uri_quality": {
+                    "columns": ["status", "value", "percentage"],
+                    "types": ["string", "number", "number"],
+                    "rows": [
+                        [row["status"], row["value"], row["percentage"]]
+                        for _, row in df_uri_quality.iterrows()
+                    ],
+                }
+            }
+        }
+        uri_quality_dict = fix_dict_nan(uri_quality_dict, "eip8004_uri_quality", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/uri_quality",
+            uri_quality_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
+
+        # Invalidate the whole eip8004 quick-bite folder once all uploads are done.
+        empty_cloudfront_cache(cf_distribution_id, "/v1/quick-bites/eip8004/*")
+
+    get_eip8004_events_task = get_eip8004_events()
+    create_jsons_for_quick_bite_task = create_jsons_for_quick_bite()
+
+    get_eip8004_events_task >> create_jsons_for_quick_bite_task
         
 run_dag()
