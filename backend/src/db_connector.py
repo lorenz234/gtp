@@ -534,6 +534,56 @@ class DbConnector:
                 df = pd.read_sql(exec_string, self.engine.connect())
                 return df
         
+        def get_values_in_usd_hourly(self, metric_keys, days, origin_keys = None): ## also make sure to add new metrics in adapter_sql
+                mk_string = "'" + "', '".join(metric_keys) + "'"
+
+                if origin_keys is None or len(origin_keys) == 0:
+                        ok_string = ''
+                else:
+                        ok_string = "AND tkd.origin_key in ('" + "', '".join(origin_keys) + "')"
+
+                print(f"load usd values for : {mk_string} and {origin_keys}")
+                exec_string = f'''
+                        with eth_price as (
+                                SELECT "date", value
+                                FROM fact_kpis
+                                WHERE metric_key = 'price_usd' and origin_key = 'ethereum'
+                        )
+
+                        SELECT 
+                                Case tkd.metric_key 
+                                        WHEN 'rent_paid_eth' THEN 'rent_paid_usd'
+                                        WHEN 'ethereum_blobs_eth' THEN 'ethereum_blobs_usd'
+                                        WHEN 'celestia_blobs_eth' THEN 'celestia_blobs_usd'
+                                        WHEN 'eigenda_blobs_eth' THEN 'eigenda_blobs_usd'
+                                        WHEN 'costs_blobs_eth' THEN 'costs_blobs_usd'
+                                        WHEN 'cost_l1_raw_eth' THEN 'cost_l1_raw_usd'
+                                        WHEN 'costs_l1_eth' THEN 'costs_l1_usd'
+                                        WHEN 'costs_total_eth' THEN 'costs_total_usd'
+                                        WHEN 'da_fees_eth' THEN 'da_fees_usd'
+                                        WHEN 'fees_paid_eth' THEN 'fees_paid_usd'
+                                        WHEN 'fees_paid_base_eth' THEN 'fees_paid_base_usd'
+                                        WHEN 'fees_paid_priority_eth' THEN 'fees_paid_priority_usd'
+                                        WHEN 'profit_eth' THEN 'profit_usd'
+                                        WHEN 'txcosts_median_eth' THEN 'txcosts_median_usd'
+                                        WHEN 'da_fees_per_mbyte_eth' THEN 'da_fees_per_mbyte_usd'
+                                        ELSE 'error'
+                                END AS metric_key, 
+                                tkd.origin_key,
+                                tkd.timestamp as timestamp, 
+                                tkd.value * p.value as value,
+                                'hourly' as granularity
+                        FROM fact_kpis_granular tkd
+                        LEFT JOIN eth_price p on date_trunc('day', tkd.timestamp) = p."date"
+                        WHERE tkd.metric_key in ({mk_string})
+                                {ok_string}
+                                AND tkd.timestamp < date_trunc('hour', NOW()) 
+                                AND tkd.timestamp >= date_trunc('hour',now()) - interval '{days} days'
+                                AND tkd.granularity = 'hourly'
+                '''
+                df = pd.read_sql(exec_string, self.engine.connect())
+                return df
+        
         def get_values_in_usd_eim(self, metric_keys, days, origin_keys = None):
                 mk_string = "'" + "', '".join(metric_keys) + "'"
 

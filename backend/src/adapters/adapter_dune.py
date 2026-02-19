@@ -97,35 +97,24 @@ class AdapterDune(AbstractAdapter):
         df = df.set_index(['metric_key', 'origin_key', 'date'])
         return df
     
-    # def prepare_df_aa_daily(self, df):
-    #     print(f"Preparing df with {df.shape[0]} (compact) rows for active addresses daily...")
-        
-    #     # 1) parse "[0x.. 0x..]" -> ["0x..", "0x.."]
-    #     df["from_addresses"] = (
-    #         df["from_addresses"]
-    #         .astype(str)
-    #         .str.strip("[]")
-    #         .str.split()          # splits on whitespace
-    #     )
+    def prepare_df_metric_hourly(self, df):
+        # unpivot df only if not already in the correct format
+        if 'metric_key' not in df.columns and 'value' not in df.columns:
+            df = df.melt(id_vars=['timestamp', 'origin_key'], var_name='metric_key', value_name='value')
 
-    #     # 2) explode
-    #     df = (
-    #         df.explode("from_addresses")
-    #         .rename(columns={"from_addresses": "address"})
-    #         .dropna(subset=["address"])
-    #         .reset_index(drop=True)
-    #     )
+        # replace nil or None values with 0
+        df['value'] = df['value'].replace('<nil>', 0)
+        df['value'] = df.value.fillna(0)
+        # turn value column into float
+        df['value'] = df['value'].astype(float)
         
-    #     print(f"Exploded to {df.shape[0]} rows for active addresses daily...")
-
-    #     # 3) rename column, format address
-    #     df = df.rename(columns={"day": "date"})
-    #     df['address'] = df['address'].str.replace('0x', '\\x', regex=False)
+        df['granularity'] = 'hourly'
+        # set timestamp column to datetime
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
         
-    #     ## drop column chunk_id
-    #     if 'chunk_id' in df.columns:
-    #         df = df.drop(columns=['chunk_id'])
-    #     return df
+        # set primary keys as index
+        df = df.set_index(['metric_key', 'origin_key', 'timestamp', 'granularity'])
+        return df
     
     def prepare_df_contract_level_aa_daily(self, df):
         print(f"Preparing df with {df.shape[0]} (compact) rows for contract level active addresses daily...")

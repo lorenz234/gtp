@@ -14,10 +14,45 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load aggregates metrics hourly.',
     tags=['metrics', 'hourly'],
     start_date=datetime(2026,2,10),
-    schedule='5 * * * *'
+    schedule='10 * * * *'
 )
 
 def etl():
+    @task()
+    def run_fundamentals_hourly():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'megaeth_fundamentals_hourly',
+                    'query_id': 6715552,
+                    'params': {'hours': 3}
+                },
+                {
+                    'name': 'polygon_pos_fundamentals_hourly',
+                    'query_id': 6715560,
+                    'params': {'hours': 3}
+                },
+            ],
+            'prepare_df': 'prepare_df_metric_hourly',
+            'load_type': 'fact_kpis_granular'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+        # load
+        ad.load(df)
+    
+    
     @task()
     def run_starknet_contract_level_hourly():
         import os
@@ -126,6 +161,7 @@ def etl():
         # load
         ad.load(df)
         
+    run_fundamentals_hourly()
     run_starknet_contract_level_hourly()
     run_megaeth_contract_level_hourly()
     run_polygon_pos_contract_level_hourly()
