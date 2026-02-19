@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load aggregates metrics hourly.',
     tags=['metrics', 'hourly'],
     start_date=datetime(2026,2,10),
-    schedule='5 * * * *'
+    schedule='10 * * * *'
 )
 
 def etl():
