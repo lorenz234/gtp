@@ -344,11 +344,11 @@ class JsonGen():
         hourly_timeseries = None
         hourly_changes = None
         if metric_dict.get('hourly_available', False):
-            hourly_df = self._get_prepared_timeseries_df_granular(origin_key, metric_dict['metric_keys'], days=7, granularity='hourly')
+            hourly_df = self._get_prepared_timeseries_df_granular(origin_key, metric_dict['metric_keys'], days=14, granularity='hourly')
             hourly_list, hourly_cols = self._format_df_for_json(hourly_df, metric_dict['units'])
             hourly_timeseries = {'types': hourly_cols, 'data': hourly_list}
 
-            hourly_periods = {'1d': 24, '2d': 48, '3d': 72}
+            hourly_periods = {'1d': 24, '3d': 72, '7d': 168}
             hourly_changes = self._create_changes_dict(hourly_df, metric_id, level, hourly_periods, 1, AGG_METHOD_LAST)
 
         # --- CHANGES ---
