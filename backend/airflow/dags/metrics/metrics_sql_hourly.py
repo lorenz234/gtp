@@ -33,6 +33,66 @@ def etl():
                 print(f"Updating blockspace data for {chain.origin_key} and last {hours} hours...")
                 db_connector.get_blockspace_contracts_hourly(chain.origin_key, hours)
                 
+    @task()
+    def run_fundamentals_hourly():
+        from src.db_connector import DbConnector
+        db_connector = DbConnector()
+        from src.adapters.adapter_sql import AdapterSQL
+
+        adapter_params = {
+        }
+        load_params = {
+            'load_type' : 'metrics_hourly', ## load metrics such as imx txcount, daa, fees paid and user_base metric
+            'hours' : (3), ## hours as int
+            'origin_keys' : None, ## origin_keys as list or None
+            'metric_keys' : None,
+            'currency_dependent' : False,
+            'upsert' : True, ## upsert after each query run
+        }
+
+        # initialize adapter
+        ad = AdapterSQL(adapter_params, db_connector)
+        # extract
+        ad.extract(load_params)
+        
+    @task()
+    def run_fundamentals_hourly_dependent():
+        from src.db_connector import DbConnector
+        db_connector = DbConnector()
+        from src.adapters.adapter_sql import AdapterSQL
+
+        adapter_params = {
+        }
+        load_params = {
+            'load_type' : 'metrics_hourly', ## load metrics such as imx txcount, daa, fees paid and user_base metric
+            'hours' : (3), ## hours as int
+            'origin_keys' : None, ## origin_keys as list or None
+            'metric_keys' : None,
+            'currency_dependent' : True,
+            'upsert' : True, ## upsert after each query run
+        }
+
+        # initialize adapter
+        ad = AdapterSQL(adapter_params, db_connector)
+        # extract
+        ad.extract(load_params)
+        
+    @task()
+    def run_eth_to_usd():
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_sql import AdapterSQL
+        
+        ad = AdapterSQL({}, DbConnector())
+        df = ad.extract({
+            "load_type": "eth_to_usd_hourly",
+            "days": 7,
+            "origin_keys": None,
+            "metric_keys": None,
+        })
+        ad.load(df)
+        
+    run_fundamentals_hourly_dependent() >> run_eth_to_usd()        
     run_blockspace_hourly()
+    run_fundamentals_hourly()
 
 etl()

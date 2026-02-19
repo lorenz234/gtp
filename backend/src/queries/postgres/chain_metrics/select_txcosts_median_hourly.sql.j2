@@ -1,0 +1,24 @@
+{#
+    A query to calculate the median transaction fee over the  3 hours (default) for each hour.
+    If the origin_key is not 'starknet', we also filter out transactions with a gas_price of zero.
+
+    metric: txcosts_median_eth
+
+    Parameters:
+    - origin_key: The name of the chain to identify the table.
+    - hours: default = 3; The time interval (in hours) to consider for the data extraction.
+#}
+
+{% set hours = hours | default(3) %}
+
+SELECT
+    date_trunc('hour', block_timestamp) AS "timestamp",
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tx_fee) AS value
+FROM {{ origin_key }}_tx
+WHERE 1=1
+{% if origin_key != 'starknet' %}
+    AND tx_fee > 0
+{% endif %}
+    AND block_timestamp >= date_trunc('hour', now() - interval '{{ hours }} hours')
+    AND block_timestamp < date_trunc('hour', now())
+GROUP BY 1

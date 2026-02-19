@@ -10,13 +10,14 @@ else:
         env = Environment(loader=FileSystemLoader('src/queries/postgres'), undefined=StrictUndefined)
 
 class SQLQuery():
-    def __init__(self, jinja_path: str, metric_key: str, origin_key: str, query_parameters: dict = None, currency_dependent:bool = True):
+    def __init__(self, jinja_path: str, metric_key: str, origin_key: str, query_parameters: dict = None, currency_dependent:bool = True, run_hourly:bool = False):
         self.template = env.get_template(jinja_path)
         self.metric_key = metric_key
         self.origin_key = origin_key
         self.query_parameters = query_parameters if query_parameters is not None else {}
         self.query_parameters['origin_key'] = origin_key
         self.currency_dependent = currency_dependent ## if false, the query can in parellel to the currency queries 
+        self.run_hourly = run_hourly ## if true, the query will be run in the hourly metrics dag instead of the daily one
 
 def standard_evm_queries(origin_key: str): ## op-stack and others
      return [
@@ -34,6 +35,12 @@ def standard_evm_queries(origin_key: str): ## op-stack and others
                 ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = origin_key, jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
                 ,SQLQuery(metric_key = "fees_paid_eth", origin_key = origin_key, jinja_path='chain_metrics/select_fees_paid.sql.j2')
                 ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = origin_key, jinja_path='chain_metrics/select_txcosts_median.sql.j2')
+                ## hourly
+                ,SQLQuery(metric_key = "txcount", origin_key = origin_key, jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False, run_hourly = True)
+                ,SQLQuery(metric_key = "aa", origin_key = origin_key, jinja_path='chain_metrics/select_aa_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+                ,SQLQuery(metric_key = "gas_per_second", origin_key = origin_key, jinja_path='chain_metrics/select_gas_per_second_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+                ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = origin_key, jinja_path='chain_metrics/select_txcosts_median_hourly.sql.j2', run_hourly = True)
+                ,SQLQuery(metric_key = "fees_paid_eth", origin_key = origin_key, jinja_path='chain_metrics/select_fees_paid_hourly.sql.j2', run_hourly = True)
         ]
 
 ## Queries have default values defined in the jinja templates. These can either be overwritten here or later in adater_sql.py
@@ -57,8 +64,14 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "ethereum", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "ethereum", jinja_path='chain_metrics/select_fees_paid.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "ethereum", jinja_path='chain_metrics/select_txcosts_median.sql.j2')
+        ## hourly
+        ,SQLQuery(metric_key = "txcount", origin_key = "ethereum", jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "aa", origin_key = "ethereum", jinja_path='chain_metrics/select_aa_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "gas_per_second", origin_key = "ethereum", jinja_path='chain_metrics/select_gas_per_second_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "ethereum", jinja_path='chain_metrics/select_txcosts_median_hourly.sql.j2', query_parameters={}, run_hourly = True)
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "ethereum", jinja_path='chain_metrics/select_fees_paid_hourly.sql.j2', query_parameters={}, run_hourly = True)
         
-        ,SQLQuery(metric_key = "txcount_type4", origin_key = "ethereum", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_type4", origin_key = "ethereum", jinja_path='chain_metrics/select_txcount_type4.sql.j2', currency_dependent = False)
 
         # --- DA Layers ---
         # Celestia
@@ -86,7 +99,13 @@ sql_queries = [
         ,SQLQuery(metric_key = "fees_paid_base_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_fees_paid.sql.j2')
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_fees_paid_combined.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcosts_median.sql.j2')
-        ,SQLQuery(metric_key = "txcount_type4", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
+        ,SQLQuery(metric_key = "txcount_type4", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcount_type4.sql.j2', currency_dependent = False)
+        ## hourly 
+        ,SQLQuery(metric_key = "txcount", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "aa", origin_key = "arbitrum", jinja_path='chain_metrics/select_aa_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "gas_per_second", origin_key = "arbitrum", jinja_path='chain_metrics/select_gas_per_second_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_txcosts_median_hourly.sql.j2', run_hourly = True)
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "arbitrum", jinja_path='chain_metrics/select_fees_paid_hourly.sql.j2', run_hourly = True)
 
         ## Arbitrum Nova
         ,SQLQuery(metric_key = "txcount_comparison", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
@@ -103,7 +122,13 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_fees_paid.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_txcosts_median.sql.j2')
-
+        ## hourly
+        ,SQLQuery(metric_key = "txcount", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "aa", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_aa_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "gas_per_second", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_gas_per_second_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_txcosts_median_hourly.sql.j2', run_hourly = True)
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "arbitrum_nova", jinja_path='chain_metrics/select_fees_paid_hourly.sql.j2', run_hourly = True)
+        
         # SUPERCHAIN
         ## OP Mainnet
         ,*standard_evm_queries("optimism")
@@ -210,6 +235,12 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = 'zircuit', jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = 'zircuit', jinja_path='chain_metrics/select_fees_paid.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = 'zircuit', jinja_path='chain_metrics/select_txcosts_median.sql.j2')
+        ## hourly
+        ,SQLQuery(metric_key = "txcount", origin_key = "zircuit", jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "aa", origin_key = "zircuit", jinja_path='chain_metrics/select_aa_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "gas_per_second", origin_key = "zircuit", jinja_path='chain_metrics/select_gas_per_second_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "zircuit", jinja_path='chain_metrics/select_txcosts_median_hourly.sql.j2', run_hourly = True)
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "zircuit", jinja_path='chain_metrics/select_fees_paid_hourly.sql.j2', run_hourly = True)
 
         # Others EVM Custom Gas Token
         ## Mantle (also custom gas query)
@@ -227,6 +258,12 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "mantle", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "mantle", jinja_path='chain_metrics/select_fees_paid_custom_gas.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "mantle", jinja_path='chain_metrics/select_txcosts_median_custom_gas.sql.j2')
+        ## hourly
+        ,SQLQuery(metric_key = "txcount", origin_key = "mantle", jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "aa", origin_key = "mantle", jinja_path='chain_metrics/select_aa_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "gas_per_second", origin_key = "mantle", jinja_path='chain_metrics/select_gas_per_second_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "mantle", jinja_path='chain_metrics/select_txcosts_median_custom_gas_hourly.sql.j2', run_hourly = True)
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "mantle", jinja_path='chain_metrics/select_fees_paid_custom_gas_hourly.sql.j2', run_hourly = True)
 
         ## Metis
         ,SQLQuery(metric_key = "txcount_comparison", origin_key = "metis", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
@@ -243,6 +280,11 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "metis", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "metis", jinja_path='chain_metrics/select_fees_paid_custom_gas.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "metis", jinja_path='chain_metrics/select_txcosts_median_custom_gas.sql.j2')
+        ## hourly
+        ,SQLQuery(metric_key = "txcount", origin_key = "metis", jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "aa", origin_key = "metis", jinja_path='chain_metrics/select_aa_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "metis", jinja_path='chain_metrics/select_txcosts_median_custom_gas_hourly.sql.j2', run_hourly = True)
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "metis", jinja_path='chain_metrics/select_fees_paid_custom_gas_hourly.sql.j2', run_hourly = True)
 
         ## Gravity (Orbit tx filter, also custom gas query)
         ,SQLQuery(metric_key = "txcount_comparison", origin_key = "gravity", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
@@ -259,6 +301,12 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "gravity", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "gravity", jinja_path='chain_metrics/select_fees_paid_custom_gas.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "gravity", jinja_path='chain_metrics/select_txcosts_median_custom_gas.sql.j2')
+        ## hourly
+        ,SQLQuery(metric_key = "txcount", origin_key = "gravity", jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "aa", origin_key = "gravity", jinja_path='chain_metrics/select_aa_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "gas_per_second", origin_key = "gravity", jinja_path='chain_metrics/custom/orbit_select_gas_per_second_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "gravity", jinja_path='chain_metrics/select_txcosts_median_custom_gas_hourly.sql.j2', run_hourly = True)
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "gravity", jinja_path='chain_metrics/select_fees_paid_custom_gas_hourly.sql.j2', run_hourly = True)
         
         ##Plume
         ,SQLQuery(metric_key = "txcount_comparison", origin_key = "plume", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False)
@@ -275,6 +323,12 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "plume", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "plume", jinja_path='chain_metrics/select_fees_paid_custom_gas.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "plume", jinja_path='chain_metrics/select_txcosts_median_custom_gas.sql.j2')
+        ## hourly
+        ,SQLQuery(metric_key = "txcount", origin_key = "plume", jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "aa", origin_key = "plume", jinja_path='chain_metrics/select_aa_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "gas_per_second", origin_key = "plume", jinja_path='chain_metrics/custom/orbit_select_gas_per_second_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "plume", jinja_path='chain_metrics/select_txcosts_median_custom_gas_hourly.sql.j2', run_hourly = True)
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "plume", jinja_path='chain_metrics/select_fees_paid_custom_gas_hourly.sql.j2', run_hourly = True)
 
         ## Celo (op stack but CELO gas token and only data available start March 26th when L2 went live)
         ,SQLQuery(metric_key = "txcount_comparison", origin_key = "celo", jinja_path='chain_metrics/select_txcount.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False)
@@ -291,6 +345,12 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "celo", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "celo", jinja_path='chain_metrics/select_fees_paid_custom_gas.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "celo", jinja_path='chain_metrics/select_txcosts_median_custom_gas.sql.j2')
+        ## hourly
+        ,SQLQuery(metric_key = "txcount", origin_key = "celo", jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "aa", origin_key = "celo", jinja_path='chain_metrics/select_aa_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "gas_per_second", origin_key = "celo", jinja_path='chain_metrics/select_gas_per_second_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "celo", jinja_path='chain_metrics/select_txcosts_median_custom_gas_hourly.sql.j2', run_hourly = True)
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "celo", jinja_path='chain_metrics/select_fees_paid_custom_gas_hourly.sql.j2', run_hourly = True)
 
         # Others Non-EVM
         ## Loopring
@@ -318,4 +378,8 @@ sql_queries = [
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "starknet", jinja_path='chain_metrics/select_fees_paid.sql.j2')
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "starknet", jinja_path='chain_metrics/select_txcosts_median.sql.j2')
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "starknet", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
+        ## hourly
+        ,SQLQuery(metric_key = "txcount", origin_key = "starknet", jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "starknet", jinja_path='chain_metrics/select_txcosts_median_hourly.sql.j2', run_hourly = True)
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "starknet", jinja_path='chain_metrics/select_fees_paid_custom_gas_hourly.sql.j2', run_hourly = True)
 ]

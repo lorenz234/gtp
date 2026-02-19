@@ -28,21 +28,17 @@ class AdapterSQL(AbstractAdapter):
     """
     def extract(self, load_params:dict):
         ## Set variables
-        load_type = load_params['load_type']
+        self.load_type = load_params['load_type']
         days = load_params.get('days', None)
+        days_start = load_params.get('days_start', 1)
+        hours = load_params.get('hours', None)
 
         currency_dependent = load_params.get('currency_dependent', None)
         metric_keys = load_params.get('metric_keys', None)
         origin_keys = load_params.get('origin_keys', None)
 
-        ## check if load_params['days_start'] exists and if so, overwrite days
-        if 'days_start' in load_params:
-            days_start = load_params['days_start']
-        else:
-            days_start = 1
-
         ## aggregation types
-        if load_type == 'usd_to_eth': ## also make sure to add new metrics in db_connector
+        if self.load_type == 'usd_to_eth': ## also make sure to add new metrics in db_connector
             raw_metrics = ['tvl', 'stables_mcap', 'fdv_usd', 'app_fees_usd']
             ## only keep metrics that are in raw_metrics and metric_keys
             if metric_keys is not None:
@@ -51,7 +47,7 @@ class AdapterSQL(AbstractAdapter):
                 metric_keys = raw_metrics
             df = self.db_connector.get_values_in_eth(metric_keys, days, origin_keys)
 
-        elif load_type == 'eth_to_usd': ## also make sure to add new metrics in db_connector
+        elif self.load_type == 'eth_to_usd': ## also make sure to add new metrics in db_connector
             raw_metrics = ['fees_paid_eth', 'fees_paid_base_eth', 'fees_paid_priority_eth', 'txcosts_median_eth', 'profit_eth', 'rent_paid_eth', 'cost_l1_raw_eth', 
                            'ethereum_blobs_eth', 'celestia_blobs_eth', 'eigenda_blobs_eth', 'costs_blobs_eth', 'costs_l1_eth', 'costs_total_eth', 'da_fees_eth',
                            'da_fees_per_mbyte_eth']
@@ -61,8 +57,19 @@ class AdapterSQL(AbstractAdapter):
             else:
                 metric_keys = raw_metrics
             df = self.db_connector.get_values_in_usd(metric_keys, days, origin_keys)
+            
+        elif self.load_type == 'eth_to_usd_hourly': ## also make sure to add new metrics in db_connector
+            raw_metrics = ['fees_paid_eth', 'fees_paid_base_eth', 'fees_paid_priority_eth', 'txcosts_median_eth', 'profit_eth', 'rent_paid_eth', 'cost_l1_raw_eth', 
+                           'ethereum_blobs_eth', 'celestia_blobs_eth', 'eigenda_blobs_eth', 'costs_blobs_eth', 'costs_l1_eth', 'costs_total_eth', 'da_fees_eth',
+                           'da_fees_per_mbyte_eth']
+            ## only keep metrics that are in raw_metrics and metric_keys
+            if metric_keys is not None:
+                metric_keys = [x for x in metric_keys if x in raw_metrics]
+            else:
+                metric_keys = raw_metrics
+            df = self.db_connector.get_values_in_usd_hourly(metric_keys, days, origin_keys)
 
-        elif load_type == 'economics':
+        elif self.load_type == 'economics':
             ##exclude_chains = ['mantle'] ## chains that should be excluded from profit calc
             exclude_chains = [chain.origin_key for chain in self.main_config if 'profit' in chain.api_exclude_metrics]
             print(f'...excluding chains from profit calculation: {exclude_chains}')
@@ -89,13 +96,13 @@ class AdapterSQL(AbstractAdapter):
             ## remove all rows where value is na
             df = df.dropna(subset=['value'])
 
-        elif load_type == 'fdv':
+        elif self.load_type == 'fdv':
             df = self.db_connector.get_fdv_in_usd(days, origin_keys)
 
-        elif load_type == 'da_metrics':
+        elif self.load_type == 'da_metrics':
             df = self.db_connector.get_da_metrics_in_eth(days, origin_keys)
 
-        elif load_type == 'metrics':        
+        elif self.load_type == 'metrics':        
             from src.queries.sql_queries import sql_queries
             upsert = load_params.get('upsert', False)
             ## Prepare queries to load
@@ -105,6 +112,9 @@ class AdapterSQL(AbstractAdapter):
                 self.queries_to_load = [x for x in sql_queries if x.origin_key in origin_keys]
             else:
                 self.queries_to_load = sql_queries
+                
+            ## only keep queries that shouldn't be run hourly
+            self.queries_to_load = [x for x in self.queries_to_load if x.run_hourly == False]
 
             if currency_dependent is not None:
                 if currency_dependent == True:
@@ -120,22 +130,51 @@ class AdapterSQL(AbstractAdapter):
 
             ## Load data
             df = self.extract_data_from_db(self.queries_to_load, days, days_start, upsert=upsert)
+            
+        elif self.load_type == 'metrics_hourly':        
+            from src.queries.sql_queries import sql_queries
+            upsert = load_params.get('upsert', False)
+            ## Prepare queries to load
+            check_projects_to_load(sql_queries, origin_keys)
 
-        elif load_type == 'blockspace':
+            if origin_keys is not None:
+                self.queries_to_load = [x for x in sql_queries if x.origin_key in origin_keys]
+            else:
+                self.queries_to_load = sql_queries
+                
+            ## only keep queries that should be run hourly
+            self.queries_to_load = [x for x in self.queries_to_load if x.run_hourly == True]
+
+            if currency_dependent is not None:
+                if currency_dependent == True:
+                    self.queries_to_load = [x for x in self.queries_to_load if x.currency_dependent == True]
+                else:
+                    self.queries_to_load = [x for x in self.queries_to_load if x.currency_dependent == False]
+
+            if metric_keys is not None:
+                self.queries_to_load = [x for x in self.queries_to_load if x.metric_key in metric_keys]
+            else:
+                ## remove queries that are have metric_key = 'profit_usd' since this should be triggered afterwards
+                self.queries_to_load = [x for x in self.queries_to_load if x.metric_key != 'profit_usd']
+
+            ## Load data
+            df = self.extract_data_from_db(self.queries_to_load, days, days_start, upsert=upsert, hours=hours)
+
+        elif self.load_type == 'blockspace':
             self.run_blockspace_queries(origin_keys, days)
             return None
         
-        elif load_type == 'active_addresses_agg':
+        elif self.load_type == 'active_addresses_agg':
             days_end = load_params.get('days_end', None)
             self.run_active_addresses_agg(origin_keys, days, days_end)
             return None
         
-        elif load_type == 'fees':
+        elif self.load_type == 'fees':
             granularities = load_params.get('granularities', None)
             self.run_fees_queries(origin_keys, days, granularities, metric_keys)
             return None
         
-        elif load_type == 'jinja':
+        elif self.load_type == 'jinja':
             query_parameters = load_params.get('query_parameters', None)
             destination_table = load_params.get('destination_table', None)
 
@@ -159,7 +198,10 @@ class AdapterSQL(AbstractAdapter):
             raise ValueError('load_type not supported')
 
         if df.empty:
-            print(f"...empty df for {load_type}. Upsert flag set to: {load_params.get('upsert', False)}.")
+            print(f"...empty df for {self.load_type}. Upsert flag set to: {load_params.get('upsert', False)}.")
+        elif self.load_type in ['metrics_hourly', 'eth_to_usd_hourly']:
+            df.set_index(['metric_key', 'origin_key', 'timestamp', 'granularity'], inplace=True)
+            df.value.fillna(0, inplace=True)
         else:
             df.set_index(['metric_key', 'origin_key', 'date'], inplace=True)
             df.value.fillna(0, inplace=True)
@@ -168,10 +210,13 @@ class AdapterSQL(AbstractAdapter):
         return df
 
     def load(self, df:pd.DataFrame):
-        upserted, tbl_name = upsert_to_kpis(df, self.db_connector)
+        if self.load_type in ['metrics_hourly', 'eth_to_usd_hourly']:
+            upserted, tbl_name = upsert_to_kpis(df, self.db_connector, granularity='hourly')
+        else:
+            upserted, tbl_name = upsert_to_kpis(df, self.db_connector)
         print_load(self.name, upserted, tbl_name)
 
-    def extract_data_from_db(self, queries_to_load, days, days_start=1, upsert=False):
+    def extract_data_from_db(self, queries_to_load, days, days_start=1, upsert=False, hours=None):
         query_list = []
         for query in queries_to_load:
             query_list.append(query.origin_key + ' - ' + query.metric_key)
@@ -181,7 +226,12 @@ class AdapterSQL(AbstractAdapter):
         dfMain = pd.DataFrame()
         for query in queries_to_load:
             try:
-                if days == 'auto':
+                if query.run_hourly == True and hours is not None:
+                    hour_val = hours
+                    query.query_parameters['hours'] = hour_val
+                elif query.run_hourly == True and hours is None:
+                    pass ## just use the default hours defined in the query
+                elif query.run_hourly == False and days == 'auto':
                     pass ## just use the default days defined in the query
                 else:
                     day_val = days
@@ -191,9 +241,14 @@ class AdapterSQL(AbstractAdapter):
                 query.sql = query.template.render(query.query_parameters)
                 df = pd.read_sql(query.sql, self.db_connector.engine.connect())
                 
-                df['date'] = df['day'].apply(pd.to_datetime)
-                df['date'] = df['date'].dt.date
-                df.drop(['day'], axis=1, inplace=True)
+                if query.run_hourly == True:
+                    ## for hourly queries, add column 'granularity' with value 'hourly'
+                    df['granularity'] = 'hourly'
+                else:
+                    ## for non-hourly queries, we want to convert the timestamp to date and rename it to 'date'
+                    df['date'] = df['day'].apply(pd.to_datetime).dt.date
+                    df.drop([query.timestamp_col], axis=1, inplace=True)
+                
                 df.rename(columns= {'val':'value'}, inplace=True)
                 if 'metric_key' not in df.columns:
                     df['metric_key'] = query.metric_key
@@ -203,9 +258,13 @@ class AdapterSQL(AbstractAdapter):
 
                 print(f"Query loaded: {query.metric_key} {query.origin_key} with {days} days. DF shape: {df.shape}")
 
-                if upsert == True:
+                if upsert == True and query.run_hourly == False:
                     df.set_index(['metric_key', 'origin_key', 'date'], inplace=True)
                     upserted, tbl_name = upsert_to_kpis(df, self.db_connector)
+                    print_load(self.name, upserted, tbl_name)
+                elif upsert == True and query.run_hourly == True:
+                    df.set_index(['metric_key', 'origin_key', 'timestamp', 'granularity'], inplace=True)
+                    upserted, tbl_name = upsert_to_kpis(df, self.db_connector, granularity='hourly')
                     print_load(self.name, upserted, tbl_name)
                 else:
                     dfMain = pd.concat([dfMain, df], ignore_index=True)
