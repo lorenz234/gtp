@@ -2151,13 +2151,13 @@ address_mapping = {
             "decimals": 18
         }
     },
-    "starknet": {
+    "starknet": { # starknet addresses usually have 64 hex characters, so make sure to add one extra 0 at the beginning of the address if it has 63 characters
         "circlefin_usdc": {
-            "address": "0x33068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb",
+            "address": "0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb",
             "decimals": 6
         },
         "circlefin_usdce": {
-            "address": "0x53c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8",
+            "address": "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8",
             "decimals": 6
         },
         "tetherto_usdte": {
@@ -2173,15 +2173,15 @@ address_mapping = {
             "decimals": 6
         },
         "makerdao_daie": {
-            "address": "0x5574eb6b8789a91466f902c380d978e472db68170ff82a5b650b95a58ddf4ad",
+            "address": "0x05574eb6b8789a91466f902c380d978e472db68170ff82a5b650b95a58ddf4ad",
             "decimals": 18
         },
         "uncap_usdu": {
-            "address": "0x2F94539F80158f9a48a7acF3747718dfBec9B6f639E2742c1FB44aE7ab5AA04",
+            "address": "0x02F94539F80158f9a48a7acF3747718dfBec9B6f639E2742c1FB44aE7ab5AA04",
             "decimals": 18
         },
         "noon_capital_usn": {
-            "address": "0x1e6545cab7ba4ac866768ba5e1bd540893762286ed3fea7f9c02bfa147e135b",
+            "address": "0x01e6545cab7ba4ac866768ba5e1bd540893762286ed3fea7f9c02bfa147e135b",
             "decimals": 18
         }
     },

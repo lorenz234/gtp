@@ -51,7 +51,11 @@ class AdapterFirstBlockOfDay(AbstractAdapter):
         rows: List[dict] = []
         for origin_key in origin_keys:
             try:
-                rows.extend(self._extract_chain(origin_key, progress_map.get(origin_key)))
+                # exception here for starknet
+                if origin_key == 'starknet':
+                    rows.extend(self._extract_starknet(progress_map.get(origin_key)))
+                else:
+                    rows.extend(self._extract_chain(origin_key, progress_map.get(origin_key)))
             except Exception as exc:
                 print(f"Failed to extract first_block_of_day for {origin_key}: {exc}")
 
