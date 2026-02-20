@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Checks if new attestations have been added to the label pool and submits them to airtable for review.',
     tags=['oli', 'hourly'],
     start_date=datetime(2026,2,19),
-    schedule='30 ** * * *'
+    schedule='30 * * * *'
 )
 
 def etl():
