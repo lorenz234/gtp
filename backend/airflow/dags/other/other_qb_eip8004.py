@@ -83,22 +83,35 @@ def run_dag():
             SELECT
                 v.origin_key,
                 v.agent_id,
-                u.uri_json->>'name' AS name,
-                u.uri_json->>'image' AS image,
-                u.uri_json->>'description' AS description,
-                (u.uri_json->>'x402Support')::boolean AS x402_support,
-                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem WHERE elem->>'name' = 'web' LIMIT 1) AS service_web_endpoint,
-                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem WHERE elem->>'name' = 'MCP' LIMIT 1) AS service_mcp_endpoint,
+                u.uri_json->>'name'                    AS name,
+                u.uri_json->>'image'                   AS image,
+                u.uri_json->>'description'             AS description,
+                (u.uri_json->>'x402Support')::boolean  AS x402_support,
+                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                    WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) IN ('web', 'website', 'http') LIMIT 1) AS service_web_endpoint,
+                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                    WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) IN ('mcp', 'mcp server') LIMIT 1) AS service_mcp_endpoint,
+                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                    WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) IN ('a2a', 'a2a agent') LIMIT 1) AS service_a2a_endpoint,
+                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                    WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) = 'oasf' LIMIT 1) AS service_oasf_endpoint,
+                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                    WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) = 'ens' LIMIT 1) AS service_ens_endpoint,
+                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                    WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) = 'did' LIMIT 1) AS service_did_endpoint,
+                (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                    WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) = 'email' LIMIT 1) AS service_email_endpoint,
                 v.feedback_count_all,
                 v.feedback_count_valid,
                 v.avg_rating,
-                v.unique_clients
+                v.unique_clients,
+                u.uri_json
             FROM feedback v
             LEFT JOIN uri_safe u
                 ON v.origin_key = u.origin_key
                 AND v.agent_id = u.agent_id
-            ORDER BY v.unique_clients desc
-            limit 200;
+            ORDER BY v.unique_clients DESC
+            LIMIT 200;
         """
         df_top_agents = db_connector.execute_query(query, load_df=True)
 
@@ -111,6 +124,11 @@ def run_dag():
             "x402_support",
             "service_web_endpoint",
             "service_mcp_endpoint",
+            "service_a2a_endpoint",
+            "service_oasf_endpoint",
+            "service_ens_endpoint",
+            "service_did_endpoint",
+            "service_email_endpoint",
             "feedback_count_all",
             "feedback_count_valid",
             "avg_rating",
@@ -123,6 +141,11 @@ def run_dag():
             "string",
             "string",
             "boolean",
+            "string",
+            "string",
+            "string",
+            "string",
+            "string",
             "string",
             "string",
             "number",
@@ -396,6 +419,72 @@ def run_dag():
             s3_bucket,
             "v1/quick-bites/eip8004/kpis",
             kpis_dict,
+            cf_distribution_id,
+            invalidate=False,
+        )
+
+        # json 4.1 pie chart, counting types of services mentioned in URIs (web, mcp, a2a, oasf, ens, did, email)
+        query = """
+            WITH uri_safe AS (
+                SELECT
+                    origin_key,
+                    agent_id,
+                    CASE WHEN jsonb_typeof(uri_json->'services') = 'array'
+                        THEN uri_json->'services'
+                        ELSE '[]'::jsonb
+                    END AS services
+                FROM public.eip8004_uri
+            ),
+            agents AS (
+                SELECT
+                    (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                        WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) IN ('web', 'website', 'http') LIMIT 1) AS service_web_endpoint,
+                    (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                        WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) IN ('mcp', 'mcp server') LIMIT 1) AS service_mcp_endpoint,
+                    (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                        WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) IN ('a2a', 'a2a agent') LIMIT 1) AS service_a2a_endpoint,
+                    (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                        WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) = 'oasf' LIMIT 1) AS service_oasf_endpoint,
+                    (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                        WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) = 'ens' LIMIT 1) AS service_ens_endpoint,
+                    (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                        WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) = 'did' LIMIT 1) AS service_did_endpoint,
+                    (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
+                        WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) = 'email' LIMIT 1) AS service_email_endpoint
+                FROM uri_safe u
+            )
+            SELECT
+                COUNT(*) AS total_agents,
+                COUNT(service_web_endpoint) AS web_count,
+                COUNT(service_mcp_endpoint) AS mcp_count,
+                COUNT(service_a2a_endpoint) AS a2a_count,
+                COUNT(service_oasf_endpoint) AS oasf_count,
+                COUNT(service_ens_endpoint) AS ens_count,
+                COUNT(service_did_endpoint) AS did_count,
+                COUNT(service_email_endpoint) AS email_count
+            FROM agents;
+        """
+        df_service_counts = db_connector.execute_query(query, load_df=True)
+        service_counts = df_service_counts.iloc[0].to_dict()
+        service_order = ["web", "mcp", "a2a", "oasf", "ens", "did", "email"]
+        service_count_rows = [
+            [service, int(service_counts.get(f"{service}_count", 0) or 0)]
+            for service in service_order
+        ]
+        service_counts_dict = {
+            "data": {
+                "service_counts": {
+                    "columns": ["service", "count"],
+                    "types": ["string", "number"],
+                    "rows": service_count_rows,
+                }
+            }
+        }
+        service_counts_dict = fix_dict_nan(service_counts_dict, "eip8004_service_counts", send_notification=False)
+        upload_json_to_cf_s3(
+            s3_bucket,
+            "v1/quick-bites/eip8004/service_counts",
+            service_counts_dict,
             cf_distribution_id,
             invalidate=False,
         )
