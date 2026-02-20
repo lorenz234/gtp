@@ -298,7 +298,7 @@ def etl():
             at.push_to_airtable(table, df_air)
             
             # send discord message
-            send_discord_message(f"{df_air.shape[0]} new attestations submitted to label pool for {df_air['owner_project'].unique().tolist()}, please review in airtable.", os.getenv('DISCORD_CONTRACTS'))
+            send_discord_message(f"{df_air.shape[0]} new attestations submitted to label pool for, please review in airtable.", os.getenv('DISCORD_CONTRACTS'))
 
     @task()
     def airtable_write_depreciated_owner_project():
