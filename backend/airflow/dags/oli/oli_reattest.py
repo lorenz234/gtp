@@ -89,7 +89,7 @@ def etl():
             at.push_to_airtable(table, df_air)
             
             # send discord message
-            send_discord_message(f"{df_air.shape[0]} new attestations submitted to label pool for {df_air['owner_project'].unique().tolist()}, please review in airtable.", os.getenv('DISCORD_CONTRACTS'))
+            send_discord_message(f"{df_air.shape[0]} new attestations submitted to label pool for {df_air['owner_project'].unique().tolist().__str__()}, please review in airtable.", os.getenv('DISCORD_CONTRACTS'))
 
     airtable_write_label_pool_reattest()
 etl()
