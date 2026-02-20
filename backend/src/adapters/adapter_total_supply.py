@@ -27,7 +27,7 @@ class AdapterTotalSupply(AbstractAdapter):
         origin_keys = load_params['origin_keys']
         days = load_params['days']
 
-        projects = [chain for chain in self.main_conf if chain.cs_token_address is not None] ## NEED to add these fields
+        projects = [chain for chain in self.main_conf if chain.cs_token_address is not None and chain.api_deployment_flag is not "ARCHIVE"] ## NEED to add these fields
         
         ## Prepare projects to load (can be a subset of all projects)
         check_projects_to_load(projects, origin_keys)
