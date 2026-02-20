@@ -1,0 +1,17 @@
+{#
+    A query to find the average gas used per second over the last 'hours' hours.
+
+    Parameters:
+    - origin_key: The name of the chain to identify the table.
+    - hours: default = 3; The time interval (in hours) to consider for the data extraction.
+#}
+
+{% set hours = hours | default(3) %}
+
+SELECT
+    date_trunc('hour', block_timestamp) AS "timestamp",
+    SUM(gas_used - l1_gas_used) / (60*60) AS value
+FROM {{ origin_key }}_tx
+WHERE block_timestamp >= date_trunc('hour', now() - interval '{{ hours }} hours')
+    AND block_timestamp < date_trunc('hour', now())
+GROUP BY 1;

@@ -21,7 +21,7 @@ from eim.funcs import get_eim_yamls
 from src.misc.jinja_helper import execute_jinja_query
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from src.config import gtp_units, gtp_metrics, gtp_da_metrics, gtp_app_metrics, gtp_fees_types, gtp_fees_timespans, l2_maturity_levels, eim_metrics, main_chart_config
+from src.config import gtp_units, gtp_fees_types, gtp_fees_timespans, l2_maturity_levels, main_chart_config, gtp_metrics_new
 
 import warnings
 
@@ -56,13 +56,14 @@ class JSONCreation():
 
         ## asign configs
         self.units = gtp_units
-        self.metrics = gtp_metrics
-        self.da_metrics = gtp_da_metrics
-        self.app_metrics = gtp_app_metrics
+        self.metrics = gtp_metrics_new['chains']
+        self.da_metrics = gtp_metrics_new['data_availability']
+        self.app_metrics = gtp_metrics_new['apps']
+        self.eim_metrics = gtp_metrics_new['eim']
+        
         self.fees_types = gtp_fees_types
         self.fees_timespans = gtp_fees_timespans
         self.maturity_levels = l2_maturity_levels
-        self.eim_metrics = eim_metrics
         self.main_chart_config = main_chart_config
 
         for metric_key, metric_value in self.metrics.items():

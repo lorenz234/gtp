@@ -160,10 +160,15 @@ def get_df_kpis_with_dates(days, end='yesterday'):
     return df
 
 ## this function upserts a dataframe to the fact_kpis and returns the number of upserted rows
-def upsert_to_kpis(df, db_connector):
-    tbl_name = 'fact_kpis'
-    upserted = db_connector.upsert_table(tbl_name, df)
-    return upserted, tbl_name
+def upsert_to_kpis(df, db_connector, granularity='daily'):
+    if granularity == 'daily':
+        tbl_name = 'fact_kpis'
+        upserted = db_connector.upsert_table(tbl_name, df)
+        return upserted, tbl_name
+    elif granularity == 'hourly':
+        tbl_name = 'fact_kpis_granular'
+        upserted = db_connector.upsert_table(tbl_name, df)
+        return upserted, tbl_name
 
 ## this function returns the number of days between today and the last entry in fact_kpis
 def get_missing_days_kpis(db_connector, metric_key, origin_key):

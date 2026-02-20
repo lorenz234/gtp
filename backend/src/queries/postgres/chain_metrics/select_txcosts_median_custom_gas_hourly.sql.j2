@@ -1,0 +1,46 @@
+{#
+    A query to calculate the median transaction fee over the  3 hours (default) for each hour.
+    If the origin_key is not 'starknet', we also filter out transactions with a gas_price of zero.
+
+    metric: txcosts_median_eth
+
+    Parameters:
+    - origin_key: The name of the chain to identify the table.
+    - hours: default = 3; The time interval (in hours) to consider for the data extraction.
+#}
+
+{% set hours = hours | default(3) %}
+
+WITH token_price AS (
+    SELECT "date", value AS price_usd 
+    FROM fact_kpis
+    WHERE origin_key = '{{ origin_key }}'
+        AND metric_key = 'price_usd' 
+        AND "date" >= current_date - interval '{{ hours }} hours' 
+        AND "date" < current_date
+),
+eth_price AS (
+    SELECT "date", value AS price_usd 
+    FROM fact_kpis
+    WHERE origin_key = 'ethereum'
+        AND metric_key = 'price_usd' 
+        AND "date" >= current_date - interval '{{ hours }} hours' 
+        AND "date" < current_date
+),
+tx_median AS (
+    SELECT
+    date_trunc('hour', block_timestamp) AS "timestamp",
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tx_fee) AS median_tx_fee
+FROM {{ origin_key }}_tx
+WHERE 1=1
+    AND block_timestamp >= date_trunc('hour', now() - interval '{{ hours }} hours')
+    AND block_timestamp < date_trunc('hour', now())
+GROUP BY 1
+)
+
+SELECT
+    tx."timestamp",
+    tx.median_tx_fee * e.price_usd / eth.price_usd AS value
+FROM tx_median tx
+LEFT JOIN token_price e ON date_trunc('day', tx."timestamp") = e."date"
+LEFT JOIN eth_price eth ON date_trunc('day', tx."timestamp") = eth."date";

@@ -1,0 +1,20 @@
+{# 
+    A query to aggregate the number of active addresses for each hour in the last 3 hours (default)
+    This number is used to compare our db values against the other block explorers.
+    
+    metric_key = 'aa'
+
+    Parameters:
+    - origin_key: The name of the chain to identify the table.
+    - hours: default = 3; The time interval (in hours) to consider for the data extraction.
+#}
+
+{% set hours = hours | default(3) %}
+
+SELECT 
+    date_trunc('hour', block_timestamp) AS "timestamp",
+    COUNT(DISTINCT from_address) AS value
+FROM {{ origin_key }}_tx
+WHERE block_timestamp >= date_trunc('hour', now() - interval '{{ hours }} hours')
+    AND block_timestamp < date_trunc('hour', now())
+GROUP BY 1;
