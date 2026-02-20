@@ -61,6 +61,7 @@ class DbConnector:
                 
         def execute_jinja(self, query_name, query_params={}, load_into_df=False):
                 query = jinja_env.get_template(query_name).render(query_params)
+                #print(f"Executing query {query_name} with params {query_params}. Query: {query}")
                 if 'trusted_entities' in query_params.keys():
                         query_params['trusted_entities'] = '... see gtp-dna/oli/trusted_entities.yml'
                 if load_into_df:

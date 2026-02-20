@@ -7,19 +7,19 @@ from src.misc.airflow_utils import alert_via_webhook
         'owner': 'nader',
         'retries': 2,
         'email_on_failure': False,
-        'retry_delay': timedelta(minutes=5),
+        'retry_delay': timedelta(minutes=1),
         'on_failure_callback': lambda context: alert_via_webhook(context, user='nader')
     },
-    dag_id='raw_orderly',
-    description='Load raw tx data from Orderly',
+    dag_id='raw_testnet_robinhood',
+    description='Load raw tx data from Testnet Robinhood',
     tags=['raw', 'near-real-time', 'rpc'],
     start_date=datetime(2023, 9, 1),
-    schedule='6/10 * * * *'
+    schedule='0/10 * * * *'
 )
 
 def adapter_rpc():
-    @task(execution_timeout=timedelta(minutes=45))
-    def run_orderly():
+    @task(execution_timeout=timedelta(minutes=90))
+    def run_testnet_robinhood():
         from src.adapters.adapter_raw_rpc import NodeAdapter
         from src.adapters.rpc_funcs.utils import MaxWaitTimeExceededException, get_chain_config
         from src.db_connector import DbConnector
@@ -27,10 +27,10 @@ def adapter_rpc():
         # Initialize DbConnector
         db_connector = DbConnector()
         
-        chain_name = 'orderly'
+        chain_name = 'testnet_robinhood'
 
         active_rpc_configs, batch_size = get_chain_config(db_connector, chain_name)
-        print(f"ORDERLY_CONFIG={active_rpc_configs}")
+        print(f"TESTNET_ROBINHOOD_CONFIG={active_rpc_configs}")
 
         adapter_params = {
             'rpc': 'local_node',
@@ -55,6 +55,5 @@ def adapter_rpc():
         finally:
             adapter.log_stats()
 
-    run_orderly()
+    run_testnet_robinhood()
 adapter_rpc()
-    
