@@ -295,6 +295,78 @@ class AdapterFirstBlockOfDay(AbstractAdapter):
 
         return rows
 
+    def _extract_starknet(self, progress_row: Optional[dict]) -> List[dict]:
+        from src.adapters.adapter_dune import AdapterDune
+        import os
+
+        today_utc = datetime.now(timezone.utc).date()
+        latest_db_date: Optional[date] = None
+
+        if progress_row:
+            candidate = progress_row.get("date")
+            if candidate is not None and pd.notna(candidate):
+                latest_db_date = pd.to_datetime(candidate).date()
+
+        # Starknet mainnet launched in Nov 2021; use day-before to include launch day on first backfill.
+        if latest_db_date is None:
+            latest_db_date = date(2021, 11, 15)
+
+        days = int((today_utc - latest_db_date).days)
+        if days <= 0:
+            print("starknet: no missing first_block_of_day data.")
+            return []
+
+        api_key = os.getenv("DUNE_API")
+        if not api_key:
+            raise ValueError("DUNE_API environment variable is not set.")
+
+        adapter_params = {"api_key": api_key}
+        print("Initializing AdapterDune...")
+        ad = AdapterDune(adapter_params, self.db_connector)
+        load_params = {
+            "queries": [
+                {
+                    "name": "starknet_first_block_of_day",
+                    "query_id": 6722519,
+                    "params": {"days": days},
+                }
+            ]
+        }
+        df = ad.extract(load_params)
+        if df.empty:
+            print(f"starknet: Dune returned no rows for the last {days} day(s).")
+            return []
+
+        expected_cols = {"date", "first_block_of_day"}
+        missing_cols = expected_cols.difference(df.columns)
+        if missing_cols:
+            raise ValueError(
+                "starknet_first_block_of_day query result missing required column(s): "
+                f"{sorted(missing_cols)}"
+            )
+
+        df = df.rename(columns={"first_block_of_day": "value"})
+
+        df["date"] = pd.to_datetime(df["date"]).dt.date
+        df["value"] = pd.to_numeric(df["value"], errors="coerce").astype("Int64")
+        df = df.dropna(subset=["value"])
+        df["value"] = df["value"].astype(int)
+        df = df[df["value"] != 0]
+        df = df[df["date"] > latest_db_date]
+        df = df.drop_duplicates(subset=["date"], keep="last").sort_values(by="date")
+
+        rows = [
+            {
+                "metric_key": self.METRIC_KEY,
+                "origin_key": "starknet",
+                "date": row["date"],
+                "value": int(row["value"]),
+            }
+            for _, row in df.iterrows()
+        ]
+        print(f"starknet: pulled {len(rows)} first_block_of_day row(s) from Dune (days={days}).")
+        return rows
+
     def _find_first_block_by_timestamp(
         self,
         origin_key: str,
@@ -334,7 +406,7 @@ class AdapterFirstBlockOfDay(AbstractAdapter):
         df = self.db_connector.execute_query(query, load_df=True)
         print(f"[DB] -> returned {len(df)} chain row(s)")
         ### remove certain chains
-        to_be_removed = ['starknet', 'imx', 'loopring', 'real']
+        to_be_removed = ['imx', 'loopring', 'real']
         df = df[~df['origin_key'].isin(to_be_removed)]
         print(f"[DB] -> removed {to_be_removed} from df, {len(df)} chain row(s) left")
         if df.empty:
