@@ -33,6 +33,26 @@ gtp_units = {
         },
     }
 
+# Sources
+gtp_sources = {
+        'l2beat': {
+            'name': 'L2BEAT',
+            'url': 'https://l2beat.com'
+        },
+        'defillama': {
+            'name': 'DefiLlama',
+            'url': 'https://defillama.com'
+        },
+        'growthepie': {
+            'name': 'growthepie',
+            'url': 'https://growthepie.com'
+        },
+        'coingecko': {
+            'name': 'CoinGecko',
+            'url': 'https://www.coingecko.com'
+        }
+    }
+
 # Metrics
 ## Level: either chain, da_layer, or app
 ## Fundamental: whether the metric should be considered a fundamentals metrics that is also exported in jsons
