@@ -427,7 +427,7 @@ class JsonGen():
             logging.error(f"Validation failed for {origin_key} - {metric_id}: {e}")
             return None
     
-    def _process_and_save_metric(self, origin_key: str, metric_id: str, level: str, start_date: str):
+    def _process_and_save_metric(self, origin_key: str, metric_id: str, level: str, start_date: str, update_cadence: str = 'daily'):
         """
         Worker function to process and save/upload a single metric-chain combination.
         This is designed to be called by the ThreadPoolExecutor.
@@ -440,8 +440,13 @@ class JsonGen():
             if self.s3_bucket is None:
                 self._save_to_json(metric_dict, s3_path)
             else:
-                upload_json_to_cf_s3(self.s3_bucket, s3_path, metric_dict, self.cf_distribution_id, invalidate=False)
-            logging.info(f"SUCCESS: Exported {origin_key} - {metric_id}")
+                if update_cadence == 'hourly':
+                    # For hourly updates, we can skip invalidation to save costs, and rather set cache-control headers for a shorter TTL
+                    upload_json_to_cf_s3(self.s3_bucket, s3_path, metric_dict, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60")
+                    logging.info(f"SUCCESS: Exported {origin_key} - {metric_id} (with hourly cache control, no invalidation) ")
+                else:
+                    upload_json_to_cf_s3(self.s3_bucket, s3_path, metric_dict, self.cf_distribution_id, invalidate=False)
+                    logging.info(f"SUCCESS: Exported {origin_key} - {metric_id}")
         else:
             logging.warning(f"NO DATA: Skipped export for {origin_key} - {metric_id}")
             
@@ -455,9 +460,11 @@ class JsonGen():
         if level == 'chains':
             logging.info(f"Running task list for Chains")
             config = self.main_config
+            update_cadence = 'hourly'
         elif level == 'data_availability':
             logging.info(f"Running task list for Data Availability")
             config = self.da_config
+            update_cadence = 'daily'
         else:
             raise ValueError(f"Invalid level '{level}'. Must be 'chains' or 'data_availability'.")
         
@@ -480,14 +487,14 @@ class JsonGen():
         logging.info(f"Starting parallel processing for {len(tasks)} tasks with max_workers={max_workers}...")
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_task = {executor.submit(self._process_and_save_metric, ok, mid, level, start_date): (ok, mid) for ok, mid in tasks}
+            future_to_task = {executor.submit(self._process_and_save_metric, ok, mid, level, start_date, update_cadence): (ok, mid) for ok, mid in tasks}
             for future in as_completed(future_to_task):
                 try:
                     future.result()
                 except Exception as exc:
                     logging.error(f'Task {future_to_task[future]} generated an exception: {exc}')
 
-        if self.s3_bucket and self.cf_distribution_id:
+        if self.s3_bucket and self.cf_distribution_id and update_cadence != 'hourly':
             logging.info("Invalidating CloudFront cache for all metrics...")
             empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/metrics/{level}/*')
 
