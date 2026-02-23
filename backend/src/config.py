@@ -50,7 +50,11 @@ gtp_sources = {
         'coingecko': {
             'name': 'CoinGecko',
             'url': 'https://www.coingecko.com'
-        }
+        },
+        'dune': {
+            'name': 'Dune',
+            'url': 'https://dune.com'
+        },
     }
 
 # Metrics
