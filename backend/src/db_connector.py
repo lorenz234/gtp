@@ -688,19 +688,19 @@ class DbConnector:
                 df = pd.read_sql(exec_string, self.engine.connect())
                 return df
                 
-        def get_metric_sources(self, metric_key:str, origin_keys:list):
+        def get_metric_sources(self, metric_id:str, origin_keys:list):
                 if len(origin_keys) == 0:
                         exec_string = f'''
                                 SELECT DISTINCT source
                                 FROM metric_sources
-                                WHERE metric_key = '{metric_key}'
+                                WHERE metric_id = '{metric_id}'
                         '''
                 else:
                         ok_string = "'" + "', '".join(origin_keys) + "'"
                         exec_string = f'''
                                 SELECT DISTINCT source
                                 FROM metric_sources
-                                WHERE metric_key = '{metric_key}'
+                                WHERE metric_id = '{metric_id}'
                                         AND origin_key in ({ok_string})
                         '''
                         # print (exec_string)
