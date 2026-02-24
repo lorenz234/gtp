@@ -21,7 +21,7 @@ class AdapterDefillama(AbstractAdapter):
         self.df_ethereum = self.get_total_stables_fees_df()
 
         main_conf = get_main_config()
-        self.projects = [chain for chain in main_conf if chain.aliases_defillama is not None]
+        self.projects = [chain for chain in main_conf if chain.aliases_defillama is not None and chain.api_deployment_flag is not "ARCHIVE"]
         
         print_init(self.name, self.adapter_params)
 

@@ -200,7 +200,7 @@ def read_all_remap_owner_project(api, AIRTABLE_BASE_ID, table):
     return df
 
 # get approved labels from untrusted owner_project airtable (airtable: Label Pool Reattest)
-def read_all_approved_label_pool_reattest(api, AIRTABLE_BASE_ID, table):
+def read_all_label_pool_reattest(api, AIRTABLE_BASE_ID, table, approved=True):
 
     # get all records from airtable
     df = read_airtable(table)
@@ -219,7 +219,8 @@ def read_all_approved_label_pool_reattest(api, AIRTABLE_BASE_ID, table):
         df['usage_category'] = None
 
     # only keep rows where approve is set to true
-    df = df[df['approve'] == True]
+    if approved:
+        df = df[df['approve'] == True]
     
     # drop not needded columns
     df = df[['address', 'origin_key', 'contract_name', 'owner_project', 'usage_category', 'attester', 'id']]

@@ -247,7 +247,7 @@ class AdapterSQL(AbstractAdapter):
                 else:
                     ## for non-hourly queries, we want to convert the timestamp to date and rename it to 'date'
                     df['date'] = df['day'].apply(pd.to_datetime).dt.date
-                    df.drop([query.timestamp_col], axis=1, inplace=True)
+                    df.drop(['day'], axis=1, inplace=True)
                 
                 df.rename(columns= {'val':'value'}, inplace=True)
                 if 'metric_key' not in df.columns:

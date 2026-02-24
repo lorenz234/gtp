@@ -19,7 +19,7 @@ class AdapterCoingecko(AbstractAdapter):
         self.base_url = 'https://pro-api.coingecko.com/api/v3/coins/'
 
         main_conf = get_main_config()
-        self.projects = [chain for chain in main_conf if chain.aliases_coingecko is not None]
+        self.projects = [chain for chain in main_conf if chain.aliases_coingecko is not None and chain.api_deployment_flag is not "ARCHIVE"]
 
         self.api_key = adapter_params.get('api_key', None)
         self.headers = {
@@ -48,7 +48,7 @@ class AdapterCoingecko(AbstractAdapter):
             days = load_params['days']
             vs_currencies = load_params['vs_currencies']
             
-            ## Prepare projects to load (can be a subseth of all projects)
+            ## Prepare projects to load (can be a subset of all projects)
             check_projects_to_load(self.projects, origin_keys)
             projects_to_load = return_projects_to_load(self.projects, origin_keys)
 
