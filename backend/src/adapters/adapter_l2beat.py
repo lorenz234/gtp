@@ -34,7 +34,7 @@ class AdapterL2Beat(AbstractAdapter):
         self.load_type = load_params['load_type']
         self.l2beat_chains = load_params.get('l2beat_chains', None)
 
-        projects = [chain for chain in main_conf if chain.aliases_l2beat is not None and chain.api_deployment_flag is not "ARCHIVE"]
+        projects = [chain for chain in main_conf if chain.aliases_l2beat is not None and chain.api_deployment_flag != "ARCHIVE"]
         
         ## Prepare projects to load (can be a subset of all projects)
         check_projects_to_load(projects, origin_keys)

@@ -69,6 +69,28 @@ class JsonGen():
             # Pydantic dump cleans data, but we use allow_nan=False to force error or manual fix if needed.
             # Using custom fix_dict_nan before this call usually.
             json.dump(data, fp, ignore_nan=True)
+    
+    def _get_metric_source(self, metric_id: str, origin_key: str, level: str) -> List[str]:
+        query_params = {"metric_id": metric_id, "origin_key": origin_key, "level": level}
+        df = execute_jinja_query(self.db_connector, "api/select_metric_source.sql.j2", query_params, return_df=True)
+        if df.empty:
+            return []
+        sources: List[str] = []
+        for source in df["source"].tolist():
+            if pd.isna(source):
+                continue
+            source_str = str(source).strip()
+            if source_str:
+                sources.append(source_str)
+        return sources
+
+    def _alert_missing_metric_source(self, metric_id: str, origin_key: str, level: str):
+        try:
+            send_discord_message(
+                f"[metrics] Missing source for metric_id='{metric_id}', origin_key='{origin_key}', level='{level}'."
+            )
+        except Exception as exc:
+            logging.warning(f"Failed to send Discord alert for missing metric source: {exc}")
 
     def _get_raw_data_single_ok(self, origin_key: str, metric_key: str, days: Optional[int] = None) -> pd.DataFrame:
         """Get fact kpis from the database for a specific metric key (daily)."""
@@ -427,7 +449,7 @@ class JsonGen():
             logging.error(f"Validation failed for {origin_key} - {metric_id}: {e}")
             return None
     
-    def _process_and_save_metric(self, origin_key: str, metric_id: str, level: str, start_date: str):
+    def _process_and_save_metric(self, origin_key: str, metric_id: str, level: str, start_date: str, update_cadence: str = 'daily'):
         """
         Worker function to process and save/upload a single metric-chain combination.
         This is designed to be called by the ThreadPoolExecutor.
@@ -436,16 +458,27 @@ class JsonGen():
         metric_dict = self.create_metric_per_chain_dict(origin_key, metric_id, level, start_date)
 
         if metric_dict:
+            sources = self._get_metric_source(metric_id, origin_key, level)
+            if sources:
+                metric_dict.setdefault('details', {})['source'] = sources
+            else:
+                self._alert_missing_metric_source(metric_id, origin_key, level)
+
             s3_path = f'{self.api_version}/metrics/{level}/{origin_key}/{metric_id}'
             if self.s3_bucket is None:
                 self._save_to_json(metric_dict, s3_path)
             else:
-                upload_json_to_cf_s3(self.s3_bucket, s3_path, metric_dict, self.cf_distribution_id, invalidate=False)
-            logging.info(f"SUCCESS: Exported {origin_key} - {metric_id}")
+                if update_cadence == 'hourly':
+                    # For hourly updates, we can skip invalidation to save costs, and rather set cache-control headers for a shorter TTL
+                    upload_json_to_cf_s3(self.s3_bucket, s3_path, metric_dict, self.cf_distribution_id, invalidate=False, cache_control="public, max-age=60")
+                    logging.info(f"SUCCESS: Exported {origin_key} - {metric_id} (with hourly cache control, no invalidation) ")
+                else:
+                    upload_json_to_cf_s3(self.s3_bucket, s3_path, metric_dict, self.cf_distribution_id, invalidate=False)
+                    logging.info(f"SUCCESS: Exported {origin_key} - {metric_id}")
         else:
             logging.warning(f"NO DATA: Skipped export for {origin_key} - {metric_id}")
             
-    def create_metric_jsons(self, metric_ids: Optional[List[str]] = None, origin_keys: Optional[List[str]] = None, level: str = 'chains', start_date='2020-01-01', max_workers: int = 5):
+    def create_metric_jsons(self, metric_ids: Optional[List[str]] = None, origin_keys: Optional[List[str]] = None, level: str = 'chains', start_date='2020-01-01', max_workers: int = 5, invalidate=None):
         tasks = []
         if metric_ids:
             logging.info(f"Filtering tasks for specific metric IDs: {metric_ids}")
@@ -455,9 +488,11 @@ class JsonGen():
         if level == 'chains':
             logging.info(f"Running task list for Chains")
             config = self.main_config
+            update_cadence = 'hourly'
         elif level == 'data_availability':
             logging.info(f"Running task list for Data Availability")
             config = self.da_config
+            update_cadence = 'daily'
         else:
             raise ValueError(f"Invalid level '{level}'. Must be 'chains' or 'data_availability'.")
         
@@ -480,14 +515,14 @@ class JsonGen():
         logging.info(f"Starting parallel processing for {len(tasks)} tasks with max_workers={max_workers}...")
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_task = {executor.submit(self._process_and_save_metric, ok, mid, level, start_date): (ok, mid) for ok, mid in tasks}
+            future_to_task = {executor.submit(self._process_and_save_metric, ok, mid, level, start_date, update_cadence): (ok, mid) for ok, mid in tasks}
             for future in as_completed(future_to_task):
                 try:
                     future.result()
                 except Exception as exc:
                     logging.error(f'Task {future_to_task[future]} generated an exception: {exc}')
 
-        if self.s3_bucket and self.cf_distribution_id:
+        if self.s3_bucket and self.cf_distribution_id and (update_cadence != 'hourly' or invalidate):
             logging.info("Invalidating CloudFront cache for all metrics...")
             empty_cloudfront_cache(self.cf_distribution_id, f'/{self.api_version}/metrics/{level}/*')
 

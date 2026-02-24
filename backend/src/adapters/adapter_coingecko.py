@@ -19,7 +19,7 @@ class AdapterCoingecko(AbstractAdapter):
         self.base_url = 'https://pro-api.coingecko.com/api/v3/coins/'
 
         main_conf = get_main_config()
-        self.projects = [chain for chain in main_conf if chain.aliases_coingecko is not None and chain.api_deployment_flag is not "ARCHIVE"]
+        self.projects = [chain for chain in main_conf if chain.aliases_coingecko is not None and chain.api_deployment_flag != "ARCHIVE"]
 
         self.api_key = adapter_params.get('api_key', None)
         self.headers = {
