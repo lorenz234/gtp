@@ -266,7 +266,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         break
                 except Exception as e:
                     # remove coins from db_progress_filtered if contract not yet deployed
-                    if "Could not decode contract function call" in str(e) or "Contract not found." in str(e):
+                    if self._is_contract_not_deployed_error(e):
                         print(f"- Removed {token_id} from db_progress_filtered for chain {chain} on date {date} due to contract not deployed yet.")
                         db_progress_filtered = db_progress_filtered[db_progress_filtered['token_id'] != token_id]
                         if len(db_progress_filtered) == 0:
@@ -285,12 +285,12 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
     #-#-#-# Raw Helper Functions #-#-#-#
 
-
-    def _is_non_retryable_rpc_error(self, error: Exception) -> bool: # check if error is of type that indicates the contract is not deployed yet
+    def _is_contract_not_deployed_error(self, error: Exception) -> bool:
         error_str = str(error).lower()
         return (
-            "Could not decode contract function call" in error_str
-            or "Contract not found" in error_str
+            "could not decode contract function call" in error_str
+            or "contract not found" in error_str
+            or "contract error" in error_str
         )
 
     def _call_with_rpc_failover(self, chain: str, call_fn):
@@ -307,7 +307,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             try:
                 return call_fn(w3)
             except Exception as e:
-                if self._is_non_retryable_rpc_error(e):
+                if self._is_contract_not_deployed_error(e):
                     raise e
                 last_error = e
                 print(f"RPC call failed on chain {chain} with RPC {self.current_rpc} (rpcs {attempt + 1}/{max_attempts}): {e}")
