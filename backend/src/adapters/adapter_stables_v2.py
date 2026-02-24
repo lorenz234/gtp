@@ -3,6 +3,8 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 from web3 import Web3
+from starknet_py.net.full_node_client import FullNodeClient # Starknet w3 equivalent
+from starknet_py.contract import Contract
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.adapter_SupplyReader import SupplyReaderAdapter
 
@@ -139,13 +141,8 @@ class AdapterStablecoinSupply(AbstractAdapter):
             ## extract data for 'total_supply'
             if metric_key == 'total_supply':
 
-                # total_supply is pulled in primarly using RPC, because calculating total_supply based on transfer events in dune is not reliable!
-                if chain == 'starknet': # for starknet we use dune, as for the few tokens is luckily works.
-                    print("Skipping Starknet for now")
-                    continue
-                    #df = self.total_supply_from_dune_starknet(token_ids, db_progress, pretend_today_is=pretend_today_is)
-                else:
-                    df = self.total_supply_from_rpc(chain, token_ids, db_progress, pretend_today_is=pretend_today_is)
+                # pull total_supply data from RPCs (100% reliable method)
+                df = self.total_supply_from_rpc(chain, token_ids, db_progress, pretend_today_is=pretend_today_is)
                 
                 # merge df into df_all
                 if df.empty:
@@ -186,7 +183,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         df_supplies_all = pd.DataFrame()
 
         # initialize chain rpc state
-        self.get_new_w3(chain)
+        self.get_new_w3(chain) ## is this needed?
 
         # going from newest to oldest date
         for index, row in block_date_mapping.iterrows():
@@ -284,52 +281,6 @@ class AdapterStablecoinSupply(AbstractAdapter):
         return df_supplies_all
     
 
-    def total_supply_from_dune_starknet(self, token_ids, db_progress, pretend_today_is=None):
-        # merged all extracted data into one df_all
-        df_all = pd.DataFrame()
-
-        # filter down db_progress and token_ids for starknet
-        db_progress_filtered = self.get_db_progress_filtered('starknet', 'total_supply', token_ids, db_progress)
-        # replace NaN with a dummy old date
-        db_progress_filtered = db_progress_filtered.fillna({'date': pd.Timestamp('2000-01-01').date()})
-        print(f"Pulling 'total_supply' for the following token_ids: {db_progress_filtered['token_id'].tolist()}")
-
-        # should eventually be switched out for rpc method, but for now all starknet stables work using dune mint/burn events
-        from src.adapters.adapter_dune import AdapterDune
-        import os
-        adapter_params = {
-            'api_key' : os.getenv("DUNE_API")
-        }
-        print("Initializing AdapterDune...")
-        ad = AdapterDune(adapter_params, self.db_connector)
-        for index, row in db_progress_filtered.iterrows():
-            days = (pd.to_datetime('today').date() - pd.to_datetime(row['date']).date()).days
-            token_address = row['address']
-            decimals = row['decimals']
-            load_params = {
-                    'queries': [
-                        {
-                            'name': 'starknet_stablecoin_totalSupply',
-                            'query_id': 6578181,
-                            'params': {
-                                'days': days,
-                                'address': token_address,
-                                'decimals': decimals
-                            }
-                        }
-                    ]
-                }
-            df = ad.extract(load_params)
-            df['token_id'] = row['token_id']
-            df['address'] = row['address']
-            df['decimals'] = row['decimals']
-            print(f"Successfully pulled total_supply for Starknet token {row['token_id']} for the last {days} day(s) using Dune.")
-            df_all = pd.concat([df_all, df], ignore_index=True)
-
-        df_all['method'] = 'dune'
-        df_all['origin_key'] = 'starknet'
-        return df_all
-
     #-#-#-# Raw Helper Functions #-#-#-#
 
 
@@ -378,12 +329,18 @@ class AdapterStablecoinSupply(AbstractAdapter):
         """
         Read token totalSupply via direct ERC20 contract call with RPC failover.
         """
-        def _call_fn(w3):
-            contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=self.erc20_abi)
-            total_supply = contract.functions.totalSupply().call(block_identifier=block_number)
-            return total_supply / (10 ** decimals)
-
-        return self._call_with_rpc_failover(chain, _call_fn)
+        if chain == 'starknet': # special case for starknet!
+            async def _call_fn(w3):
+                contract = await Contract.from_address(address=int(address,16), provider=w3)
+                result = await contract.functions["total_supply"].call(block_number=block_number)
+                return result[0]/(10 ** decimals)
+            self._call_with_rpc_failover(chain, lambda w3: self.run_async(_call_fn(w3)))
+        else: # all other chains
+            def _call_fn(w3):
+                contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=self.erc20_abi)
+                total_supply = contract.functions.totalSupply().call(block_identifier=block_number)
+                return total_supply / (10 ** decimals)
+            self._call_with_rpc_failover(chain, _call_fn)
         
     def get_new_w3(self, chain: str, rotate: bool = False):
         """
@@ -408,7 +365,10 @@ class AdapterStablecoinSupply(AbstractAdapter):
             self.current_rpc = self.list_of_rpcs[self.current_rpc_index]
             print(f"Rotating w3 instance to new RPC for chain: {chain} to RPC: {self.current_rpc}")
 
-        return Web3(Web3.HTTPProvider(self.current_rpc))
+        if chain == 'starknet':
+            return FullNodeClient(node_url=self.current_rpc)
+        else:
+            return Web3(Web3.HTTPProvider(self.current_rpc))
 
     def update_sys_stables_v2(self, coin_mapping):
         """
