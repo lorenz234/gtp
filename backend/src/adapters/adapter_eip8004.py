@@ -3,7 +3,11 @@ import time
 import pandas as pd
 import json
 
+# imports for fetching and parsing URIs
 import requests 
+from urllib.parse import urlparse
+import ipaddress
+import socket
 
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.adapters.adapter_logs import AdapterLogs
@@ -120,6 +124,8 @@ class EIP8004Adapter(AbstractAdapter):
         if chains == ['*']:
             rpc_map = self.get_origin_keys_with_rpcs()
             chains = rpc_map['origin_key'].unique().tolist()
+
+        # getting the latest URIs based on df if provided, otherwise based on days_back or all in db 
         print(f"Following chains selected for URI extraction: {chains}")
         if df_extract is None and days_back is None:
             print("No df provided for URI extraction, extracting all URIs from database.")
@@ -412,9 +418,17 @@ class EIP8004Adapter(AbstractAdapter):
         return response.json()
     
     def fetch_http(self, uri: str):
-        """Fetch JSON from HTTPS/HTTP URL"""
-        response = requests.get(uri, timeout=30)
+        parsed = urlparse(uri)
+        ip = ipaddress.ip_address(socket.gethostbyname(parsed.hostname))
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise ValueError(f"Blocked internal URL: {uri}")
+
+        response = requests.get(uri, timeout=30, allow_redirects=False)
         response.raise_for_status()
+
+        if len(response.content) > 5 * 1024 * 1024:
+            raise ValueError("Response too large (over 5MB)")
+
         return response.json()
     
     def get_db_progress_uri(self, chains, days_back=None):

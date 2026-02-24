@@ -6,8 +6,8 @@ from web3 import Web3
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.adapter_SupplyReader import SupplyReaderAdapter
 
-#!# 'dune' query for totalSupply logic only works on 95% of the stablecoins! It tracks transfers events to 0x0 and from 0x0. Not all stables follow that logic.
-#!# 'rpc' requires 'first_block_of_day' data to be available in the database.
+#!# Logic requires 'first_block_of_day' data to be available in fact_kpis.
+#!# Tracking totalSupply through Dune events is not reliable for total_supply, as some developers decided not to emit events to save on gas.
 
 class AdapterStablecoinSupply(AbstractAdapter):
     """
@@ -51,7 +51,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             extract_params (dict): Dictionary containing the parameters for extraction. Expected keys are:
             - origin_keys (list): List of chain names to extract data for.  Use ['*'] for all.
             - token_ids (list): List of token_ids to extract data for. Use ['*'] for all.
-            - metric_keys (list): List of metric_keys to extract data for. Use ['*'] for all. Options are ...
+            - metric_keys (list): List of metric_keys to extract data for. Use ['*'] for all. Options are 'total_supply'
         """
         # all data combined
         df_all = None
@@ -136,18 +136,20 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
         for metric_key in metric_keys:
 
-            ## extract data for total_supply
+            ## extract data for 'total_supply'
             if metric_key == 'total_supply':
 
-                # total_supply is pulled in only using RPC, because calculating total_supply based on transfer events in dune is not reliable!
-                if chain == 'starknet':
-                    print("WARNING: Skipping Starknet for now.")
+                # total_supply is pulled in primarly using RPC, because calculating total_supply based on transfer events in dune is not reliable!
+                if chain == 'starknet': # for starknet we use dune, as for the few tokens is luckily works.
+                    print("Skipping Starknet for now")
                     continue
-                    #return self.total_supply_from_rpc_starknet(token_ids, db_progress, pretend_today_is=None) # TODO
+                    #df = self.total_supply_from_dune_starknet(token_ids, db_progress, pretend_today_is=pretend_today_is)
                 else:
                     df = self.total_supply_from_rpc(chain, token_ids, db_progress, pretend_today_is=pretend_today_is)
-                    if df.empty:
-                        continue
+                
+                # merge df into df_all
+                if df.empty:
+                    continue
                 df['metric_key'] = 'total_supply'
                 df_all = pd.concat([df_all, df], ignore_index=True)
 
@@ -191,7 +193,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             block_number = row['value']
             date = row['date']
 
-            # can we use SupplyReader for this date to pull data
+            # can we use SupplyReader for this date to pull data?
             use_supply_reader = (is_supplyreader_deployed and is_supplyreader_deployed_date <= pd.to_datetime(date).date())
 
             # Yes, use SupplyReader :)
@@ -281,6 +283,52 @@ class AdapterStablecoinSupply(AbstractAdapter):
             print(f"Successfully pulled stablecoin supply data for chain '{chain}' using RPC calls for {len(df_supplies_all)} records.")
         return df_supplies_all
     
+
+    def total_supply_from_dune_starknet(self, token_ids, db_progress, pretend_today_is=None):
+        # merged all extracted data into one df_all
+        df_all = pd.DataFrame()
+
+        # filter down db_progress and token_ids for starknet
+        db_progress_filtered = self.get_db_progress_filtered('starknet', 'total_supply', token_ids, db_progress)
+        # replace NaN with a dummy old date
+        db_progress_filtered = db_progress_filtered.fillna({'date': pd.Timestamp('2000-01-01').date()})
+        print(f"Pulling 'total_supply' for the following token_ids: {db_progress_filtered['token_id'].tolist()}")
+
+        # should eventually be switched out for rpc method, but for now all starknet stables work using dune mint/burn events
+        from src.adapters.adapter_dune import AdapterDune
+        import os
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        print("Initializing AdapterDune...")
+        ad = AdapterDune(adapter_params, self.db_connector)
+        for index, row in db_progress_filtered.iterrows():
+            days = (pd.to_datetime('today').date() - pd.to_datetime(row['date']).date()).days
+            token_address = row['address']
+            decimals = row['decimals']
+            load_params = {
+                    'queries': [
+                        {
+                            'name': 'starknet_stablecoin_totalSupply',
+                            'query_id': 6578181,
+                            'params': {
+                                'days': days,
+                                'address': token_address,
+                                'decimals': decimals
+                            }
+                        }
+                    ]
+                }
+            df = ad.extract(load_params)
+            df['token_id'] = row['token_id']
+            df['address'] = row['address']
+            df['decimals'] = row['decimals']
+            print(f"Successfully pulled total_supply for Starknet token {row['token_id']} for the last {days} day(s) using Dune.")
+            df_all = pd.concat([df_all, df], ignore_index=True)
+
+        df_all['method'] = 'dune'
+        df_all['origin_key'] = 'starknet'
+        return df_all
 
     #-#-#-# Raw Helper Functions #-#-#-#
 
