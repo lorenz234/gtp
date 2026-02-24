@@ -1,4 +1,5 @@
 import os
+import asyncio
 import pandas as pd
 from datetime import datetime, timedelta
 
@@ -10,6 +11,7 @@ from src.misc.adapter_SupplyReader import SupplyReaderAdapter
 
 #!# Logic requires 'first_block_of_day' data to be available in fact_kpis.
 #!# Tracking totalSupply through Dune events is not reliable for total_supply, as some developers decided not to emit events to save on gas.
+#!# Starknet is special and only works if run not from a Jupyter notebook (due to asyncio and event loop issues)
 
 class AdapterStablecoinSupply(AbstractAdapter):
     """
@@ -264,7 +266,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         break
                 except Exception as e:
                     # remove coins from db_progress_filtered if contract not yet deployed
-                    if "Could not decode contract function call" in str(e):
+                    if "Could not decode contract function call" in str(e) or "Contract not found." in str(e):
                         print(f"- Removed {token_id} from db_progress_filtered for chain {chain} on date {date} due to contract not deployed yet.")
                         db_progress_filtered = db_progress_filtered[db_progress_filtered['token_id'] != token_id]
                         if len(db_progress_filtered) == 0:
@@ -284,12 +286,11 @@ class AdapterStablecoinSupply(AbstractAdapter):
     #-#-#-# Raw Helper Functions #-#-#-#
 
 
-    def _is_non_retryable_rpc_error(self, error: Exception) -> bool:
+    def _is_non_retryable_rpc_error(self, error: Exception) -> bool: # check if error is of type that indicates the contract is not deployed yet
         error_str = str(error).lower()
         return (
-            "could not decode contract function call" in error_str
-            or "execution reverted" in error_str
-            or "invalid opcode" in error_str
+            "Could not decode contract function call" in error_str
+            or "Contract not found" in error_str
         )
 
     def _call_with_rpc_failover(self, chain: str, call_fn):
@@ -330,17 +331,20 @@ class AdapterStablecoinSupply(AbstractAdapter):
         Read token totalSupply via direct ERC20 contract call with RPC failover.
         """
         if chain == 'starknet': # special case for starknet!
-            async def _call_fn(w3):
-                contract = await Contract.from_address(address=int(address,16), provider=w3)
-                result = await contract.functions["total_supply"].call(block_number=block_number)
-                return result[0]/(10 ** decimals)
-            self._call_with_rpc_failover(chain, lambda w3: self.run_async(_call_fn(w3)))
-        else: # all other chains
+            def _call_fn(w3):
+                async def _read_total_supply():
+                    contract = await Contract.from_address(address=int(address, 16), provider=w3)
+                    result = await contract.functions["total_supply"].call(block_number=block_number)
+                    value = result[0] if isinstance(result, (list, tuple)) else result
+                    return value / (10 ** decimals)
+                return asyncio.run(_read_total_supply())
+            return self._call_with_rpc_failover(chain, _call_fn)
+        else: # all other evm chains
             def _call_fn(w3):
                 contract = w3.eth.contract(address=Web3.to_checksum_address(address), abi=self.erc20_abi)
                 total_supply = contract.functions.totalSupply().call(block_identifier=block_number)
                 return total_supply / (10 ** decimals)
-            self._call_with_rpc_failover(chain, _call_fn)
+            return self._call_with_rpc_failover(chain, _call_fn)
         
     def get_new_w3(self, chain: str, rotate: bool = False):
         """
