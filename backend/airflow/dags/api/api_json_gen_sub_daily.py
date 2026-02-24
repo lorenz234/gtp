@@ -40,7 +40,7 @@ def run():
         db_connector = DbConnector()
         
         json_gen = JsonGen(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
-        json_gen.create_metric_jsons(level='chains')
+        json_gen.create_metric_jsons(level='chains', metric_ids=['txcount', 'daa', 'fees', 'txcosts', 'throughput']) ## all metric_ids that run hourly
         #json_gen.create_metric_jsons(level='data_availability')
         
     run_create_metrics_per_chain_jsons_hourly()
