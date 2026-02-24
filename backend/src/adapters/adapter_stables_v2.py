@@ -141,7 +141,9 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
                 # total_supply is pulled in primarly using RPC, because calculating total_supply based on transfer events in dune is not reliable!
                 if chain == 'starknet': # for starknet we use dune, as for the few tokens is luckily works.
-                    df = self.total_supply_from_dune_starknet(token_ids, db_progress, pretend_today_is=pretend_today_is)
+                    print("Skipping Starknet for now")
+                    continue
+                    #df = self.total_supply_from_dune_starknet(token_ids, db_progress, pretend_today_is=pretend_today_is)
                 else:
                     df = self.total_supply_from_rpc(chain, token_ids, db_progress, pretend_today_is=pretend_today_is)
                 
