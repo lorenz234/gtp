@@ -24,7 +24,8 @@ class AdapterOLIOffchain(AbstractAdapter):
         # setup logs adapter
         self.adapter_logs = AdapterLogs(self.w3)
         # if this script is running on Linux, we are on the backend, then use 'backend/', else ''
-        self.additional_folder_structure = 'backend/' if platform.system() == 'Linux' else ''
+        #self.additional_folder_structure = 'backend/' if platform.system() == 'Linux' else ''
+        self.additional_folder_structure = ''
 
         print_init(self.name, self.adapter_params)
 
