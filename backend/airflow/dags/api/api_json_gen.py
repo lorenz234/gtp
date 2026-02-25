@@ -21,7 +21,7 @@ api_version = "v1"
 
 def run():
     @task(execution_timeout=timedelta(minutes=30))
-    def run_create_metrics_per_chain_jsons():
+    def run_create_metrics_per_chain_jsons_daily():
         import os
         from src.api.json_gen import JsonGen
         from src.db_connector import DbConnector
@@ -29,7 +29,7 @@ def run():
         db_connector = DbConnector()
         
         json_gen = JsonGen(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
-        json_gen.create_metric_jsons(level='chains')
+        json_gen.create_metric_jsons(level='chains', metric_ids=['tvl', 'stables_mcap', 'rent_paid', 'profit', 'fdv', 'market_cap', 'app_revenue']) ## all metric_ids that don't run hourly
         json_gen.create_metric_jsons(level='data_availability')
         
     @task(execution_timeout=timedelta(minutes=30))
@@ -88,7 +88,7 @@ def run():
     #     json_gen.create_ecosystem_builders_json()
         
     
-    run_create_metrics_per_chain_jsons()
+    run_create_metrics_per_chain_jsons_daily()
     run_create_chain_overview_jsons()
     #run_create_chain_user_insights_jsons()
     #run_create_ecosystem_jsons()

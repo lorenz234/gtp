@@ -1,0 +1,22 @@
+with explicit as (
+    select source
+    from public.metric_sources
+    where metric_id = '{{ metric_id }}'
+      and origin_key = '{{ origin_key }}'
+      and level = '{{ level }}'
+),
+
+wildcard as (
+    select source
+    from public.metric_sources
+    where metric_id = '{{ metric_id }}'
+      and origin_key = '*'
+      and level = '{{ level }}'
+)
+
+select source from explicit
+
+union all
+
+select source from wildcard
+where not exists (select 1 from explicit);

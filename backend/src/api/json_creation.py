@@ -21,7 +21,7 @@ from eim.funcs import get_eim_yamls
 from src.misc.jinja_helper import execute_jinja_query
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from src.config import gtp_units, gtp_fees_types, gtp_fees_timespans, l2_maturity_levels, main_chart_config, gtp_metrics_new
+from src.config import gtp_units, gtp_fees_types, gtp_fees_timespans, l2_maturity_levels, main_chart_config, gtp_metrics_new, gtp_sources
 
 import warnings
 
@@ -1290,6 +1290,7 @@ class JSONCreation():
             'default_chain_selection' : default_selection,
             'default_chain_sorting' : default_sorting,
             'chains' : chain_dict,
+            'sources' : gtp_sources,
             'custom_logos' : self.get_custom_logos(),
             'da_layers' : da_dict,
             'metrics' : self.metrics,

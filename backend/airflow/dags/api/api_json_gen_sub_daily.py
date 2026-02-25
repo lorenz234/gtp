@@ -16,7 +16,7 @@ api_version = "v1"
     description='DAG to create JSON files multiple times a day for our frontend.',
     tags=['api', 'daily'],
     start_date=datetime(2025,8,28),
-    schedule='*/15 * * * *' ## run every 15min
+    schedule='15 * * * *' ## run every hour at :15
 )
 
 def run():
@@ -31,7 +31,19 @@ def run():
         json_gen = JsonGen(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
         json_gen.create_streaks_today_json()
         
+    @task(execution_timeout=timedelta(minutes=30))
+    def run_create_metrics_per_chain_jsons_hourly():
+        import os
+        from src.api.json_gen import JsonGen
+        from src.db_connector import DbConnector
 
+        db_connector = DbConnector()
+        
+        json_gen = JsonGen(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
+        json_gen.create_metric_jsons(level='chains', metric_ids=['txcount', 'daa', 'fees', 'txcosts', 'throughput']) ## all metric_ids that run hourly
+        #json_gen.create_metric_jsons(level='data_availability')
+        
+    run_create_metrics_per_chain_jsons_hourly()
     run_create_streaks_today_json()
     
 run()
