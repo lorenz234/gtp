@@ -10,7 +10,11 @@ SELECT
     op.value * price.value AS operating_costs_usd,
     l1.value * price.value AS operating_costs_L1_usd,
     (op.value - l1.value) * price.value AS operating_costs_infrastructure_usd,
-    (base.value - op.value) * price.value AS amount_for_burn_usd
+    (base.value - op.value) * price.value AS amount_for_burn_usd,
+    CASE 
+    	WHEN (base.value - op.value) * price.value IS NULL THEN NULL
+    	ELSE SUM((base.value - op.value) * price.value) OVER (ORDER BY base.date ASC)
+	END AS cum_amount_for_burn_usd
 FROM (
     SELECT "date", value
     FROM public.fact_kpis
