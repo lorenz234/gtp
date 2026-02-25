@@ -1565,7 +1565,7 @@ def process_user_ops_for_transactions(w3, df_raw, df_prep, chain, four_byte_look
                             'tx_fee_split': fee_per_op,
                             'block_number': block_number,
                             'block_timestamp': block_timestamp,
-                            'block_date': block_date,
+                            'date': block_date,
                             'beneficiary': user_op.get('beneficiary'),
                             'paymaster': user_op.get('paymaster')
                         }
