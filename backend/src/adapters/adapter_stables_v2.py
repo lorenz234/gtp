@@ -152,6 +152,18 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 df['metric_key'] = 'total_supply'
                 df_all = pd.concat([df_all, df], ignore_index=True)
 
+            ## extract data for 'track_on_l1'
+            if metric_key == 'track_on_l1':
+
+                # pull track_on_l1 data from RPCs, use Dune for backfill old data
+                df = self.track_on_l1_from_rpc_or_dune(chain, token_ids, db_progress, pretend_today_is=pretend_today_is)
+
+                # merge df into df_all
+                if df.empty:
+                    continue
+                df['metric_key'] = 'track_on_l1'
+                df_all = pd.concat([df_all, df], ignore_index=True)
+
             ## extract data for volume ...
             # if metric_key == 'volume': ...
 
@@ -283,6 +295,96 @@ class AdapterStablecoinSupply(AbstractAdapter):
         return df_supplies_all
     
 
+    def track_on_l1_from_rpc_or_dune(self, chain, token_ids, db_progress, min_amount=9999, pretend_today_is=None):
+
+        # stores all the extracted data
+        df_all = pd.DataFrame()
+
+        # get db_progress_filtered, DataFrame that keeps track of bridges are up to date
+        db_progress_filtered = self.get_track_on_l1_progress(chain, self.address_mapping)
+        
+        # fill in missing dates with '2025-01-01'
+        #db_progress_filtered = db_progress_filtered.fillna({'date': '2026-01-01'})
+
+        token_address_df = db_progress[db_progress['origin_key'] == 'ethereum'][['token_id', 'address', 'decimals']]
+        token_address_df = token_address_df[token_address_df['token_id'].isin(token_ids)].reset_index(drop=True)
+
+        # use dune to backfill old data (where date in db_progress_filtered is null)
+        if db_progress_filtered['date'].isnull().any():
+            
+            print(f"Pulling track_on_l1 data for chain {chain} from Dune for {len(db_progress_filtered)} bridge addresses, full history...")
+
+            # extract dune data (full history)
+            from src.adapters.adapter_dune import AdapterDune
+            dune = AdapterDune({'api_key' : os.getenv("DUNE_API")}, self.db_connector)
+            load_params = {
+                'queries': [
+                    {
+                        'name': 'stablecoin_balances_bridges',
+                        'query_id': 6688616,
+                        'params': {
+                            'chain': 'ethereum',
+                            'decimals': ','.join(token_address_df['decimals'].astype(str).tolist()),
+                            'eoa_addresses': ','.join(db_progress_filtered['address'].tolist()),
+                            'erc20_addresses': ','.join(token_address_df['address'].tolist()),
+                            'token_ids': ','.join(token_address_df['token_id'].tolist()),
+                            'min_amount': min_amount
+                        }
+                    }
+                ]
+            }
+            df = dune.extract(load_params)
+
+            # adjust df and return (as we just pulled everything from dune, we can skip the rest of the function)
+            df = df.rename(columns={'totalSupply': 'value', 'eoa_address': 'address'})
+            df['method'] = 'dune'
+            df['origin_key'] = chain
+            return df
+        
+        # use rpc to backfill recent dates
+        for index, row in db_progress_filtered.iterrows():
+            bridge = row['address']
+
+            # get block date map for ethereum
+            block_date_mapping = self.get_last_block_of_day_from_db('ethereum', row['date']) 
+            block_date_mapping = block_date_mapping[block_date_mapping['date'] <= (pd.to_datetime('today').date() if pretend_today_is is None else pretend_today_is)]
+            
+            # send warning & return if no block_date_mapping is found
+            if len(block_date_mapping) == 0: # raise error if we have no 'first_block_of_day' data for the chain
+                print(f"ERROR: Missing dates in block date mapping for chain {chain}. Can't pull in stablecoin track_on_l1 data via RPC or Dune. Please backfill 'first_block_of_day' first.")
+                continue
+
+            # pull in with RPC using SupplyReader for each date in block_date_mapping
+            for index, row in block_date_mapping.iterrows():
+                block_number = row['value']
+                date = row['date']
+
+                # pull in with RPC using SupplyReader
+                balances = self.read_balances_SupplyReader('ethereum', bridge, token_address_df['address'].tolist(), block_number)
+                token_address_df['value'] = balances
+                token_address_df['value'] = token_address_df['value']/(10 ** token_address_df['decimals'])
+                token_address_df = token_address_df[token_address_df['value'] > min_amount].reset_index(drop=True) # minimum threshold for it to start be tracked 100
+                df_day = token_address_df.copy()
+                df_day['date'] = date
+                df_day['address'] = bridge # we set the address to the bridge address, so we can track which bridge this token is sitting on
+                df_day['method'] = 'rpc'
+
+                # merge pulled data into df_all
+                df_all = pd.concat([df_all, df_day], ignore_index=True)
+                print(f"Pulled track_on_l1 data for bridge {bridge} on date {date} and block {block_number} using SupplyReader with RPC for {len(df_day)} records.")
+                
+                # break in case we do not find any balances above the minimum threshold
+                if len(token_address_df) == 0:
+                    print(f"No tokens above the minimum threshold of {min_amount} found on bridge {bridge} for date {date}. Stopping further backfill for this bridge address.")
+                    break
+
+        # add origin_key
+        df_all['origin_key'] = chain
+
+        return df_all
+
+
+
     #-#-#-# Raw Helper Functions #-#-#-#
 
     def _is_contract_not_deployed_error(self, error: Exception) -> bool:
@@ -323,6 +425,16 @@ class AdapterStablecoinSupply(AbstractAdapter):
         def _call_fn(w3):
             self.SupplyReader = SupplyReaderAdapter(w3)
             return self.SupplyReader.get_total_supplies(token_addresses, block_number)
+
+        return self._call_with_rpc_failover(chain, _call_fn)
+
+    def read_balances_SupplyReader(self, chain: str, address: str, token_addresses: list, block_number: int = None):
+        """
+        Read raw total supplies using the SupplyReader contract with RPC failover.
+        """
+        def _call_fn(w3):
+            self.SupplyReader = SupplyReaderAdapter(w3)
+            return self.SupplyReader.tokens_balance(address, token_addresses, block_number)
 
         return self._call_with_rpc_failover(chain, _call_fn)
 
@@ -451,3 +563,25 @@ class AdapterStablecoinSupply(AbstractAdapter):
         date_yesterday = (datetime.now() - timedelta(days=1)).date()
         db_progress_filtered = db_progress_filtered[db_progress_filtered['date'] != date_yesterday]
         return db_progress_filtered
+
+    def get_track_on_l1_progress(self, chain: str, address_mapping: list):
+        # ...
+        
+        # see if we have new coins
+        bridge_addresses = [address_mapping[origin_key] for origin_key in address_mapping if 'track_on_l1' in address_mapping[origin_key] and chain == origin_key][0]['track_on_l1']
+
+        # add the new coins to db_progress_filtered
+        df = pd.DataFrame({
+            'date': [None] * len(bridge_addresses),
+            'origin_key': [chain] * len(bridge_addresses),
+            'metric_key': ['track_on_l1'] * len(bridge_addresses),
+            'token_id': [None] * len(bridge_addresses),
+            'address': bridge_addresses,
+            'decimals': [None] * len(bridge_addresses),
+            'value': [None] * len(bridge_addresses)
+        })
+
+        # filter out coins which are already at yesterdays date (= up to date)
+        #date_yesterday = (datetime.now() - timedelta(days=1)).date()
+        #db_progress_filtered = db_progress_filtered[db_progress_filtered['date'] != date_yesterday]
+        return df
