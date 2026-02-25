@@ -627,7 +627,7 @@ class JsonGen():
         return kpi_cards_dict
     
     def get_blockspace_dict(self, chain: MainConfig):
-        if chain.api_in_apps:
+        if 'blockspace' not in chain.api_exclude_metrics:
             df = execute_jinja_query(self.db_connector, "api/select_blockspace_main_categories.sql.j2", {"origin_key": chain.origin_key, "days": 7}, return_df=True) 
             return { "types": df.columns.tolist(), "data": df.values.tolist()}
         return {"types": [], "data": []}
