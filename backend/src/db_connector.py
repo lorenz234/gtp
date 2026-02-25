@@ -1660,14 +1660,26 @@ class DbConnector:
                         exec_string = """
                        with raw_counts as (
                                 select 
-                                                owner_project,
-                                                sub_category_key as category_id,
-                                                sum(txcount) as txcount,
-                                                ROW_NUMBER() OVER (PARTITION BY owner_project ORDER BY sum(txcount) DESC) AS row_num
-                                        from vw_apps_contract_level_materialized vw
-                                        where "date" >= current_date - interval '365 days'
-                                        and vw.sub_category_key is not null
-                                        group by 1,2
+                                        owner_project,
+                                        sub_category_key as category_id,
+                                        case 
+                                                when sub_category_key in ('native_transfer', 'fungible_tokens') then sum(txcount) * 0.05
+                                                else sum(txcount)
+                                        end as txcount
+                                from vw_apps_contract_level_materialized vw
+                                where "date" >= current_date - interval '365 days'
+                                and vw.sub_category_key is not null
+                                group by 1,2
+                        ),
+                        
+                        raw_counts_2 as (
+                                select 
+                                        owner_project,
+                                        category_id,
+                                                        txcount,
+                                        ROW_NUMBER() OVER (PARTITION BY owner_project ORDER BY sum(txcount) DESC) AS row_num
+                                from raw_counts
+                                group by 1,2,3
                         ),
 
                         sub_cats as (
@@ -1685,7 +1697,7 @@ class DbConnector:
                                 oc.name as "sub_category",
                                 ocm."name" as main_category,
                                 sc.category_ids as "sub_categories"
-                        FROM raw_counts r
+                        FROM raw_counts_2 r
                         left join oli_categories oc using (category_id)
                         left join oli_categories_main ocm using (main_category_id)
                         left join sub_cats sc using (owner_project)
