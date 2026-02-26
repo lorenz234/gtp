@@ -624,7 +624,7 @@ def count_nans_and_log_paths(obj, path=''):
 
 def fix_dict_nan(test_dict, dict_name, send_notification=True):
     nan_count, nan_paths = count_nans_and_log_paths(test_dict)
-    discord_webhook = os.getenv('DISCORD_TX_CHECKER')
+    discord_webhook = os.getenv('DISCORD_ALERTS')
 
     if nan_count > 0:
         nan_paths_str = '\n'.join(nan_paths)
