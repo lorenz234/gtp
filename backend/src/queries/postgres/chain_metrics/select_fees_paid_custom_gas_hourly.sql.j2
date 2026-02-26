@@ -17,7 +17,6 @@ WITH token_price AS (
     WHERE origin_key = '{{ origin_key }}'
         AND metric_key = 'price_usd' 
         AND "date" >= current_date - interval '{{ hours }} hours' 
-        AND "date" < current_date
 ),
 eth_price AS (
     SELECT "date", value AS price_usd 
@@ -25,7 +24,6 @@ eth_price AS (
     WHERE origin_key = 'ethereum'
         AND metric_key = 'price_usd' 
         AND "date" >= current_date - interval '{{ hours }} hours' 
-        AND "date" < current_date
 ),
 tx_filtered AS (
     SELECT 
