@@ -21,40 +21,7 @@ CET = timezone("Europe/Paris")
     catchup=False  # Ensures only future runs are scheduled, not backfilled
 )
 
-def highlights_bot():
-    # @task(execution_timeout=timedelta(minutes=60))
-    # def run_analyst():
-    #     """
-    #     Run social media automation pipeline with AI-generated tweets and chart images
-        
-    #     Required environment variables:
-    #     - GTP_AI_WEBHOOK_URL: Discord webhook URL for posting results
-    #     - OPENAI_API_KEY: OpenAI API key for tweet generation
-    #     """
-    #     from dotenv import load_dotenv
-    #     load_dotenv(override=True)  # Force reload environment variables
-        
-    #     from src.misc.social_media_integration import SocialMediaAutomation
-        
-    #     # Check for required API key
-    #     if not os.getenv("OPENAI_API_KEY"):
-    #         raise ValueError("❌ OpenAI API key not found! Please add OPENAI_API_KEY to your environment variables.")
-        
-    #     # Initialize and run the social media automation pipeline
-    #     automation = SocialMediaAutomation()
-    #     print("🚀 Starting automated social media content generation from Airflow DAG...")
-        
-    #     # Run the async pipeline using asyncio
-    #     result = asyncio.run(automation.run_automated_social_pipeline())
-        
-    #     if result:
-    #         print(f"✅ Social media pipeline completed successfully!")
-    #         print(f"Generated {len(result.get('tweets', []))} tweets")
-    #         print(f"Generated {len(result.get('generated_images', []))} chart images")
-    #         print(f"Processed {len(result.get('responses', []))} milestone responses")
-    #     else:
-    #         print("⚠️ Social media pipeline completed with no results or encountered errors")
-            
+def highlights_bot():            
     @task()
     def run_highlights_tg():
         import os
