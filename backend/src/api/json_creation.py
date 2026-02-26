@@ -15,7 +15,6 @@ sys_user = getpass.getuser()
 from src.main_config import get_main_config, get_multi_config
 from src.da_config import get_da_config
 from src.misc.helper_functions import upload_json_to_cf_s3, upload_parquet_to_cf_s3, db_addresses_to_checksummed_addresses, string_addresses_to_checksummed_addresses, fix_dict_nan, empty_cloudfront_cache, remove_file_from_s3, get_files_df_from_s3
-from src.misc.glo_prep import Glo
 from src.db_connector import DbConnector
 from eim.funcs import get_eim_yamls
 from src.misc.jinja_helper import execute_jinja_query
@@ -3493,39 +3492,6 @@ class JSONCreation():
             self.save_to_json(contracts_dict, 'contracts')
         else:
             upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/contracts', contracts_dict, self.cf_distribution_id)
-
-    def create_glo_json(self):
-        glo = Glo(self.db_connector)
-        
-        df = glo.run_glo()
-        df_mcap = self.db_connector.get_glo_mcap()
-
-        current_mcap = df_mcap[(df_mcap['metric_key'] == 'market_cap_usd') & (df_mcap['date'] == df_mcap['date'].max())].value.max()
-        df['share'] = df['balance'] / current_mcap
-
-        df_mcap['date'] = pd.to_datetime(df_mcap['date']).dt.tz_localize('UTC')
-        df_mcap['unix'] = df_mcap['date'].apply(lambda x: x.timestamp() * 1000)
-        df_mcap = df_mcap.drop(columns=['date'])
-        df_mcap = df_mcap.pivot(index='unix', columns='metric_key', values='value')
-        df_mcap.reset_index(inplace=True)
-        df_mcap.rename(columns={'market_cap_eth':'eth', 'market_cap_usd':'usd'}, inplace=True)
-        df_mcap = df_mcap.sort_values(by='unix', ascending=True)
-
-        glo_dict = {'holders_table':{}, 'chart':{}, 'source':[]}
-
-        for index, row in df.iterrows():
-            glo_dict['holders_table'][row['holder']] = {'balance':row['balance'], 'share':row['share'], 'website':row['website'], 'twitter':row['twitter']}
-
-        glo_dict['chart']['types'] = df_mcap.columns.to_list()
-        glo_dict['chart']['data'] = df_mcap.values.tolist()
-        glo_dict['source'] = ["Dune"]
-
-        glo_dict = fix_dict_nan(glo_dict, 'GLO Dollar')
-
-        if self.s3_bucket == None:
-            self.save_to_json(glo_dict, 'GLO Dollar')
-        else:
-            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/glo_dollar', glo_dict, self.cf_distribution_id)
 
     ## JSON removal
     ## connect to s3 bucket and output list of files

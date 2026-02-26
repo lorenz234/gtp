@@ -2102,31 +2102,6 @@ class DbConnector:
                 df = pd.read_sql(exec_string, self.engine.connect())
                 return df
         
-        def get_glo_holders(self):
-                exec_string = f"""
-                        with max_date as (
-                                select max("date") as "date" from glo_holders
-                        )
-
-                        SELECT address, balance
-                        FROM public.glo_holders
-                        inner join max_date using ("date")
-                        order by 2 desc
-                        """
-                df = pd.read_sql(exec_string, self.engine.connect())
-                return df
-        
-        def get_glo_mcap(self):
-                exec_string = f"""
-                        select "date", metric_key, value  from fact_kpis
-                        where origin_key = 'glo-dollar'
-                        and metric_key in ('market_cap_usd', 'market_cap_eth')
-                        and value > 0
-                """
-
-                df = pd.read_sql(exec_string, self.engine.connect())
-                return df
-        
         def get_special_use_rpc(self, origin_key:str, check_realtime:bool = False):
                 if check_realtime:
                         query = f"""

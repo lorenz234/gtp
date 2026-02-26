@@ -142,15 +142,6 @@ def etl():
         blockspace_json_creator.create_blockspace_single_chain_json()
 
     @task()
-    def run_create_glo():
-        from src.db_connector import DbConnector
-        from src.api.json_creation import JSONCreation
-        db_connector = DbConnector()
-        json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
-
-        json_creator.create_glo_json()
-
-    @task()
     def run_create_eim():
         from src.db_connector import DbConnector
         from src.api.json_creation import JSONCreation
@@ -183,6 +174,5 @@ def etl():
     run_oli_s3_export()
 
     ## Misc
-    run_create_glo()
     run_create_eim()
 etl()
