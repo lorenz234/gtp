@@ -239,6 +239,15 @@ class JSONCreation():
         ## if start_date is not None, filter df_tmp date to only values after start date
         if start_date is not None:
             df_tmp = df_tmp.loc[(df_tmp.date >= start_date), ["unix", "value", "metric_key", "date"]]
+
+        expected_columns = ["unix"]
+        if 'usd' in tmp_metrics_dict[metric_id]['units'] or 'eth' in tmp_metrics_dict[metric_id]['units']:
+            expected_columns += ["usd", "eth"]
+        else:
+            expected_columns += ["value"]
+
+        if df_tmp.empty:
+            return [], expected_columns
         
         max_date = df_tmp['date'].max()
         max_date = pd.to_datetime(max_date).replace(tzinfo=None)
@@ -262,7 +271,10 @@ class JSONCreation():
 
         ## trim leading zeros
         df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
-        df_tmp = df_tmp.groupby('metric_key').apply(self.trim_leading_zeros).reset_index(drop=True)
+        df_tmp = df_tmp.groupby('metric_key', group_keys=False).apply(self.trim_leading_zeros).reset_index(drop=True)
+
+        if 'metric_key' not in df_tmp.columns:
+            return [], expected_columns
 
         df_tmp.drop(columns=['date'], inplace=True)
         df_tmp = df_tmp.pivot(index='unix', columns='metric_key', values='value').reset_index()
@@ -3183,6 +3195,10 @@ class JSONCreation():
                 mk_list = self.generate_daily_list(df, metric, entity, metric_type='eim', start_date='2021-01-01')
                 mk_list_int = mk_list[0]
                 mk_list_columns = mk_list[1]
+
+                if len(mk_list_int) == 0:
+                    print(f"-- SKIPPED -- No data for {metric} ({entity})")
+                    continue
 
                 entity_dict[entity] = {
                     'changes': self.create_changes_dict(df, metric, entity, metric_type='eim'),
