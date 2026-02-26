@@ -246,6 +246,7 @@ class JSONCreation():
             expected_columns += ["value"]
 
         if df_tmp.empty:
+            print(f"DataFrame is empty for metric_id {metric_id} and origin_key {origin_key}.")
             return [], expected_columns
         
         max_date = df_tmp['date'].max()
@@ -270,9 +271,15 @@ class JSONCreation():
 
         ## trim leading zeros
         df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
-        df_tmp = df_tmp.groupby('metric_key', group_keys=False).apply(self.trim_leading_zeros).reset_index(drop=True)
+        df_tmp = (
+            df_tmp.groupby('metric_key', group_keys=True)
+                .apply(self.trim_leading_zeros)
+                .reset_index(level=0)
+                .reset_index(drop=True)
+        )
 
         if 'metric_key' not in df_tmp.columns:
+            print(f"metric_key column is missing in df_tmp for metric_id {metric_id} and origin_key {origin_key}.")
             return [], expected_columns
 
         df_tmp.drop(columns=['date'], inplace=True)
@@ -329,7 +336,12 @@ class JSONCreation():
 
         ## trim leading zeros
         df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
-        df_tmp = df_tmp.groupby('metric_key').apply(self.trim_leading_zeros).reset_index(drop=True)
+        df_tmp = (
+            df_tmp.groupby('metric_key', group_keys=True)
+                .apply(self.trim_leading_zeros)
+                .reset_index(level=0)
+                .reset_index(drop=True)
+        )
 
         ## metric_key to column
         df_tmp = df_tmp.pivot(index='unix', columns='metric_key', values='value').reset_index()
@@ -2464,7 +2476,9 @@ class JSONCreation():
         ## datetime to unix timestamp using timestamp() function
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
         # fill NaN values with 0
-        df.value.fillna(0, inplace=True)
+        # df.value.fillna(0, inplace=True) deprecated
+        df['value'] = df['value'].fillna(0)
+        
 
         return df
     
