@@ -28,7 +28,7 @@ def adapter_loopring_api():
 
         adapter_params = {
             'chain': 'loopring',
-            'api_url': os.getenv("LOOPRING_API_URL"),
+            'api_url': "https://api3.loopring.io/api/v3",
         }
 
         # Initialize DbConnector
