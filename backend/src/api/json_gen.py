@@ -229,7 +229,8 @@ class JsonGen():
 
         # Convert to milliseconds (13-digit unix), preserving tz-aware data
         unix_dt = pd.to_datetime(df_formatted['unix'], utc=True)
-        df_formatted['unix'] = (unix_dt.dt.view('int64') // 1_000_000)
+        unix_naive = unix_dt.dt.tz_convert('UTC').dt.tz_localize(None)
+        df_formatted['unix'] = (unix_naive.astype('int64') // 1_000_000)
         
         base_order = ['unix']
         present_cols = [col for col in ['usd', 'eth', 'value'] if col in df_formatted.columns]
