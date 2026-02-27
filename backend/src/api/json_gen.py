@@ -240,7 +240,7 @@ class JsonGen():
         
         final_df = df_formatted[column_order]
         # Replace NaN with None for valid JSON (Pydantic handles this mostly, but good for safety)
-        final_df = final_df.where(pd.notnull(final_df), None)
+        final_df = final_df.astype("object").where(pd.notna(final_df), None)
         
         return final_df.values.tolist(), final_df.columns.to_list()
 

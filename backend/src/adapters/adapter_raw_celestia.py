@@ -154,7 +154,7 @@ class AdapterCelestia(AbstractAdapterRaw):
         print(f"Total Transactions for Block {block_number}: {total_tx_count}")
 
         if not df.empty:
-            df = df.where(pd.notnull(df), None)
+            df = df.astype("object").where(pd.notna(df), None)
             json_columns = ['blob_sizes', 'namespaces']
             for col in json_columns:
                 if col in df.columns:
