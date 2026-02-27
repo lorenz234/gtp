@@ -271,7 +271,7 @@ sql_queries = [
         ## hourly
         ,SQLQuery(metric_key = "txcount", origin_key = "mantle", jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_price"}, currency_dependent = False, run_hourly = True)
         ,SQLQuery(metric_key = "daa", origin_key = "mantle", jinja_path='chain_metrics/select_aa_hourly.sql.j2', currency_dependent = False, run_hourly = True)
-        ,SQLQuery(metric_key = "gas_per_second", origin_key = "mantle", jinja_path='chain_metrics/select_gas_per_second_hourly.sql.j2', currency_dependent = False, run_hourly = True)
+        ,SQLQuery(metric_key = "gas_per_second", origin_key = "mantle", jinja_path='chain_metrics/custom/mantle_select_gas_per_second_hourly.sql.j2', currency_dependent = False, run_hourly = True)
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "mantle", jinja_path='chain_metrics/select_txcosts_median_custom_gas_hourly.sql.j2', run_hourly = True)
         ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "mantle", jinja_path='chain_metrics/select_fees_paid_custom_gas_hourly.sql.j2', run_hourly = True)
 
