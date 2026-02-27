@@ -4,8 +4,6 @@ from datetime import datetime
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.helper_functions import print_init, print_load, print_extract
 
-from yfinance import Tickers
-
 """
 Example load_params for Robinhood stock data:
 
@@ -84,25 +82,24 @@ class AdapterYFinance(AbstractAdapter):
         """
         Prepares the DataFrame for Robinhood daily data.
         """
+        df = df.copy()
         if df is None or df.empty:
             return df
 
-        # Ensure reset_index() produces a "Date" column (pandas 3 may call it Datetime/index)
-        if df.index.name != "Date":
-            df = df.rename_axis("Date")
+        # Stack MultiIndex columns into rows
+        df = (
+            df.stack(level=['Price', 'Ticker'], future_stack=True)
+            .reset_index()
+            .rename(columns={'Price': 'metric_key', 'Ticker': 'ticker', 0: 'value'})
+        )
 
-        # melt the df into metric_key, date, ticker, value format
-        df = df.reset_index().melt(id_vars=['Date'], var_name=['metric_key', 'ticker'], value_name='value')
-        df['date'] = df['Date'].dt.date  # Extract date from Date column
+        df['date'] = df['Date'].dt.date
         df = df.drop(columns=['Date'])
+
         stocks = self.get_robinhood_stock_list()
-        # left join stocks onto df
         df = df.merge(stocks, on='ticker', how='left')
-        # only keep relevant columns
         df = df[['date', 'contract_address', 'metric_key', 'value']]
-        # set index
         df = df.set_index(['date', 'contract_address', 'metric_key'])
-        # remove rows with NaN value
         df = df.dropna(subset=['value'])
         return df
     

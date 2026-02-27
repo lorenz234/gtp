@@ -97,7 +97,13 @@ def run_dag():
                 u.uri_json->>'name' AS name,
                 u.uri_json->>'image' AS image,
                 u.uri_json->>'description' AS description,
-                (u.uri_json->>'x402Support')::boolean AS x402_support,
+                CASE
+                    WHEN jsonb_typeof(u.uri_json->'x402Support') = 'boolean'
+                        THEN (u.uri_json->>'x402Support')::boolean
+                    WHEN jsonb_typeof(u.uri_json->'x402Support') = 'object'
+                        THEN (u.uri_json->'x402Support'->>'enabled')::boolean
+                    ELSE NULL
+                END AS x402_support,
                 (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
                     WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) IN ('web', 'website', 'http') LIMIT 1) AS service_web_endpoint,
                 (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
