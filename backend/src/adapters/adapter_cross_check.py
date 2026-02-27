@@ -148,12 +148,18 @@ class AdapterCrossCheck(AbstractAdapter):
                 threshold = 0.03 ## max 3% discrepancy
 
             if row['diff_percent'] > threshold:
-                print(f"txcount discrepancy for {row['origin_key']}: {row['diff_percent'] * 100:.2f}% ({row['diff']})")
-                send_discord_message(f"We are missing tx: txcount discrepancy in last 3 days for {row['origin_key']}: {row['diff_percent'] * 100:.2f}% ({int(row['diff'])} tx)", self.webhook_url)
+                try:
+                    print(f"txcount discrepancy for {row['origin_key']}: {row['diff_percent'] * 100:.2f}% ({row['diff']})")
+                    send_discord_message(f"We are missing tx: txcount discrepancy in last 3 days for {row['origin_key']}: {row['diff_percent'] * 100:.2f}% ({int(row['diff'])} tx)", self.webhook_url)
+                except:
+                    send_discord_message(f"We are missing tx: txcount discrepancy in last 3 days for {row['origin_key']}: Not sure how much? No data available.", self.webhook_url)
                 
             elif row['diff_percent'] < -threshold:
-                print(f"txcount discrepancy for {row['origin_key']}: {row['diff_percent'] * 100:.2f}% ({row['diff']})")
-                send_discord_message(f"We have too many tx: txcount discrepancy in last 3 days for {row['origin_key']}: {row['diff_percent'] * 100:.2f}% ({int(row['diff'])} tx)", self.webhook_url)
+                try:
+                    print(f"txcount discrepancy for {row['origin_key']}: {row['diff_percent'] * 100:.2f}% ({row['diff']})")
+                    send_discord_message(f"We have too many tx: txcount discrepancy in last 3 days for {row['origin_key']}: {row['diff_percent'] * 100:.2f}% ({int(row['diff'])} tx)", self.webhook_url)
+                except:
+                    send_discord_message(f"We have too many tx: txcount discrepancy in last 3 days for {row['origin_key']}: Not sure how much? No data available.", self.webhook_url)
                 
     def cross_check_celestia(self):
         user_id = '326358477335298050'
