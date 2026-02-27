@@ -343,11 +343,25 @@ def build_task_id(prefix: str, origin_key: str, table_name: str) -> str:
     return f"{prefix}_{safe_name}"
 
 
+def build_table_task_id(prefix: str, table_name: str) -> str:
+    safe_name = re.sub(r"[^a-zA-Z0-9_]+", "_", table_name)
+    return f"{prefix}_{safe_name}"
+
+
 # --------------------------------------------------------------------------- #
 # DAG definition
 # --------------------------------------------------------------------------- #
 eligible_chains = get_eligible_chains()
 eligible_archive_tables = get_eligible_archive_tables()
+archive_tables_by_name: Dict[str, List[str]] = {}
+for chain_table in eligible_archive_tables:
+    table_name = chain_table["table_name"]
+    origin_key = chain_table["origin_key"]
+    archive_tables_by_name.setdefault(table_name, []).append(origin_key)
+archive_tables_by_name = {
+    table_name: sorted(origin_keys)
+    for table_name, origin_keys in sorted(archive_tables_by_name.items())
+}
 bucket_default = "gtp-archive"
 keep_days_default = 14
 keep_days_hourly_default = 7
@@ -384,20 +398,25 @@ def utility_archive():
             archive_chain(table, bucket, keep_days, chunk_size)
         run_archive()
 
-    for chain_table in eligible_archive_tables:
-        origin_key = chain_table["origin_key"]
-        table_name = chain_table["table_name"]
-
-        @task(task_id=build_task_id("archive_table", origin_key, table_name), execution_timeout=timedelta(hours=2))
+    for table_name, origin_keys in archive_tables_by_name.items():
+        @task(task_id=build_table_task_id("archive_table", table_name), execution_timeout=timedelta(hours=2))
         def run_archive_table(
             table: str = table_name,
-            origin: str = origin_key,
+            origins: List[str] = origin_keys,
             bucket: str = bucket_default,
             keep_days: int = keep_days_default,
-            keep_days_hourly: int = keep_days_hourly_default
+            keep_days_hourly: int = keep_days_hourly_default,
         ):
-            logger.info("Starting archive task for %s (table: %s)", origin, table)
-            archive_table_by_date(table, origin, bucket, keep_days, keep_days_hourly)
+            logger.info("Starting archive task for table %s across %s chains", table, len(origins))
+            for origin in origins:
+                try:
+                    logger.info("Starting archive task for %s (table: %s)", origin, table)
+                    archive_table_by_date(table, origin, bucket, keep_days, keep_days_hourly)
+                except Exception as exc:
+                    logger.exception("Archive failed for %s (table: %s): %s", origin, table, exc)
+                    send_discord_message(
+                        f"Archival DAG: Archive failed for {origin} (table: {table}): {exc}"
+                    )
 
         run_archive_table()
 

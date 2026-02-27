@@ -159,6 +159,8 @@ class AdapterCoingecko(AbstractAdapter):
                 time.sleep(1) #only 10-50 calls allowed per minute with free tier
 
         ## Date prep
+        # Ensure datetimelike dtype even when dfMain is empty or object-typed.
+        dfMain['date'] = pd.to_datetime(dfMain['date'], errors='coerce', utc=True)
         if granularity == 'hourly':
             dfMain['timestamp'] = dfMain['date'].dt.floor('h')
             dfMain['granularity'] = 'hourly'
@@ -167,7 +169,7 @@ class AdapterCoingecko(AbstractAdapter):
             dfMain.drop_duplicates(subset=['metric_key', 'origin_key', 'timestamp'], inplace=True)
             dfMain.set_index(['metric_key', 'origin_key', 'timestamp', 'granularity'], inplace=True)
         else:
-            dfMain['date'] = pd.to_datetime(dfMain['date']).dt.date
+            dfMain['date'] = dfMain['date'].dt.date
             # today = datetime.today().date()
             # dfMain = dfMain[dfMain['date'] != today]
 

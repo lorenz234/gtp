@@ -227,8 +227,12 @@ class JsonGen():
         
         df_formatted = df_formatted.rename(columns=rename_map)
 
-        # Convert to milliseconds
-        df_formatted['unix'] = (df_formatted['unix'].astype('int64') // 1_000_000)
+        # Convert to milliseconds (13-digit unix), preserving tz-aware data
+        unix_dt = pd.to_datetime(df_formatted['unix'], utc=True)
+        unix_naive = unix_dt.dt.tz_convert('UTC').dt.tz_localize(None)
+        # Force nanosecond resolution so we don't accidentally get day-level integers.
+        unix_ns = unix_naive.astype('datetime64[ns]').astype('int64')
+        df_formatted['unix'] = unix_ns // 1_000_000
         
         base_order = ['unix']
         present_cols = [col for col in ['usd', 'eth', 'value'] if col in df_formatted.columns]
@@ -627,7 +631,7 @@ class JsonGen():
         return kpi_cards_dict
     
     def get_blockspace_dict(self, chain: MainConfig):
-        if chain.api_in_apps:
+        if 'blockspace' not in chain.api_exclude_metrics:
             df = execute_jinja_query(self.db_connector, "api/select_blockspace_main_categories.sql.j2", {"origin_key": chain.origin_key, "days": 7}, return_df=True) 
             return { "types": df.columns.tolist(), "data": df.values.tolist()}
         return {"types": [], "data": []}

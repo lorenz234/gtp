@@ -161,12 +161,6 @@ sql_queries = [
         ,*standard_evm_queries("zora")  
         ## Mode
         ,*standard_evm_queries("mode")
-        ## Redstone
-        ,*standard_evm_queries("redstone")
-        ## Derive
-        ,*standard_evm_queries("derive")
-        ## Orderly
-        ,*standard_evm_queries("orderly")
         ## Worldchain
         ,*standard_evm_queries("worldchain")
         #,SQLQuery(metric_key = "txcount_type4", origin_key = "worldchain", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
@@ -200,9 +194,6 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_last7d_exclusive", origin_key = "polygon_pos", jinja_path='chain_metrics/select_cca_last7d.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "polygon_pos", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
         
-        ## Swell
-        ,*standard_evm_queries("swell")
-        
         # Elastic Chain
         ## ZKsync Era
         ,*standard_evm_queries("zksync_era")
@@ -229,8 +220,6 @@ sql_queries = [
         ,*standard_evm_queries("linea")
         ## Scroll
         ,*standard_evm_queries("scroll")
-        ## Blast
-        ,*standard_evm_queries("blast")
         ## Taiko
         ,*standard_evm_queries("taiko")
         ## Manta

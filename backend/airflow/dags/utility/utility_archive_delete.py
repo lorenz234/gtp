@@ -421,6 +421,11 @@ def build_task_id(prefix: str, origin_key: str, table_name: str) -> str:
     return f"{prefix}_{safe_name}"
 
 
+def build_table_task_id(prefix: str, table_name: str) -> str:
+    safe_name = re.sub(r"[^a-zA-Z0-9_]+", "_", table_name)
+    return f"{prefix}_{safe_name}"
+
+
 def run_check_and_delete(
     table_name: str,
     keep_postgres_days: int,
@@ -537,6 +542,15 @@ def run_check_and_delete_by_date(
 def utility_archive_delete():
     eligible_chains = get_eligible_chains() # chains flagged for delete and with existing table
     eligible_archive_tables = get_eligible_archive_tables()
+    archive_tables_by_name: Dict[str, List[str]] = {}
+    for chain_table in eligible_archive_tables:
+        table_name = chain_table["table_name"]
+        origin_key = chain_table["origin_key"]
+        archive_tables_by_name.setdefault(table_name, []).append(origin_key)
+    archive_tables_by_name = {
+        table_name: sorted(origin_keys)
+        for table_name, origin_keys in sorted(archive_tables_by_name.items())
+    }
     keep_days_default = 20 # keep this many days in Postgres
     keep_days_hourly_default = 10 # for hourly tables, keep fewer days to reduce deletion load
     query_start_override_default = None # e.g. '2024-01-01' to override query start date
@@ -566,31 +580,36 @@ def utility_archive_delete():
 
         run_delete()
 
-    for chain_table in eligible_archive_tables:
-        origin_key = chain_table["origin_key"]
-        table_name = chain_table["table_name"]
-
+    for table_name, origin_keys in archive_tables_by_name.items():
         @task(
-            task_id=build_task_id("delete_archived", origin_key, table_name),
+            task_id=build_table_task_id("delete_archived", table_name),
             execution_timeout=timedelta(hours=12),
         )
         def run_delete_table(
             table: str = table_name,
-            origin: str = origin_key,
+            origins: List[str] = origin_keys,
             keep_days: int = keep_days_default,
             keep_days_hourly: int = keep_days_hourly_default,
             query_start_override: Optional[str] = query_start_override_default,
             diff_threshold: int = diff_threshold_default,
         ):
-            logger.info("Starting delete task for %s (%s)", table, origin)
-            run_check_and_delete_by_date(
-                table,
-                origin,
-                keep_days,
-                keep_days_hourly,
-                query_start_override,
-                diff_threshold,
-            )
+            logger.info("Starting delete task for table %s across %s chains", table, len(origins))
+            for origin in origins:
+                try:
+                    logger.info("Starting delete task for %s (%s)", table, origin)
+                    run_check_and_delete_by_date(
+                        table,
+                        origin,
+                        keep_days,
+                        keep_days_hourly,
+                        query_start_override,
+                        diff_threshold,
+                    )
+                except Exception as exc:
+                    logger.exception("Delete failed for %s (%s): %s", table, origin, exc)
+                    send_discord_message(
+                        f"Archive delete DAG: Delete failed for {table} ({origin}): {exc}"
+                    )
 
         run_delete_table()
 

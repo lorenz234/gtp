@@ -84,7 +84,7 @@ def handle_l1_gas_price(df):
     if 'l1_gas_price' in df.columns:
         df['l1_gas_price'] = df['l1_gas_price'].apply(safe_float_conversion)
         df['l1_gas_price'] = df['l1_gas_price'].astype('float64')
-        df['l1_gas_price'].fillna(0, inplace=True)
+        df['l1_gas_price'] = df['l1_gas_price'].fillna(0)
     return df
 
 def handle_l1_fee(df):
@@ -100,7 +100,7 @@ def handle_l1_fee(df):
     if 'l1_fee' in df.columns:
         df['l1_fee'] = df['l1_fee'].apply(safe_float_conversion)
         df['l1_fee'] = df['l1_fee'].astype('float64')
-        df['l1_fee'].fillna(0, inplace=True)
+        df['l1_fee'] = df['l1_fee'].fillna(0)
     
     return df
 
@@ -117,7 +117,7 @@ def handle_l1_blob_base_fee(df):
     if 'l1_blob_base_fee' in df.columns:
         df['l1_blob_base_fee'] = df['l1_blob_base_fee'].apply(safe_float_conversion)
         df['l1_blob_base_fee'] = df['l1_blob_base_fee'].astype('float64')
-        df['l1_blob_base_fee'].fillna(0, inplace=True)
+        df['l1_blob_base_fee'] = df['l1_blob_base_fee'].fillna(0)
     
     return df
 
@@ -132,7 +132,7 @@ def handle_l1_fee_scalar(df):
         pd.DataFrame: DataFrame with 'l1_fee_scalar' column processed.
     """
     if 'l1_fee_scalar' in df.columns:
-        df['l1_fee_scalar'].fillna('0', inplace=True)
+        df['l1_fee_scalar'] = df['l1_fee_scalar'].fillna('0')
     return df
 
 def handle_l1_gas_used(df):
@@ -147,7 +147,7 @@ def handle_l1_gas_used(df):
     """
     if 'l1_gas_used' in df.columns:
         df['l1_gas_used'] = df['l1_gas_used'].apply(hex_to_int)
-        df['l1_gas_used'].fillna(0, inplace=True)
+        df['l1_gas_used'] = df['l1_gas_used'].fillna(0)
     return df
 
 def handle_l1_base_fee_scalar(df):
@@ -162,7 +162,7 @@ def handle_l1_base_fee_scalar(df):
     """
     if 'l1_base_fee_scalar' in df.columns:
         df['l1_base_fee_scalar'] = df['l1_base_fee_scalar'].apply(hex_to_int)
-        df['l1_base_fee_scalar'].fillna(0, inplace=True)
+        df['l1_base_fee_scalar'] = df['l1_base_fee_scalar'].fillna(0)
     return df
 
 def handle_l1_blob_base_fee_scalar(df):
@@ -177,7 +177,7 @@ def handle_l1_blob_base_fee_scalar(df):
     """
     if 'l1_blob_base_fee_scalar' in df.columns:
         df['l1_blob_base_fee_scalar'] = df['l1_blob_base_fee_scalar'].apply(hex_to_int)
-        df['l1_blob_base_fee_scalar'].fillna(0, inplace=True)
+        df['l1_blob_base_fee_scalar'] = df['l1_blob_base_fee_scalar'].fillna(0)
     return df
 
 def calculate_tx_fee(df):
@@ -710,7 +710,7 @@ def prep_dataframe_new(df, chain):
     fillna_values = config.get('fillna_values', {})
     for col, value in fillna_values.items():
         if col in df.columns:
-            df[col].fillna(value, inplace=True)
+            df[col] = df[col].fillna(value)
             
     # Convert date columns
     date_columns = config.get('date_columns', {})
@@ -1565,7 +1565,7 @@ def process_user_ops_for_transactions(w3, df_raw, df_prep, chain, four_byte_look
                             'tx_fee_split': fee_per_op,
                             'block_number': block_number,
                             'block_timestamp': block_timestamp,
-                            'block_date': block_date,
+                            'date': block_date,
                             'beneficiary': user_op.get('beneficiary'),
                             'paymaster': user_op.get('paymaster')
                         }

@@ -84,6 +84,13 @@ class AdapterYFinance(AbstractAdapter):
         """
         Prepares the DataFrame for Robinhood daily data.
         """
+        if df is None or df.empty:
+            return df
+
+        # Ensure reset_index() produces a "Date" column (pandas 3 may call it Datetime/index)
+        if df.index.name != "Date":
+            df = df.rename_axis("Date")
+
         # melt the df into metric_key, date, ticker, value format
         df = df.reset_index().melt(id_vars=['Date'], var_name=['metric_key', 'ticker'], value_name='value')
         df['date'] = df['Date'].dt.date  # Extract date from Date column

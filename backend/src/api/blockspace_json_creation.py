@@ -16,6 +16,12 @@ class BlockspaceJSONCreation():
         self.db_connector = db_connector
         self.main_conf = get_main_config()
         self.all_l2_config = get_all_l2_config()
+
+    def _fillna_numeric(self, df: pd.DataFrame) -> pd.DataFrame:
+        numeric_cols = df.select_dtypes(include="number").columns
+        if len(numeric_cols) > 0:
+            df[numeric_cols] = df[numeric_cols].fillna(0)
+        return df
     
     def get_blockspace_overview_daily_data(self, chain_keys):
         where_origin_key = f"AND bs_scl.origin_key = '{chain_keys[0]}'" if len(chain_keys) == 1 else "AND bs_scl.origin_key IN ('" + "','".join(chain_keys) + "')"
@@ -79,7 +85,7 @@ class BlockspaceJSONCreation():
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
         df.drop(columns=['date'], inplace=True)
-        df.fillna(0, inplace=True)
+        self._fillna_numeric(df)
 
         return df
     
@@ -144,7 +150,7 @@ class BlockspaceJSONCreation():
         df = pd.read_sql(exec, self.db_connector.engine.connect())
 
         # fill NaN values with 0
-        df.fillna(0, inplace=True)
+        self._fillna_numeric(df)
 
         return df
     
@@ -169,7 +175,7 @@ class BlockspaceJSONCreation():
         df = pd.read_sql(exec, self.db_connector.engine.connect())
 
         # fill NaN values with 0
-        df.fillna(0, inplace=True)
+        self._fillna_numeric(df)
 
         return df
 
@@ -539,7 +545,7 @@ class BlockspaceJSONCreation():
         df = pd.read_sql(exec, self.db_connector.engine)
 
         # fill NaN values with 0
-        df.fillna(0, inplace=True)
+        self._fillna_numeric(df)
 
         return df
 
@@ -615,7 +621,7 @@ class BlockspaceJSONCreation():
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
 
         # fill NaN values with 0
-        df.fillna(0, inplace=True)
+        self._fillna_numeric(df)
 
         # set index to unix timestamp but keep unix column
         df.set_index('unix', inplace=True, drop=False)
@@ -645,7 +651,7 @@ class BlockspaceJSONCreation():
         df = pd.read_sql(exec, self.db_connector.engine)
 
         # fill NaN values with 0
-        df.fillna(0, inplace=True)
+        self._fillna_numeric(df)
 
         return df
 

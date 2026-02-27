@@ -3,9 +3,6 @@ from airflow.decorators import dag, task
 from src.misc.airflow_utils import alert_via_webhook
 
 import os
-from src.db_connector import DbConnector
-from src.api.json_creation import JSONCreation
-from src.api.blockspace_json_creation import BlockspaceJSONCreation
 
 api_version = "v1"
 
@@ -26,57 +23,65 @@ api_version = "v1"
 
 def etl():
     @task()
-    def run_create_chain_details():        
+    def run_create_various():
+        from src.db_connector import DbConnector
+        from src.api.json_creation import JSONCreation
+        from src.misc.helper_functions import send_discord_message
         
         db_connector = DbConnector()
         json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
         df = json_creator.get_all_data()
+        
+        try:
+            json_creator.create_master_json(df)
+            json_creator.create_master_json(df, 'zircuit')  # private version for zircuit
+        except Exception as e:
+            print(f"Error creating master JSON: {e}")
+            send_discord_message(f"Error creating master JSON: {e}")
 
-        json_creator.create_chain_details_jsons(df) ## TODO: Deprecate as soon as FE moved
-
-    # @task()
-    # def run_create_metrics_details():
-    #     db_connector = DbConnector()
-    #     json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
-    #     df = json_creator.get_all_data()
-
-    #     json_creator.create_metric_details_jsons(df) ## Deprecate as soon as FE moved
-    #     json_creator.create_da_metric_details_jsons(df) ## Deprecate as soon as FE moved
-
-    @task()
-    def run_create_landingpage():
-        db_connector = DbConnector()
-        json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
-        df = json_creator.get_all_data()
-
-        json_creator.create_landingpage_json(df)
-
+        try:
+            json_creator.create_landingpage_json(df)
+        except Exception as e:
+            print(f"Error creating landing page JSON: {e}")
+            send_discord_message(f"Error creating landing page JSON: {e}")
+        
+        try:
+            json_creator.create_economics_json(df)
+        except Exception as e:
+            print(f"Error creating economics JSON: {e}")
+            send_discord_message(f"Error creating economics JSON: {e}")
+        
+        try:
+            json_creator.create_da_overview_json(df)
+            json_creator.create_da_timeseries_json()
+        except Exception as e:
+            print(f"Error creating data availability JSONs: {e}")
+            send_discord_message(f"Error creating data availability JSONs: {e}")
+            
+        try:
+            json_creator.create_fundamentals_json(df)
+            json_creator.create_fundamentals_internal_json(df)
+            json_creator.create_metrics_export_json(df)
+            json_creator.create_custom_metrics_json(['contract_deployment_count'])
+            json_creator.create_da_fundamentals_json()
+            json_creator.run_top_contracts_jsons()
+        except Exception as e:
+            print(f"Error creating fundamentals JSONs: {e}")
+            send_discord_message(f"Error creating fundamentals JSONs: {e}")
+        
     @task()
     def run_create_eco_overview():
+        from src.db_connector import DbConnector
+        from src.api.json_creation import JSONCreation
         db_connector = DbConnector()
         json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
 
         json_creator.create_eco_overview_json()
 
     @task()
-    def run_create_economics():
-        db_connector = DbConnector()
-        json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
-        df = json_creator.get_all_data()
-
-        json_creator.create_economics_json(df)
-
-    @task()
-    def run_create_da_overview():
-        db_connector = DbConnector()
-        json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
-        df = json_creator.get_all_data()
-
-        json_creator.create_da_overview_json(df)
-        json_creator.create_da_timeseries_json()
-
-    @task()
     def run_create_app_level_jsons():
+        from src.db_connector import DbConnector
+        from src.api.json_creation import JSONCreation
         db_connector = DbConnector()
         json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
 
@@ -86,30 +91,9 @@ def etl():
         json_creator.clean_app_files()
 
     @task()
-    def run_create_master():
-        db_connector = DbConnector()
-        json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
-        df = json_creator.get_all_data()
-
-        json_creator.create_master_json(df)
-        json_creator.create_master_json(df, 'zircuit')  # private version for zircuit
-        
-
-    @task()
-    def run_create_fundamentals():
-        db_connector = DbConnector()
-        json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
-        df = json_creator.get_all_data()
-
-        json_creator.create_fundamentals_json(df)
-        json_creator.create_fundamentals_internal_json(df)
-        json_creator.create_metrics_export_json(df)
-        json_creator.create_custom_metrics_json(['contract_deployment_count'])
-        json_creator.create_da_fundamentals_json()
-        json_creator.run_top_contracts_jsons()
-
-    @task()
     def run_create_labels():
+        from src.db_connector import DbConnector
+        from src.api.json_creation import JSONCreation
         db_connector = DbConnector()
         json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
 
@@ -122,14 +106,18 @@ def etl():
 
     @task()
     def run_oli_s3_export():
+        from src.db_connector import DbConnector
+        from src.api.json_creation import JSONCreation
         db_connector = DbConnector()
         json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
 
-        json_creator.create_export_oli_parquet()
+        #json_creator.create_export_oli_parquet()
         json_creator.create_export_project_labels_parquet()
 
     @task()
     def run_create_blockspace_overview():
+        from src.db_connector import DbConnector
+        from src.api.blockspace_json_creation import BlockspaceJSONCreation
         db_connector = DbConnector()
         blockspace_json_creator = BlockspaceJSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
 
@@ -137,6 +125,8 @@ def etl():
 
     @task()
     def run_create_blockspace_category_comparison():
+        from src.db_connector import DbConnector
+        from src.api.blockspace_json_creation import BlockspaceJSONCreation
         db_connector = DbConnector()
         blockspace_json_creator = BlockspaceJSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
 
@@ -144,20 +134,17 @@ def etl():
 
     @task()
     def run_create_chain_blockspace():
+        from src.db_connector import DbConnector
+        from src.api.blockspace_json_creation import BlockspaceJSONCreation
         db_connector = DbConnector()
         blockspace_json_creator = BlockspaceJSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
 
         blockspace_json_creator.create_blockspace_single_chain_json()
 
     @task()
-    def run_create_glo():
-        db_connector = DbConnector()
-        json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
-
-        json_creator.create_glo_json()
-
-    @task()
     def run_create_eim():
+        from src.db_connector import DbConnector
+        from src.api.json_creation import JSONCreation
         db_connector = DbConnector()
         json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)
         df = json_creator.get_data_eim()
@@ -166,13 +153,8 @@ def etl():
         json_creator.create_eth_supply_json(df)
         json_creator.create_eth_holders_json()
 
-    ## Main
-    run_create_master()    
-    run_create_chain_details()
-    #run_create_metrics_details()
-    run_create_landingpage()
-    run_create_economics()
-    run_create_da_overview()
+    ## Main 
+    run_create_various()
 
     ## Eco Overview
     run_create_eco_overview()
@@ -192,8 +174,5 @@ def etl():
     run_oli_s3_export()
 
     ## Misc
-    run_create_glo()
-    run_create_fundamentals()
-
     run_create_eim()
 etl()

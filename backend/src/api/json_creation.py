@@ -15,7 +15,6 @@ sys_user = getpass.getuser()
 from src.main_config import get_main_config, get_multi_config
 from src.da_config import get_da_config
 from src.misc.helper_functions import upload_json_to_cf_s3, upload_parquet_to_cf_s3, db_addresses_to_checksummed_addresses, string_addresses_to_checksummed_addresses, fix_dict_nan, empty_cloudfront_cache, remove_file_from_s3, get_files_df_from_s3
-from src.misc.glo_prep import Glo
 from src.db_connector import DbConnector
 from eim.funcs import get_eim_yamls
 from src.misc.jinja_helper import execute_jinja_query
@@ -239,6 +238,16 @@ class JSONCreation():
         ## if start_date is not None, filter df_tmp date to only values after start date
         if start_date is not None:
             df_tmp = df_tmp.loc[(df_tmp.date >= start_date), ["unix", "value", "metric_key", "date"]]
+
+        expected_columns = ["unix"]
+        if 'usd' in tmp_metrics_dict[metric_id]['units'] or 'eth' in tmp_metrics_dict[metric_id]['units']:
+            expected_columns += ["usd", "eth"]
+        else:
+            expected_columns += ["value"]
+
+        if df_tmp.empty:
+            print(f"DataFrame is empty for metric_id {metric_id} and origin_key {origin_key}.")
+            return [], expected_columns
         
         max_date = df_tmp['date'].max()
         max_date = pd.to_datetime(max_date).replace(tzinfo=None)
@@ -262,7 +271,16 @@ class JSONCreation():
 
         ## trim leading zeros
         df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
-        df_tmp = df_tmp.groupby('metric_key').apply(self.trim_leading_zeros).reset_index(drop=True)
+        df_tmp = (
+            df_tmp.groupby('metric_key', group_keys=True)
+                .apply(self.trim_leading_zeros)
+                .reset_index(level=0)
+                .reset_index(drop=True)
+        )
+
+        if 'metric_key' not in df_tmp.columns:
+            print(f"metric_key column is missing in df_tmp for metric_id {metric_id} and origin_key {origin_key}.")
+            return [], expected_columns
 
         df_tmp.drop(columns=['date'], inplace=True)
         df_tmp = df_tmp.pivot(index='unix', columns='metric_key', values='value').reset_index()
@@ -318,7 +336,12 @@ class JSONCreation():
 
         ## trim leading zeros
         df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
-        df_tmp = df_tmp.groupby('metric_key').apply(self.trim_leading_zeros).reset_index(drop=True)
+        df_tmp = (
+            df_tmp.groupby('metric_key', group_keys=True)
+                .apply(self.trim_leading_zeros)
+                .reset_index(level=0)
+                .reset_index(drop=True)
+        )
 
         ## metric_key to column
         df_tmp = df_tmp.pivot(index='unix', columns='metric_key', values='value').reset_index()
@@ -358,7 +381,7 @@ class JSONCreation():
                     print(f"start_date: {start_date}, end_date: {end_date} for {metric_key} and {origin_key}")
 
                     if granularity == 'hourly':
-                        date_range = pd.date_range(start=start_date, end=end_date, freq='H')
+                        date_range = pd.date_range(start=start_date, end=end_date, freq='h')
                     elif granularity == '10_min':
                         date_range = pd.date_range(start=start_date, end=end_date, freq='10T')
                     else:
@@ -2453,7 +2476,9 @@ class JSONCreation():
         ## datetime to unix timestamp using timestamp() function
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
         # fill NaN values with 0
-        df.value.fillna(0, inplace=True)
+        # df.value.fillna(0, inplace=True) deprecated
+        df['value'] = df['value'].fillna(0)
+        
 
         return df
     
@@ -3184,6 +3209,10 @@ class JSONCreation():
                 mk_list_int = mk_list[0]
                 mk_list_columns = mk_list[1]
 
+                if len(mk_list_int) == 0:
+                    print(f"-- SKIPPED -- No data for {metric} ({entity})")
+                    continue
+
                 entity_dict[entity] = {
                     'changes': self.create_changes_dict(df, metric, entity, metric_type='eim'),
                     'daily': {
@@ -3477,39 +3506,6 @@ class JSONCreation():
             self.save_to_json(contracts_dict, 'contracts')
         else:
             upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/contracts', contracts_dict, self.cf_distribution_id)
-
-    def create_glo_json(self):
-        glo = Glo(self.db_connector)
-        
-        df = glo.run_glo()
-        df_mcap = self.db_connector.get_glo_mcap()
-
-        current_mcap = df_mcap[(df_mcap['metric_key'] == 'market_cap_usd') & (df_mcap['date'] == df_mcap['date'].max())].value.max()
-        df['share'] = df['balance'] / current_mcap
-
-        df_mcap['date'] = pd.to_datetime(df_mcap['date']).dt.tz_localize('UTC')
-        df_mcap['unix'] = df_mcap['date'].apply(lambda x: x.timestamp() * 1000)
-        df_mcap = df_mcap.drop(columns=['date'])
-        df_mcap = df_mcap.pivot(index='unix', columns='metric_key', values='value')
-        df_mcap.reset_index(inplace=True)
-        df_mcap.rename(columns={'market_cap_eth':'eth', 'market_cap_usd':'usd'}, inplace=True)
-        df_mcap = df_mcap.sort_values(by='unix', ascending=True)
-
-        glo_dict = {'holders_table':{}, 'chart':{}, 'source':[]}
-
-        for index, row in df.iterrows():
-            glo_dict['holders_table'][row['holder']] = {'balance':row['balance'], 'share':row['share'], 'website':row['website'], 'twitter':row['twitter']}
-
-        glo_dict['chart']['types'] = df_mcap.columns.to_list()
-        glo_dict['chart']['data'] = df_mcap.values.tolist()
-        glo_dict['source'] = ["Dune"]
-
-        glo_dict = fix_dict_nan(glo_dict, 'GLO Dollar')
-
-        if self.s3_bucket == None:
-            self.save_to_json(glo_dict, 'GLO Dollar')
-        else:
-            upload_json_to_cf_s3(self.s3_bucket, f'{self.api_version}/glo_dollar', glo_dict, self.cf_distribution_id)
 
     ## JSON removal
     ## connect to s3 bucket and output list of files

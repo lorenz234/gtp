@@ -276,9 +276,10 @@ class AdapterL2Beat(AbstractAdapter):
             df[col_name] = None
             ## iterate over list in column 'tvs'
             for i in range(len(df)):
-                for badge_obj in df['badges'][i]:
+                badges = df['badges'].iloc[i] or []
+                for badge_obj in badges:
                     if badge_obj['type'] == badge:
-                        df[col_name][i] = badge_obj['id']
+                        df.at[df.index[i], col_name] = badge_obj['id']
                         break
 
         df.reset_index(inplace=True)
