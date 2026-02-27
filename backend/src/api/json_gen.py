@@ -724,7 +724,7 @@ class JsonGen():
                 data={'types': df.columns.to_list(), 'data': df.values.tolist()},
                 last_updated_utc=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             )
-            tree_map_dict = fix_dict_nan(response_model.model_dump(mode='json'), 'blockspace/tree_map')
+            tree_map_dict = fix_dict_nan(response_model.model_dump(mode='json'), 'blockspace/tree_map', False)
         except Exception as e:
             logging.error(f"Tree map validation failed: {e}")
             return
