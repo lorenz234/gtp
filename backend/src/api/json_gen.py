@@ -874,7 +874,8 @@ class JsonGen():
             highlights = self.get_chain_highlights_dict(origin_key, days=5, limit=4)
             ranking = self.get_chain_ranking_dict(origin_key)
             kpi_cards = self.get_kpi_cards_dict(chain)
-            streaks = self.get_streaks_dict(origin_key)
+            #streaks = self.get_streaks_dict(origin_key)
+            streaks = {}
             lifetime = self.get_lifetime_achievements_dict(origin_key)
             blockspace = self.get_blockspace_dict(chain)
             ecosystem = self.get_ecosystem_dict([chain.origin_key]) if chain.api_in_apps else {}

@@ -44,6 +44,6 @@ def run():
         #json_gen.create_metric_jsons(level='data_availability')
         
     run_create_metrics_per_chain_jsons_hourly()
-    run_create_streaks_today_json()
+    #run_create_streaks_today_json()
     
 run()
