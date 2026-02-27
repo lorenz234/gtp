@@ -513,7 +513,7 @@ class JSONCreation():
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
         #df.drop(columns=['date'], inplace=True)
         # fill NaN values with 0
-        df.value.fillna(0, inplace=True)
+        df['value'] = df['value'].fillna(0)
         return df
     
     def download_data_fees(self, metric_keys):
@@ -557,7 +557,7 @@ class JSONCreation():
         ## datetime to unix timestamp using timestamp() function
         df['unix'] = df['timestamp'].apply(lambda x: x.timestamp() * 1000)
         # fill NaN values with 0
-        df.value.fillna(0, inplace=True)
+        df['value'] = df['value'].fillna(0)
         return df
     
     def download_data_eim(self):
@@ -580,7 +580,7 @@ class JSONCreation():
         ## datetime to unix timestamp using timestamp() function
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
         # fill NaN values with 0
-        df.value.fillna(0, inplace=True)
+        df['value'] = df['value'].fillna(0)
         return df
 
     def create_changes_dict(self, df, metric_id, origin_key, metric_type='default'):
@@ -2476,10 +2476,8 @@ class JSONCreation():
         ## datetime to unix timestamp using timestamp() function
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
         # fill NaN values with 0
-        # df.value.fillna(0, inplace=True) deprecated
         df['value'] = df['value'].fillna(0)
         
-
         return df
     
     def get_app_contracts(self, owner_project:str, chains:list, days:int):
@@ -2953,10 +2951,10 @@ class JSONCreation():
         df['gas_fees_usd_change'] = df['gas_fees_usd_change'].apply(lambda x: 99.99 if x > 99.99 else x)
         df['daa_change'] = df['daa_change'].apply(lambda x: 99.99 if x > 99.99 else x)
 
-        df['deployment_date'] = df['deployment_date'].apply(lambda x: str(x))
-        df['deployment_date'] = df['deployment_date'].replace('NaT', None)
+        df['deployment_date'] = pd.to_datetime(df['deployment_date'], errors='coerce').dt.strftime('%Y-%m-%d')
+        df['deployment_date'] = df['deployment_date'].where(df['deployment_date'].notna(), None)
 
-        df = df.replace({np.nan: None})        
+        df = df.astype("object").where(pd.notna(df), None)        
 
         labels_dict = {
             'data': {
@@ -3007,9 +3005,9 @@ class JSONCreation():
         # Merge with the original dataframe
         merged_df = pd.merge(all_combinations_df, df, on=['date', 'address', 'origin_key'], how='left')
         # Fill NaN values with 0
-        merged_df['txcount'].fillna(0, inplace=True)
-        merged_df['gas_fees_usd'].fillna(0, inplace=True)
-        merged_df['daa'].fillna(0, inplace=True)
+        merged_df['txcount'] = merged_df['txcount'].fillna(0)
+        merged_df['gas_fees_usd'] = merged_df['gas_fees_usd'].fillna(0)
+        merged_df['daa'] = merged_df['daa'].fillna(0)
 
         df = merged_df.copy()
 
@@ -3090,10 +3088,11 @@ class JSONCreation():
         df = string_addresses_to_checksummed_addresses(df, ['deployer_address'])
         df['deployment_tx'] = df['deployment_tx'].str.lower()
         
-        df = df.where(pd.notnull(df), None)
-        df['deployment_date'] = df['deployment_date'].astype(str)        
-        df['deployment_date'] = df['deployment_date'].replace('NaT', None)
+        df['deployment_date'] = pd.to_datetime(df['deployment_date'], errors='coerce').dt.strftime('%Y-%m-%d')
+        df['deployment_date'] = df['deployment_date'].where(df['deployment_date'].notna(), None)
         df = df.drop(columns=['origin_key']) ## chain_id is sufficient
+        # Ensure any NaN introduced by formatting is converted to None for JSON
+        df = df.astype("object").where(pd.notna(df), None)
 
         labels_dict = df.to_dict(orient='records')  
 

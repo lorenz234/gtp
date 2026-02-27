@@ -481,7 +481,7 @@ def load_projects_metadata(force_reload: bool = False) -> Dict[str, Any]:
 def _records_for_json(df: pd.DataFrame) -> List[Dict[str, Any]]:
     if df.empty:
         return []
-    df = df.where(pd.notnull(df), None)
+    df = df.astype("object").where(pd.notna(df), None)
     return df.to_dict(orient="records")
 
 

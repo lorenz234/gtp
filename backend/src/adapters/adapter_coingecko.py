@@ -149,7 +149,7 @@ class AdapterCoingecko(AbstractAdapter):
                         df['metric_key'] = f"{fi}_{currency}"
                         df['origin_key'] = origin_key
 
-                        df.value.fillna(0, inplace=True)
+                        df['value'] = df['value'].fillna(0)
                         dfMain = pd.concat([dfMain,df])
                         print(f"...{self.name} {origin_key} done for {currency} and {fi} with granularity {granularity}. Shape: {df.shape}")
                 else:

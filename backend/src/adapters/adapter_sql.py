@@ -201,10 +201,10 @@ class AdapterSQL(AbstractAdapter):
             print(f"...empty df for {self.load_type}. Upsert flag set to: {load_params.get('upsert', False)}.")
         elif self.load_type in ['metrics_hourly', 'eth_to_usd_hourly']:
             df.set_index(['metric_key', 'origin_key', 'timestamp', 'granularity'], inplace=True)
-            df.value.fillna(0, inplace=True)
+            df['value'] = df['value'].fillna(0)
         else:
             df.set_index(['metric_key', 'origin_key', 'date'], inplace=True)
-            df.value.fillna(0, inplace=True)
+            df['value'] = df['value'].fillna(0)
 
         print_extract(self.name, load_params,df.shape)
         return df
@@ -254,7 +254,7 @@ class AdapterSQL(AbstractAdapter):
                     df['metric_key'] = query.metric_key
                 if 'origin_key' not in df.columns:
                     df['origin_key'] = query.origin_key
-                df.value.fillna(0, inplace=True)
+                df['value'] = df['value'].fillna(0)
 
                 print(f"Query loaded: {query.metric_key} {query.origin_key} with {days} days. DF shape: {df.shape}")
 

@@ -101,7 +101,7 @@ class AdapterL2Beat(AbstractAdapter):
 
                 today = datetime.today().strftime('%Y-%m-%d')
                 df.drop(df[df.date == today].index, inplace=True, errors='ignore')
-                df.value.fillna(0, inplace=True)
+                df['value'] = df['value'].fillna(0)
                 dfMain = pd.concat([dfMain,df])
 
                 print(f"...{self.name} - loaded TXCOUNT for {origin_key}. Shape: {df.shape}")
@@ -145,7 +145,7 @@ class AdapterL2Beat(AbstractAdapter):
                 # df.drop(df[df.date == max_date].index, inplace=True)
                 today = datetime.today().strftime('%Y-%m-%d')
                 df.drop(df[df.date == today].index, inplace=True, errors='ignore')
-                df.value.fillna(0, inplace=True)
+                df['value'] = df['value'].fillna(0)
                 dfMain = pd.concat([dfMain,df])
 
                 print(f"...{self.name} - loaded TVS for {origin_key}. Shape: {df.shape}")
