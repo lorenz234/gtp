@@ -30,7 +30,7 @@ tx_filtered AS (
     date_trunc('hour', block_timestamp) AS "timestamp",
     SUM(tx_fee) AS total_tx_fee
 FROM {{ origin_key }}_tx
-WHERE block_timestamp >= date_trunc('hour', now() - interval '{{ hours }} hours')
+WHERE block_date >= current_date - interval '{{ hours }} hours'
     AND block_timestamp < date_trunc('hour', now())
 GROUP BY 1
 )
