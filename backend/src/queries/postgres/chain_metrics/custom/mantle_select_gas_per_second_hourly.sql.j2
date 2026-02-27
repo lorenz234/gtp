@@ -28,7 +28,6 @@ tmp AS (
     LEFT JOIN ratio r ON r."timestamp" = date_trunc('hour', block_timestamp)
     WHERE   
         block_timestamp > date_trunc('day', now()) - INTERVAL '{{ days }} days' 
-        AND block_timestamp < date_trunc('day', now())
         AND block_timestamp > '2024-03-14'
     GROUP BY 1
 )
