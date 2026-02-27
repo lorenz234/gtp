@@ -513,7 +513,7 @@ class JSONCreation():
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
         #df.drop(columns=['date'], inplace=True)
         # fill NaN values with 0
-        df.value.fillna(0, inplace=True)
+        df['value'] = df['value'].fillna(0)
         return df
     
     def download_data_fees(self, metric_keys):
@@ -557,7 +557,7 @@ class JSONCreation():
         ## datetime to unix timestamp using timestamp() function
         df['unix'] = df['timestamp'].apply(lambda x: x.timestamp() * 1000)
         # fill NaN values with 0
-        df.value.fillna(0, inplace=True)
+        df['value'] = df['value'].fillna(0)
         return df
     
     def download_data_eim(self):
@@ -580,7 +580,7 @@ class JSONCreation():
         ## datetime to unix timestamp using timestamp() function
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
         # fill NaN values with 0
-        df.value.fillna(0, inplace=True)
+        df['value'] = df['value'].fillna(0)
         return df
 
     def create_changes_dict(self, df, metric_id, origin_key, metric_type='default'):
@@ -2476,10 +2476,8 @@ class JSONCreation():
         ## datetime to unix timestamp using timestamp() function
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
         # fill NaN values with 0
-        # df.value.fillna(0, inplace=True) deprecated
         df['value'] = df['value'].fillna(0)
         
-
         return df
     
     def get_app_contracts(self, owner_project:str, chains:list, days:int):
@@ -3007,9 +3005,9 @@ class JSONCreation():
         # Merge with the original dataframe
         merged_df = pd.merge(all_combinations_df, df, on=['date', 'address', 'origin_key'], how='left')
         # Fill NaN values with 0
-        merged_df['txcount'].fillna(0, inplace=True)
-        merged_df['gas_fees_usd'].fillna(0, inplace=True)
-        merged_df['daa'].fillna(0, inplace=True)
+        merged_df['txcount'] = merged_df['txcount'].fillna(0)
+        merged_df['gas_fees_usd'] = merged_df['gas_fees_usd'].fillna(0)
+        merged_df['daa'] = merged_df['daa'].fillna(0)
 
         df = merged_df.copy()
 

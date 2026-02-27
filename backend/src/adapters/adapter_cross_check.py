@@ -104,7 +104,7 @@ class AdapterCrossCheck(AbstractAdapter):
         
         today = datetime.today().strftime('%Y-%m-%d')
         dfMain.drop(dfMain[dfMain.date == today].index, inplace=True, errors='ignore')
-        dfMain.value.fillna(0, inplace=True)
+        dfMain['value'] = dfMain['value'].fillna(0)
 
         dfMain.set_index(['date', 'origin_key', 'metric_key'], inplace=True)
         return dfMain

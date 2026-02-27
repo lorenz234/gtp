@@ -204,7 +204,7 @@ def prepare_df_kpis(df, metric_key, origin_key):
         # df.drop(df[df.date == max_date].index, inplace=True)
         today = datetime.today().strftime('%Y-%m-%d')
         df.drop(df[df.date == today].index, inplace=True, errors='ignore')
-        df.value.fillna(0, inplace=True)
+        df['value'] = df['value'].fillna(0)
         return df
 
 ## convert df address columns to checksummed addresses
