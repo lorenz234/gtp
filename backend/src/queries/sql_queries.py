@@ -391,5 +391,5 @@ sql_queries = [
         ## hourly
         ,SQLQuery(metric_key = "txcount", origin_key = "starknet", jinja_path='chain_metrics/select_txcount_hourly.sql.j2', query_parameters={"filter_col" : "gas_used"}, currency_dependent = False, run_hourly = True)
         ,SQLQuery(metric_key = "txcosts_median_eth", origin_key = "starknet", jinja_path='chain_metrics/select_txcosts_median_hourly.sql.j2', run_hourly = True)
-        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "starknet", jinja_path='chain_metrics/select_fees_paid.sql.j2', run_hourly = True)
+        ,SQLQuery(metric_key = "fees_paid_eth", origin_key = "starknet", jinja_path='chain_metrics/select_fees_paid_hourly.sql.j2', run_hourly = True)
 ]
