@@ -482,7 +482,7 @@ class BlockspaceJSONCreation():
 
                     chain_dict["totals"][timeframe_key]['data'] = chain_timeframe_totals_dfs[timeframe][['gas_fees_eth', 'gas_fees_usd', 'txcount']].values.tolist()[0]
 
-                chain_dict = fix_dict_nan(chain_dict, f'chains/blockspace/{origin_key}')
+                chain_dict = fix_dict_nan(chain_dict, f'chains/blockspace/{origin_key}', False)
 
                 if self.s3_bucket == None:
                     self.save_to_json(chain_dict, f'chains/blockspace/{origin_key}')
