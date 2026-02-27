@@ -69,24 +69,35 @@ def run_dag():
                     AND agent_details ? 'rating'
                 GROUP BY origin_key, agent_id
             ),
-            uri_safe AS (
-                SELECT
-                    origin_key,
-                    agent_id,
-                    uri_json,
-                    CASE WHEN jsonb_typeof(uri_json->'services') = 'array'
-                        THEN uri_json->'services'
+            uri_safe_services AS (
+                SELECT DISTINCT ON (v.origin_key, v.agent_id)
+                    v.origin_key,
+                    v.agent_id,
+                    CASE
+                        WHEN v.agent_details->>'uri' = '' THEN NULL
+                        WHEN v.agent_details->>'uri' LIKE 'data%'
+                        OR v.agent_details->>'uri' LIKE 'ipfs%'
+                        OR v.agent_details->>'uri' LIKE 'https://ipfs.io/ipfs/%'
+                        OR v.agent_details->>'uri' LIKE '{%' THEN TRUE
+                        WHEN v.agent_details->>'uri' LIKE 'http%' THEN FALSE
+                    END AS safe_uri,
+                    e.uri_json,
+                    CASE WHEN jsonb_typeof(e.uri_json->'services') = 'array'
+                        THEN e.uri_json->'services'
                         ELSE '[]'::jsonb
                     END AS services
-                FROM public.eip8004_uri
+                FROM public.vw_eip8004_agents v
+                LEFT JOIN public.eip8004_uri e ON v.origin_key = e.origin_key AND v.agent_id = e.agent_id
+                WHERE v."event" = 'Registered'
+                ORDER BY v.origin_key, v.agent_id, v."date" DESC
             )
             SELECT
                 v.origin_key,
                 v.agent_id,
-                u.uri_json->>'name'                    AS name,
-                u.uri_json->>'image'                   AS image,
-                u.uri_json->>'description'             AS description,
-                (u.uri_json->>'x402Support')::boolean  AS x402_support,
+                u.uri_json->>'name' AS name,
+                u.uri_json->>'image' AS image,
+                u.uri_json->>'description' AS description,
+                (u.uri_json->>'x402Support')::boolean AS x402_support,
                 (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
                     WHERE LOWER(COALESCE(elem->>'name', elem->>'type')) IN ('web', 'website', 'http') LIMIT 1) AS service_web_endpoint,
                 (SELECT elem->>'endpoint' FROM jsonb_array_elements(u.services) elem
@@ -105,11 +116,10 @@ def run_dag():
                 v.feedback_count_valid,
                 v.avg_rating,
                 v.unique_clients,
+                u.safe_uri,
                 u.uri_json
             FROM feedback v
-            LEFT JOIN uri_safe u
-                ON v.origin_key = u.origin_key
-                AND v.agent_id = u.agent_id
+            LEFT JOIN uri_safe_services u ON v.origin_key = u.origin_key AND v.agent_id = u.agent_id
             ORDER BY v.unique_clients DESC
             LIMIT 200;
         """
@@ -133,6 +143,7 @@ def run_dag():
             "feedback_count_valid",
             "avg_rating",
             "unique_clients",
+            "safe_uri",
         ]
         top_agents_types = [
             "string",
@@ -152,6 +163,7 @@ def run_dag():
             "number",
             "number",
             "number",
+            "boolean",
         ]
         top_agents_rows = [
             [row[col] for col in top_agents_columns]

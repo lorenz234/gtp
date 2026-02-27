@@ -2597,21 +2597,11 @@ address_mapping = {
             "decimals": 6
         }
     },
-    "mint": {
-        "track_on_l1": [
-            "0x2b3F201543adF73160bA42E1a5b7750024F30420"
-        ]
-    },
     "zora": {
         "circlefin_usdce": {
             "address": "0xcccccccc7021b32ebb4e8c08314bd62f7c653ec4",
             "decimals": 6
         }
-    },
-    "imx": {
-        "track_on_l1": [
-            "0x5FDCCA53617f4d2b9134B29090C87D01058e27e9"
-        ]
     },
     "loopring": {
         "track_on_l1": [
