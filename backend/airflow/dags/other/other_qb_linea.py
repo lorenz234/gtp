@@ -195,7 +195,7 @@ def run_dag():
         
         if not df_profit.empty:
             # Convert date to unix timestamp
-            df_profit['unix_timestamp'] = pd.to_datetime(df_profit['date']).astype(int) // 10**6
+            df_profit['unix_timestamp'] = pd.to_datetime(df_profit['date']).astype(int)
             
             # Sort by date
             df_profit = df_profit.sort_values('date').reset_index(drop=True)
