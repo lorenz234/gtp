@@ -376,6 +376,7 @@ class JsonGen():
 
             hourly_periods = {'1d': 24, '3d': 72, '7d': 168}
             hourly_changes = self._create_changes_dict(hourly_df, metric_id, level, hourly_periods, 1, AGG_METHOD_LAST)
+            last_1h = self._create_summary_values_dict(hourly_df, metric_id, level, 1, AGG_METHOD_LAST)
 
         # --- CHANGES ---
         daily_periods = {'1d': 1, '7d': 7, '30d': 30, '90d': 90, '180d': 180, '365d': 365}
@@ -437,6 +438,7 @@ class JsonGen():
                     
                     # Update 3: Pass Dicts directly
                     summary={
+                        'last_1h': last_1h if metric_dict.get('hourly_available', False) else {'types': last_1d['types'], 'data': [None] * len(last_1d['types'])},
                         'last_1d': last_1d,
                         'last_7d': last_7d,
                         'last_30d': last_30d
