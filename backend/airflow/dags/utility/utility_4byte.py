@@ -6,7 +6,7 @@ from src.misc.airflow_utils import alert_via_webhook
 @dag(
     default_args={
         'owner' : 'lorenz',
-        'retries' : 5,
+        'retries' : 2,
         'email_on_failure': False,
         'retry_delay' : timedelta(seconds=5),
         'on_failure_callback': lambda context: alert_via_webhook(context, user='lorenz')
