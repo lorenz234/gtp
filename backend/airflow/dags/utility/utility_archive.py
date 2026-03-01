@@ -399,7 +399,7 @@ def utility_archive():
         run_archive()
 
     for table_name, origin_keys in archive_tables_by_name.items():
-        @task(task_id=build_table_task_id("archive_table", table_name), execution_timeout=timedelta(hours=2))
+        @task(task_id=build_table_task_id("archive_table", table_name), execution_timeout=timedelta(hours=10))
         def run_archive_table(
             table: str = table_name,
             origins: List[str] = origin_keys,
