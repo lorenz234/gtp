@@ -106,7 +106,7 @@ class JSONCreation():
         self.da_layers_list = [x.origin_key for x in self.da_config]
         self.da_layer_overview = [x.origin_key for x in self.da_config if x.incl_in_da_overview == True]
 
-        ## all feest metrics keys
+        ## all fees metrics keys
         self.fees_list = [item for sublist in [self.fees_types[metric]['metric_keys'] for metric in self.fees_types] for item in sublist]
 
     
@@ -1735,6 +1735,14 @@ class JSONCreation():
         ## filter df timestamp to be within the last 48 hours (not more needed for table visual)
         df = df[(df.granularity == 'hourly')]
         df = df[df['timestamp'].dt.tz_localize(None) > datetime.now() - timedelta(hours=30)]
+        
+        ## filter df to only include chains that are in the API and have fees data
+        chains_with_fees_data = [chain.origin_key for chain in self.main_config if chain.api_in_fees == True]
+        df = df[df['origin_key'].isin(chains_with_fees_data)]
+        
+        ## filter df to only include fee metrics
+        df = df[df['metric_key'].isin(self.fees_list)]
+        
         max_ts_all = df['unix'].max()
 
         ## loop over all chains and generate a fees json for all chains
