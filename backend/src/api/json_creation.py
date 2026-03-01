@@ -421,7 +421,12 @@ class JSONCreation():
             max_value = df[main_col].max()
             min_value = df[main_col].min()
             ## create new column 'normalized' with normalized values between 0 and 1
-            df['normalized'] = (df[main_col] - min_value) / (max_value - min_value)
+            denom = max_value - min_value
+            if pd.isna(denom) or denom == 0:
+                # Avoid division by zero when all values are identical or missing
+                df['normalized'] = np.where(df[main_col].notna(), 0.0, np.nan)
+            else:
+                df['normalized'] = (df[main_col] - min_value) / denom
 
             if self.fees_types[metric]['invert_normalization']:
                 df['normalized'] = 1 - df['normalized']
