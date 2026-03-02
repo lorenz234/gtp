@@ -81,7 +81,8 @@ def run_dag():
 
         # get data from db
         df = execute_jinja_query(db_connector, "api/quick_bites/hyperliquid_usdc_arb.sql.j2", query_parameters={}, return_df=True)
-        df['unix_timestamp'] = pd.to_datetime(df['date']).astype(int)
+        dt = pd.to_datetime(df['date'])
+        df['unix_timestamp'] = dt.astype("int64") // 1_000_000
         df = df.sort_values('date').reset_index(drop=True)
         df['date'] = pd.to_datetime(df['date'])
 

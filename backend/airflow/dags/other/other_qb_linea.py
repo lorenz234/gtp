@@ -194,8 +194,9 @@ def run_dag():
         )
         
         if not df_profit.empty:
-            # Convert date to unix timestamp
-            df_profit['unix_timestamp'] = pd.to_datetime(df_profit['date']).astype(int)
+            # Convert date to unix timestamp (milliseconds)
+            dt_profit = pd.to_datetime(df_profit['date'])
+            df_profit['unix_timestamp'] = dt_profit.astype("int64") // 1_000_000
             
             # Sort by date
             df_profit = df_profit.sort_values('date').reset_index(drop=True)
@@ -229,8 +230,9 @@ def run_dag():
         )
         
         if not df_burn.empty:
-            # Convert date to unix timestamp
-            df_burn['unix_timestamp'] = pd.to_datetime(df_burn['date']).astype(int) // 10**6
+            # Convert date to unix timestamp (milliseconds)
+            dt_burn = pd.to_datetime(df_burn['date'])
+            df_burn['unix_timestamp'] = dt_burn.astype("int64") // 1_000_000
             
             # Sort by date
             df_burn = df_burn.sort_values('date').reset_index(drop=True)
