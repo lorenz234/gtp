@@ -2193,7 +2193,7 @@ class JSONCreation():
             }
 
         da_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        da_dict = fix_dict_nan(da_dict, 'da_overview')
+        da_dict = fix_dict_nan(da_dict, 'da_overview', False)
 
         if self.s3_bucket == None:
             self.save_to_json(da_dict, 'da_overview')
@@ -2263,7 +2263,7 @@ class JSONCreation():
                     }         
 
         da_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        da_dict = fix_dict_nan(da_dict, 'da_timeseries')
+        da_dict = fix_dict_nan(da_dict, 'da_timeseries', False)
 
         if self.s3_bucket == None:
             self.save_to_json(da_dict, 'da_timeseries')
