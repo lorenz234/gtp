@@ -206,7 +206,8 @@ def run_dag():
             ORDER BY date, event;
         """
         df_cumulative = db_connector.execute_query(query, load_df=True)
-        df_cumulative["unix_timestamp"] = pd.to_datetime(df_cumulative["date"]).astype(int)
+        dt = pd.to_datetime(df_cumulative["date"])
+        df_cumulative["unix_timestamp"] = dt.astype("int64") // 1_000_000
         df_cumulative = df_cumulative.sort_values(["date", "event"]).reset_index(drop=True)
 
         # Pivot event series into chart columns (one column per event)
@@ -346,7 +347,8 @@ def run_dag():
             ORDER BY v.date DESC, v.origin_key;
         """
         df_registered = db_connector.execute_query(query, load_df=True)
-        df_registered["unix_timestamp"] = pd.to_datetime(df_registered["date"]).astype(int)
+        dt_registered = pd.to_datetime(df_registered["date"])
+        df_registered["unix_timestamp"] = dt_registered.astype("int64") // 1_000_000
         df_registered = df_registered.sort_values(["date", "origin_key"]).reset_index(drop=True)
 
         # Pivot origin_key series into dynamic chart columns (supports new origin_keys automatically)
@@ -522,7 +524,8 @@ def run_dag():
             ORDER BY 1;
         """
         df_invalid_uri = db_connector.execute_query(query, load_df=True)
-        df_invalid_uri["unix_timestamp"] = pd.to_datetime(df_invalid_uri["date"]).astype(int)
+        dt_invalid_uri = pd.to_datetime(df_invalid_uri["date"])
+        df_invalid_uri["unix_timestamp"] = dt_invalid_uri.astype("int64") // 1_000_000
         df_invalid_uri = df_invalid_uri.sort_values(["date", "status"]).reset_index(drop=True)
         df_invalid_uri_wide = (
             df_invalid_uri.pivot_table(
