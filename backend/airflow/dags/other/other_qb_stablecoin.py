@@ -49,8 +49,10 @@ def run_dag():
                 df = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_chain_timeseries.sql.j2", {'origin_key': chain}, True)
             
             # create jsons
-            dt = pd.to_datetime(df['date'])
-            df['unix_timestamp'] = dt.astype("int64") // 1_000_000  # Convert to milliseconds
+            dt = pd.to_datetime(df['date'], errors="raise", utc=True)
+            df['unix_timestamp'] = (
+                (dt - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta("1ms")
+            ).astype("int64")  # Convert to milliseconds
             
             # Sort by date and symbol to ensure consistent ordering
             df = df.sort_values(['date', 'symbol']).reset_index(drop=True)

@@ -159,8 +159,10 @@ def run_dag():
         ### Load the first dataset for daily
         df = execute_jinja_query(db_connector, "api/quick_bites/robinhood_merged_daily.sql.j2", query_parameters={}, return_df=True)
         ticker_list = df['ticker'].unique().tolist()
-        dt = pd.to_datetime(df['date'])
-        df['unix_timestamp'] = dt.astype("int64") // 1_000_000
+        dt = pd.to_datetime(df['date'], errors="raise", utc=True)
+        df['unix_timestamp'] = (
+            (dt - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta("1ms")
+        ).astype("int64")
 
         # send alert for tickers which have to be reviewed (no close price data)
         alert_df = df.groupby('ticker').last()
@@ -235,8 +237,10 @@ def run_dag():
 
         ### Load the second dataset for totals
         df2 = execute_jinja_query(db_connector, "api/quick_bites/robinhood_totals_daily.sql.j2", query_parameters={}, return_df=True)
-        dt2 = pd.to_datetime(df2['date'])
-        df2['unix_timestamp'] = dt2.astype("int64") // 1_000_000
+        dt2 = pd.to_datetime(df2['date'], errors="raise", utc=True)
+        df2['unix_timestamp'] = (
+            (dt2 - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta("1ms")
+        ).astype("int64")
         ## filter df to date >= June 30th 2025
         df2 = df2[df2['date'] >= datetime.date(datetime(2025, 6, 30))]
 
