@@ -17,6 +17,6 @@ SELECT
     COUNT(*) AS value
 FROM {{ origin_key }}_tx
 WHERE {{ filter_col }} > 0
-    AND block_date >= current_date - interval '{{ days }} days' 
+    AND block_date >= current_date - {{ days }} 
     AND block_date < current_date
 GROUP BY 1;

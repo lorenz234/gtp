@@ -31,7 +31,7 @@ RankedData as (
     left join econ_names eco using (origin_key)
     left join sys_main_conf c using (origin_key)
     where metric_key {{ metric_key }}
-    AND "date" >= current_date - INTERVAL '{{ days }} days' 
+    AND "date" >= current_date - {{ days }} 
         AND "date" < current_date
     group by 1,2,3,4
     order by 5 desc
@@ -58,7 +58,7 @@ TopWithTotals AS (
             FROM fact_kpis
             WHERE metric_key = 'da_data_posted_bytes' 
             AND origin_key = '{{ da_layer }}'
-            AND "date" >= current_date - INTERVAL '{{ days }} days' 
+            AND "date" >= current_date - {{ days }}
             AND "date" < current_date)
         -
         (SELECT SUM(data_posted) 

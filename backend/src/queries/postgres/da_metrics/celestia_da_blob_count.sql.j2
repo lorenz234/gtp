@@ -14,7 +14,7 @@ SELECT
 	SUM(value) AS value -- number blobs
 FROM public.fact_da_consumers
 WHERE 
-    "date" >= current_date - interval '{{ days }} days' 
+    "date" >= current_date - {{ days }} 
     AND "date" < current_date
     AND metric_key = 'blob_count'
     AND da_layer = 'da_celestia'

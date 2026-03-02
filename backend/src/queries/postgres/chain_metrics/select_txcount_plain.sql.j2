@@ -15,6 +15,6 @@ SELECT
     block_date AS day,
     COUNT(*) AS value
 FROM {{ origin_key }}_tx
-WHERE block_date >= current_date - interval '{{ days }} days' 
+WHERE block_date >= current_date - {{ days }} 
     AND block_date < current_date
 GROUP BY 1;

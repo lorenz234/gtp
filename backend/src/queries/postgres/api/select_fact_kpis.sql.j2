@@ -15,6 +15,6 @@ SELECT
 FROM public.fact_kpis fk
 WHERE fk.metric_key = '{{ metric_key }}'
     AND fk.origin_key = '{{ origin_key }}'
-    AND fk."date" >= current_date - INTERVAL '{{ days }} days' 
+    AND fk."date" >= current_date - {{ days }} 
     AND fk."date" < current_date
 ORDER BY fk."date" DESC

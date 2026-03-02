@@ -15,7 +15,7 @@ WITH token_price AS (
     FROM fact_kpis
     WHERE origin_key = '{{ origin_key }}'
         AND metric_key = 'price_usd' 
-        AND "date" >= current_date - interval '{{ days }} days' 
+        AND "date" >= current_date - {{ days }} 
         AND "date" < current_date
 ),
 eth_price AS (
@@ -23,7 +23,7 @@ eth_price AS (
     FROM fact_kpis
     WHERE origin_key = 'ethereum'
         AND metric_key = 'price_usd' 
-        AND "date" >= current_date - interval '{{ days }} days' 
+        AND "date" >= current_date - {{ days }} 
         AND "date" < current_date
 ),
 tx_median AS (
@@ -32,7 +32,7 @@ tx_median AS (
         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY tx_fee) AS median_tx_fee
     FROM {{ origin_key }}_tx
     WHERE tx_fee > 0 
-        AND block_date >= current_date - interval '{{ days }} days' 
+        AND block_date >= current_date - {{ days }} 
         AND block_date < current_date
     GROUP BY 1
 )

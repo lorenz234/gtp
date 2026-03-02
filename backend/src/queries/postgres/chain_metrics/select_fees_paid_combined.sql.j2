@@ -14,7 +14,7 @@ SELECT
     date AS day,
     SUM(value) AS value
 FROM fact_kpis
-WHERE date >= current_date - interval '{{ days }} days' 
+WHERE date >= current_date - {{ days }} 
     AND date < current_date
     AND metric_key in ('fees_paid_base_eth', 'fees_paid_priority_eth')
     AND origin_key = '{{ origin_key }}'

@@ -17,6 +17,6 @@ FROM {{ origin_key }}_tx
 WHERE
     block_date >= '2025-05-07'
     AND tx_type = '4'
-    AND block_date >= current_date - interval '{{ days }} days' 
+    AND block_date >= current_date - {{ days }} 
     AND block_date < current_date
 GROUP BY 1;
