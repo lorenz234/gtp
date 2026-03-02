@@ -29,6 +29,7 @@ tmp AS (
     WHERE   
         block_timestamp > date_trunc('day', now()) - INTERVAL '{{ days }} days' 
         AND block_timestamp > '2024-03-14'
+        AND block_timestamp < date_trunc('hour', now())
     GROUP BY 1
 )
 SELECT 
