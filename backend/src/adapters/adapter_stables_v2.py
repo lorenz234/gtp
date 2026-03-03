@@ -8,10 +8,10 @@ from starknet_py.net.full_node_client import FullNodeClient # Starknet w3 equiva
 from starknet_py.contract import Contract
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.misc.adapter_SupplyReader import SupplyReaderAdapter
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 #!# Logic requires 'first_block_of_day' data to be available in fact_kpis.
 #!# Tracking totalSupply through Dune events is not reliable for total_supply, as some developers decided not to emit events to save on gas.
-#!# Starknet is special and only works if run not from a Jupyter notebook (due to asyncio and event loop issues)
 
 class AdapterStablecoinSupply(AbstractAdapter):
     """
@@ -38,7 +38,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         self.current_rpc = None
         self.list_of_rpcs = None
         self.current_rpc_index = 0
-        self.rpc_timeout_seconds = 10
+        self.rpc_timeout_seconds = 5
 
         # abi for reading totalSupply directly from ERC20 contracts
         self.erc20_abi = [{"constant": True,"inputs": [],"name": "totalSupply","outputs": [{"name": "", "type": "uint256"}],"type": "function"}]
@@ -69,7 +69,17 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
         # exchange '*' for all chains in mapping
         if chains == ['*']:
-            chains = list(self.address_mapping.keys())
+            chains_mapping = list(self.address_mapping.keys())
+            chains_conf = self.db_connector.get_all_origin_keys_prod(['PROD', 'ZIRCUIT'])
+            # select only chains that are in both
+            chains = list(set(chains_mapping) & set(chains_conf))
+            # print warning for chains that are in mapping but not in conf and vice versa
+            chains_not_in_conf = list(set(chains_mapping) - set(chains_conf))
+            chains_not_in_mapping = list(set(chains_conf) - set(chains_mapping))
+            if len(chains_not_in_conf) > 0:
+                print(f"The following chains are in the address mapping but not in the main config and will be skipped: {chains_not_in_conf}. If these chains should be pulled in, please check gtp_dna github and set the column api_deployment_flag to ('PROD' or 'ZIRCUIT').")
+            if len(chains_not_in_mapping) > 0:
+                print(f"The following chains are in the main config but not in the address mapping and will be skipped: {chains_not_in_mapping}. Please add them to the mapping in src/stables_config_v2.py.")
         # exchange '*' for all token_ids in mapping
         if token_ids == ['*']:
             token_ids = [coin['token_id'] for coin in self.coin_mapping]
@@ -180,9 +190,9 @@ class AdapterStablecoinSupply(AbstractAdapter):
         # create specific chain db_progress df (includes new coins and removes already upto-date coins)
         db_progress_filtered = self.get_db_progress_filtered(chain, 'total_supply', token_ids, db_progress)
         if db_progress_filtered.empty:
-            print(f"WARNING: No token_ids for {chain} found to backfill data on. Continuing.")
+            print(f"WARNING {chain}: No token_ids found or already fully backfilled. Continuing.")
             return pd.DataFrame()
-        print(f"Pulling 'total_supply' for the following token_ids: {db_progress_filtered['token_id'].tolist()}")
+        print(f"Pulling 'total_supply' on {chain} for token_ids: {db_progress_filtered['token_id'].tolist()}")
 
         # replace NaN with a dummy old date
         db_progress_filtered = db_progress_filtered.fillna({'date': pd.Timestamp('2000-01-01').date()})
@@ -397,20 +407,24 @@ class AdapterStablecoinSupply(AbstractAdapter):
         """
         Execute a read-only chain call and rotate through chain RPCs on retryable failures.
         """
-        self.get_new_w3(chain)
+        self.get_new_w3(chain)  # sets self.list_of_rpcs
         max_attempts = len(self.list_of_rpcs)
         last_error = None
 
         for attempt in range(max_attempts):
-            rotate = attempt > 0
-            w3 = self.get_new_w3(chain, rotate=rotate)
+            w3 = self.get_new_w3(chain, rotate=(attempt > 0))
             try:
-                return call_fn(w3)
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(call_fn, w3)
+                    return future.result(timeout=self.rpc_timeout_seconds)
+            except FuturesTimeoutError:
+                last_error = TimeoutError(f"RPC timed out after {self.rpc_timeout_seconds}s")
+                print(f"RPC timed out on chain {chain} with RPC {self.current_rpc} (attempt {attempt + 1}/{max_attempts})")
             except Exception as e:
                 if self._is_contract_not_deployed_error(e):
                     raise e
                 last_error = e
-                print(f"RPC call failed on chain {chain} with RPC {self.current_rpc} (rpcs {attempt + 1}/{max_attempts}): {e}")
+                print(f"RPC call failed on chain {chain} with RPC {self.current_rpc} (attempt {attempt + 1}/{max_attempts}): {e}")
 
         raise RuntimeError(
             f"RPC call failed on chain {chain} after trying {max_attempts} RPC endpoints."
@@ -482,12 +496,10 @@ class AdapterStablecoinSupply(AbstractAdapter):
         if chain == 'starknet':
             return FullNodeClient(node_url=self.current_rpc)
         else:
-            return Web3(
-                Web3.HTTPProvider(
-                    self.current_rpc,
-                    request_kwargs={"timeout": self.rpc_timeout_seconds},
-                )
-            )
+            return Web3(Web3.HTTPProvider(
+                self.current_rpc,
+                request_kwargs={"timeout": (self.rpc_timeout_seconds, self.rpc_timeout_seconds)},
+            ))
 
     def update_sys_stables_v2(self, coin_mapping):
         """
