@@ -54,7 +54,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         
         Args:
             extract_params (dict): Dictionary containing the parameters for extraction. Expected keys are:
-            - origin_keys (list): List of chain names to extract data for.  Use ['*'] for all.
+            - origin_keys (list): List of chain names to extract data for.  Use ['*'] for all (chains that are in PROD or ZIRCUIT).
             - token_ids (list): List of token_ids to extract data for. Use ['*'] for all.
             - metric_keys (list): List of metric_keys to extract data for. Use ['*'] for all. Options are 'total_supply'
         """
