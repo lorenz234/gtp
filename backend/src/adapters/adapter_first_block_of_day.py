@@ -400,9 +400,9 @@ class AdapterFirstBlockOfDay(AbstractAdapter):
             FROM public.sys_main_conf
             WHERE 
                 chain_type IN ('L2', 'L1')
-                AND api_deployment_flag IN ('PROD', 'DEV')
+                AND api_deployment_flag IN ('PROD', 'DEV', 'ZIRCUIT')
         """
-        print("[DB] SELECT chain universe from sys_main_conf (L1/L2, PROD/DEV)")
+        print("[DB] SELECT chain universe from sys_main_conf (L1/L2, PROD/DEV/ZIRCUIT)")
         df = self.db_connector.execute_query(query, load_df=True)
         print(f"[DB] -> returned {len(df)} chain row(s)")
         ### remove certain chains
