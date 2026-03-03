@@ -38,6 +38,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         self.current_rpc = None
         self.list_of_rpcs = None
         self.current_rpc_index = 0
+        self.rpc_timeout_seconds = 10
 
         # abi for reading totalSupply directly from ERC20 contracts
         self.erc20_abi = [{"constant": True,"inputs": [],"name": "totalSupply","outputs": [{"name": "", "type": "uint256"}],"type": "function"}]
@@ -195,9 +196,6 @@ class AdapterStablecoinSupply(AbstractAdapter):
         
         # keep track of everything
         df_supplies_all = pd.DataFrame()
-
-        # initialize chain rpc state
-        self.get_new_w3(chain) ## is this needed?
 
         # going from newest to oldest date
         for index, row in block_date_mapping.iterrows():
@@ -484,7 +482,12 @@ class AdapterStablecoinSupply(AbstractAdapter):
         if chain == 'starknet':
             return FullNodeClient(node_url=self.current_rpc)
         else:
-            return Web3(Web3.HTTPProvider(self.current_rpc))
+            return Web3(
+                Web3.HTTPProvider(
+                    self.current_rpc,
+                    request_kwargs={"timeout": self.rpc_timeout_seconds},
+                )
+            )
 
     def update_sys_stables_v2(self, coin_mapping):
         """
