@@ -50,6 +50,11 @@ def etl():
                     'query_id': 6371012,
                     'params': {'days': 3}
                 },
+                {
+                    'name': 'ronin_fundamentals',
+                    'query_id': 6776075,
+                    'params': {'days': 3}
+                },
             ],
             'prepare_df': 'prepare_df_metric_daily',
             'load_type': 'fact_kpis'
@@ -383,6 +388,59 @@ def etl():
         # df_aa.set_index(['address', 'date', 'origin_key'], inplace=True)
         # db_connector.upsert_table('fact_active_addresses', df_aa)
         
+        
+    ###################
+    ## Ronin tasks (Basic)
+    ###################
+    
+    @task()
+    def run_ronin_aa():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'ronin_aa',
+                    'query_id': 6776362,
+                    'params': {'days': 2}
+                }
+            ],
+            'prepare_df': 'prepare_df_contract_level_aa_daily',
+            'load_type': 'CUSTOM'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+
+        print(f"Loaded {df.shape[0]} rows for ronin active addresses on contract level.")
+
+        # prepare for fact_active_addresses_contract
+        df_contract_aa = df.copy()
+        df_contract_aa = df_contract_aa[df_contract_aa.address != '<nil>']
+
+        df_contract_aa['origin_key'] = 'ronin'
+        df_contract_aa.set_index(['address', 'date', 'origin_key', 'from_address'], inplace=True)
+        db_connector.upsert_table('fact_active_addresses_contract', df_contract_aa)
+
+        # prepare for fact_active_addresses
+        df_aa = df.copy()
+        df_aa = df_aa.drop(columns=['address'])
+        df_aa = df_aa.drop_duplicates(subset=['date', 'from_address'])
+        df_aa = df_aa.rename(columns={'from_address': 'address'})
+
+        # additional prep steps
+        df_aa['origin_key'] = 'ronin'
+        df_aa.set_index(['address', 'date', 'origin_key'], inplace=True)
+        db_connector.upsert_table('fact_active_addresses', df_aa)
+        
     ###################
     ## Other tasks
     ###################
@@ -428,5 +486,8 @@ def etl():
     ## Starknet tasks
     run_starknet_contract_level()
     run_starknet_aa()
+    
+    ## Ronin tasks
+    run_ronin_aa()
     
 etl()
