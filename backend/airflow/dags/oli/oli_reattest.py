@@ -62,7 +62,8 @@ def etl():
 
             # read all approved labels in 'Label Pool Reattest'
             df_in_airtable = at.read_all_label_pool_reattest(api, AIRTABLE_BASE_ID, table, approved=False)
-            if df_in_airtable:
+            
+            if df_in_airtable is not None and not df_in_airtable.empty:
                 df_in_airtable = df_in_airtable[['address', 'chain_id', 'contract_name', 'owner_project', 'usage_category']]
                 df_in_airtable['address'] = df_in_airtable['address'].str.replace('\\x', '0x')
 
