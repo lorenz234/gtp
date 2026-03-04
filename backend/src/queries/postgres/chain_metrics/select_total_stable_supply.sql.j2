@@ -6,50 +6,38 @@
     - days: default = 7
 #}
 
-
-WITH stables_usd as (
-	select *
-	from vw_fact_stables_usd
-	where date < current_date
+WITH expanded_stables AS (
+    SELECT
+        v.*,
+        s.*
+    FROM vw_fact_stables_v2_usd v
+    LEFT JOIN sys_stables_v2 s ON s.token_id = v.token_id
+    WHERE date < current_date
         AND date >= current_date - interval '{{ days }} days'
-	    and origin_key IN ( '{{ origin_keys | join("', '") }}')
+        AND origin_key IN ( '{{ origin_keys | join("', '") }}')
 ),
-
-bridged_l2s AS (
+bridged_values AS (
     SELECT
-        date,
-        SUM(value_usd) AS value_l2s_usd
-    FROM stables_usd
-    WHERE metric_key IN ('supply_bridged', 'supply_bridged_exceptions')
-      AND origin_key <> 'ethereum'
-    GROUP BY date
-),
-
-totals_raw AS (
-    SELECT
-        origin_key,
-        date,
-        SUM (
-            CASE WHEN metric_key = 'supply_bridged_exceptions' THEN 0 ELSE value_usd END
-        ) AS value_usd
-    FROM stables_usd
-    GROUP BY origin_key, date
-),
-
-totals_adjusted AS (
-    SELECT
-        'stables_mcap' AS metric_key,
-        t.origin_key,
-        t.date,
-        CASE 
-            WHEN t.origin_key = 'ethereum'
-                THEN t.value_usd - COALESCE(b.value_l2s_usd, 0)
-            ELSE t.value_usd
-        END AS value
-    FROM totals_raw t
-    LEFT JOIN bridged_l2s b USING (date)
+        "date",
+        bridged_origin_chain,
+        SUM(value_usd) AS value_usd
+    FROM expanded_stables
+    WHERE 
+    	bridged_origin_chain IS NOT NULL
+    	AND date < current_date
+        AND date >= current_date - interval '{{ days }} days'
+        AND origin_key IN ( '{{ origin_keys | join("', '") }}')
+    GROUP BY 1, 2
 )
 
-SELECT *
-FROM totals_adjusted
-ORDER BY date, origin_key;
+select
+	'stables_mcap' AS metric_key,
+    e.origin_key,
+    e.date,
+    SUM(e.value_usd) - COALESCE(MAX(b.value_usd), 0) AS value
+FROM expanded_stables e
+LEFT JOIN bridged_values b
+    ON b.date = e.date
+    AND b.bridged_origin_chain = e.origin_key
+GROUP BY 1, 2, 3
+ORDER BY 3, 2;
