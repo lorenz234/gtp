@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load Stablecoin balances via RPCs',
     tags=['metrics', 'daily'],
     start_date=datetime(2024,4,21),
-    schedule='30 01 * * *'
+    schedule='15 01 * * *'
 )
 
 def etl():
