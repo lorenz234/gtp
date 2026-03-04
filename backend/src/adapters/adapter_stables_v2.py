@@ -181,6 +181,10 @@ class AdapterStablecoinSupply(AbstractAdapter):
         return df_all
                 
     def total_supply_from_rpc(self, chain, token_ids, db_progress, pretend_today_is=None):
+        # first we check if chain mapping is defined with 'total_supply', if not skip
+        if 'total_supply' != self.check_supply_mapping_for_chain(chain, self.address_mapping):
+            return pd.DataFrame()
+        
         # check if SupplyReader is deployed on the chain
         chain_config = self.config[self.config['origin_key'] == chain]
         supplyreader_deployed_raw = chain_config['deployed_supplyreader'].iloc[0]
@@ -304,6 +308,9 @@ class AdapterStablecoinSupply(AbstractAdapter):
     
 
     def track_on_l1_from_rpc_or_dune(self, chain, token_ids, db_progress, min_amount=9999, pretend_today_is=None):
+        # first we check if chain mapping is defined with 'track_on_l1', if not skip
+        if 'track_on_l1' != self.check_supply_mapping_for_chain(chain, self.address_mapping):
+            return pd.DataFrame()
 
         # stores all the extracted data
         df_all = pd.DataFrame()
@@ -556,6 +563,16 @@ class AdapterStablecoinSupply(AbstractAdapter):
         """
         result = self.db_connector.execute_query(query, load_df=True)
         return result
+    
+    # function to know if a chain should be tracked via total_supply or track_on_l1
+    def check_supply_mapping_for_chain(self, chain: str, address_mapping: dict):
+        if chain not in address_mapping:
+            print(f"No stablecoins in address mapping for chain '{chain}', skipping. Please check the file: src/stables_config_v2.py.")
+            return
+        if 'track_on_l1' in address_mapping[chain]:
+            return 'track_on_l1'
+        else:
+            return 'total_supply'
 
     def get_db_progress_filtered(self, chain: str, metric_key: str, token_ids: list, db_progress: pd.DataFrame):
         # filter db_progress for specific chain and metric_key
@@ -579,7 +596,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         db_progress_filtered = db_progress_filtered[db_progress_filtered['date'] != date_yesterday]
         return db_progress_filtered
 
-    def get_track_on_l1_progress(self, chain: str, address_mapping: list):
+    def get_track_on_l1_progress(self, chain: str, address_mapping: dict):
         # get all bridge addresses for a chain
         bridge_addresses = [address_mapping[origin_key] for origin_key in address_mapping if 'track_on_l1' in address_mapping[origin_key] and chain == origin_key][0]['track_on_l1']
 
