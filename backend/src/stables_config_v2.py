@@ -978,7 +978,7 @@ coin_mapping = [
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
-        "fiat": "",
+        "fiat": "eur",
         "logo": ""
     },
     {
