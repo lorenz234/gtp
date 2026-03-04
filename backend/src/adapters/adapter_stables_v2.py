@@ -85,7 +85,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             token_ids = [coin['token_id'] for coin in self.coin_mapping]
         # exchange '*' for all metric_keys
         if metric_keys == ['*']:
-            metric_keys = ['total_supply'] # 'volume' and 'transactions' ... not implemented yet
+            metric_keys = ['total_supply', 'track_on_l1'] # 'volume' and 'transactions' ... not implemented yet
 
         # get db_progress, DataFrame that keeps track of which coins, chains and metric_keys are up to date. Used to determine from which day onwards to pull data.
         db_progress = self.get_db_progress()
@@ -379,7 +379,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
                 # merge pulled data into df_all
                 df_all = pd.concat([df_all, df_day], ignore_index=True)
-                print(f"Pulled track_on_l1 data for bridge {bridge} on date {date} and block {block_number} using SupplyReader with RPC for {len(df_day)} records.")
+                print(f"Pulled track_on_l1 data for bridge {bridge} on date {date} and block {block_number} using SupplyReader with RPC, found {len(df_day)} token_ids.")
                 
                 # break in case we do not find any balances above the minimum threshold
                 if len(token_address_df) == 0:
@@ -580,23 +580,37 @@ class AdapterStablecoinSupply(AbstractAdapter):
         return db_progress_filtered
 
     def get_track_on_l1_progress(self, chain: str, address_mapping: list):
-        # ...
-        
-        # see if we have new coins
+        # get all bridge addresses for a chain
         bridge_addresses = [address_mapping[origin_key] for origin_key in address_mapping if 'track_on_l1' in address_mapping[origin_key] and chain == origin_key][0]['track_on_l1']
 
-        # add the new coins to db_progress_filtered
-        df = pd.DataFrame({
-            'date': [None] * len(bridge_addresses),
-            'origin_key': [chain] * len(bridge_addresses),
-            'metric_key': ['track_on_l1'] * len(bridge_addresses),
-            'token_id': [None] * len(bridge_addresses),
-            'address': bridge_addresses,
-            'decimals': [None] * len(bridge_addresses),
-            'value': [None] * len(bridge_addresses)
-        })
+        # check if we have data in db for these bridged addresses
+        query = f"""
+            SELECT
+                origin_key,
+                address,
+                'track_on_l1' AS metric_key,
+                MAX(date) AS date
+            FROM public.fact_stables_v2
+            WHERE
+                address IN ({', '.join([f"'{addr.lower()}'" for addr in bridge_addresses])})
+                AND metric_key = 'track_on_l1'
+                AND origin_key = '{chain}'
+            GROUP BY 1, 2
+        """
+        df = self.db_connector.execute_query(query, load_df=True)
 
-        # filter out coins which are already at yesterdays date (= up to date)
-        #date_yesterday = (datetime.now() - timedelta(days=1)).date()
-        #db_progress_filtered = db_progress_filtered[db_progress_filtered['date'] != date_yesterday]
+        # if not we need to use dune to scrape it all
+        if df.empty:
+            print(f"No existing track_on_l1 data found in db for {chain}. Scraping balances of all bridge addresses from day one.")
+            # add the new coins to df
+            df = pd.DataFrame({
+                'date': [None] * len(bridge_addresses),
+                'origin_key': [chain] * len(bridge_addresses),
+                'metric_key': ['track_on_l1'] * len(bridge_addresses),
+                'address': bridge_addresses
+            })
+        else:
+            # filter out bridge addresses which are already at yesterdays date (= up to date)
+            date_yesterday = (datetime.now() - timedelta(days=1)).date()
+            df = df[df['date'] != date_yesterday]
         return df
