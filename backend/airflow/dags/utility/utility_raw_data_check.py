@@ -30,7 +30,7 @@ def check():
         db_connector = DbConnector()
 
         for chain in main_config:
-            if chain.api_deployment_flag != 'PROD' or chain.origin_key in ['loopring', 'megaeth', 'polygon_pos']:
+            if chain.api_deployment_flag != 'PROD' or chain.origin_key in ['loopring', 'megaeth', 'polygon_pos', 'ronin']:
                 continue
             
             test_time = 60
