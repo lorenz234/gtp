@@ -39,6 +39,11 @@ def etl():
                     'query_id': 6715560,
                     'params': {'hours': 3}
                 },
+                 {
+                    'name': 'ronin_fundamentals_hourly',
+                    'query_id': 6776063,
+                    'params': {'hours': 3}
+                },
             ],
             'prepare_df': 'prepare_df_metric_hourly',
             'load_type': 'fact_kpis_granular'

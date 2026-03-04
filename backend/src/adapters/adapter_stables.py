@@ -53,6 +53,9 @@ class AdapterStablecoinSupply(AbstractAdapter):
         
         # Create connections to each chain
         for chain in connection_chains:
+            if chain in ['starknet']:
+                print(f"Skipping web3 connection for {chain} as it's not EVM-compatible")
+                continue
             try:
                 rpc_url = self.db_connector.get_special_use_rpc(chain)
                 w3 = Web3(Web3.HTTPProvider(rpc_url))
