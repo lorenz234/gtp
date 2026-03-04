@@ -1272,7 +1272,7 @@ def fetch_and_process_range(current_start, current_end, chain, w3, table_name, b
                         print(f"ERROR: {rpc_url} - inserting authorization list data for blocks {current_start} to {current_end}: {e}")
                 return
 
-            save_data_for_range(df, current_start, current_end, chain, bucket_name)
+            # save_data_for_range(df, current_start, current_end, chain, bucket_name)
 
             df_prep = prep_dataframe_new(df, chain)
 

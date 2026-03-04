@@ -272,7 +272,7 @@ class AdapterCelestia(AbstractAdapterRaw):
                     return
 
                 # Save data to GCS
-                save_data_for_range(df, current_start, current_end, chain, bucket_name)
+                # save_data_for_range(df, current_start, current_end, chain, bucket_name)
 
                 # Remove duplicates and set index
                 df.drop_duplicates(subset=['tx_hash'], inplace=True)

@@ -36,10 +36,10 @@ class AdapterStarknet(AbstractAdapterRaw):
         else:
             print("Successfully connected to database.")
 
-        if not check_gcs_connection(self.gcs_connection):
-            raise ConnectionError("GCS is not connected.")
-        else:
-            print("Successfully connected to GCS.")
+        # if not check_gcs_connection(self.gcs_connection):
+        #     raise ConnectionError("GCS is not connected.")
+        # else:
+        #     print("Successfully connected to GCS.")
 
         latest_block = None
         for rpc_config in self.rpc_configs:
@@ -201,7 +201,7 @@ class AdapterStarknet(AbstractAdapterRaw):
 
                 # Process and save transactions
                 if not transactions_df.empty:
-                    save_data_for_range(transactions_df, current_start, current_end, chain, bucket_name)
+                    # save_data_for_range(transactions_df, current_start, current_end, chain, bucket_name)
                     self.insert_data_into_db(transactions_df, db_connector, 'starknet_tx', 'transaction')
                 
                 # # Process and save events

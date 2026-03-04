@@ -180,10 +180,10 @@ class NodeAdapter(AbstractAdapterRaw):
         else:
             print("Successfully connected to database.")
 
-        if not check_gcs_connection(self.gcs_connection):
-            raise ConnectionError("GCS is not connected.")
-        else:
-            print("Successfully connected to GCS.")
+        # if not check_gcs_connection(self.gcs_connection):
+        #     raise ConnectionError("GCS is not connected.")
+        # else:
+        #     print("Successfully connected to GCS.")
 
         latest_block = get_latest_block(self.w3)
         if latest_block is None:

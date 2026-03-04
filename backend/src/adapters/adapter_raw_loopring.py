@@ -114,10 +114,10 @@ class AdapterLoopring(AbstractAdapterRaw):
         else:
             print("Successfully connected to database.")
 
-        if not check_gcs_connection(self.gcs_connection):
-            raise ConnectionError("GCS is not connected.")
-        else:
-            print("Successfully connected to GCS.")
+        # if not check_gcs_connection(self.gcs_connection):
+        #     raise ConnectionError("GCS is not connected.")
+        # else:
+        #     print("Successfully connected to GCS.")
             
         latest_block = get_latest_block_id()
         if latest_block is None:
@@ -189,7 +189,7 @@ class AdapterLoopring(AbstractAdapterRaw):
                     return
 
                 # Save data to GCS
-                save_data_for_range(df, current_start, current_end, chain, bucket_name)
+                # save_data_for_range(df, current_start, current_end, chain, bucket_name)
 
                 # Dataframe preparation specific to Loopring
                 df_prep = self.prep_dataframe_loopring(df)
