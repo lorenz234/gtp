@@ -6,38 +6,15 @@
     - days: default = 7
 #}
 
-WITH expanded_stables AS (
-    SELECT
-        v.*,
-        s.*
-    FROM vw_fact_stables_v2_usd v
-    LEFT JOIN sys_stables_v2 s ON s.token_id = v.token_id
-    WHERE date < current_date
-        AND date >= current_date - interval '{{ days }} days'
-        AND origin_key IN ( '{{ origin_keys | join("', '") }}')
-),
-bridged_values AS (
-    SELECT
-        "date",
-        bridged_origin_chain,
-        SUM(value_usd) AS value_usd
-    FROM expanded_stables
-    WHERE 
-    	bridged_origin_chain IS NOT NULL
-    	AND date < current_date
-        AND date >= current_date - interval '{{ days }} days'
-        AND origin_key IN ( '{{ origin_keys | join("', '") }}')
-    GROUP BY 1, 2
-)
-
-select
-	'stables_mcap' AS metric_key,
-    e.origin_key,
-    e.date,
-    SUM(e.value_usd) - COALESCE(MAX(b.value_usd), 0) AS value
-FROM expanded_stables e
-LEFT JOIN bridged_values b
-    ON b.date = e.date
-    AND b.bridged_origin_chain = e.origin_key
+SELECT 
+    'stables_mcap' AS metric_key,
+    origin_key,
+    "date",
+    SUM(value_usd) AS value
+FROM public.vw_fact_stables_mcap_v2
+WHERE
+    "date" < current_date
+    AND "date" >= current_date - interval '{{ days }} days'
+    AND origin_key IN ('{{ origin_keys | join("', '") }}')
 GROUP BY 1, 2, 3
 ORDER BY 3, 2;
