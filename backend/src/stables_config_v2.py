@@ -1115,9 +1115,9 @@ coin_mapping = [
         "token_id": "bilira-org_tryb",
         "symbol": "TRYb",
         "coingecko_id": ["bilira"],
-        "metric_key": "bridged",
-        "bridged_origin_chain": "ethereum",
-        "bridged_origin_token_id": "bilira-org_tryb",
+        "metric_key": "direct",
+        "bridged_origin_chain": None,
+        "bridged_origin_token_id": None,
         "fiat": "try",
         "logo": ""
     },
