@@ -2626,5 +2626,15 @@ address_mapping = {
             "address": "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
             "decimals": 6
         }
+    },
+    "ronin": {
+        "circlefin_usdce": {
+            "address": "0x0b7007c13325c48911f73a2dad5fa5dcbf808adc",
+            "decimals": 6
+        },
+        "phpcoin-phpc": {
+            "address": "0x63c6e9f027947be84d390cfa7b2332d13b529353",
+            "decimals": 6
+        },
     }
 }
