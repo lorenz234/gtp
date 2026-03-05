@@ -249,6 +249,12 @@ rpc_config = {
         "sleeper": 2,
         "calc_fees": False,
     },
+    "ronin": {
+        "name": "Ronin",
+        "processors": "evm_custom_gas",
+        "sleeper": 2,
+        "calc_fees": False,
+    },
 
     # Starknet Stack chains
     "starknet": {
