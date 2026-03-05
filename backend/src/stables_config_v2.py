@@ -2210,6 +2210,10 @@ address_mapping = {
             "address": "0x01bff41798a0bcf287b996046ca68b395dbc1071",
             "decimals": 6
         },
+        "tetherto_usdte": {
+            "address": "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58",
+            "decimals": 6
+        },
         "makerdao_daie": {
             "address": "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1",
             "decimals": 18
