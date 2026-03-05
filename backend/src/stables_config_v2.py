@@ -2402,6 +2402,10 @@ address_mapping = {
             "address": "0x779ded0c9e1022225f8e0630b35a9b54be713736",
             "decimals": 6
         },
+        "tetherto_usdte": {
+            "address": "0x201eba5cc46d216ce6dc03f6a759e8e766e956ae",
+            "decimals": 6
+        },
         "ethena_usde": {
             "address": "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34",
             "decimals": 18
