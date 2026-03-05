@@ -2630,6 +2630,14 @@ address_mapping = {
         ]
     },
     "lisk": {
+        "circlefin_usdce": {
+            "address": "0xF242275d3a6527d877f2c927a82D9b057609cc71",
+            "decimals": 6
+        },
+        "tetherto_usdte": {
+            "address": "0x05D032ac25d322df992303dCa074EE7392C117b9",
+            "decimals": 6
+        },
         "openusdt": {
             "address": "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
             "decimals": 6
