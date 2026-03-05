@@ -33,9 +33,18 @@ def etl():
         db_connector = DbConnector()
         hours = 1
 
-        # from our db, get the labels that were attested in the last 24 hours
+        """
+        steps:
+        1. from our db, get the labels that were attested in the last hour
+        2. from airtable, get the labels that are in the Label Pool Reattest table
+        3. compare the two (if airtable isn't empty) and get the new labels that are not in the Label Pool Reattest table
+        4. write the new labels to the Label Pool Reattest table in airtable
+        5. send discord message with number of new labels added to airtable
+        """
+
+        # from our db, get the labels that were attested in the hour
         yesterday = datetime.now() - timedelta(hours=hours)
-        #yesterday = datetime.today() - timedelta(days=1)
+
         load_params = {'date': yesterday.strftime('%Y-%m-%d %H:00:00')}
         df_attested = db_connector.execute_jinja('/oli/extract_labels_for_review.sql.j2', load_params, load_into_df=True)
 
@@ -53,14 +62,18 @@ def etl():
 
             # read all approved labels in 'Label Pool Reattest'
             df_in_airtable = at.read_all_label_pool_reattest(api, AIRTABLE_BASE_ID, table, approved=False)
-            df_in_airtable = df_in_airtable[['address', 'chain_id', 'contract_name', 'owner_project', 'usage_category']]
-            df_in_airtable['address'] = df_in_airtable['address'].str.replace('\\x', '0x')
-
-            ## create df_new with rows that are in df_air but not in df based on all columns
-            df_new = df_attested.merge(df_in_airtable, on=['address', 'chain_id', 'contract_name', 'owner_project', 'usage_category'], how='left', indicator=True)
-            df_new = df_new[df_new['_merge'] == 'left_only']
-            df_new = df_new.drop(columns=['_merge'])
             
+            if df_in_airtable is not None and not df_in_airtable.empty:
+                df_in_airtable = df_in_airtable[['address', 'chain_id', 'contract_name', 'owner_project', 'usage_category']]
+                df_in_airtable['address'] = df_in_airtable['address'].str.replace('\\x', '0x')
+
+                ## create df_new with rows that are in df_air but not in df based on all columns
+                df_new = df_attested.merge(df_in_airtable, on=['address', 'chain_id', 'contract_name', 'owner_project', 'usage_category'], how='left', indicator=True)
+                df_new = df_new[df_new['_merge'] == 'left_only']
+                df_new = df_new.drop(columns=['_merge'])
+            else:
+                df_new = df_attested
+
             if df_new.empty == False:
                 ## if column chain_id starts with 'eip155' then do checksum address
                 df_new['address'] = df_new.apply(
