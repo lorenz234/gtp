@@ -60,7 +60,7 @@ def etl():
 
         df = df.set_index(['origin_key', 'date', 'metric_key'])
         df_shape = db_connector.upsert_table('fact_kpis', df)
-        print(f'Upserted {df_shape[0]} rows into fact_kpis')
+        print(f'Upserted {df_shape} rows into fact_kpis')
 
     # run one after the other
     pull_in_stables() >> calculate_totals()
