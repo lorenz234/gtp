@@ -78,7 +78,7 @@ def get_coin_data(coin_id):
         f"https://pro-api.coingecko.com/api/v3/coins/{coin_id}",
         headers={"x-cg-pro-api-key": os.getenv("COINGECKO_API")},
     )
-    time.sleep(1)  # avoid rate limits
+    time.sleep(0.2)  # avoid rate limits
     return response.json()
 
 # Load aliases_coingecko_chain <> origin_key mapping

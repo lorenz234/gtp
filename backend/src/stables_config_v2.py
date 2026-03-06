@@ -21,7 +21,7 @@ coin_mapping = [
         "owner_project": "circlefin",
         "token_id": "circlefin_usdce",
         "symbol": "USDC.e",
-        "coingecko_id": ["usd-coin-ethereum-bridged", "bridged-usdc-polygon-pos-bridge", "stargate-bridged-usdc", "bridged-usd-coin-starkgate", "soneium-bridged-usdc-soneium", "binance-bridged-usdc-bnb-smart-chain", "cronos-bridged-usdc-cronos", "bridged-usd-coin-linea", "bridged-usd-coin-optimism", "bridged-usd-coin-scroll", "zksync-bridged-usdc-zksync", "mantle-bridged-usdc-mantle", "bridged-usd-coin-base", "metis-bridged-usdc-metis", "mode-bridged-usdc-mode", "fraxtal-bridged-usdc-fraxtal", "bridged-usd-coin-manta-pacific", "polygon-hermez-bridged-usdc-polygon-zkevm", "zora-bridged-usdc-zora"],
+        "coingecko_id": ["usd-coin-ethereum-bridged", "bridged-usdc-polygon-pos-bridge", "stargate-bridged-usdc", "bridged-usd-coin-starkgate", "soneium-bridged-usdc-soneium", "binance-bridged-usdc-bnb-smart-chain", "cronos-bridged-usdc-cronos", "bridged-usd-coin-linea", "bridged-usd-coin-optimism", "bridged-usd-coin-scroll", "zksync-bridged-usdc-zksync", "mantle-bridged-usdc-mantle", "bridged-usd-coin-base", "metis-bridged-usdc-metis", "mode-bridged-usdc-mode", "fraxtal-bridged-usdc-fraxtal", "bridged-usd-coin-manta-pacific", "polygon-hermez-bridged-usdc-polygon-zkevm", "zora-bridged-usdc-zora", "ccip-bridged-usdc-ronin"],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum", # origin chain where the supply is bridged from
         "bridged_origin_token_id": "circlefin_usdc", # supply will be deducted from origin chain USDC supply
@@ -180,7 +180,7 @@ coin_mapping = [
         "token_id": "binance_busde",
         "symbol": "BUSD.e",
         "coingecko_id": ["binance-peg-busd"],
-        "metric_key": "direct",
+        "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "first_digital_labs_fdusd",
         "fiat": "usd",
@@ -392,7 +392,7 @@ coin_mapping = [
         "token_id": "openusdt",
         "symbol": "oUSDT",
         "coingecko_id": ["openusdt"],
-        "metric_key": "direct",
+        "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "tetherto_usdt",
         "fiat": "usd",
@@ -713,7 +713,7 @@ coin_mapping = [
         "token_id": "plumenetwork_pusd",
         "symbol": "pUSD",
         "coingecko_id": ["plume-usd"],
-        "metric_key": "direct",
+        "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "circlefin_usdc",
         "fiat": "usd",
@@ -978,7 +978,7 @@ coin_mapping = [
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
-        "fiat": "",
+        "fiat": "eur",
         "logo": ""
     },
     {
@@ -1115,9 +1115,9 @@ coin_mapping = [
         "token_id": "bilira-org_tryb",
         "symbol": "TRYb",
         "coingecko_id": ["bilira"],
-        "metric_key": "bridged",
-        "bridged_origin_chain": "ethereum",
-        "bridged_origin_token_id": "bilira-org_tryb",
+        "metric_key": "direct",
+        "bridged_origin_chain": None,
+        "bridged_origin_token_id": None,
         "fiat": "try",
         "logo": ""
     },
@@ -1227,6 +1227,18 @@ coin_mapping = [
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
+        "logo": ""
+    },
+    # phpcoin
+    {
+        "owner_project": "phpcoin",
+        "token_id": "phpcoin-phpc",
+        "symbol": "PHPC",
+        "coingecko_id": ["phpcoin"],
+        "metric_key": "direct",
+        "bridged_origin_chain": None,
+        "bridged_origin_token_id": None,
+        "fiat": "php",
         "logo": ""
     },
 ]
@@ -2151,7 +2163,7 @@ address_mapping = {
             "decimals": 18
         }
     },
-    "starknet": { # starknet addresses usually have 64 hex characters, so make sure to add one extra 0 at the beginning of the address if it has 63 characters
+    "starknet": {
         "circlefin_usdc": {
             "address": "0x033068f6539f8e6e6b131e6b2b814e6c34a5224bc66947c47dab9dfee93b35fb",
             "decimals": 6
@@ -2196,6 +2208,10 @@ address_mapping = {
         },
         "tetherto_usdt0": {
             "address": "0x01bff41798a0bcf287b996046ca68b395dbc1071",
+            "decimals": 6
+        },
+        "tetherto_usdte": {
+            "address": "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58",
             "decimals": 6
         },
         "makerdao_daie": {
@@ -2384,6 +2400,10 @@ address_mapping = {
         },
         "tetherto_usdt0": {
             "address": "0x779ded0c9e1022225f8e0630b35a9b54be713736",
+            "decimals": 6
+        },
+        "tetherto_usdte": {
+            "address": "0x201eba5cc46d216ce6dc03f6a759e8e766e956ae",
             "decimals": 6
         },
         "ethena_usde": {
@@ -2610,9 +2630,27 @@ address_mapping = {
         ]
     },
     "lisk": {
+        "circlefin_usdce": {
+            "address": "0xF242275d3a6527d877f2c927a82D9b057609cc71",
+            "decimals": 6
+        },
+        "tetherto_usdte": {
+            "address": "0x05D032ac25d322df992303dCa074EE7392C117b9",
+            "decimals": 6
+        },
         "openusdt": {
             "address": "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189",
             "decimals": 6
         }
+    },
+    "ronin": {
+        "circlefin_usdce": {
+            "address": "0x0b7007c13325c48911f73a2dad5fa5dcbf808adc",
+            "decimals": 6
+        },
+        "phpcoin-phpc": {
+            "address": "0x63c6e9f027947be84d390cfa7b2332d13b529353",
+            "decimals": 6
+        },
     }
 }
