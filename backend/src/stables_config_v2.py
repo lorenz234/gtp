@@ -419,8 +419,8 @@ coin_mapping = [
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "liquity_lusd",
         "fiat": "usd",
-        "logo": "",
-        "color_hex": None
+        "logo": "https://coin-images.coingecko.com/coins/images/14666/large/Group_3.png?1696514341",
+        "color_hex": "#0DA9DD"
     },
     {
         "owner_project": "uncap-finance",
@@ -545,8 +545,8 @@ coin_mapping = [
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "curve_crvusd",
         "fiat": "usd",
-        "logo": "",
-        "color_hex": None
+        "logo": "https://coin-images.coingecko.com/coins/images/30118/large/crvusd.jpg?1746670973",
+        "color_hex": "#117F48"
     },
     {
         "owner_project": "worldwide-stablecoin-payment-network",
@@ -644,7 +644,7 @@ coin_mapping = [
         "bridged_origin_token_id": None,
         "fiat": "brl",
         "logo": "https://coin-images.coingecko.com/coins/images/27205/large/BRLm_%28Mento_Brazilian_Real%29.png?1769110618",
-        "color_hex": "#2D00C0"
+        "color_hex": "#ACD553"
     },
     {
         "owner_project": "mento-protocol",
@@ -658,7 +658,7 @@ coin_mapping = [
         "bridged_origin_token_id": None,
         "fiat": "kes",
         "logo": "https://coin-images.coingecko.com/coins/images/38052/large/KESm_%28Mento_Kenyan_Shilling%29.png?1769110532",
-        "color_hex": "#9500C0"
+        "color_hex": "#2B7E25"
     },
     {
         "owner_project": "mento-protocol",
@@ -672,7 +672,7 @@ coin_mapping = [
         "bridged_origin_token_id": None,
         "fiat": "php",
         "logo": "https://coin-images.coingecko.com/coins/images/50608/large/PHPm_%28Mento_Philippine_Peso%29.png?1769110718",
-        "color_hex": "#0A00C0"
+        "color_hex": "#9895DD"
     },
     {
         "owner_project": "mento-protocol",
@@ -686,7 +686,7 @@ coin_mapping = [
         "bridged_origin_token_id": None,
         "fiat": "cop",
         "logo": "https://coin-images.coingecko.com/coins/images/53448/large/COPm_%28Mento_Colombian_Peso%29.png?1769110672",
-        "color_hex": "#B700C0"
+        "color_hex": "#F09227"
     },
     {
         "owner_project": "mento-protocol",
@@ -700,7 +700,7 @@ coin_mapping = [
         "bridged_origin_token_id": None,
         "fiat": "chf",
         "logo": "https://coin-images.coingecko.com/coins/images/66415/large/CHFm_%28Mento_Swiss_Franc%29.png?1769208716",
-        "color_hex": "#0017C0"
+        "color_hex": "#CC2929"
     },
     {
         "owner_project": "mento-protocol",
@@ -714,7 +714,7 @@ coin_mapping = [
         "bridged_origin_token_id": None,
         "fiat": "jpy",
         "logo": "https://coin-images.coingecko.com/coins/images/66416/large/JPYm_%28Mento_Japanese_Yen%29.png?1769110774",
-        "color_hex": "#C000A5"
+        "color_hex": "#EE8AE1"
     },
     {
         "owner_project": "mento-protocol",
@@ -728,7 +728,7 @@ coin_mapping = [
         "bridged_origin_token_id": None,
         "fiat": "cad",
         "logo": "https://coin-images.coingecko.com/coins/images/55376/large/CADm_%28Mento_Canadian_Dollar%29.png?1769111643",
-        "color_hex": "#003AC0"
+        "color_hex": "#E35252"
     },
     {
         "owner_project": "mento-protocol",
@@ -742,7 +742,7 @@ coin_mapping = [
         "bridged_origin_token_id": None,
         "fiat": "ngn",
         "logo": "https://coin-images.coingecko.com/coins/images/66417/large/NGNm_%28Mento_Nigerian_Naira%29.png?1769208786",
-        "color_hex": "#C00083"
+        "color_hex": "#B4EA9A"
     },
     {
         "owner_project": "mento-protocol",
@@ -797,8 +797,8 @@ coin_mapping = [
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "xof",
-        "logo": "",
-        "color_hex": None
+        "logo": "https://cdn.prod.website-files.com/6807f97b456d6dff3e784225/695bb16e02aa5e97e5fa3ce7_XOFm%20(Mento%20West%20African%20CFA%20franc).svg",
+        "color_hex": "#5C009A"
     },
     {
         "owner_project": "transfero",
@@ -826,7 +826,7 @@ coin_mapping = [
         "bridged_origin_token_id": None,
         "fiat": "ars",
         "logo": "",
-        "color_hex": None
+        "color_hex": "#1E005B"
     },
     {
         "owner_project": "elixir-protocol",
@@ -1057,14 +1057,14 @@ coin_mapping = [
         "token_id": "megaeth_usdm",
         "symbol": "USDm",
         "coingecko_id": [
-            None
+            "megausd"
         ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": "",
-        "color_hex": None
+        "logo": "https://coin-images.coingecko.com/coins/images/69955/large/USDm.png?1760170136",
+        "color_hex": "#305040"
     },
     {
         "owner_project": "cap-money",
