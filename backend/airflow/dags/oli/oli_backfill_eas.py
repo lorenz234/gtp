@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='This DAG backfills offchain attestations made to the OLI label pool via EAS (instead of using our new API).',
     tags=['oli'],
     start_date=datetime(2025,11,11),
-    schedule='*/30 * * * *',  # Runs every 30 minutes
+    schedule='0 23 * * *',  # Runs every day at 11:00 PM
 )
 
 def etl(): 
