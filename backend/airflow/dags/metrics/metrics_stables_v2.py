@@ -56,12 +56,13 @@ def etl():
             'chain_metrics/select_total_stable_supply.sql.j2',
             params,
             return_df=True
-        ) 
+        )
 
         df = df.set_index(['origin_key', 'date', 'metric_key'])
-        db_connector.upsert_table('fact_kpis', df)
+        df_shape = db_connector.upsert_table('fact_kpis', df)
+        print(f'Upserted {df_shape[0]} rows into fact_kpis')
 
-    pull_in_stables()
-    calculate_totals()
+    # run one after the other
+    pull_in_stables() >> calculate_totals()
     
 etl()
