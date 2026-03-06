@@ -5,1242 +5,1529 @@
 # Rule 3: Only stablecoins that anyone can own are allowed! e.g. Blackrock BUIDL
 
 coin_mapping = [
-    # circlefin
     {
         "owner_project": "circlefin",
-        "token_id": "circlefin_usdc", # primary key
+        "token_id": "circlefin_usdc",
         "symbol": "USDC",
-        "coingecko_id": ["usd-coin"],
-        "metric_key": "direct", # either minted 'direct' on each chain or 'bridged' from one bridged_origin_chain
+        "coingecko_id": [
+            "usd-coin"
+        ],
+        "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": "https://assets.coingecko.com/coins/images/6319/large/usdc.png?1696506694"
+        "logo": "https://assets.coingecko.com/coins/images/6319/large/usdc.png?1696506694",
+        "color_hex": "#2070C0"
     },
     {
         "owner_project": "circlefin",
         "token_id": "circlefin_usdce",
         "symbol": "USDC.e",
-        "coingecko_id": ["usd-coin-ethereum-bridged", "bridged-usdc-polygon-pos-bridge", "stargate-bridged-usdc", "bridged-usd-coin-starkgate", "soneium-bridged-usdc-soneium", "binance-bridged-usdc-bnb-smart-chain", "cronos-bridged-usdc-cronos", "bridged-usd-coin-linea", "bridged-usd-coin-optimism", "bridged-usd-coin-scroll", "zksync-bridged-usdc-zksync", "mantle-bridged-usdc-mantle", "bridged-usd-coin-base", "metis-bridged-usdc-metis", "mode-bridged-usdc-mode", "fraxtal-bridged-usdc-fraxtal", "bridged-usd-coin-manta-pacific", "polygon-hermez-bridged-usdc-polygon-zkevm", "zora-bridged-usdc-zora", "ccip-bridged-usdc-ronin"],
+        "coingecko_id": [
+            "usd-coin-ethereum-bridged",
+            "bridged-usdc-polygon-pos-bridge",
+            "stargate-bridged-usdc",
+            "bridged-usd-coin-starkgate",
+            "soneium-bridged-usdc-soneium",
+            "binance-bridged-usdc-bnb-smart-chain",
+            "cronos-bridged-usdc-cronos",
+            "bridged-usd-coin-linea",
+            "bridged-usd-coin-optimism",
+            "bridged-usd-coin-scroll",
+            "zksync-bridged-usdc-zksync",
+            "mantle-bridged-usdc-mantle",
+            "bridged-usd-coin-base",
+            "metis-bridged-usdc-metis",
+            "mode-bridged-usdc-mode",
+            "fraxtal-bridged-usdc-fraxtal",
+            "bridged-usd-coin-manta-pacific",
+            "polygon-hermez-bridged-usdc-polygon-zkevm",
+            "zora-bridged-usdc-zora",
+            "ccip-bridged-usdc-ronin"
+        ],
         "metric_key": "bridged",
-        "bridged_origin_chain": "ethereum", # origin chain where the supply is bridged from
-        "bridged_origin_token_id": "circlefin_usdc", # supply will be deducted from origin chain USDC supply
+        "bridged_origin_chain": "ethereum",
+        "bridged_origin_token_id": "circlefin_usdc",
         "fiat": "usd",
-        "logo": "https://assets.coingecko.com/coins/images/6319/large/usdc.png?1696506694"
+        "logo": "https://assets.coingecko.com/coins/images/6319/large/usdc.png?1696506694",
+        "color_hex": "#1F53C0"
     },
     {
         "owner_project": "circlefin",
         "token_id": "circlefin_eurc",
         "symbol": "EURC",
-        "coingecko_id": ["euro-coin"],
+        "coingecko_id": [
+            "euro-coin"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "eur",
-        "logo": "https://coin-images.coingecko.com/coins/images/26045/large/euro.png?1696525125"
+        "logo": "https://coin-images.coingecko.com/coins/images/26045/large/euro.png?1696525125",
+        "color_hex": "#1F8CC0"
     },
-    # tetherto
     {
         "owner_project": "tetherto",
         "token_id": "tetherto_usdt",
         "symbol": "USDT",
-        "coingecko_id": ["tether"],
+        "coingecko_id": [
+            "tether"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/325/large/Tether.png?1696501661",
+        "color_hex": "#009090"
     },
     {
         "owner_project": "tetherto",
         "token_id": "tetherto_usdt0",
         "symbol": "USDT0",
-        "coingecko_id": ["usdt0"],
+        "coingecko_id": [
+            "usdt0"
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "tetherto_usdt",
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/53705/large/usdt0.jpg?1737086183",
+        "color_hex": "#00B080"
     },
     {
         "owner_project": "tetherto",
         "token_id": "tetherto_usdte",
         "symbol": "USDT.e",
-        "coingecko_id": ["binance-bridged-usdt-bnb-smart-chain", "cronos-bridged-usdt-cronos", "bridged-tether-linea", "tether-rainbow-bridge", "sui-bridged-usdt-sui", "l2-standard-bridged-usdt-base", "polygon-hermez-bridged-usdt-polygon-zkevm", "soneium-bridged-usdt-soneium", "bridged-tether-scroll", "zircuit-bridged-usdt-zircuit", "mode-bridged-usdt-mode", "bridged-tether-manta-pacific"],
+        "coingecko_id": [
+            "binance-bridged-usdt-bnb-smart-chain",
+            "cronos-bridged-usdt-cronos",
+            "bridged-tether-linea",
+            "tether-rainbow-bridge",
+            "sui-bridged-usdt-sui",
+            "l2-standard-bridged-usdt-base",
+            "polygon-hermez-bridged-usdt-polygon-zkevm",
+            "soneium-bridged-usdt-soneium",
+            "bridged-tether-scroll",
+            "zircuit-bridged-usdt-zircuit",
+            "mode-bridged-usdt-mode",
+            "bridged-tether-manta-pacific"
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "tetherto_usdt",
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/35021/large/USDT.png?1707233575",
+        "color_hex": "#007690"
     },
     {
         "owner_project": "tetherto",
         "token_id": "tetherto_eurt",
         "symbol": "EURT",
-        "coingecko_id": ["tether-eurt"],
+        "coingecko_id": [
+            "tether-eurt"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "eur",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/17385/large/Tether_new.png?1696516934",
+        "color_hex": "#009076"
     },
     {
         "owner_project": "tetherto",
         "token_id": "tetherto_usat",
         "symbol": "USAT",
-        "coingecko_id": ["usa"],
+        "coingecko_id": [
+            "usa"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/71792/large/usat_logo_200x200.png?1769440161",
+        "color_hex": "#102050"
     },
     {
         "owner_project": "tetherto",
         "token_id": "tetherto_ausdt",
         "symbol": "AUSDT",
-        "coingecko_id": ["usa"],
+        "coingecko_id": [
+            "usa"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/71792/large/usat_logo_200x200.png?1769440161",
+        "color_hex": "#0F1450"
     },
-    # makerdao (now Sky)
     {
         "owner_project": "makerdao",
         "token_id": "makerdao_dai",
         "symbol": "DAI",
-        "coingecko_id": ["dai"],
+        "coingecko_id": [
+            "dai"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/9956/large/Badge_Dai.png?1696509996",
+        "color_hex": "#F0B020"
     },
     {
         "owner_project": "makerdao",
         "token_id": "makerdao_usds",
         "symbol": "USDS",
-        "coingecko_id": ["usds"],
+        "coingecko_id": [
+            "usds"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/39926/large/usds.webp?1726666683",
+        "color_hex": "#F0A040"
     },
     {
         "owner_project": "makerdao",
         "token_id": "makerdao_daie",
         "symbol": "DAI.e",
-        "coingecko_id": ["makerdao-arbitrum-bridged-dai-arbitrum-one", "polygon-pos-bridged-dai-polygon-pos", "makerdao-optimism-bridged-dai-optimism", "bridged-dai-starkgate", "starkgate-bridged-dai-v2-starknet", "l2-standard-bridged-dai-base", "bridged-dai-stablecoin-linea", "zksync-erc20-bridged-dai-zksync", "omnibridge-bridged-dai-gnosis-chain", "polygon-zkevm-bridged-dai-polygon-zkevm"],
+        "coingecko_id": [
+            "makerdao-arbitrum-bridged-dai-arbitrum-one",
+            "polygon-pos-bridged-dai-polygon-pos",
+            "makerdao-optimism-bridged-dai-optimism",
+            "bridged-dai-starkgate",
+            "starkgate-bridged-dai-v2-starknet",
+            "l2-standard-bridged-dai-base",
+            "bridged-dai-stablecoin-linea",
+            "zksync-erc20-bridged-dai-zksync",
+            "omnibridge-bridged-dai-gnosis-chain",
+            "polygon-zkevm-bridged-dai-polygon-zkevm"
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "makerdao_dai",
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/39790/large/dai.png?1724111653",
+        "color_hex": "#F0A030"
     },
-    # ethena-labs
     {
         "owner_project": "ethena-labs",
         "token_id": "ethena_usde",
         "symbol": "USDE",
-        "coingecko_id": ["ethena-usde"],
+        "coingecko_id": [
+            "ethena-usde"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/33613/large/usde.png?1733810059",
+        "color_hex": "#E0E0E0"
     },
     {
         "owner_project": "ethena-labs",
         "token_id": "ethena_usdtb",
         "symbol": "USDtb",
-        "coingecko_id": ["usdtb"],
+        "coingecko_id": [
+            "usdtb"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/52804/large/76357aa8-4ef7-446c-bad3-a3f944eeec7a.jpeg?1758277468",
+        "color_hex": "#D0D0D0"
     },
-    # binance
     {
         "owner_project": "binance",
         "token_id": "binance_busd",
         "symbol": "BUSD",
-        "coingecko_id": ["binance-usd"],
+        "coingecko_id": [
+            "binance-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/9576/large/BUSDLOGO.jpg?1696509654",
+        "color_hex": "#808090"
     },
     {
         "owner_project": "binance",
         "token_id": "binance_busde",
         "symbol": "BUSD.e",
-        "coingecko_id": ["binance-peg-busd"],
+        "coingecko_id": [
+            "binance-peg-busd"
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "first_digital_labs_fdusd",
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/31273/large/new_binance-peg-busd.png?1696530096",
+        "color_hex": "#F0B000"
     },
-    # first-digital-labs
     {
         "owner_project": "first-digital-labs",
         "token_id": "first_digital_labs_fdusd",
         "symbol": "FDUSD",
-        "coingecko_id": ["first-digital-usd"],
+        "coingecko_id": [
+            "first-digital-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/31079/large/FDUSD_icon_black.png?1731097953",
+        "color_hex": "#00E080"
     },
-    # trueusd
     {
         "owner_project": "trueusd",
         "token_id": "trueusd_tusd",
         "symbol": "TUSD",
-        "coingecko_id": ["true-usd"],
+        "coingecko_id": [
+            "true-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/3449/large/tusd.png?1696504140",
+        "color_hex": "#1050F0"
     },
     {
         "owner_project": "trueusd",
         "token_id": "trueusd_tusde",
         "symbol": "TUSD.e",
-        "coingecko_id": ["bridged-trueusd"],
+        "coingecko_id": [
+            "bridged-trueusd"
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "trueusd_tusd",
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/30837/large/tusd.jpeg?1696529695",
+        "color_hex": "#0F27F0"
     },
-    # fraxfinance
     {
         "owner_project": "fraxfinance",
         "token_id": "fraxfinance_frax",
         "symbol": "FRAX",
-        "coingecko_id": ["frax"],
+        "coingecko_id": [
+            "frax"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/13422/large/LFRAX.png?1751911193",
+        "color_hex": "#D0D0D0"
     },
     {
         "owner_project": "fraxfinance",
         "token_id": "fraxfinance_frxusd",
         "symbol": "FRXUSD",
-        "coingecko_id": ["frax-usd"],
+        "coingecko_id": [
+            "frax-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/53963/large/frxUSD.png?1737792154",
+        "color_hex": "#E0E0E0"
     },
-    # paxosglobal
     {
         "owner_project": "paxosglobal",
         "token_id": "paxosglobal_usdp",
         "symbol": "USDP",
-        "coingecko_id": ["paxos-standard"],
+        "coingecko_id": [
+            "paxos-standard"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/6013/large/Pax_Dollar.png?1696506427",
+        "color_hex": "#006030"
     },
     {
         "owner_project": "paxosglobal",
         "token_id": "paxosglobal_usdg",
         "symbol": "USDG",
-        "coingecko_id": ["global-dollar"],
+        "coingecko_id": [
+            "global-dollar"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/51281/large/GDN_USDG_Token_200x200.png?1730484111",
+        "color_hex": "#304010"
     },
-    # gemini-ex
     {
         "owner_project": "gemini-ex",
         "token_id": "gemini_gusd",
         "symbol": "GUSD",
-        "coingecko_id": ["gemini-dollar"],
+        "coingecko_id": [
+            "gemini-dollar"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/5992/large/gemini-dollar-gusd.png?1696506408",
+        "color_hex": "#20D0F0"
     },
-    # paypal
     {
         "owner_project": "paypal",
         "token_id": "paypal_pyusd",
         "symbol": "PYUSD",
-        "coingecko_id": ["paypal-usd"],
+        "coingecko_id": [
+            "paypal-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/31212/large/PYUSD_Token_Logo_2x.png?1765987788",
+        "color_hex": "#00457D"
     },
-    # liquity
     {
         "owner_project": "liquity",
         "token_id": "liquity_lusd",
         "symbol": "LUSD",
-        "coingecko_id": ["liquity-usd"],
+        "coingecko_id": [
+            "liquity-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/14666/large/Group_3.png?1696514341",
+        "color_hex": "#20B0E0"
     },
     {
         "owner_project": "liquity",
         "token_id": "liquity_lusde",
         "symbol": "LUSD.e",
-        "coingecko_id": [None],
+        "coingecko_id": [
+            None
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "liquity_lusd",
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/14666/large/Group_3.png?1696514341",
+        "color_hex": "#0DA9DD"
     },
-    # uncap-finance
     {
         "owner_project": "uncap-finance",
         "token_id": "uncap_usdu",
         "symbol": "USDU",
-        "coingecko_id": ["uncap-usd"],
+        "coingecko_id": [
+            "uncap-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/69976/large/USDU-icon.png?1760258869",
+        "color_hex": "#F04000"
     },
-    # fidelity
     {
         "owner_project": "fidelity",
         "token_id": "fidelity_fidd",
         "symbol": "FIDD",
-        "coingecko_id": ["fidelity-digital-dollar"],
+        "coingecko_id": [
+            "fidelity-digital-dollar"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/102171776/large/FIDD-Green_%28792px%29.png?1769612802",
+        "color_hex": "#308020"
     },
-    # blast-io
     {
         "owner_project": "blast-io",
         "token_id": "blast_io_usdb",
         "symbol": "USDB",
-        "coingecko_id": ["usdb"],
+        "coingecko_id": [
+            "usdb"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/35595/large/65c67f0ebf2f6a1bd0feb13c_usdb-icon-yellow.png?1709255427",
+        "color_hex": "#F0F000"
     },
-    # mountainprotocol
     {
         "owner_project": "mountainprotocol",
         "token_id": "mountainprotocol_usdm",
         "symbol": "USDM",
-        "coingecko_id": ["mountain-protocol-usdm"],
+        "coingecko_id": [
+            "mountain-protocol-usdm"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/31719/large/usdm.png?1696530540",
+        "color_hex": "#303030"
     },
-    # izumi-finance
     {
         "owner_project": "izumi-finance",
         "token_id": "izumi_iusd",
         "symbol": "IUSD",
-        "coingecko_id": ["izumi-bond-usd"],
+        "coingecko_id": [
+            "izumi-bond-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/25388/large/iusd-logo-symbol-10k%E5%A4%A7%E5%B0%8F.png?1696524521",
+        "color_hex": "#1060F0"
     },
-    # reserve-protocol
     {
         "owner_project": "reserve-protocol",
         "token_id": "reserve_eusd",
         "symbol": "eUSD",
-        "coingecko_id": ["electronic-usd"],
+        "coingecko_id": [
+            "electronic-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/28445/large/0xa0d69e286b938e21cbf7e51d71f6a4c8918f482f.png?1696527441",
+        "color_hex": "#D0D0D0"
     },
-    # openusdt (assume all USDT are wrapped on Ethereum)
     {
         "owner_project": "openusdt",
         "token_id": "openusdt",
         "symbol": "oUSDT",
-        "coingecko_id": ["openusdt"],
+        "coingecko_id": [
+            "openusdt"
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "tetherto_usdt",
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/54815/large/ousdt.jpg?1741848258",
+        "color_hex": "#F00020"
     },
-    # curve
     {
         "owner_project": "curve",
         "token_id": "curve_crvusd",
         "symbol": "crvUSD",
-        "coingecko_id": ["crvusd"],
+        "coingecko_id": [
+            "crvusd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/30118/large/crvusd.jpg?1746670973",
+        "color_hex": "#107040"
     },
     {
         "owner_project": "curve",
         "token_id": "curve_crvusde",
         "symbol": "crvUSD.e",
-        "coingecko_id": [None],
+        "coingecko_id": [
+            None
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "curve_crvusd",
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/30118/large/crvusd.jpg?1746670973",
+        "color_hex": "#117F48"
     },
-    # worldwide-stablecoin-payment-network
     {
         "owner_project": "worldwide-stablecoin-payment-network",
         "token_id": "worldwide_wusd",
         "symbol": "WUSD",
-        "coingecko_id": ["worldwide-usd"],
+        "coingecko_id": [
+            "worldwide-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/35358/large/WUSD-logo.png?1755754866",
+        "color_hex": "#50F0A0"
     },
-    # inverse-finance
     {
         "owner_project": "inverse-finance",
         "token_id": "inverse_dola",
         "symbol": "DOLA",
-        "coingecko_id": ["dola-usd"],
+        "coingecko_id": [
+            "dola-usd"
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "inverse_dola",
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/14287/large/dola.png?1696513984",
+        "color_hex": "#101050"
     },
-    # alchemix
     {
         "owner_project": "alchemix",
         "token_id": "alchemix_alusd",
         "symbol": "ALUSD",
-        "coingecko_id": ["alchemix-usd"],
+        "coingecko_id": [
+            "alchemix-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/14114/large/Alchemix_USD.png?1696513835",
+        "color_hex": "#202030"
     },
-    # usual-money
     {
         "owner_project": "usual-money",
         "token_id": "usual_usd0",
         "symbol": "USD0",
-        "coingecko_id": ["usual-usd"],
+        "coingecko_id": [
+            "usual-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/38272/large/USD0LOGO.png?1716962811",
+        "color_hex": "#309030"
     },
-    # mento-protocol
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_usdm",
         "symbol": "USDm",
-        "coingecko_id": ["celo-dollar"],
+        "coingecko_id": [
+            "celo-dollar"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/13161/large/USDm_%28Mento_Dollar%29.png?1768833976",
+        "color_hex": "#5000C0"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_eurm",
         "symbol": "EURm",
-        "coingecko_id": ["celo-euro"],
+        "coingecko_id": [
+            "celo-euro"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "eur",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/16756/large/EURm_%28Mento_Euro%29.png?1768982616",
+        "color_hex": "#7200C0"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_brlm",
         "symbol": "BRLm",
-        "coingecko_id": ["celo-real-creal"],
+        "coingecko_id": [
+            "celo-real-creal"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "brl",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/27205/large/BRLm_%28Mento_Brazilian_Real%29.png?1769110618",
+        "color_hex": "#ACD553"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_kesm",
         "symbol": "KESm",
-        "coingecko_id": ["celo-kenyan-shilling"],
+        "coingecko_id": [
+            "celo-kenyan-shilling"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "kes",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/38052/large/KESm_%28Mento_Kenyan_Shilling%29.png?1769110532",
+        "color_hex": "#2B7E25"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_phpm",
         "symbol": "PHPm",
-        "coingecko_id": ["puso"],
+        "coingecko_id": [
+            "puso"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "php",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/50608/large/PHPm_%28Mento_Philippine_Peso%29.png?1769110718",
+        "color_hex": "#9895DD"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_copm",
         "symbol": "COPm",
-        "coingecko_id": ["ccop"],
+        "coingecko_id": [
+            "ccop"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "cop",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/53448/large/COPm_%28Mento_Colombian_Peso%29.png?1769110672",
+        "color_hex": "#F09227"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_chfm",
         "symbol": "CHFm",
-        "coingecko_id": ["cchf"],
+        "coingecko_id": [
+            "cchf"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "chf",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/66415/large/CHFm_%28Mento_Swiss_Franc%29.png?1769208716",
+        "color_hex": "#CC2929"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_jpym",
         "symbol": "JPYm",
-        "coingecko_id": ["celo-japanese-yen"],
+        "coingecko_id": [
+            "celo-japanese-yen"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "jpy",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/66416/large/JPYm_%28Mento_Japanese_Yen%29.png?1769110774",
+        "color_hex": "#EE8AE1"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_cadm",
         "symbol": "CADm",
-        "coingecko_id": ["celo-canadian-dollar"],
+        "coingecko_id": [
+            "celo-canadian-dollar"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "cad",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/55376/large/CADm_%28Mento_Canadian_Dollar%29.png?1769111643",
+        "color_hex": "#E35252"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_ngcm",
         "symbol": "NGNm",
-        "coingecko_id": ["celo-nigerian-naira"],
+        "coingecko_id": [
+            "celo-nigerian-naira"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "ngn",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/66417/large/NGNm_%28Mento_Nigerian_Naira%29.png?1769208786",
+        "color_hex": "#B4EA9A"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_audm",
         "symbol": "AUDm",
-        "coingecko_id": ["celo-australian-dollar"],
+        "coingecko_id": [
+            "celo-australian-dollar"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "aud",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/55375/large/AUDm_%28Mento_Australian_Dollar%29.png?1769111580",
+        "color_hex": "#005CC0"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_zarm",
         "symbol": "ZARm",
-        "coingecko_id": ["celo-south-african-rand"],
+        "coingecko_id": [
+            "celo-south-african-rand"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "zar",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/55377/large/ZARm_%28South_African_Rand%29.png?1769208842",
+        "color_hex": "#C00060"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_gbpm",
         "symbol": "GBPm",
-        "coingecko_id": ["celo-british-pound"],
+        "coingecko_id": [
+            "celo-british-pound"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "gbp",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/55374/large/GBPm__%28Mento_British_Pound%29.png?1769111439",
+        "color_hex": "#007FC0"
     },
     {
         "owner_project": "mento-protocol",
         "token_id": "mento_xofm",
         "symbol": "XOFm",
-        "coingecko_id": [None],
+        "coingecko_id": [
+            None
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "xof",
-        "logo": ""
+        "logo": "https://cdn.prod.website-files.com/6807f97b456d6dff3e784225/695bb16e02aa5e97e5fa3ce7_XOFm%20(Mento%20West%20African%20CFA%20franc).svg",
+        "color_hex": "#5C009A"
     },
-    # transfero
     {
         "owner_project": "transfero",
         "token_id": "transfero_brz",
         "symbol": "BRZ",
-        "coingecko_id": ["brz"],
+        "coingecko_id": [
+            "brz"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "brl",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/8472/large/MicrosoftTeams-image_%286%29.png?1696508657",
+        "color_hex": "#100030"
     },
     {
         "owner_project": "transfero",
         "token_id": "transfero_arz",
         "symbol": "ARZ",
-        "coingecko_id": [None],
+        "coingecko_id": [
+            None
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "ars",
-        "logo": ""
+        "logo": "",
+        "color_hex": "#1E005B"
     },
-    # elixir-protocol
     {
         "owner_project": "elixir-protocol",
         "token_id": "elixir_deusd",
         "symbol": "deUSD",
-        "coingecko_id": ["elixir-deusd"],
+        "coingecko_id": [
+            "elixir-deusd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/39494/large/deUSD_Logo_%281%29.png?1723689002",
+        "color_hex": "#F040C0"
     },
-    # glo-foundation
     {
         "owner_project": "glo-foundation",
         "token_id": "glo_usdglo",
         "symbol": "USDGLO",
-        "coingecko_id": ["glo-dollar"],
+        "coingecko_id": [
+            "glo-dollar"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/29319/large/GLO_logo_pine_on_cyan_1_3.png?1716971065",
+        "color_hex": "#20E0D0"
     },
-    # usdxtoken (stables labs), went to 0
     {
         "owner_project": "usdxtoken",
         "token_id": "usdxtoken_usdx",
         "symbol": "USDX",
-        "coingecko_id": ["usdx-money-usdx"],
+        "coingecko_id": [
+            "usdx-money-usdx"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/50360/large/USDX200px.png?1731906044",
+        "color_hex": "#107050"
     },
-    # agora-finance
     {
         "owner_project": "agora-finance",
         "token_id": "agora_ausd",
         "symbol": "AUSD",
-        "coingecko_id": ["agora-dollar"],
+        "coingecko_id": [
+            "agora-dollar"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/39284/large/AUSD_1024px.png?1764684132",
+        "color_hex": "#909050"
     },
-    # resolv-usr
     {
         "owner_project": "resolv-usr",
         "token_id": "resolv_usr",
         "symbol": "USR",
-        "coingecko_id": ["resolv-usr"],
+        "coingecko_id": [
+            "resolv-usr"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/40008/large/USR_LOGO.png?1725222638",
+        "color_hex": "#4080A0"
     },
-    # plumenetwork
     {
         "owner_project": "plumenetwork",
         "token_id": "plumenetwork_pusd",
         "symbol": "pUSD",
-        "coingecko_id": ["plume-usd"],
+        "coingecko_id": [
+            "plume-usd"
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "circlefin_usdc",
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/55542/large/pUSD-token.png?1746610746",
+        "color_hex": "#F03000"
     },
-    # stablecoinxyz
     {
         "owner_project": "stablecoinxyz",
         "token_id": "stablecoinxyz_sbc",
         "symbol": "SBC",
-        "coingecko_id": ["stable-coin-2"],
+        "coingecko_id": [
+            "stable-coin-2"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/68416/large/sbc-mark.png?1755691990",
+        "color_hex": "#6030E0"
     },
-    # metamask
     {
         "owner_project": "metamask",
         "token_id": "metamask_musd",
         "symbol": "mUSD",
-        "coingecko_id": ["metamask-usd"],
+        "coingecko_id": [
+            "metamask-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/68451/large/MetaMask-mUSD-Icon-200x200.png?1755878384",
+        "color_hex": "#100060"
     },
-    # ripple
     {
         "owner_project": "ripple",
         "token_id": "ripple_rlusd",
         "symbol": "RLUSD",
-        "coingecko_id": ["ripple-usd"],
+        "coingecko_id": [
+            "ripple-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/39651/large/RLUSD_200x200_%281%29.png?1727376633",
+        "color_hex": "#0060F0"
     },
-    # avalon
     {
         "owner_project": "avalon",
         "token_id": "avalon_usda",
         "symbol": "USDa",
-        "coingecko_id": ["usda-2"],
+        "coingecko_id": [
+            "usda-2"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/51599/large/SUSDA.png?1731604761",
+        "color_hex": "#202020"
     },
-    # worldlibertyfinancial
     {
         "owner_project": "worldlibertyfinancial",
         "token_id": "worldlibertyfinancial_usd1",
         "symbol": "USD1",
-        "coingecko_id": ["usd1-wlfi"],
+        "coingecko_id": [
+            "usd1-wlfi"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/54977/large/USD1_1000x1000_transparent.png?1749297002",
+        "color_hex": "#C08000"
     },
-    # usdd
     {
         "owner_project": "usdd",
         "token_id": "usdd_usdd",
         "symbol": "USDD",
-        "coingecko_id": ["usdd"],
+        "coingecko_id": [
+            "usdd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/25380/large/UUSD.jpg?1696524513",
+        "color_hex": "#206050"
     },
-    # aave
     {
         "owner_project": "aave",
         "token_id": "aave_gho",
         "symbol": "GHO",
-        "coingecko_id": ["gho"],
+        "coingecko_id": [
+            "gho"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/30663/large/gho-token-logo.png?1720517092",
+        "color_hex": "#20D050"
     },
-    # mzero-labs (normal M is a wrapper of USDM, USDAI...)
     {
         "owner_project": "mzero-labs",
         "token_id": "mzero_wm",
         "symbol": "wM",
-        "coingecko_id": ["wrappedm-by-m0"],
+        "coingecko_id": [
+            "wrappedm-by-m0"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/55070/large/wm.jpg?1743589588",
+        "color_hex": "#00D0A0"
     },
-    # mnee
     {
         "owner_project": "mnee",
         "token_id": "mnee_mnee",
         "symbol": "MNEE",
-        "coingecko_id": ["mnee-usd-stablecoin"],
+        "coingecko_id": [
+            "mnee-usd-stablecoin"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/39459/large/MNEE_logo_no_BG.png?1725666891",
+        "color_hex": "#F0B030"
     },
-    # startale-usd
     {
         "owner_project": "startale-usd",
         "token_id": "startale_usd",
         "symbol": "USDSC",
-        "coingecko_id": ["startale-usd"],
+        "coingecko_id": [
+            "startale-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/70883/large/stataleusd_2x.png?1764684119",
+        "color_hex": "#D0D0D0"
     },
-    # megaeth
     {
         "owner_project": "megaeth",
         "token_id": "megaeth_usdm",
         "symbol": "USDm",
-        "coingecko_id": [None],
+        "coingecko_id": [
+            "megausd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/69955/large/USDm.png?1760170136",
+        "color_hex": "#305040"
     },
-    # cap-money
     {
         "owner_project": "cap-money",
         "token_id": "cap_cusd",
         "symbol": "cUSD",
-        "coingecko_id": ["cap-usd"],
+        "coingecko_id": [
+            "cap-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/68272/large/cUSD_ab_500%C3%97500.png?1755232868",
+        "color_hex": "#D0F010"
     },
-    # monerium
     {
         "owner_project": "monerium",
         "token_id": "monerium_eure",
         "symbol": "EURe",
-        "coingecko_id": ["monerium-eur-money-2"],
+        "coingecko_id": [
+            "monerium-eur-money-2"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "eur",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/54303/large/eure.jpg?1739167959",
+        "color_hex": "#0070B0"
     },
     {
         "owner_project": "monerium",
         "token_id": "monerium_eure_old",
         "symbol": "EURe.old",
-        "coingecko_id": ["monerium-eur-money"],
+        "coingecko_id": [
+            "monerium-eur-money"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "eur",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/23354/large/eur.png?1696522569",
+        "color_hex": "#0050B0"
     },
-    # stasis
     {
         "owner_project": "stasis",
         "token_id": "stasis_eurs",
         "symbol": "EURS",
-        "coingecko_id": ["stasis-eurs"],
+        "coingecko_id": [
+            "stasis-eurs"
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "stasis_eurs",
         "fiat": "eur",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/5164/large/EURS_300x300.png?1696505680",
+        "color_hex": "#10B0F0"
     },
-    # angle-protocol
     {
         "owner_project": "angle-protocol",
         "token_id": "angle_eura",
         "symbol": "EURA",
-        "coingecko_id": ["ageur"],
+        "coingecko_id": [
+            "ageur"
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "angle_eura",
         "fiat": "eur",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/19479/large/agEUR-4.png?1710726218",
+        "color_hex": "#70A0F0"
     },
-    # allunity
     {
         "owner_project": "allunity",
         "token_id": "allunity_eurau",
         "symbol": "EURAU",
-        "coingecko_id": ["allunity-eur"],
+        "coingecko_id": [
+            "allunity-eur"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "eur",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/68076/large/EURAU_Full_Colour.png?1754717091",
+        "color_hex": "#00E0E0"
     },
-    # coinvertible
     {
         "owner_project": "coinvertible",
         "token_id": "coinvertible_eurcv",
         "symbol": "EURCV",
-        "coingecko_id": ["societe-generale-forge-eurcv"],
+        "coingecko_id": [
+            "societe-generale-forge-eurcv"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "eur",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/33415/large/eurcv_%281%29.png?1701752017",
+        "color_hex": "#E00020"
     },
     {
         "owner_project": "coinvertible",
         "token_id": "coinvertible_usdcv",
         "symbol": "USDCV",
-        "coingecko_id": ["usd-coinvertible"],
+        "coingecko_id": [
+            "usd-coinvertible"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/69726/large/usd-coinvertible.png?1759401966",
+        "color_hex": "#E00800"
     },
-    # noon-capital
     {
         "owner_project": "noon-capital",
         "token_id": "noon_capital_usn",
         "symbol": "USN",
-        "coingecko_id": ["noon-usn"],
+        "coingecko_id": [
+            "noon-usn"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/53948/large/Copy_of_USN.png?1748952392",
+        "color_hex": "#6070E0"
     },
-    # eurite
     {
         "owner_project": "eurite",
         "token_id": "eurite_euri",
         "symbol": "EURI",
-        "coingecko_id": ["eurite"],
+        "coingecko_id": [
+            "eurite"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "eur",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/39952/large/EURI.jpg?1724902829",
+        "color_hex": "#005060"
     },
-    # anchored-coins
     {
         "owner_project": "anchored-coins",
         "token_id": "anchored_coins_aeur",
         "symbol": "AEUR",
-        "coingecko_id": ["anchored-coins-eur"],
+        "coingecko_id": [
+            "anchored-coins-eur"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "eur",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/33469/large/aeur-icon2.png?1701944612",
+        "color_hex": "#3040F0"
     },
     {
         "owner_project": "anchored-coins",
         "token_id": "anchored_coins_achf",
         "symbol": "ACHF",
-        "coingecko_id": ["anchored-coins-chf"],
+        "coingecko_id": [
+            "anchored-coins-chf"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "chf",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/33471/large/logo_achf.png?1701946601",
+        "color_hex": "#6040F0"
     },
-    # stablr
     {
         "owner_project": "stablr",
         "token_id": "stablr_eurr",
         "symbol": "EURR",
-        "coingecko_id": ["stablr-euro"],
+        "coingecko_id": [
+            "stablr-euro"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "eur",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/53720/large/stablreuro-logo.png?1737125898",
+        "color_hex": "#A080F0"
     },
     {
         "owner_project": "stablr",
         "token_id": "stablr_usdr",
         "symbol": "USDR",
-        "coingecko_id": ["stablr-usd"],
+        "coingecko_id": [
+            "stablr-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/53721/large/stablrusd-logo.png?1737126629",
+        "color_hex": "#B480F0"
     },
-    # frankencoin
     {
         "owner_project": "frankencoin",
         "token_id": "frankencoin_zchf",
         "symbol": "ZCHF",
-        "coingecko_id": ["frankencoin"],
+        "coingecko_id": [
+            "frankencoin"
+        ],
         "metric_key": "bridged",
         "bridged_origin_chain": "ethereum",
         "bridged_origin_token_id": "frankencoin_zchf",
         "fiat": "chf",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/37150/large/Coin_Logo_Frankencoin_1024px.png?1728679791",
+        "color_hex": "#708090"
     },
-    # straitsx
     {
         "owner_project": "straitsx",
         "token_id": "straitsx_xsgd",
         "symbol": "XSGD",
-        "coingecko_id": ["xsgd"],
+        "coingecko_id": [
+            "xsgd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "sgd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/12832/large/XSGD_Logo_Full_Colour_1.png?1772634156",
+        "color_hex": "#0030C0"
     },
     {
         "owner_project": "straitsx",
         "token_id": "straitsx_xusd",
         "symbol": "XUSD",
-        "coingecko_id": ["straitsx-xusd"],
+        "coingecko_id": [
+            "straitsx-xusd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/39180/large/XUSD_Logo_Full_Colour_1.png?1772634139",
+        "color_hex": "#207050"
     },
     {
         "owner_project": "straitsx",
         "token_id": "straitsx_xidr",
         "symbol": "XIDR",
-        "coingecko_id": ["straitsx-indonesia-rupiah"],
+        "coingecko_id": [
+            "straitsx-indonesia-rupiah"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "idr",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/21126/large/XIDR_Logo_256_X_256.png?1696520505",
+        "color_hex": "#F01010"
     },
-    # a7a5
     {
         "owner_project": "a7a5",
         "token_id": "a7a5_a7a5",
         "symbol": "A7A5",
-        "coingecko_id": ["a7a5"],
+        "coingecko_id": [
+            "a7a5"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "rub",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/66657/large/A7A5_200.png?1750163839",
+        "color_hex": "#C01000"
     },
-    # apacx
     {
         "owner_project": "apacx",
         "token_id": "apacx_pht",
         "symbol": "PHT",
-        "coingecko_id": ["pht-stablecoin"],
+        "coingecko_id": [
+            "pht-stablecoin"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "php",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/68174/large/PHT_200_x_200_logo.png?1754996743",
+        "color_hex": "#3070F0"
     },
-    # audd-digital
     {
         "owner_project": "audd-digital",
         "token_id": "audd-digital_audd",
         "symbol": "AUDD",
-        "coingecko_id": ["novatti-australian-digital-dollar"],
+        "coingecko_id": [
+            "novatti-australian-digital-dollar"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "aud",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/33263/large/AUDD-Logo-Blue_512.png?1701319895",
+        "color_hex": "#4000F0"
     },
-    # tokenised-gbp
     {
         "owner_project": "tokenised-gbp",
         "token_id": "tokenised-gbp_tgbp",
         "symbol": "tGBP",
-        "coingecko_id": ["tokenised-gbp"],
+        "coingecko_id": [
+            "tokenised-gbp"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "gbp",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/70647/large/tgbp-square.png?1762953800",
+        "color_hex": "#4090E0"
     },
-    # bilira-org
     {
         "owner_project": "bilira-org",
         "token_id": "bilira-org_tryb",
         "symbol": "TRYb",
-        "coingecko_id": ["bilira"],
+        "coingecko_id": [
+            "bilira"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "try",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/10119/large/JBs9jiXO_400x400.jpg?1696510144",
+        "color_hex": "#6060E0"
     },
-    # falconfinance
     {
         "owner_project": "falconfinance",
         "token_id": "falconfinance_usdf",
         "symbol": "USDf",
-        "coingecko_id": ["falcon-finance"],
+        "coingecko_id": [
+            "falcon-finance"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/54558/large/ff_200_X_200.png?1740741076",
+        "color_hex": "#F06030"
     },
-    # usdai
     {
         "owner_project": "usdai",
         "token_id": "usdai_usdai",
         "symbol": "USDai",
-        "coingecko_id": ["usdai"],
+        "coingecko_id": [
+            "usdai"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/55857/large/USDai_Token_Full_Glyph.png?1755229050",
+        "color_hex": "#A09080"
     },
-    # neutrl
     {
         "owner_project": "neutrl",
         "token_id": "neutrl_nusd",
         "symbol": "NUSD",
-        "coingecko_id": ["nusd-2"],
+        "coingecko_id": [
+            "nusd-2"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/70027/large/NUSD-200x200.png?1760452629",
+        "color_hex": "#204040"
     },
-    # satoshi-protocol
     {
         "owner_project": "satoshi-protocol",
         "token_id": "satoshi_satusd",
         "symbol": "SATUSD",
-        "coingecko_id": ["satoshi-stablecoin"],
+        "coingecko_id": [
+            "satoshi-stablecoin"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/37760/large/Instagram_post_-_25.png?1715475306",
+        "color_hex": "#E0A040"
     },
-    # anzen-finance
     {
         "owner_project": "anzen-finance",
         "token_id": "anzen_usdz",
         "symbol": "USDz",
-        "coingecko_id": ["anzen-usdz"],
+        "coingecko_id": [
+            "anzen-usdz"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/38039/large/usdz-image-200x200.png?1716334412",
+        "color_hex": "#1020C0"
     },
-    # arks-labs
     {
         "owner_project": "arks-labs",
         "token_id": "arks_cgusd",
         "symbol": "cgUSD",
-        "coingecko_id": ["cygnus-finance-global-usd"],
+        "coingecko_id": [
+            "cygnus-finance-global-usd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/35628/large/cgUSD.png?1709291316",
+        "color_hex": "#00F060"
     },
-    # openedenhq
     {
         "owner_project": "openedenhq",
         "token_id": "openedenhq_usdo",
         "symbol": "USDO",
-        "coingecko_id": ["openeden-open-dollar"],
+        "coingecko_id": [
+            "openeden-open-dollar"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/53750/large/USDO_LOGO-white.png?1737181887",
+        "color_hex": "#7050D0"
     },
-    # usdkg
     {
         "owner_project": "usdkg",
         "token_id": "usdkg_usdkg",
         "symbol": "USDKG",
-        "coingecko_id": ["usdkg"],
+        "coingecko_id": [
+            "usdkg"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/71116/large/USDKG_400x400.jpg?1765871330",
+        "color_hex": "#D0A040"
     },
-    # aegis-im
     {
         "owner_project": "aegis-im",
         "token_id": "aegis-im_yusd",
         "symbol": "YUSD",
-        "coingecko_id": ["aegis-yusd"],
+        "coingecko_id": [
+            "aegis-yusd"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": ""
+        "logo": "https://coin-images.coingecko.com/coins/images/55085/large/LOGO_YUSD_BLACK.png?1756548564",
+        "color_hex": "#101020"
     },
-    # phpcoin
     {
         "owner_project": "phpcoin",
         "token_id": "phpcoin-phpc",
         "symbol": "PHPC",
-        "coingecko_id": ["phpcoin"],
+        "coingecko_id": [
+            "phpcoin"
+        ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "php",
-        "logo": ""
-    },
+        "logo": "https://coin-images.coingecko.com/coins/images/34190/large/86735260.png?1704268343",
+        "color_hex": "#7070B0"
+    }
 ]
 
 # postgres table for fact_stables:
