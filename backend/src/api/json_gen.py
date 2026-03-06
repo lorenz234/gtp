@@ -104,6 +104,9 @@ class JsonGen():
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df['metric_key'] = metric_key
+        # Ensure numeric comparisons and aggregations are safe even if DB returns strings.
+        df['value'] = pd.to_numeric(df['value'], errors='coerce')
+        
         
         # NOTE: Ideally move these calcs to SQL or Config
         if metric_key == 'gas_per_second':
@@ -112,7 +115,6 @@ class JsonGen():
         if metric_key == 'da_data_posted_bytes':
             # Convert da_data_posted_bytes from bytes to gigabytes for easier readability
             df['value'] = df['value'] / 1024 / 1024 / 1024
-
         return df
     
     def _get_raw_data_single_ok_granular(self, origin_key: str, metric_key: str, days: Optional[int] = None, granularity: str = 'hourly') -> pd.DataFrame:
@@ -132,6 +134,8 @@ class JsonGen():
         df['date'] = pd.to_datetime(df['date']).dt.tz_localize('UTC')
         df.sort_values(by=['date'], inplace=True, ascending=True)
         df['metric_key'] = metric_key
+        # Ensure numeric comparisons and aggregations are safe even if DB returns strings.
+        df['value'] = pd.to_numeric(df['value'], errors='coerce')
         
         # NOTE: Ideally move these calcs to SQL or Config
         if metric_key == 'gas_per_second':
@@ -162,8 +166,13 @@ class JsonGen():
             start_date = min(df['date'].min(), yesterday)
             
             all_dates = pd.date_range(start=start_date, end=yesterday, freq='D', tz='UTC')
-            df = df.set_index('date').reindex(all_dates, fill_value=0).reset_index().rename(columns={'index': 'date'})
+            df = df.set_index('date').reindex(all_dates)
+            # Only fill numeric columns; avoid forcing string columns to 0.
+            df['value'] = pd.to_numeric(df['value'], errors='coerce').fillna(0)
+            df = df.reset_index().rename(columns={'index': 'date'})
             df['metric_key'] = metric_key
+            logging.debug(f"After filling missing dates, DataFrame shape: {df.shape}")
+            
         return df
 
     def _get_prepared_timeseries_df(self, origin_key: str, metric_keys: List[str], start_date: Optional[str], max_date_fill: bool) -> pd.DataFrame:
@@ -460,7 +469,7 @@ class JsonGen():
         Worker function to process and save/upload a single metric-chain combination.
         This is designed to be called by the ThreadPoolExecutor.
         """
-        #logging.info(f"Processing: {origin_key} - {metric_id}")
+        logging.debug(f"Processing: {origin_key} - {metric_id}")
         metric_dict = self.create_metric_per_chain_dict(origin_key, metric_id, level, start_date)
 
         if metric_dict:
