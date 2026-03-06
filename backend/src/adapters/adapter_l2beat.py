@@ -175,9 +175,15 @@ class AdapterL2Beat(AbstractAdapter):
                 print(f'...loading stage and maturity info for {origin_key} with l2beat_id: {l2beat_id}') 
 
                 ## processing stage
-                stage = response['projects'][l2beat_id]['stage']
-                if stage in ['NotApplicable', 'Not applicable']:
+                if l2beat_id not in response['projects']:
+                    print(f'Error loading stage data for {origin_key}. L2Beat ID {l2beat_id} not found in response.')
+                    send_discord_message(f'L2Beat: Error loading stage data for {origin_key}. L2Beat ID {l2beat_id} not found in response. Other chains are not impacted.', self.webhook)            
                     stage = 'NA'
+                else:
+                    stage = response['projects'][l2beat_id]['stage']
+                    if stage in ['NotApplicable', 'Not applicable']:
+                        stage = 'NA'
+                        
                 # Compare with the existing stage in the main_config
                 current_stage = next((config.l2beat_stage for config in current_config if config.origin_key == origin_key), 'NA')
                 # If the stage has changed, send a notification

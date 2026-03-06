@@ -194,6 +194,17 @@ sql_queries = [
         ,SQLQuery(metric_key = "cca_last7d_exclusive", origin_key = "polygon_pos", jinja_path='chain_metrics/select_cca_last7d.sql.j2', currency_dependent = False)
         ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "polygon_pos", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
         
+        ## Ronin - only AA related queries
+        ,SQLQuery(metric_key = "daa", origin_key = "ronin", jinja_path='chain_metrics/select_daa.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "waa", origin_key = "ronin", jinja_path='chain_metrics/select_waa.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "maa", origin_key = "ronin", jinja_path='chain_metrics/select_maa.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "qaa", origin_key = "ronin", jinja_path='chain_metrics/select_qaa.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "aa_last7d", origin_key = "ronin", jinja_path='chain_metrics/select_aa_lastXXd.sql.j2', query_parameters={"timerange" : 7}, currency_dependent = False)
+        ,SQLQuery(metric_key = "aa_last30d", origin_key = "ronin", jinja_path='chain_metrics/select_aa_lastXXd.sql.j2',query_parameters={"timerange" : 30}, currency_dependent = False)
+        ,SQLQuery(metric_key = "cca_last7d_exclusive", origin_key = "ronin", jinja_path='chain_metrics/select_cca_last7d.sql.j2', currency_dependent = False)
+        ,SQLQuery(metric_key = "cca_weekly_exclusive", origin_key = "ronin", jinja_path='chain_metrics/select_cca_weekly.sql.j2', currency_dependent = False)
+        
+        
         # Elastic Chain
         ## ZKsync Era
         ,*standard_evm_queries("zksync_era")

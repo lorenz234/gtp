@@ -867,6 +867,7 @@ class JSONCreation():
         all_users = self.get_aa_last7d(df, 'all')
         for chain in self.main_config:
             ##if chain.api_in_main == True and chain.origin_key != 'ethereum':
+            print(f'...processing {chain.origin_key} for landing page')
             if chain.api_in_main == True:
                 ranking_dict = {}
                 ranking_dict_w_eth = {}
