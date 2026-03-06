@@ -18,8 +18,9 @@ from src.misc.airflow_utils import alert_via_webhook
 )
 
 def etl():
+
     @task()
-    def run_stables():
+    def pull_in_stables():
         from src.db_connector import DbConnector
         from src.adapters.adapter_stables_v2 import AdapterStablecoinSupply
 
@@ -38,5 +39,29 @@ def etl():
         df = ad.extract(extract_params)
         ad.load(df)
 
-    run_stables()
+    @task()
+    def calculate_totals():
+        from src.misc.jinja_helper import execute_jinja_query
+        from src.db_connector import DbConnector
+        db_connector = DbConnector()
+
+        # this is not the bottleneck, just aggregate all the data we have
+        params = {
+            'origin_keys': db_connector.get_table('sys_main_conf')['origin_key'].tolist(),
+            'days': 9999
+        }
+
+        df = execute_jinja_query(
+            db_connector,
+            'chain_metrics/select_total_stable_supply.sql.j2',
+            params,
+            return_df=True
+        ) 
+
+        df = df.set_index(['origin_key', 'date', 'metric_key'])
+        db_connector.upsert_table('fact_kpis', df)
+
+    pull_in_stables()
+    calculate_totals()
+    
 etl()
