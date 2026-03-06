@@ -19,7 +19,7 @@ from src.misc.airflow_utils import alert_via_webhook
 def run_dag():
 
     @task
-    def run_task():
+    def create_jsons():
         from src.misc.jinja_helper import execute_jinja_query
         from src.db_connector import DbConnector
         from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
@@ -32,128 +32,68 @@ def run_dag():
 
         # get chains to process stablecoin supply for
         config = db_connector.get_table("sys_main_conf")
-        config = config[config['chain_type'] == 'L2']
-        config = config[config['api_in_main'] == True]
+        config = config[config['chain_type'].isin(['L1', 'L2'])]
+        config = config[config['api_deployment_flag'] == 'PROD']
+
 
         df_chains = config[['origin_key', 'name']]
         chains = config['origin_key'].tolist()
 
+        ### timeseries data (single query for all chains)
+        df_all = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_chain_timeseries_v2.sql.j2", {}, True)
+
+        dt = pd.to_datetime(df_all['date'], errors="raise", utc=True)
+        df_all['unix_timestamp'] = (
+            (dt - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta("1ms")
+        ).astype("int64")
+
+        # load token metadata for symbol and color lookups
+        df_stables_meta = db_connector.get_table("sys_stables_v2")
+        token_color_map = df_stables_meta.set_index('token_id')['color_hex'].to_dict()
+        token_symbol_map = df_stables_meta.set_index('token_id')['symbol'].to_dict()
+
         for chain in chains:
             print(f"Processing stablecoin supply for chain: {chain}")
-            
-            ### timeseries data
-            
-            if chain == 'ethereum':
-                df = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_chain_timeseries_ethereum.sql.j2", {}, True)
-            else:
-                df = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_chain_timeseries.sql.j2", {'origin_key': chain}, True)
-            
-            # create jsons
-            dt = pd.to_datetime(df['date'], errors="raise", utc=True)
-            df['unix_timestamp'] = (
-                (dt - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta("1ms")
-            ).astype("int64")  # Convert to milliseconds
-            
-            # Sort by date and symbol to ensure consistent ordering
-            df = df.sort_values(['date', 'symbol']).reset_index(drop=True)
-            
-            # Get unique dates and stablecoins
+
+            df = df_all[df_all['origin_key'] == chain].copy()
+            if df.empty:
+                print(f"  No data for {chain}, skipping.")
+                continue
+
+            df[['value', 'value_usd']] = df[['value', 'value_usd']].fillna(0)
+            df = df.sort_values(['date', 'token_id']).reset_index(drop=True)
+
             unique_dates = df['date'].unique()
-            stablecoin_list = sorted(df['symbol'].unique().tolist())
-            
-            # Create combined values array: [unix_timestamp, value_usdt, value_usdm, value_cusd, value_usdc]
+            token_list = sorted(df['token_id'].unique().tolist())
+
             values = []
             for date in unique_dates:
                 date_data = df[df['date'] == date]
-                unix_ts = int(date_data['unix_timestamp'].iloc[0])  # Convert to native Python int
-                
-                # Create row starting with timestamp
+                unix_ts = int(date_data['unix_timestamp'].iloc[0])
                 row = [unix_ts]
-                
-                # Add value for each stablecoin in sorted order
-                for stablecoin in stablecoin_list:
-                    stablecoin_value = date_data[date_data['symbol'] == stablecoin]['value_usd']
-                    # Convert to native Python float
-                    value = float(stablecoin_value.iloc[0]) if len(stablecoin_value) > 0 else 0.0
-                    row.append(value)
-                
+                for token in token_list:
+                    token_value = date_data[date_data['token_id'] == token]['value_usd']
+                    row.append(float(token_value.iloc[0]) if len(token_value) > 0 else 0.0)
                 values.append(row)
-            
-            # Create types array
-            types = ["unix"] + [f"{coin}" for coin in stablecoin_list]
-            
-            # Create the data dictionary
+
+            types = ["unix"] + token_list
+            colors = ['#FFFFFF' if token == 'other' else token_color_map.get(token) for token in token_list]
+            symbols = ['other' if token == 'other' else token_symbol_map.get(token) for token in token_list]
+
             data_dict = {
                 "data": {
                     "timeseries": {
                         "types": types,
                         "values": values
                     },
+                    "colors": colors,
+                    "symbols": symbols,
                     "chain": chain
                 }
             }
-            
-            # Fix NaN values
+
             data_dict = fix_dict_nan(data_dict, f'stablecoins_{chain}', send_notification=False)
-            
-            # Upload to S3
             upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/timeseries/top_{chain}', data_dict, cf_distribution_id, invalidate=False)
-            
-
-            ### table data
-
-            if chain == 'ethereum':
-                df = execute_jinja_query(db_connector, "api/quick_bites/stables_per_chain_table_ethereum.sql.j2", {}, True)
-            else:
-                df = execute_jinja_query(db_connector, "api/quick_bites/stables_per_chain_table.sql.j2", {'origin_key': chain}, True)
-            
-            # Define columns and types
-            columns = [
-                "origin_key",
-                "metric_key", 
-                "fiat",
-                "value",
-                "value_usd",
-                "name",
-                "symbol",
-                "logo"
-            ]
-
-            types = [
-                "string",
-                "string", 
-                "string",
-                "number",
-                "number",
-                "string",
-                "string",
-                "string"
-            ]
-
-            # Convert DataFrame rows to list of lists
-            rows_data = []
-            for _, row in df.iterrows():
-                row_list = []
-                for col in columns:
-                    row_list.append(row[col])
-                rows_data.append(row_list)
-
-            # Create the data structure
-            data_dict = {
-                "data": {
-                    "stables_per_chain": {
-                        "columns": columns,
-                        "types": types,
-                        "rows": rows_data
-                    }
-                }
-            }
-
-            # Fix NaN values
-            data_dict = fix_dict_nan(data_dict, 'stables_per_chain_table', send_notification=True)
-            
-            # upload to S3
-            upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/tables/{chain}', data_dict, cf_distribution_id, invalidate=False)
 
 
         ## dropdown
@@ -171,6 +111,6 @@ def run_dag():
         from src.misc.helper_functions import empty_cloudfront_cache
         empty_cloudfront_cache(cf_distribution_id, '/v1/quick-bites/stablecoins/*')
 
-
+    create_jsons()
 
 run_dag()

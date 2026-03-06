@@ -1,0 +1,35 @@
+WITH daily_totals AS (
+    SELECT
+        "date",
+        origin_key,
+        token_id,
+        SUM(value)     AS value,
+        SUM(value_usd) AS value_usd
+    FROM public.vw_fact_stables_mcap_v2
+    GROUP BY
+        "date",
+        origin_key,
+        token_id
+),
+latest_day_ranking AS (
+    SELECT
+        origin_key,
+        token_id,
+        RANK() OVER (PARTITION BY origin_key ORDER BY SUM(value_usd) DESC) AS rnk
+    FROM public.vw_fact_stables_mcap_v2
+    WHERE "date" = (SELECT MAX("date") FROM public.vw_fact_stables_mcap_v2)
+    GROUP BY origin_key, token_id
+)
+SELECT
+    d."date",
+    d.origin_key,
+    CASE WHEN COALESCE(r.rnk, 9999) <= 8 THEN d.token_id ELSE 'other' END AS token_id,
+    SUM(d.value)     AS value,
+    SUM(d.value_usd) AS value_usd
+FROM daily_totals d
+LEFT JOIN latest_day_ranking r USING (origin_key, token_id)
+GROUP BY
+    d."date",
+    d.origin_key,
+    CASE WHEN COALESCE(r.rnk, 9999) <= 8 THEN d.token_id ELSE 'other' END
+ORDER BY 1 DESC, 2
