@@ -75,6 +75,28 @@ def etl():
             "metric_keys": None,
         })
         ad.load(df)
+        
+    @task()
+    def run_fdv():
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_sql import AdapterSQL
+
+        adapter_params = {
+        }
+        load_params = {
+            'load_type' : 'fdv', ## calculate fdv based on total supply and price
+            'days' : 365, ## days as int our 'auto
+            'origin_keys' : None, ## origin_keys as list or None
+            'metric_keys' : None, ## metric_keys as list or None
+        }
+
+       # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterSQL(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+        # # load
+        ad.load(df)
 
     @task()
     def run_usd_to_eth():
@@ -114,8 +136,8 @@ def etl():
 
     usd_to_eth = run_usd_to_eth()
     da = run_da_metrics()
-    run_metrics_dependent() >> run_economics() >> usd_to_eth
-    run_metrics_independent() >> da
+    run_metrics_dependent() >> run_economics() >> run_fdv() >> usd_to_eth
+    run_metrics_independent() >> run_da_metrics()
 
     [usd_to_eth, da] >> run_eth_to_usd() >> run_aggregate_ecosystem()
 
