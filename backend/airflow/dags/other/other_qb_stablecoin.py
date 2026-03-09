@@ -96,6 +96,34 @@ def run_dag():
             upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/chains/top_{chain}', data_dict, cf_distribution_id, invalidate=False)
 
 
+        ### table data per chain (single query for all chains)
+        df_all_table = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_chain_table.sql.j2", {}, True)
+        columns = list(df_all_table.columns)
+
+        df_all_table['date'] = df_all_table['date'].astype(str)
+
+        for chain in chains:
+            df = df_all_table[df_all_table['origin_key'] == chain].copy()
+            if df.empty:
+                print(f"  No table data for {chain}, skipping.")
+                continue
+
+            df = df.sort_values('value_usd', ascending=False).reset_index(drop=True)
+            rows_data = df.values.tolist()
+
+            data_dict = {
+                "data": {
+                    "table": {
+                        "columns": columns,
+                        "rows": rows_data
+                    }
+                }
+            }
+
+            data_dict = fix_dict_nan(data_dict, f'stablecoins_table_{chain}', send_notification=False)
+            upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/chains/table_{chain}', data_dict, cf_distribution_id, invalidate=False)
+
+
         ### timeseries data per project (single query for all projects)
         df_all_proj = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_project_timeseries.sql.j2", {}, True)
 
