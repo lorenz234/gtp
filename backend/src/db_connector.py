@@ -1627,19 +1627,44 @@ class DbConnector:
                 if len(filtered_by_chains) >0:
                         chains_str = ', '.join([f"'{chain}'" for chain in filtered_by_chains])
                         exec_string = f"""
+                                WITH app_chain_stats AS (
                                 SELECT 
-                                        fact.owner_project as name, 
+                                        fact.owner_project AS name, 
                                         ood.display_name, 
                                         ood.description, 
-                                        replace((ood.github->0->>'url'), 'https://github.com/', '') AS main_github,
-                                        replace(replace((ood.social->'twitter'->0->>'url'), 'https://twitter.com/', ''),'https://x.com/', '') AS twitter,
-                                        (ood.websites->0->>'url') AS website,
-                                        ood.logo_path
+                                        REPLACE(ood.github->0->>'url', 'https://github.com/', '') AS main_github,
+                                        REPLACE(REPLACE(ood.social->'twitter'->0->>'url','https://twitter.com/',''),'https://x.com/','') AS twitter,
+                                        ood.websites->0->>'url' AS website,
+                                        ood.logo_path,
+                                        fact.origin_key,
+                                        COALESCE(SUM(fact.txcount) FILTER (WHERE fact.date > current_date - 30),0) AS txcount
                                 FROM vw_apps_contract_level_materialized fact
-                                INNER JOIN oli_oss_directory ood on fact.owner_project = ood.name
+                                JOIN oli_oss_directory ood 
+                                        ON fact.owner_project = ood.name
                                 WHERE fact.origin_key IN ({chains_str})
-                                        AND ood.active = true
-                                GROUP BY 1,2,3,4,5,6,7
+                                AND ood.active
+                                GROUP BY 1,2,3,4,5,6,7,8
+                                ),
+                                app_stats AS (
+                                SELECT
+                                        name,
+                                        display_name,
+                                        description,
+                                        main_github,
+                                        twitter,
+                                        website,
+                                        logo_path,
+                                        SUM(txcount) AS txcount,
+                                        jsonb_object_agg(origin_key, txcount ORDER BY origin_key) AS active_on
+                                FROM app_chain_stats
+                                GROUP by 1,2,3,4,5,6,7
+                                )
+
+                                SELECT
+                                *,
+                                RANK() OVER (ORDER BY txcount DESC) AS rank
+                                FROM app_stats
+                                ORDER BY txcount DESC;
                                 """       
                 else:
                         exec_string = """
