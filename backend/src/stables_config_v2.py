@@ -152,7 +152,7 @@ coin_mapping = [
         "token_id": "tetherto_ausdt",
         "symbol": "AUSDT",
         "coingecko_id": [
-            "usa"
+            "alloy-tether"
         ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
@@ -1560,7 +1560,7 @@ address_mapping = {
             "decimals": 6
         },
         "tetherto_ausdt": {
-            "address": "0x07041776f5007aca2a54844f50503a18a72a8b68",
+            "address": "0x9eead9ce15383caeed975427340b3a369410cfbf",
             "decimals": 6
         },
         "makerdao_dai": {
