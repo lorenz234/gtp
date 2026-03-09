@@ -158,8 +158,8 @@ coin_mapping = [
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": "https://coin-images.coingecko.com/coins/images/71792/large/usat_logo_200x200.png?1769440161",
-        "color_hex": "#0F1450"
+        "logo": "https://coin-images.coingecko.com/coins/images/38747/large/ausdt.png?1718681185",
+        "color_hex": "#D0B050"
     },
     {
         "owner_project": "makerdao",
