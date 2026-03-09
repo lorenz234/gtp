@@ -1662,7 +1662,7 @@ class DbConnector:
 
                                 SELECT
                                 *,
-                                RANK() OVER (ORDER BY txcount DESC) AS rank
+                                RANK() OVER (ORDER BY txcount DESC) AS ecosystem_rank
                                 FROM app_stats
                                 ORDER BY txcount DESC;
                                 """       
