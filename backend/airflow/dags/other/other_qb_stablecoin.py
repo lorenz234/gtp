@@ -19,7 +19,7 @@ from src.misc.airflow_utils import alert_via_webhook
 def run_dag():
 
     @task
-    def create_jsons():
+    def create_jsons_chain_qb():
         from src.misc.jinja_helper import execute_jinja_query
         from src.db_connector import DbConnector
         from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
@@ -30,14 +30,16 @@ def run_dag():
         s3_bucket = os.getenv("S3_CF_BUCKET")
         cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
 
-        # get chains to process stablecoin supply for
         config = db_connector.get_table("sys_main_conf")
         config = config[config['chain_type'].isin(['L1', 'L2'])]
         config = config[config['api_deployment_flag'] == 'PROD']
 
-
         df_chains = config[['origin_key', 'name']]
         chains = config['origin_key'].tolist()
+
+        df_stables_meta = db_connector.get_table("sys_stables_v2")
+        token_color_map = df_stables_meta.set_index('token_id')['color_hex'].to_dict()
+        token_symbol_map = df_stables_meta.set_index('token_id')['symbol'].to_dict()
 
         ### timeseries data (single query for all chains)
         df_all = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_chain_timeseries_v2.sql.j2", {}, True)
@@ -47,13 +49,8 @@ def run_dag():
             (dt - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta("1ms")
         ).astype("int64")
 
-        # load token metadata for symbol and color lookups
-        df_stables_meta = db_connector.get_table("sys_stables_v2")
-        token_color_map = df_stables_meta.set_index('token_id')['color_hex'].to_dict()
-        token_symbol_map = df_stables_meta.set_index('token_id')['symbol'].to_dict()
-
         for chain in chains:
-            print(f"Processing stablecoin supply for chain: {chain}")
+            print(f"Processing stablecoin timeseries for chain: {chain}")
 
             df = df_all[df_all['origin_key'] == chain].copy()
             if df.empty:
@@ -95,14 +92,14 @@ def run_dag():
             data_dict = fix_dict_nan(data_dict, f'stablecoins_{chain}', send_notification=False)
             upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/chains/top_{chain}', data_dict, cf_distribution_id, invalidate=False)
 
-
         ### table data per chain (single query for all chains)
         df_all_table = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_chain_table.sql.j2", {}, True)
         columns = list(df_all_table.columns)
-
         df_all_table['date'] = df_all_table['date'].astype(str)
 
         for chain in chains:
+            print(f"Processing stablecoin table for chain: {chain}")
+
             df = df_all_table[df_all_table['origin_key'] == chain].copy()
             if df.empty:
                 print(f"  No table data for {chain}, skipping.")
@@ -123,6 +120,28 @@ def run_dag():
             data_dict = fix_dict_nan(data_dict, f'stablecoins_table_{chain}', send_notification=False)
             upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/chains/table_{chain}', data_dict, cf_distribution_id, invalidate=False)
 
+        ## chain dropdown
+        ticker_name_list = df_chains[['origin_key', 'name']].to_dict(orient='records')
+        dict_dropdown = {"dropdown_values": ticker_name_list}
+        dict_dropdown = fix_dict_nan(dict_dropdown, 'chain_dropdown', send_notification=True)
+        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/stablecoins/dropdown-chains', dict_dropdown, cf_distribution_id, invalidate=False)
+
+
+    @task
+    def create_jsons_project_qb():
+        from src.misc.jinja_helper import execute_jinja_query
+        from src.db_connector import DbConnector
+        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
+        import pandas as pd
+        import os
+
+        db_connector = DbConnector()
+        s3_bucket = os.getenv("S3_CF_BUCKET")
+        cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
+
+        df_stables_meta = db_connector.get_table("sys_stables_v2")
+        token_color_map = df_stables_meta.set_index('token_id')['color_hex'].to_dict()
+        token_symbol_map = df_stables_meta.set_index('token_id')['symbol'].to_dict()
 
         ### timeseries data per project (single query for all projects)
         df_all_proj = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_project_timeseries.sql.j2", {}, True)
@@ -135,7 +154,7 @@ def run_dag():
         projects = df_all_proj['owner_project'].dropna().unique().tolist()
 
         for project in projects:
-            print(f"Processing stablecoin supply for project: {project}")
+            print(f"Processing stablecoin timeseries for project: {project}")
 
             df = df_all_proj[df_all_proj['owner_project'] == project].copy()
             if df.empty:
@@ -176,6 +195,33 @@ def run_dag():
             data_dict = fix_dict_nan(data_dict, f'stablecoins_project_{project}', send_notification=False)
             upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/projects/{project}', data_dict, cf_distribution_id, invalidate=False)
 
+        ### table data per project (single query for all projects)
+        df_all_proj_table = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_project_table.sql.j2", {}, True)
+        proj_table_columns = list(df_all_proj_table.columns)
+        df_all_proj_table['date'] = df_all_proj_table['date'].astype(str)
+
+        for project in projects:
+            print(f"Processing stablecoin table for project: {project}")
+
+            df = df_all_proj_table[df_all_proj_table['owner_project'] == project].copy()
+            if df.empty:
+                print(f"  No table data for project {project}, skipping.")
+                continue
+
+            df = df.sort_values('value_usd', ascending=False).reset_index(drop=True)
+            rows_data = df.values.tolist()
+
+            data_dict = {
+                "data": {
+                    "table": {
+                        "columns": proj_table_columns,
+                        "rows": rows_data
+                    }
+                }
+            }
+
+            data_dict = fix_dict_nan(data_dict, f'stablecoins_proj_table_{project}', send_notification=False)
+            upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/projects/table_{project}', data_dict, cf_distribution_id, invalidate=False)
 
         ## project dropdown
         df_oss = db_connector.get_table("oli_oss_directory")
@@ -186,22 +232,14 @@ def run_dag():
         dict_proj_dropdown = fix_dict_nan(dict_proj_dropdown, 'project_dropdown', send_notification=True)
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/stablecoins/dropdown-projects', dict_proj_dropdown, cf_distribution_id, invalidate=False)
 
-
-        ## dropdown
-        ticker_name_list = df_chains[['origin_key', 'name']].to_dict(orient='records')
-        dict_dropdown = {
-            "dropdown_values": ticker_name_list,
-        }
-        # Fix NaN values in the dict_dropdown
-        dict_dropdown = fix_dict_nan(dict_dropdown, 'chain_dropdown', send_notification=True)
-        # Upload to S3
-        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/stablecoins/dropdown-chains', dict_dropdown, cf_distribution_id, invalidate=False)
-
-
-        ### empty_cloudfront_cache
+    @task
+    def invalidate_cloudfront_cache():
         from src.misc.helper_functions import empty_cloudfront_cache
+        import os
+
+        cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
         empty_cloudfront_cache(cf_distribution_id, '/v1/quick-bites/stablecoins/*')
 
-    create_jsons()
+    create_jsons_chain_qb() >> create_jsons_project_qb() >> invalidate_cloudfront_cache()
 
 run_dag()
