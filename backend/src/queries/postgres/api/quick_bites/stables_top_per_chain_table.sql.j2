@@ -1,0 +1,72 @@
+WITH latest AS (
+    SELECT DISTINCT ON (origin_key, token_id)
+        "date",
+        origin_key,
+        token_id,
+        address,
+        decimals,
+        "method",
+        fiat,
+        value,
+        value_usd,
+        owner_project,
+        symbol,
+        bridged_origin_chain,
+        bridged_origin_token_id,
+        logo
+    FROM public.vw_fact_stables_mcap_v2
+    WHERE metric_key IN ('total_supply', 'track_on_l1')
+    ORDER BY origin_key, token_id, "date" DESC
+),
+ago_30d AS (
+    SELECT DISTINCT ON (origin_key, token_id)
+        origin_key,
+        token_id,
+        value_usd AS value_usd_30d
+    FROM public.vw_fact_stables_mcap_v2
+    WHERE metric_key IN ('total_supply', 'track_on_l1')
+      AND "date" <= (CURRENT_DATE - INTERVAL '30 days')
+    ORDER BY origin_key, token_id, "date" DESC
+),
+ago_365d AS (
+    SELECT DISTINCT ON (origin_key, token_id)
+        origin_key,
+        token_id,
+        value_usd AS value_usd_365d
+    FROM public.vw_fact_stables_mcap_v2
+    WHERE metric_key IN ('total_supply', 'track_on_l1')
+      AND "date" <= (CURRENT_DATE - INTERVAL '365 days')
+    ORDER BY origin_key, token_id, "date" DESC
+)
+SELECT
+    l."date",
+    l.origin_key,
+    l.token_id,
+    l.address,
+    l.decimals,
+    l."method",
+    l.fiat,
+    ROUND(l.value::numeric, 2)        AS value,
+    ROUND(l.value_usd::numeric, 2)    AS value_usd,
+    l.owner_project,
+    oss.display_name                  AS owner_project_display_name,
+    l.symbol,
+    l.bridged_origin_chain,
+    l.bridged_origin_token_id,
+    l.logo,
+    CASE
+        WHEN p30.value_usd_30d IS NULL OR p30.value_usd_30d = 0 THEN NULL
+        ELSE ROUND(((l.value_usd - p30.value_usd_30d) / p30.value_usd_30d * 100)::numeric, 2)
+    END AS "30d_supply_change",
+    CASE
+        WHEN p365.value_usd_365d IS NULL OR p365.value_usd_365d = 0 THEN NULL
+        ELSE ROUND(((l.value_usd - p365.value_usd_365d) / p365.value_usd_365d * 100)::numeric, 2)
+    END AS "365d_supply_change",
+    CASE
+        WHEN l.bridged_origin_chain IS NOT NULL THEN 'cross-chain'
+        ELSE 'token-transfers'
+    END AS icon_type
+FROM latest l
+LEFT JOIN ago_30d  p30  USING (origin_key, token_id)
+LEFT JOIN ago_365d p365 USING (origin_key, token_id)
+LEFT JOIN public.oli_oss_directory oss ON oss.name = l.owner_project;

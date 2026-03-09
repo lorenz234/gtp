@@ -1,0 +1,65 @@
+WITH latest AS (
+    SELECT DISTINCT ON (owner_project, token_id, origin_key)
+        "date",
+        origin_key,
+        token_id,
+        decimals,
+        "method",
+        fiat,
+        value,
+        value_usd,
+        owner_project,
+        symbol,
+        bridged_origin_chain,
+        logo
+    FROM public.vw_fact_stables_mcap_v2
+    WHERE metric_key IN ('total_supply', 'track_on_l1')
+    ORDER BY owner_project, token_id, origin_key, "date" DESC
+),
+ago_30d AS (
+    SELECT DISTINCT ON (owner_project, token_id, origin_key)
+        owner_project,
+        token_id,
+        origin_key,
+        value_usd AS value_usd_30d
+    FROM public.vw_fact_stables_mcap_v2
+    WHERE metric_key IN ('total_supply', 'track_on_l1')
+      AND "date" <= (CURRENT_DATE - INTERVAL '30 days')
+    ORDER BY owner_project, token_id, origin_key, "date" DESC
+),
+ago_365d AS (
+    SELECT DISTINCT ON (owner_project, token_id, origin_key)
+        owner_project,
+        token_id,
+        origin_key,
+        value_usd AS value_usd_365d
+    FROM public.vw_fact_stables_mcap_v2
+    WHERE metric_key IN ('total_supply', 'track_on_l1')
+      AND "date" <= (CURRENT_DATE - INTERVAL '365 days')
+    ORDER BY owner_project, token_id, origin_key, "date" DESC
+)
+SELECT
+    l."date",
+    l.owner_project,
+    l.origin_key,
+    l.token_id,
+    l.decimals,
+    l."method",
+    l.fiat,
+    ROUND(l.value::numeric, 2)        AS value,
+    ROUND(l.value_usd::numeric, 2)    AS value_usd,
+    l.symbol,
+    l.bridged_origin_chain,
+    l.logo,
+    CASE
+        WHEN p30.value_usd_30d IS NULL OR p30.value_usd_30d = 0 THEN NULL
+        ELSE ROUND(((l.value_usd - p30.value_usd_30d) / p30.value_usd_30d * 100)::numeric, 2)
+    END AS "30d_supply_change",
+    CASE
+        WHEN p365.value_usd_365d IS NULL OR p365.value_usd_365d = 0 THEN NULL
+        ELSE ROUND(((l.value_usd - p365.value_usd_365d) / p365.value_usd_365d * 100)::numeric, 2)
+    END AS "365d_supply_change"
+FROM latest l
+LEFT JOIN ago_30d  p30  ON p30.owner_project = l.owner_project AND p30.token_id = l.token_id AND p30.origin_key = l.origin_key
+LEFT JOIN ago_365d p365 ON p365.owner_project = l.owner_project AND p365.token_id = l.token_id AND p365.origin_key = l.origin_key
+WHERE l."date" = (SELECT MAX("date") FROM public.vw_fact_stables_mcap_v2 WHERE metric_key IN ('total_supply', 'track_on_l1'));

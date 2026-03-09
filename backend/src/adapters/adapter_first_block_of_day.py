@@ -395,23 +395,16 @@ class AdapterFirstBlockOfDay(AbstractAdapter):
         return int(low)
 
     def _get_all_chains_with_rpcs(self) -> List[str]:
-        query = """
-            SELECT distinct origin_key
-            FROM public.sys_main_conf
-            WHERE 
-                chain_type IN ('L2', 'L1')
-                AND api_deployment_flag IN ('PROD', 'DEV', 'ZIRCUIT')
-        """
         print("[DB] SELECT chain universe from sys_main_conf (L1/L2, PROD/DEV/ZIRCUIT)")
-        df = self.db_connector.execute_query(query, load_df=True)
-        print(f"[DB] -> returned {len(df)} chain row(s)")
+        chains = self.db_connector.get_all_L1_L2_origin_keys_prod(['PROD', 'DEV', 'ZIRCUIT'])
+        print(f"[DB] -> returned {len(chains)} chain row(s)")
         ### remove certain chains
-        to_be_removed = ['imx', 'loopring', 'real']
-        df = df[~df['origin_key'].isin(to_be_removed)]
-        print(f"[DB] -> removed {to_be_removed} from df, {len(df)} chain row(s) left")
-        if df.empty:
+        to_be_removed = ['loopring']
+        chains = list(set(chains) - set(to_be_removed))
+        print(f"[DB] -> removed {to_be_removed} from chains, {len(chains)} chain(s) left")
+        if not chains:
             return []
-        return df["origin_key"].dropna().astype(str).tolist()
+        return chains
 
     def _get_chain_progress(self, origin_keys: List[str]) -> pd.DataFrame:
         in_clause = ", ".join(f"'{self._escape_literal(ok)}'" for ok in origin_keys)
