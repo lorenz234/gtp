@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description="",
     tags=["other"],
     start_date=datetime(2026, 1, 22),
-    schedule="11 2 * * *",  # Every day at 02:21
+    schedule="21 2 * * *",  # Every day at 2:21 AM
 )
 def run_dag():
 
