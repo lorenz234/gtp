@@ -1655,7 +1655,7 @@ class DbConnector:
                                         website,
                                         logo_path,
                                         SUM(txcount) AS txcount,
-                                        jsonb_object_agg(origin_key, txcount ORDER BY origin_key) AS active_on
+                                        jsonb_object_agg(origin_key, txcount ORDER BY origin_key) FILTER (WHERE txcount > 0) AS active_on
                                 FROM app_chain_stats
                                 GROUP by 1,2,3,4,5,6,7
                                 )
