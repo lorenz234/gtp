@@ -24,8 +24,8 @@ SELECT
     d."date",
     d.origin_key,
     CASE WHEN COALESCE(r.rnk, 9999) <= 8 THEN d.token_id ELSE 'other' END AS token_id,
-    SUM(d.value)     AS value,
-    SUM(d.value_usd) AS value_usd
+    ROUND(SUM(d.value)::numeric, 2)     AS value,
+    ROUND(SUM(d.value_usd)::numeric, 2) AS value_usd
 FROM daily_totals d
 LEFT JOIN latest_day_ranking r USING (origin_key, token_id)
 GROUP BY
