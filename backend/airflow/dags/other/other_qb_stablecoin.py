@@ -93,7 +93,70 @@ def run_dag():
             }
 
             data_dict = fix_dict_nan(data_dict, f'stablecoins_{chain}', send_notification=False)
-            upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/timeseries/top_{chain}', data_dict, cf_distribution_id, invalidate=False)
+            upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/chains/top_{chain}', data_dict, cf_distribution_id, invalidate=False)
+
+
+        ### timeseries data per project (single query for all projects)
+        df_all_proj = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_project_timeseries.sql.j2", {}, True)
+
+        dt_proj = pd.to_datetime(df_all_proj['date'], errors="raise", utc=True)
+        df_all_proj['unix_timestamp'] = (
+            (dt_proj - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta("1ms")
+        ).astype("int64")
+
+        projects = df_all_proj['owner_project'].dropna().unique().tolist()
+
+        for project in projects:
+            print(f"Processing stablecoin supply for project: {project}")
+
+            df = df_all_proj[df_all_proj['owner_project'] == project].copy()
+            if df.empty:
+                continue
+
+            df[['value', 'value_usd']] = df[['value', 'value_usd']].fillna(0)
+            df = df.sort_values(['date', 'token_id']).reset_index(drop=True)
+
+            unique_dates = df['date'].unique()
+            token_list = sorted(df['token_id'].unique().tolist())
+
+            values = []
+            for date in unique_dates:
+                date_data = df[df['date'] == date]
+                unix_ts = int(date_data['unix_timestamp'].iloc[0])
+                row = [unix_ts]
+                for token in token_list:
+                    token_value = date_data[date_data['token_id'] == token]['value_usd']
+                    row.append(float(token_value.iloc[0]) if len(token_value) > 0 else 0.0)
+                values.append(row)
+
+            types = ["unix"] + token_list
+            colors = ['#FFFFFF' if token == 'other' else token_color_map.get(token) for token in token_list]
+            symbols = ['other' if token == 'other' else token_symbol_map.get(token) for token in token_list]
+
+            data_dict = {
+                "data": {
+                    "timeseries": {
+                        "types": types,
+                        "values": values
+                    },
+                    "colors": colors,
+                    "symbols": symbols,
+                    "owner_project": project
+                }
+            }
+
+            data_dict = fix_dict_nan(data_dict, f'stablecoins_project_{project}', send_notification=False)
+            upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/projects/{project}', data_dict, cf_distribution_id, invalidate=False)
+
+
+        ## project dropdown
+        df_oss = db_connector.get_table("oli_oss_directory")
+        df_proj_dropdown = df_oss[df_oss['name'].isin(projects)][['name', 'display_name', 'description', 'websites', 'github', 'social', 'logo_path']].copy()
+        df_proj_dropdown = df_proj_dropdown.rename(columns={'name': 'owner_project'})
+        project_dropdown_list = df_proj_dropdown.to_dict(orient='records')
+        dict_proj_dropdown = {"dropdown_values": project_dropdown_list}
+        dict_proj_dropdown = fix_dict_nan(dict_proj_dropdown, 'project_dropdown', send_notification=True)
+        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/stablecoins/dropdown-projects', dict_proj_dropdown, cf_distribution_id, invalidate=False)
 
 
         ## dropdown
@@ -104,7 +167,7 @@ def run_dag():
         # Fix NaN values in the dict_dropdown
         dict_dropdown = fix_dict_nan(dict_dropdown, 'chain_dropdown', send_notification=True)
         # Upload to S3
-        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/stablecoins/dropdown', dict_dropdown, cf_distribution_id, invalidate=False)
+        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/stablecoins/dropdown-chains', dict_dropdown, cf_distribution_id, invalidate=False)
 
 
         ### empty_cloudfront_cache
