@@ -2567,6 +2567,7 @@ class JSONCreation():
         df = self.load_app_data(project, self.chains_list_in_api_apps)
         if len(df) > 0:
             df_first_seen = df.groupby('origin_key').agg({'date': 'min'}).copy()
+            df_first_seen = df_first_seen.sort_values(by='date', ascending=True)
             df_first_seen.reset_index(inplace=True)
             df_first_seen.date = df_first_seen.date.dt.strftime('%Y-%m-%d')
             df_first_seen_dict = df_first_seen.set_index('origin_key').to_dict()['date']
@@ -3074,6 +3075,12 @@ class JSONCreation():
         df = self.db_connector.get_active_projects(add_category=True, filtered_by_chains=self.chains_list_in_api_apps)
         df = df.rename(columns={'name': 'owner_project'})
         df = df.replace({np.nan: None})        
+
+        ## TODO: implement real values
+        df['token_symbol'] = 'DUMMY'
+        
+        ## Dummy features for now, to be replaced with real values in the future. Should be a list of features that the project has, e.g. ['Swap', 'Lending', 'Bridge', 'Trading']
+        df['features'] = [['Dummy', 'Swap', 'Lending', 'Bridge', 'Trading'] for _ in range(len(df))]
 
         projects_dict = {
             'data': {
