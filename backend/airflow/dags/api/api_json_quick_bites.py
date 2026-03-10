@@ -327,6 +327,153 @@ def json_creation():
         upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/ethereum-scaling/data', data_dict, cf_distribution_id)
     
     @task()
+    def run_app_count():
+        import datetime
+        import pandas as pd
+        from datetime import datetime, timezone
+        import os
+        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
+        from src.db_connector import DbConnector
+
+        db_connector = DbConnector()
+        s3_bucket = os.getenv("S3_CF_BUCKET")
+        cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
+
+        data_dict = {
+            "data": {
+                "apps_total" : {},
+                "apps_by_chain" : {},
+                "apps_by_category" : {},
+            }    
+        }
+
+        ## Apps Total
+        query = """
+            SELECT
+                date_trunc('week', date) AS week,
+                COUNT(DISTINCT owner_project) AS project_count
+            FROM public.vw_apps_contract_level_materialized
+            JOIN public.sys_main_conf mc using (origin_key)
+            WHERE date < date_trunc('week', current_date)
+            AND owner_project IS NOT NULL
+            and mc.runs_aggregate_blockspace
+            and mc.api_deployment_flag = 'PROD'
+            and date > '2021-01-04'
+            GROUP BY 1
+        """
+
+        df = db_connector.execute_query(query, load_df=True)
+        df['week'] = pd.to_datetime(df['week'])
+        df['unix'] = df['week'].astype('int64') // 1_000
+        df.sort_values(by=['unix'], inplace=True, ascending=True)
+        df = df.drop(columns=['week'])
+        df = df[['unix', 'project_count']]
+
+        data_dict["data"]["apps_total"]= {
+            "weekly": {
+                "types": df.columns.tolist(),
+                "values": df.values.tolist()
+            }
+        }
+
+        ## Apps by Chain
+        query = """
+            WITH project_weeks AS (
+                SELECT
+                    date_trunc('week', date) AS week,
+                    owner_project,
+                    COUNT(DISTINCT origin_key) AS chain_count,
+                    MIN(origin_key) AS single_origin_key
+                FROM public.vw_apps_contract_level_materialized
+                JOIN public.sys_main_conf mc using (origin_key)
+                WHERE date < date_trunc('week', current_date)
+                AND owner_project IS NOT NULL
+                and mc.runs_aggregate_blockspace
+                and mc.api_deployment_flag = 'PROD'
+                and date > '2021-01-04'
+                GROUP BY 1, 2
+            ),
+            classified AS (
+                SELECT
+                    week,
+                    CASE
+                        WHEN chain_count > 1 THEN 'Cross-Chain'
+                        ELSE single_origin_key
+                    END AS category,
+                    owner_project
+                FROM project_weeks
+            )
+            SELECT
+                week,
+                category AS origin_key,
+                s.name_short,
+                COALESCE(s.colors->'dark'->>0, '#CDD8D2') AS color,
+                COUNT(DISTINCT owner_project) AS project_count
+            FROM classified c
+            LEFT JOIN public.sys_main_conf s ON c.category = s.origin_key
+            GROUP BY 1, 2, 3, 4
+        """
+
+        df = db_connector.execute_query(query, load_df=True)
+        df['week'] = pd.to_datetime(df['week'])
+        df['unix'] = df['week'].astype('int64') // 1_000
+        df.sort_values(by=['unix'], inplace=True, ascending=True)
+        df = df.drop(columns=['week'])
+
+        df_wide = (
+                df.pivot_table(
+                    index="unix",
+                    columns="origin_key",
+                    values="project_count",
+                    aggfunc="last",
+                )
+                .sort_index()
+                .fillna(0)
+            )
+
+        origin_keys = df_wide.columns.tolist()
+        name_short_map = (
+            df[["origin_key", "name_short"]]
+            .drop_duplicates(subset=["origin_key"])
+            .set_index("origin_key")["name_short"]
+            .to_dict()
+        )
+        color_map = (
+            df[["origin_key", "color"]]
+            .drop_duplicates(subset=["origin_key"])
+            .set_index("origin_key")["color"]
+            .to_dict()
+        )
+        chain_names = [
+            name_short_map.get(origin_key) if pd.notna(name_short_map.get(origin_key)) else origin_key
+            for origin_key in origin_keys
+        ]
+        chain_colors = [
+            color_map.get(origin_key) if pd.notna(color_map.get(origin_key)) else None
+            for origin_key in origin_keys
+        ]
+
+        df_wide.columns = [f"{col}_registered_count" for col in origin_keys]
+        df_wide = df_wide.reset_index()
+        registered_columns = [col for col in df_wide.columns if col != "unix"]
+        data_dict['data']['apps_by_chain'] = {
+                "names": chain_names,
+                "colors": chain_colors,
+                "timeseries": {
+                    "types": ["unix"] + registered_columns,
+                    "values": [
+                        [int(row["unix"])] + [int(row[col]) for col in registered_columns]
+                        for _, row in df_wide.iterrows()
+                    ],
+                }
+            }
+
+        data_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        data_dict = fix_dict_nan(data_dict, 'event-apps-data', False)
+
+        upload_json_to_cf_s3(s3_bucket, f'v1/landing-events/apps-data', data_dict, cf_distribution_id)
+    
+    @task()
     def run_network_graph():
         import pandas as pd
         from src.db_connector import DbConnector
@@ -428,5 +575,6 @@ def json_creation():
     run_shopify_usdc()
     run_ethereum_scaling()
     run_network_graph()
+    run_app_count()
 
 json_creation()
