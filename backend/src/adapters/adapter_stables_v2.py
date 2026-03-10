@@ -70,8 +70,8 @@ class AdapterStablecoinSupply(AbstractAdapter):
         # exchange '*' for all chains in mapping
         if chains == ['*']:
             chains_mapping = list(self.address_mapping.keys())
-            chains_conf = self.db_connector.get_all_origin_keys_prod(['PROD', 'ZIRCUIT'])
-            # select only chains that are in both
+            chains_conf = self.db_connector.get_all_L1_L2_origin_keys_prod(['PROD', 'ZIRCUIT', 'DEV'])
+            # select only chains that are in both 
             chains = list(set(chains_mapping) & set(chains_conf))
             # print warning for chains that are in mapping but not in conf and vice versa
             chains_not_in_conf = list(set(chains_mapping) - set(chains_conf))

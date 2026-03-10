@@ -152,14 +152,14 @@ coin_mapping = [
         "token_id": "tetherto_ausdt",
         "symbol": "AUSDT",
         "coingecko_id": [
-            "usa"
+            "alloy-tether"
         ],
         "metric_key": "direct",
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": "https://coin-images.coingecko.com/coins/images/71792/large/usat_logo_200x200.png?1769440161",
-        "color_hex": "#0F1450"
+        "logo": "https://coin-images.coingecko.com/coins/images/38747/large/ausdt.png?1718681185",
+        "color_hex": "#D0B050"
     },
     {
         "owner_project": "makerdao",
@@ -1560,7 +1560,7 @@ address_mapping = {
             "decimals": 6
         },
         "tetherto_ausdt": {
-            "address": "0x07041776f5007aca2a54844f50503a18a72a8b68",
+            "address": "0x9eead9ce15383caeed975427340b3a369410cfbf",
             "decimals": 6
         },
         "makerdao_dai": {

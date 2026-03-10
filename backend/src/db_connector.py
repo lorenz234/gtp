@@ -2238,11 +2238,13 @@ class DbConnector:
                         blocks = {row[0].strftime('%Y-%m-%d'): int(row[1]) for row in result}
                 return blocks
         
-        def get_all_origin_keys_prod(self, api_deployment_flags = ['PROD']):
+        def get_all_L1_L2_origin_keys_prod(self, api_deployment_flags = ['PROD']):
                 query = f"""
                         SELECT DISTINCT origin_key
                         FROM public.sys_main_conf
-                        WHERE api_deployment_flag = ANY (ARRAY{api_deployment_flags});
+                        WHERE 
+                                api_deployment_flag = ANY (ARRAY{api_deployment_flags})
+                                AND chain_type IN ('L1', 'L2');
                 """
                 with self.engine.connect() as connection:
                         result = connection.execute(text(query))

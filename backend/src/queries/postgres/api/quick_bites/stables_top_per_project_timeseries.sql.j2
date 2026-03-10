@@ -1,0 +1,12 @@
+SELECT
+    "date",
+    owner_project,
+    token_id,
+    ROUND(SUM(value)::numeric, 2)     AS value,
+    ROUND(SUM(value_usd)::numeric, 2) AS value_usd
+FROM public.vw_fact_stables_mcap_v2
+GROUP BY
+    "date",
+    owner_project,
+    token_id
+ORDER BY 1 DESC, 2
