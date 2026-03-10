@@ -2562,6 +2562,53 @@ class JSONCreation():
             result = connection.execute(exec_string)
             val = result.scalar_one()
         return val
+    
+    def create_kpi_cards_dict(self, df: pd.DataFrame):
+        ordered_metrics = ['txcount', 'daa', 'gas_fees']
+        
+        kpi_cards_dict = {}
+        start_date = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
+        
+        ## df group by date and metric_key and sum values, then filter to only include dates from the last 60 days
+        df = df.groupby(['date', 'unix', 'metric_key']).agg({'value': 'sum'}).reset_index()
+        df = df[df['date'] >= start_date]
+        df = df.sort_values(by='date', ascending=True)
+        
+        for metric_id in ordered_metrics:
+            if metric_id == 'gas_fees':
+                df_tmp = df[df['metric_key'].isin(['fees_paid_eth', 'fees_paid_usd'])][['unix', 'metric_key', 'value']].copy()
+                
+                ## pivot df to have one row per date and columns for eth and usd
+                df_tmp = df_tmp.pivot(index='unix', columns='metric_key', values='value').reset_index()
+                df_tmp = df_tmp.rename(columns={'fees_paid_eth': 'eth', 'fees_paid_usd': 'usd'})
+                
+                current_value_eth = df_tmp['eth'].iloc[-1]
+                current_value_usd = df_tmp['usd'].iloc[-1]
+                current_values = [current_value_usd, current_value_eth]
+            else:
+                df_tmp = df[df['metric_key'] == metric_id][['unix', 'value']].copy()
+                
+                current_values = [df_tmp['value'].iloc[-1]]
+                
+            daily_cols = df_tmp.columns.tolist()
+            daily_list = df_tmp.values.tolist()
+            
+            wow_change = 0.00
+            if len(daily_list) > 8:
+                last_week_values = daily_list[-8][1:]
+                wow_data = [(x - y) / y if y != 0 else 0 for x, y in zip(current_values, last_week_values)]
+                wow_change = {'types': daily_cols[1:], 'data': wow_data}
+            else:
+                wow_change = {'types': ["value"], 'data': [0.0]}
+
+            
+            kpi_cards_dict[metric_id] = {
+                 'sparkline': {'types': daily_cols, 'data': daily_list},
+                 'current_values': {'types': daily_cols[1:], 'data': current_values},
+                 'wow_change': wow_change
+             }
+
+        return kpi_cards_dict
 
     def create_app_details_json(self, project:str, timeframes, is_all=False):
         df = self.load_app_data(project, self.chains_list_in_api_apps)
@@ -2631,6 +2678,9 @@ class JSONCreation():
                     'data': contracts.values.tolist()
                 }
                 app_dict['contracts_table'][timeframe_key] = contract_dict
+                
+            ## KPI CARDS
+            app_dict['kpi_cards'] = self.create_kpi_cards_dict(df)
 
             app_dict['last_updated_utc'] = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             app_dict = fix_dict_nan(app_dict, f'apps/details/{project}', False)
