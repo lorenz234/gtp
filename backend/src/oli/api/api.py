@@ -30,7 +30,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
     stream=sys.stdout,
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
 
 USE_DOTENV = os.getenv("USE_DOTENV", "false").lower() == "true"
 if USE_DOTENV:
