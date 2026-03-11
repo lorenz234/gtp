@@ -11,7 +11,7 @@ import simplejson as json
 import logging
 from sqlalchemy import inspect, text
 import math
-from src.misc.helper_functions import upload_json_to_cf_s3, empty_cloudfront_cache
+from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
 
 from src.misc.octant_lib.helpers import (
     generate_create_table_sql,
@@ -952,6 +952,8 @@ class OctantV2():
 
             compiled_data[project_key] = metadata
 
+        compiled_data = fix_dict_nan(compiled_data, 'octant/project-metadata', False)
+        
         # save compiled_data
         if self.s3_bucket == None:
             self.save_to_json(

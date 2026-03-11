@@ -611,9 +611,9 @@ class JsonGen():
             if meta['ranking_bubble'] and m != 'txcosts' and m not in chain.api_exclude_metrics and m not in relevant_metrics:
                 relevant_metrics.append(m)
 
+        start_date = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
         for metric_id in relevant_metrics:
              metric_dict = self.metrics['chains'][metric_id]
-             start_date = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
              
              daily_df = self._get_prepared_timeseries_df(chain.origin_key, metric_dict['metric_keys'], start_date, metric_dict.get('max_date_fill', False))
              daily_list, daily_cols = self._format_df_for_json(daily_df, metric_dict['units'])
