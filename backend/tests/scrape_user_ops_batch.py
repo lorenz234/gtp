@@ -56,7 +56,7 @@ CHAIN_CONFIGS = {
 }
 
 def setup_connections():
-    """Set up database and GCS connections"""
+    """Set up database connection"""
     # Database connection
     try:
         print("Setting up database connection...")
@@ -66,22 +66,9 @@ def setup_connections():
         print(f"   ✗ Database connection failed: {e}")
         return None, None, None
     
-    # GCS connection
-    try:
-        print("Setting up GCS connection...")
-        gcs_connection, bucket_name = connect_to_gcs()
-        if gcs_connection:
-            print(f"   ✓ GCS connected, bucket: {bucket_name}")
-        else:
-            print("   ! GCS connection failed, but continuing")
-            bucket_name = "gtp-raw-tx"
-    except Exception as e:
-        print(f"   ! GCS setup failed: {e}, continuing without GCS")
-        bucket_name = "gtp-raw-tx"
-    
-    return db_connector, gcs_connection, bucket_name
+    return db_connector
 
-def process_chain_range(chain, start_block, end_block, db_connector, bucket_name):
+def process_chain_range(chain, start_block, end_block, db_connector):
     """Process a block range for a specific chain"""
     print(f"\n{'='*60}")
     print(f"🔄 Processing {chain.upper()}: blocks {start_block} to {end_block}")
@@ -144,7 +131,7 @@ def process_chain_range(chain, start_block, end_block, db_connector, bucket_name
                     chain=chain,
                     w3=w3,
                     table_name=table_name,
-                    bucket_name=bucket_name,
+                    bucket_name=None,
                     db_connector=db_connector,
                     rpc_url=config['rpc_url'],
                     df_4bytes=df_4bytes
@@ -245,7 +232,7 @@ def main():
     ]
     
     # Setup shared connections
-    db_connector, gcs_connection, bucket_name = setup_connections()
+    db_connector = setup_connections()
     if not db_connector:
         print("❌ Failed to set up connections")
         return False
@@ -255,7 +242,7 @@ def main():
     total_start_time = time.time()
     
     for chain, start_block, end_block in ranges_to_process:
-        success = process_chain_range(chain, start_block, end_block, db_connector, bucket_name)
+        success = process_chain_range(chain, start_block, end_block, db_connector)
         results[chain] = success
         
         if not success:
