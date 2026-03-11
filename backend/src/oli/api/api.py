@@ -1,4 +1,4 @@
-import os, json, hashlib, asyncpg, time, asyncio, base64, secrets, logging
+import sys, os, json, hashlib, asyncpg, time, asyncio, base64, secrets, logging
 from fastapi import FastAPI, HTTPException, Query, Depends, Security, status, Request, Header
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.responses import JSONResponse
@@ -24,6 +24,12 @@ from concurrent.futures import ProcessPoolExecutor
 # tune max_workers to match available CPUs in Cloud Run
 process_pool = ProcessPoolExecutor(max_workers=4)
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    stream=sys.stdout,
+)
 logger = logging.getLogger(__name__)
 
 USE_DOTENV = os.getenv("USE_DOTENV", "false").lower() == "true"
