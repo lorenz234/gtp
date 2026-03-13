@@ -77,9 +77,9 @@ class AdapterStablecoinSupply(AbstractAdapter):
             chains_not_in_conf = list(set(chains_mapping) - set(chains_conf))
             chains_not_in_mapping = list(set(chains_conf) - set(chains_mapping))
             if len(chains_not_in_conf) > 0:
-                print(f"The following chains are in the address mapping but not in the main config and will be skipped: {chains_not_in_conf}. If these chains should be pulled in, please check gtp_dna github and set the column api_deployment_flag to ('PROD' or 'ZIRCUIT').")
+                print(f"The following chains are in address_mapping but 'ARCHIVE'd in main_config and will be skipped: {chains_not_in_conf}. If these chains should be pulled in, please check gtp_dna github and set the column api_deployment_flag to ('PROD' or 'DEV').")
             if len(chains_not_in_mapping) > 0:
-                print(f"The following chains are in the main config but not in the address mapping and will be skipped: {chains_not_in_mapping}. Please add them to the mapping in src/stables_config_v2.py.")
+                print(f"The following chains are in main_config but not in the address_mapping: {chains_not_in_mapping}. Please add them to the mapping in src/stables_config_v2.py.")
         # exchange '*' for all token_ids in mapping
         if token_ids == ['*']:
             token_ids = [coin['token_id'] for coin in self.coin_mapping]

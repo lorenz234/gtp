@@ -74,7 +74,7 @@ def run_dag():
                 values.append(row)
 
             types = ["unix"] + token_list
-            colors = ['#FFFFFF' if token == 'other' else token_color_map.get(token) for token in token_list]
+            colors = ["#BBBBBB" if token == 'other' else token_color_map.get(token) for token in token_list]
             symbols = ['other' if token == 'other' else token_symbol_map.get(token) for token in token_list]
 
             data_dict = {

@@ -988,9 +988,10 @@ def get_files_from_github_folder_large(repo_name, path="", token=None):
                 else:
                     relative_path = item_path
                 
-                # Only include items directly in the folder (no subdirectories)
-                if '/' not in relative_path:
-                    files.append(relative_path)
+                # Include files directly in the folder or one level of subdirectories (e.g. letter folders)
+                parts = relative_path.split('/')
+                if len(parts) <= 2:
+                    files.append(parts[-1])
     
     print(f"Found {len(files)} files in {repo_name}/{path}:")
     return files
