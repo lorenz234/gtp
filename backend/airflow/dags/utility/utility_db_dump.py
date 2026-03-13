@@ -26,8 +26,8 @@ def backup_db_to_gcs():
         import tempfile
         from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs
 
-        db_user = os.getenv("DB_USERNAME")
-        db_passwd = os.getenv("DB_PASSWORD")
+        db_user = 'db_backup'
+        db_passwd = os.getenv("DB_PASSWORD_BACKUP")
         db_host = os.getenv("DB_HOST")
         db_port = os.getenv("DB_PORT") or "5432"
 
