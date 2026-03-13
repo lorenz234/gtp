@@ -26,14 +26,14 @@ def backup_db_to_gcs():
         import tempfile
         from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs
 
-        db_user = 'db_backup'
+        db_user = "db_backup"
         db_passwd = os.getenv("DB_PASSWORD_BACKUP")
         db_host = os.getenv("DB_HOST")
         db_port = os.getenv("DB_PORT") or "5432"
 
         if not all([db_user, db_passwd, db_host]):
             raise ValueError(
-                "Missing required DB env vars: DB_USERNAME, DB_PASSWORD, DB_HOST"
+                "Missing required DB env vars: DB_PASSWORD_BACKUP, DB_HOST"
             )
 
         # Allow DB_HOST to include a port (e.g., "host:5432")
@@ -81,17 +81,24 @@ def backup_db_to_gcs():
                     name,
                 ]
 
-                result = subprocess.run(
-                    cmd,
-                    check=True,
-                    env=env,
-                    capture_output=True,
-                    text=True,
-                )
-                if result.stdout:
-                    print(result.stdout)
-                if result.stderr:
-                    print(result.stderr)
+                try:
+                    result = subprocess.run(
+                        cmd,
+                        check=True,
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                    )
+                    if result.stdout:
+                        print(result.stdout)
+                    if result.stderr:
+                        print(result.stderr)
+                except subprocess.CalledProcessError as exc:
+                    if exc.stdout:
+                        print(f"pg_dump stdout:\n{exc.stdout}")
+                    if exc.stderr:
+                        print(f"pg_dump stderr:\n{exc.stderr}")
+                    raise
 
                 blob = bucket.blob(blob_path)
                 blob.upload_from_filename(dump_path)
