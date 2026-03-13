@@ -1,4 +1,4 @@
-import os, json, hashlib, asyncpg, time, asyncio, base64, secrets
+import sys, os, json, hashlib, asyncpg, time, asyncio, base64, secrets, logging
 from fastapi import FastAPI, HTTPException, Query, Depends, Security, status, Request, Header
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.responses import JSONResponse
@@ -24,6 +24,14 @@ from concurrent.futures import ProcessPoolExecutor
 # tune max_workers to match available CPUs in Cloud Run
 process_pool = ProcessPoolExecutor(max_workers=4)
 
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    stream=sys.stdout,
+)
+logger = logging.getLogger("uvicorn.error")
+
 USE_DOTENV = os.getenv("USE_DOTENV", "false").lower() == "true"
 if USE_DOTENV:
     import dotenv
@@ -38,8 +46,10 @@ db_host = os.getenv("DB_HOST")
 db_name = 'oli'
 
 if not API_KEY_PEPPER:
+    logger.error("Missing required env var: OLI_KEY_PEPPER")
     raise RuntimeError("OLI_KEY_PEPPER env var must be set")
 if not ADMIN_BEARER:
+    logger.error("Missing required env var: OLI_ADMIN_BEARER")
     raise RuntimeError("OLI_ADMIN_BEARER env var must be set")
 
 #
@@ -565,11 +575,31 @@ def decode_trust_list_data(msg: AttestationMessage) -> Tuple[Optional[str], Opti
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    def _redact_env(name: str, value: Optional[str]) -> str:
+        if value is None or value == "":
+            return "<missing>"
+        if name in {"OLI_KEY_PEPPER", "OLI_ADMIN_BEARER", "DB_PASSWORD"}:
+            return "<set>"
+        return value
+
+    logger.info(
+        "Startup env: USE_DOTENV=%s DB_USERNAME=%s DB_PASSWORD=%s DB_HOST=%s DB_NAME=%s OLI_KEY_PEPPER=%s OLI_ADMIN_BEARER=%s",
+        _redact_env("USE_DOTENV", os.getenv("USE_DOTENV")),
+        _redact_env("DB_USERNAME", db_user),
+        _redact_env("DB_PASSWORD", db_passwd),
+        _redact_env("DB_HOST", db_host),
+        _redact_env("DB_NAME", db_name),
+        _redact_env("OLI_KEY_PEPPER", API_KEY_PEPPER),
+        _redact_env("OLI_ADMIN_BEARER", ADMIN_BEARER),
+    )
+
+    logger.info("Initializing DB pool")
     pool = await asyncpg.create_pool(dsn=DB_DSN, min_size=1, max_size=10)
     app.state.db = pool
     try:
         yield
     finally:
+        logger.info("Shutting down API")
         process_pool.shutdown(wait=True)
         await pool.close()
 
@@ -868,7 +898,7 @@ async def post_single_attestation(payload: AttestationPayload):
     async with app.state.db.acquire() as conn:
         async with conn.transaction():
             inserted, dupes = await insert_attestations(conn, [row])
-            print(f"Inserted: {inserted}, Dupes: {dupes}")
+            logger.info("Insert attestations: inserted=%s dupes=%s", inserted, dupes)
 
     return SingleAttestationResponse(
         uid=payload.sig.uid,
@@ -936,14 +966,15 @@ async def post_bulk_attestations(req: BulkAttestationRequest):
 
     t_done = time.perf_counter()
 
-    print({
-        "count": len(req.attestations),
-        "verify_sec": t_verify_end - t_verify_start,
-        "insert_sec": t_insert_end - t_insert_start,
-        "total_sec": t_done - t0,
-        "accepted_after_verify": len(valid_rows),
-        "failed_validation": len(failed_validation),
-    })
+    logger.info(
+        "Bulk attestations stats: count=%s verify_sec=%.6f insert_sec=%.6f total_sec=%.6f accepted_after_verify=%s failed_validation=%s",
+        len(req.attestations),
+        t_verify_end - t_verify_start,
+        t_insert_end - t_insert_start,
+        t_done - t0,
+        len(valid_rows),
+        len(failed_validation),
+    )
 
     return BulkAttestationResponse(
         accepted=inserted,
