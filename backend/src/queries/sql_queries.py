@@ -158,7 +158,7 @@ sql_queries = [
         ,*standard_evm_queries("base")
         ,SQLQuery(metric_key = "txcount_type4", origin_key = "base", jinja_path='chain_metrics/select_txcount_type4.sql.j2', query_parameters={}, currency_dependent = False)
         ## Zora
-        ,*standard_evm_queries("zora")  
+        # ,*standard_evm_queries("zora")  
         ## Mode
         ,*standard_evm_queries("mode")
         ## Worldchain
