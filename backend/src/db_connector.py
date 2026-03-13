@@ -41,7 +41,14 @@ class DbConnector:
                 },
                 pool_size=20, max_overflow=20
                 )
-            print(f"Connected to {db_user}@{db_host}")
+            ## test connection
+            try:
+                with self.engine.connect() as connection:
+                    connection.execute(text("SELECT 1"))
+                    print("Database connection successful.")
+            except Exception as e:
+                print(f"Database connection failed: {e}")
+                raise e
 
         def upsert_table(self, table_name:str, df:pd.DataFrame, if_exists='update'):
                 batch_size = 100000
