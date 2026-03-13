@@ -61,6 +61,8 @@ def backup_db_to_gcs():
             ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
             filename = f"{name}_{ts}.dump"
             blob_path = f"{prefix}/{name}/date={ts[:10]}/{filename}"
+            
+            print(f"Starting backup for database '{name}' to gs://{bucket_name}/{blob_path}...")
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 dump_path = os.path.join(tmpdir, filename)
