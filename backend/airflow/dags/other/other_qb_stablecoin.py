@@ -229,7 +229,7 @@ def run_dag():
         df_proj_dropdown = df_proj_dropdown.rename(columns={'name': 'owner_project'})
         project_dropdown_list = df_proj_dropdown.to_dict(orient='records')
         dict_proj_dropdown = {"dropdown_values": project_dropdown_list}
-        dict_proj_dropdown = fix_dict_nan(dict_proj_dropdown, 'project_dropdown', send_notification=True)
+        dict_proj_dropdown = fix_dict_nan(dict_proj_dropdown, 'project_dropdown', send_notification=False)
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/stablecoins/dropdown-projects', dict_proj_dropdown, cf_distribution_id, invalidate=False)
 
     @task
