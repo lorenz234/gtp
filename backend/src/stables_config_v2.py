@@ -251,8 +251,8 @@ coin_mapping = [
         "bridged_origin_chain": None,
         "bridged_origin_token_id": None,
         "fiat": "usd",
-        "logo": "https://coin-images.coingecko.com/coins/images/9576/large/BUSDLOGO.jpg?1696509654",
-        "color_hex": "#808090"
+        "logo": "https://s2.coinmarketcap.com/static/img/coins/64x64/4687.png",
+        "color_hex": "#BD8B01"
     },
     {
         "owner_project": "binance",
