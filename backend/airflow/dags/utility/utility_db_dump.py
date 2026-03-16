@@ -53,7 +53,7 @@ def backup_db_to_gcs():
         env["PGPASSWORD"] = db_passwd
 
 
-        db_names = ["web3", "oli", "fun"]
+        db_names = ["fun", "oli", "web3"]
 
         bucket = gcs.bucket(bucket_name)
 
