@@ -69,7 +69,7 @@ def backup_db_to_gcs():
                 cmd = [
                     "pg_dump",
                     "--format=custom",
-                    "--compress=9",
+                    "--compress=5",
                     "--no-owner",
                     "--no-acl",
                     "--host",
