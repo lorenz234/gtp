@@ -1,5 +1,5 @@
 from datetime import datetime,timedelta
-from airflow.decorators import dag, task 
+from airflow.sdk import dag, task
 from src.misc.airflow_utils import alert_via_webhook
 from src.misc.helper_functions import convert_economics_mapping_into_df
 

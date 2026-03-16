@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 
 import gcsfs
 import polars as pl
-from airflow.decorators import dag, task
+from airflow.sdk import dag, task
 from google.cloud import bigquery
 from google.oauth2 import service_account
 from sqlalchemy import inspect
