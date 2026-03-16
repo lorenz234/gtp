@@ -795,17 +795,6 @@ class JSONCreation():
     def create_chain_users_comparison_value(self, df, aggregation, origin_key):
         val = (self.chain_users(df, aggregation, origin_key) - self.chain_users(df, aggregation, origin_key, comparison=True)) / self.chain_users(df, aggregation, origin_key, comparison=True)
         return round(val, 4)
-
-    ## This method divdes the total l2 users by the total users of the Ethereum chain 
-    def l2_user_share(self, df, aggregation, comparison=False):
-        l2_user_share = self.chain_users(df, aggregation, 'all_l2s', comparison) / self.chain_users(df, aggregation, 'ethereum', comparison)
-        return round(l2_user_share,4)
-    
-    def create_l2_user_share_comparison_value(self, df, aggregation):
-        current = self.l2_user_share(df, aggregation)
-        previous = self.l2_user_share(df, aggregation, comparison=True)
-        val = (current - previous) / previous 
-        return round(val,4)
     
     def cross_chain_users(self, df, comparison=False):
         ## filter df down to origin_key = 'multiple' and metric_key = 'user_base_weekly
@@ -931,57 +920,6 @@ class JSONCreation():
         
         df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)	
         return df_tmp
-
-    def create_userbase_list_of_lists(self, df, aggregation, origin_key):
-        df_tmp = self.get_filtered_df(df, aggregation, origin_key)
-        mk_list = df_tmp.values.tolist() ## creates a list of lists
-        mk_list_int = [[int(i[0]),i[1]] for i in mk_list] ## convert the first element of each list to int (unix timestamp)
-        return mk_list_int
-
-    def generate_userbase_dict(self, df, chain, aggregation):
-        dict = {
-                    "data": {
-                        "types": [
-                            "unix",
-                            "value"
-                        ],
-                        "data": self.create_userbase_list_of_lists(df, aggregation, chain.origin_key)
-                        }	
-                }
-        return dict
-
-    def generate_chains_userbase_dict(self, df, aggregation):             
-        chains_dict = {} 
-        # filter df to date >= 2021-09-01
-        df = df.loc[df.date >= '2021-09-01']
-
-        for chain in self.multi_config:
-            chains_dict[chain.origin_key] = self.generate_userbase_dict(df, chain, aggregation)
-        return chains_dict
-    
-    def generate_engagement_by_composition_dict(self):
-        ## download and prep data
-        df_engagement = self.db_connector.execute_jinja('api/select_weekly_engagement_by_composition.sql.j2', load_into_df=True)
-        df_engagement['unix'] = df_engagement['week'].apply(lambda x: x.timestamp() * 1000).astype(int)
-        df_engagement['value'] = df_engagement['value'].astype(int)
-        df_engagement.sort_values(by='unix', ascending=True, inplace=True)
-
-        ## create dict for each composition with list of lists as values
-        composition_dict = {}
-        for composition in df_engagement['metric_key'].unique():
-            df_composition = df_engagement[df_engagement['metric_key'] == composition]
-            composition_dict[composition] = df_composition[['unix', 'value']].values.tolist()
-
-        engagement_dict = {
-            "types": [
-                "unix",
-                "value"
-            ],
-            "compositions": composition_dict
-
-        }
-
-        return engagement_dict
     
     ## This method generates a dict containing aggregate daily values for all_l2s (all chains except Ethereum) for a specific metric_id
     def generate_all_l2s_metric_dict(self, df, metric_id, rolling_avg=False, economics_api=False, days=730, incl_monthly=False):
@@ -1384,32 +1322,9 @@ class JSONCreation():
         chain_keys = self.chains_list_in_api + ['multiple']
         df = df.loc[(df.origin_key.isin(chain_keys))]
 
-        composition_ts_dict = self.generate_engagement_by_composition_dict()
-        cur_l2 = composition_ts_dict['compositions']['multiple_l2s'][-1][1] + composition_ts_dict['compositions']['single_l2'][-1][1] + composition_ts_dict['compositions']['cross_layer'][-1][1]
-        prev_l2 = composition_ts_dict['compositions']['multiple_l2s'][-2][1] + composition_ts_dict['compositions']['single_l2'][-2][1] + composition_ts_dict['compositions']['cross_layer'][-2][1]
-        cur_eth = composition_ts_dict['compositions']['only_l1'][-1][1]
-        prev_eth = composition_ts_dict['compositions']['only_l1'][-2][1]
-        cur_multi_chain = composition_ts_dict['compositions']['multiple_l2s'][-1][1] + composition_ts_dict['compositions']['cross_layer'][-1][1]
-        prev_multi_chain = composition_ts_dict['compositions']['multiple_l2s'][-2][1] + composition_ts_dict['compositions']['cross_layer'][-2][1]
-
         landing_dict = {
             "data": {
                 "metrics" : {
-                    "engagement" : {
-                        "metric_name": "Ethereum ecosystem engagement",
-                        "source": ['RPC'],
-                        "weekly": {
-                            "latest_total_l2": cur_l2,
-                            "latest_total": cur_l2 + cur_eth,
-                            "latest_total_comparison_l2": (cur_l2 - prev_l2) / prev_l2,
-                            "latest_total_comparison": ((cur_l2 + cur_eth) - (prev_l2 + prev_eth)) / (prev_l2 + prev_eth),
-                            "l2_dominance": self.l2_user_share(df, 'weekly'),
-                            "l2_dominance_comparison": self.create_l2_user_share_comparison_value(df, 'weekly'),
-                            "cross_chain_users": cur_multi_chain,
-                            "cross_chain_users_comparison": (cur_multi_chain - prev_multi_chain) / prev_multi_chain,
-                            "timechart": composition_ts_dict
-                        }
-                    },
                     "table_visual" : self.get_landing_table_dict(df)
                     },
                 "all_l2s": {
@@ -1429,8 +1344,6 @@ class JSONCreation():
             }
         }
 
-        #start_date = datetime.now() - timedelta(days=731)
-        #start_date = start_date.replace(tzinfo=timezone.utc) 
         ## start date should be 2021-06-01
         start_date = datetime(2021, 6, 1, tzinfo=timezone.utc)
         ## calculate the days between start_date and today
