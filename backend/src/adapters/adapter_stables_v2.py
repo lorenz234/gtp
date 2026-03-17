@@ -26,9 +26,14 @@ class AdapterStablecoinSupply(AbstractAdapter):
         super().__init__("Stablecoin Adapter v2", adapter_params, db_connector)
         
         # Store stablecoin metadata and mapping
-        from src.stables_config_v2 import address_mapping, coin_mapping
-        self.address_mapping = address_mapping
-        self.coin_mapping = coin_mapping
+        import requests
+        _url = "https://raw.githubusercontent.com/growthepie/gtp-dna/main/stables/stables_config_v2.py"
+        _response = requests.get(_url)
+        _response.raise_for_status()
+        _config = {}
+        exec(_response.text, _config)
+        self.address_mapping = _config['address_mapping']
+        self.coin_mapping = _config['coin_mapping']
 
         # try to update sys_stables_v2
         self.update_sys_stables_v2(self.coin_mapping)
@@ -235,7 +240,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
                     # remove coins from db_progress_filtered if supply is 0
                     if 0 in supplies:
-                        to_be_removed_coins = db_progress_filtered[db_progress_filtered['token_id'].isin([db_progress_filtered['token_id'][i] for i, s in enumerate(supplies) if s == 0])]
+                        to_be_removed_coins = db_progress_filtered[db_progress_filtered['token_id'].isin([db_progress_filtered['token_id'].iloc[i] for i, s in enumerate(supplies) if s == 0])]
                         db_progress_filtered = db_progress_filtered[~db_progress_filtered['token_id'].isin(to_be_removed_coins['token_id'])]
                         print(f"- Removed {len(to_be_removed_coins)} coin(s) with 0 supply from db_progress_filtered: {to_be_removed_coins['token_id'].tolist()}")
                         db_progress_filtered = db_progress_filtered.reset_index(drop=True)
