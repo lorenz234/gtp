@@ -1,5 +1,5 @@
 from datetime import datetime,timedelta,timezone
-from airflow.decorators import dag, task 
+from airflow.sdk import dag, task
 from src.misc.airflow_utils import alert_via_webhook
 from airflow.operators.empty import EmptyOperator
 from airflow.utils.trigger_rule import TriggerRule

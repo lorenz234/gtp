@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from airflow.decorators import dag, task
+from airflow.sdk import dag, task
 from src.misc.airflow_utils import alert_via_webhook
 
 
@@ -53,7 +53,7 @@ def backup_db_to_gcs():
         env["PGPASSWORD"] = db_passwd
 
 
-        db_names = ["web3", "oli", "fun"]
+        db_names = ["fun", "oli", "web3"]
 
         bucket = gcs.bucket(bucket_name)
 
@@ -69,7 +69,7 @@ def backup_db_to_gcs():
                 cmd = [
                     "pg_dump",
                     "--format=custom",
-                    "--compress=9",
+                    "--compress=5",
                     "--no-owner",
                     "--no-acl",
                     "--host",

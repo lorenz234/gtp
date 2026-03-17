@@ -1,6 +1,6 @@
 
 from datetime import datetime,timedelta
-from airflow.decorators import dag, task 
+from airflow.sdk import dag, task
 from src.misc.airflow_utils import alert_via_webhook
 
 @dag(
@@ -15,7 +15,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Load aggregates metrics such as txcount, daa, fees paid, stablecoin mcap where applicable.',
     tags=['metrics', 'daily'],
     start_date=datetime(2023,6,5),
-    schedule='55 01 * * *' ## needs to run before sql_materialize because of acthive addresses agg
+    schedule='10 01 * * *' ## needs to run before sql_materialize and before metrics_sql_blockspace
 )
 
 def etl():

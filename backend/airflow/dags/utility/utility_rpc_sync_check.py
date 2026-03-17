@@ -1,4 +1,4 @@
-from airflow.decorators import dag, task
+from airflow.sdk import dag, task
 from datetime import datetime, timedelta
 from src.misc.airflow_utils import alert_via_webhook
 

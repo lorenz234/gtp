@@ -4,8 +4,7 @@ import os
 import re
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-
-from airflow.decorators import dag, task
+from airflow.sdk import dag, task
 from google.cloud import bigquery
 from google.oauth2 import service_account
 from sqlalchemy import inspect, text

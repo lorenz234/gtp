@@ -202,8 +202,17 @@ def calculate_tx_fee(df):
         return handle_celo_fee(df)
 
     # Else, normal OP-chains logic:
+    # Cast to float before multiplication to avoid int64 overflow on high gas values.
+    if "gas_price" in df.columns:
+        df["gas_price"] = pd.to_numeric(df["gas_price"], errors="coerce").astype("float64")
+    if "gas_used" in df.columns:
+        df["gas_used"] = pd.to_numeric(df["gas_used"], errors="coerce").astype("float64")
+    if "l1_fee" in df.columns:
+        df["l1_fee"] = pd.to_numeric(df["l1_fee"], errors="coerce").astype("float64")
+
     # 1) If we have 'gas_price', 'gas_used', and 'l1_fee', do:
     if all(col in df.columns for col in ["gas_price", "gas_used", "l1_fee"]):
+        df["l1_fee"] = df["l1_fee"].fillna(0)
         df["tx_fee"] = ((df["gas_price"] * df["gas_used"]) + df["l1_fee"]) / 1e18
     elif all(col in df.columns for col in ["gas_price", "gas_used"]):
         df["tx_fee"] = (df["gas_price"] * df["gas_used"]) / 1e18
