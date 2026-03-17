@@ -460,6 +460,7 @@ gtp_metrics_new = {
                 'name': 'Transaction Count',
                 'icon': 'metrics-transaction-count',
                 'category': 'activity',
+                'fundamental': True,
                 'metric_keys': ['txcount'],
                 'units': {
                     'value': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}
@@ -476,6 +477,7 @@ gtp_metrics_new = {
                 'name': 'Active Addresses',
                 'icon': 'metrics-active-addresses',
                 'category': 'activity',
+                'fundamental': True,
                 'metric_keys': ['daa'],
                 'units': {
                     'value': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}
@@ -492,6 +494,7 @@ gtp_metrics_new = {
                 'name': 'Fees Paid',
                 'icon': 'metrics-revenue',
                 'category': 'activity',
+                'fundamental': True,
                 'metric_keys': ['fees_paid_usd', 'fees_paid_eth'],
                 'units': {
                     'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}, 
@@ -503,6 +506,23 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
                 'icon_name': 'gtp-metrics-transactioncosts',
+                'hourly_available': False
+            }
+            ,'success_rate': {
+                'name': 'Success Rate',
+                'icon': 'rank',
+                'category': 'activity',
+                'fundamental': False,
+                'metric_keys': ['success_rate'],
+                'units': {
+                    'value': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'avg',
+                'monthly_agg': 'avg',
+                'max_date_fill' : False,
+                'source': ['RPC', 'OLI'],
+                'icon_name': 'gtp-rank',
                 'hourly_available': False
             }
         }
