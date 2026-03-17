@@ -32,10 +32,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("uvicorn.error")
 
-USE_DOTENV = os.getenv("USE_DOTENV", "false").lower() == "true"
-if USE_DOTENV:
-    import dotenv
-    dotenv.load_dotenv()
+import dotenv
+dotenv.load_dotenv()
     
 # Environment variables
 API_KEY_PEPPER = os.getenv("OLI_KEY_PEPPER")   
