@@ -9,6 +9,17 @@ table = api.table(AIRTABLE_BASE_ID, 'Unlabeled Contracts')"""
 
 #-#-# GENERAL AIRTABLE FUNCTIONS #-#-#
 
+
+def _is_missing_scalar(value):
+    """Return True only for scalar missing values (NaN/NaT/None)."""
+    # Keep list-like Airtable field values (e.g. linked-record arrays) untouched.
+    if not pd.api.types.is_scalar(value):
+        return False
+    try:
+        return bool(pd.isnull(value))
+    except (TypeError, ValueError):
+        return False
+
 # batch upload df to a table
 def push_to_airtable(table, df):
 
@@ -24,7 +35,7 @@ def push_to_airtable(table, df):
     # convert NaT, nan to None for all columns
     for col in df.dtypes.index:
         for row in rows:
-            if pd.isnull(row[col]):
+            if _is_missing_scalar(row[col]):
                 row[col] = None
 
     # push contracts to Airtable
@@ -58,7 +69,7 @@ def update_airtable(table, df):
     # convert NaT, nan to None for all columns
     for col in df.dtypes.index:
         for row in rows:
-            if pd.isnull(row[col]):
+            if _is_missing_scalar(row[col]):
                 row[col] = None
 
     # create a list of dictionaries with the id and the fields to update
