@@ -112,20 +112,43 @@ class JSONCreation():
     
     ###### gtp-dna methods ######
     def get_custom_logos(self):
-        # Get the repository
-        repo_url = "https://github.com/growthepie/gtp-dna/tree/main/"
-        _, _, _, owner, repo_name, _, branch, *path = repo_url.split('/')
+        # # Get the repository
+        # repo_url = "https://github.com/growthepie/gtp-dna/tree/main/"
+        # _, _, _, owner, repo_name, _, branch, *path = repo_url.split('/')
 
-        # Download directory as ZIP file
-        zip_url = f"https://github.com/{owner}/{repo_name}/archive/{branch}.zip"
-        response = requests.get(zip_url)
-        zip_content = io.BytesIO(response.content)
+        # # Download directory as ZIP file
+        # zip_url = f"https://github.com/{owner}/{repo_name}/archive/{branch}.zip"
+        # response = requests.get(zip_url)
+        # zip_content = io.BytesIO(response.content)
 
-        with zipfile.ZipFile(zip_content) as zip_ref:
-            path = 'gtp-dna-main/logos/custom_logos.json'
-            with zip_ref.open(path) as file:
-                content = file.read().decode('utf-8')
-                content = json.loads(content)
+        # with zipfile.ZipFile(zip_content) as zip_ref:
+        #     path = 'gtp-dna-main/logos/custom_logos.json'
+        #     with zip_ref.open(path) as file:
+        #         content = file.read().decode('utf-8')
+        #         content = json.loads(content)
+        
+        content = {
+            "eclipse": {
+            "body": "<path d=\"M4.02392 12.6824C2.63711 12.6824 1.79293 11.558 2.1386 10.1708L3.46785 4.83984C3.81353 3.45303 5.21846 2.32833 6.60556 2.32833H13.8526C12.836 1.01311 11.2028 0.200195 9.19129 0.200195C5.1568 0.200195 1.12903 3.47056 0.194851 7.50534C-0.739039 11.5401 1.77393 14.8105 5.80871 14.8105C7.82026 14.8105 9.82976 13.9976 11.4553 12.6824H4.02392Z\" fill=\"currentColor\"/><path d=\"M7.63958 4.38086C7.29273 4.38086 6.9415 4.66196 6.8553 5.00881L6.48858 6.47919H12.1325L11.6209 8.53165H5.97693L5.61021 10.002C5.52372 10.3489 5.73469 10.63 6.08154 10.63H13.3811C14.0494 9.68264 14.5462 8.6234 14.8051 7.50542C15.064 6.38744 15.0575 5.32819 14.8278 4.38086H7.63958Z\" fill=\"currentColor\"/>",
+            "width": 15,
+            "height": 15
+            },
+            "lightlink": {
+            "body": "<path d=\"M6.29775 8.10896C6.08304 8.31024 6.08304 8.64438 6.29775 8.84969L7.87798 10.3312C8.09698 10.5365 8.4491 10.5365 8.6681 10.3312C8.88281 10.1299 8.88281 9.79574 8.6681 9.59043L7.08787 8.10896C6.87317 7.90769 6.51675 7.90769 6.29775 8.10896Z\" fill=\"currentColor\"/><path d=\"M11.6696 7.51668C11.8886 7.31138 11.8886 6.98128 11.6696 6.77597C11.4548 6.57468 11.0985 6.57468 10.8795 6.77597L8.66799 8.8492C8.44899 9.05453 8.48765 9.0183 8.27294 9.21957C7.7834 9.6785 7.11353 9.60603 6.89453 9.40476L7.87786 10.3267C8.09257 10.5279 8.44899 10.5279 8.66799 10.3267L11.6696 7.51668Z\" fill=\"currentColor\"/><path d=\"M14.8389 6.78866C14.6242 6.58737 14.2678 6.58737 14.0488 6.78866L12.4728 8.27012C12.2538 8.47543 12.2538 8.80555 12.4728 9.01086C12.6876 9.21214 13.044 9.21214 13.2629 9.01086L14.8432 7.5294C15.0536 7.32409 15.0536 6.98995 14.8389 6.78866Z\" fill=\"currentColor\"/><path d=\"M8.68078 7.37618C8.89548 7.17489 8.89548 6.84076 8.68078 6.63545L7.10055 5.15398C6.88155 4.94867 6.52944 4.94867 6.31044 5.15398C6.09574 5.35527 6.09574 5.6894 6.31044 5.89472L7.89067 7.37618C8.10967 7.57746 8.46177 7.57746 8.68078 7.37618Z\" fill=\"currentColor\"/><path d=\"M3.30878 7.97179C3.08978 8.1771 3.08978 8.5072 3.30878 8.71251C3.52349 8.91379 3.87991 8.91379 4.09891 8.71251L6.31037 6.63524C6.52935 6.42993 6.49072 6.46616 6.70542 6.26487C7.19494 5.80594 7.86483 5.8784 8.08383 6.07969L7.10047 5.1578C6.88577 4.95651 6.52935 4.95651 6.31037 5.1578L3.30878 7.97179Z\" fill=\"currentColor\"/><path d=\"M0.161029 8.70422C0.375734 8.9055 0.732145 8.9055 0.951143 8.70422L2.53138 7.22275C2.75038 7.01744 2.75038 6.68733 2.53138 6.48202C2.31667 6.28073 1.96026 6.28073 1.74126 6.48202L0.161029 7.96348C-0.0536763 8.16879 -0.0536763 8.49891 0.161029 8.70422Z\" fill=\"currentColor\"/>",
+            "width": 15,
+            "height": 15
+            },
+            "b3": {
+            "body": "<path d=\"M0.612077 3H7.1785C7.29731 3 7.3935 3.09949 7.3935 3.22235V6.404C7.3935 6.60265 7.28158 6.78297 7.10719 6.86556L6.28012 7.25814C6.26046 7.26731 6.24373 7.2823 6.23194 7.30131C6.22015 7.32033 6.21382 7.34254 6.21369 7.36529C6.21369 7.4109 6.23888 7.45203 6.27869 7.47158L7.11323 7.88191C7.28442 7.966 7.3935 8.1445 7.3935 8.34079V11.7774C7.3935 11.9002 7.29731 11.9997 7.1785 11.9997H0.612077C0.274 11.9997 0 11.7164 0 11.3667V3.63297C0 3.28332 0.274 3 0.612077 3ZM4.17358 8.99978C4.34104 8.99978 4.46042 8.97641 4.53142 8.92994C4.60873 8.88315 4.64738 8.79669 4.64738 8.67V8.64988C4.64738 8.51663 4.60558 8.42309 4.52169 8.36978C4.44438 8.31652 4.31215 8.28988 4.12519 8.28988H2.901V8.99978H4.17358ZM4.11573 6.56978C4.41235 6.56978 4.56065 6.45967 4.56065 6.23972V6.18967C4.56065 6.06297 4.522 5.97623 4.44469 5.92972C4.37369 5.87646 4.25458 5.84978 4.08681 5.84978H2.90127V6.56978H4.11604H4.11573ZM7.95004 8.25995H10.6561C10.6561 8.48674 10.6947 8.64337 10.772 8.73011C10.8559 8.81685 10.975 8.86006 11.1299 8.86006C11.3942 8.86006 11.5264 8.70343 11.5264 8.38994C11.5264 8.23657 11.4812 8.12674 11.391 8.05983C11.3071 7.99321 11.1783 7.95977 11.0042 7.95977H9.51492V6.79983L11.8067 6.20978H7.95004C7.84242 6.20978 7.75508 6.1195 7.75508 6.0082V3.16843C7.75508 3.0755 7.82808 3 7.918 3H14.2622C14.6003 3 14.8743 3.28332 14.8743 3.63297V5.90252C14.8743 6.15888 14.704 6.38184 14.4629 6.4413L11.9518 7.06006L12.0678 7.08022H14.4643C14.7601 7.08022 15 7.32831 15 7.6341V11.367C15 11.7167 14.726 12 14.3879 12H7.918C7.82808 12 7.75508 11.9245 7.75508 11.8316V8.46158C7.75508 8.35028 7.84242 8.25995 7.95004 8.25995Z\" fill=\"currentColor\"/>",
+            "width": 15,
+            "height": 15
+            },
+            "forma": {
+            "body": "<path d=\"M5 5H13C13 5 13 5.79365 13 6.26984C13 6.96029 12.4175 7.5 11.7573 7.5C11.0971 7.5 7.40777 7.5 7.40777 7.5V15C7.40777 15 6.63107 15 6.16505 15C5.69903 15 5 14.3651 5 13.7302C5 13.0952 5 5 5 5Z\" fill=\"currentColor\"/><path d=\"M15 0H0V12.9546C0 14.0841 0.91574 15 2.04553 15H4.09079V4.09086H12.9545C14.0843 4.09086 15 3.17524 15 2.04543V0Z\" fill=\"currentColor\"/>",
+            "width": 15,
+            "height": 15
+            }
+        }
         
         return content
 
@@ -2358,7 +2381,8 @@ class JSONCreation():
                     date, 
                     SUM(txcount) as txcount,
                     SUM(fees_paid_eth) AS fees_paid_eth,
-                    SUM(fees_paid_usd) AS fees_paid_usd
+                    SUM(fees_paid_usd) AS fees_paid_usd,
+                    SUM(txcount * success_rate)/SUM(txcount) as success_rate
                 FROM vw_apps_contract_level_materialized AS fact
                 WHERE 
                     owner_project = '{owner_project}'
@@ -2477,13 +2501,43 @@ class JSONCreation():
         return val
     
     def create_kpi_cards_dict(self, df: pd.DataFrame):
-        ordered_metrics = ['txcount', 'daa', 'gas_fees']
+        ordered_metrics = ['txcount', 'daa', 'gas_fees', 'success_rate']
         
         kpi_cards_dict = {}
         start_date = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
         
-        ## df group by date and metric_key and sum values, then filter to only include dates from the last 60 days
-        df = df.groupby(['date', 'unix', 'metric_key']).agg({'value': 'sum'}).reset_index()
+        ## aggregate daily values:
+        ## - sum for additive metrics
+        ## - txcount-weighted average for success_rate
+        df_success_rate = df[df['metric_key'] == 'success_rate'][['date', 'unix', 'origin_key', 'metric_key', 'value']].copy()
+        df_txcount = df[df['metric_key'] == 'txcount'][['date', 'unix', 'origin_key', 'value']].copy()
+        df_txcount = df_txcount.rename(columns={'value': 'txcount_weight'})
+
+        df_success_rate = df_success_rate.merge(
+            df_txcount,
+            on=['date', 'unix', 'origin_key'],
+            how='left'
+        )
+        df_success_rate['txcount_weight'] = df_success_rate['txcount_weight'].fillna(0)
+        df_success_rate['weighted_value'] = df_success_rate['value'] * df_success_rate['txcount_weight']
+
+        df_success_rate = df_success_rate.groupby(['date', 'unix', 'metric_key'], as_index=False).agg({
+            'weighted_value': 'sum',
+            'txcount_weight': 'sum'
+        })
+        df_success_rate['value'] = np.where(
+            df_success_rate['txcount_weight'] > 0,
+            df_success_rate['weighted_value'] / df_success_rate['txcount_weight'],
+            0
+        )
+        df_success_rate = df_success_rate[['date', 'unix', 'metric_key', 'value']]
+
+        df_other_metrics = df[df['metric_key'] != 'success_rate'].groupby(
+            ['date', 'unix', 'metric_key'],
+            as_index=False
+        )['value'].sum()
+
+        df = pd.concat([df_other_metrics, df_success_rate], ignore_index=True)
         df = df[df['date'] >= start_date]
         df = df.sort_values(by='date', ascending=True)
         
@@ -2538,46 +2592,47 @@ class JSONCreation():
             }
 
             for metric in self.app_metrics:
-                app_dict['metrics'][metric] = {
-                    'metric_name': self.app_metrics[metric]['name'],
-                    'avg': self.app_metrics[metric]['avg'],
-                    'over_time': {},
-                    'aggregated': {
-                        'types': list(self.app_metrics[metric]['units'].keys()),
-                        'data': {}
-                    }
-                }
-
-                for origin_key in self.chains_list_in_api_apps:
-                    ## check if origin_key is in df
-                    if origin_key in df.origin_key.unique():
-                        mk_list = self.generate_daily_list(df, metric, origin_key, metric_type='app')
-                        mk_list_int = mk_list[0]
-                        mk_list_columns = mk_list[1]
-
-                        app_dict['metrics'][metric]['over_time'][origin_key] = {
-                            'daily': {
-                                'types' : mk_list_columns,
-                                'data' : mk_list_int
-                            }
+                if self.app_metrics[metric]['fundamental']:
+                    app_dict['metrics'][metric] = {
+                        'metric_name': self.app_metrics[metric]['name'],
+                        'avg': self.app_metrics[metric]['avg'],
+                        'over_time': {},
+                        'aggregated': {
+                            'types': list(self.app_metrics[metric]['units'].keys()),
+                            'data': {}
                         }
+                    }
 
-                        app_dict['metrics'][metric]['aggregated']['data'][origin_key] = {}
-                        for timeframe in timeframes:  
-                            data_list = []
-                            timeframe_key = f'{timeframe}d' if timeframe != 'max' else 'max'
-                            days = timeframe if timeframe != 'max' else 9999
+                    for origin_key in self.chains_list_in_api_apps:
+                        ## check if origin_key is in df
+                        if origin_key in df.origin_key.unique():
+                            mk_list = self.generate_daily_list(df, metric, origin_key, metric_type='app')
+                            mk_list_int = mk_list[0]
+                            mk_list_columns = mk_list[1]
 
-                            ##for active addresses we cannot just sum up the values, we need to pull the hll data for each timeframe from our db
-                            if metric == 'daa':
-                                val = self.get_active_addresses_val(project, origin_key, days)
-                                data_list.append(val)
-                            else:
-                                for metric_key in self.app_metrics[metric]['metric_keys']:
-                                    val = self.aggregate_metric(df, origin_key, metric_key, days)
+                            app_dict['metrics'][metric]['over_time'][origin_key] = {
+                                'daily': {
+                                    'types' : mk_list_columns,
+                                    'data' : mk_list_int
+                                }
+                            }
+
+                            app_dict['metrics'][metric]['aggregated']['data'][origin_key] = {}
+                            for timeframe in timeframes:  
+                                data_list = []
+                                timeframe_key = f'{timeframe}d' if timeframe != 'max' else 'max'
+                                days = timeframe if timeframe != 'max' else 9999
+
+                                ##for active addresses we cannot just sum up the values, we need to pull the hll data for each timeframe from our db
+                                if metric == 'daa':
+                                    val = self.get_active_addresses_val(project, origin_key, days)
                                     data_list.append(val)
-                        
-                            app_dict['metrics'][metric]['aggregated']['data'][origin_key][timeframe_key] = data_list
+                                else:
+                                    for metric_key in self.app_metrics[metric]['metric_keys']:
+                                        val = self.aggregate_metric(df, origin_key, metric_key, days)
+                                        data_list.append(val)
+                            
+                                app_dict['metrics'][metric]['aggregated']['data'][origin_key][timeframe_key] = data_list
 
             ## Contracts NEW
             app_dict['contracts_table'] = {}
