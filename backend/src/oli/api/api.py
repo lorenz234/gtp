@@ -37,7 +37,8 @@ dotenv.load_dotenv()
     
 # Environment variables
 API_KEY_PEPPER = os.getenv("OLI_KEY_PEPPER")   
-ADMIN_BEARER = os.getenv("OLI_ADMIN_BEARER")
+#ADMIN_BEARER = os.getenv("OLI_ADMIN_BEARER")
+ADMIN_BEARER = (os.getenv("OLI_ADMIN_BEARER") or "").strip().strip("'\"")
 db_user = os.getenv("DB_USERNAME")
 db_passwd = os.getenv("DB_PASSWORD")
 db_host = os.getenv("DB_HOST")
@@ -49,6 +50,8 @@ if not API_KEY_PEPPER:
 if not ADMIN_BEARER:
     logger.error("Missing required env var: OLI_ADMIN_BEARER")
     raise RuntimeError("OLI_ADMIN_BEARER env var must be set")
+
+logger.info(f"Admin bearer: {ADMIN_BEARER[:4]}...")
 
 #
 #   API KEY Setup
@@ -1672,4 +1675,5 @@ if __name__ == "__main__":
         "api:app",
         host="0.0.0.0",
         port=port,
+        log_config=None,
     )
