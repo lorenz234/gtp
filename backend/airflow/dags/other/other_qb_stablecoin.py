@@ -227,6 +227,7 @@ def run_dag():
         df_oss = db_connector.get_table("oli_oss_directory")
         df_proj_dropdown = df_oss[df_oss['name'].isin(projects)][['name', 'display_name', 'description', 'websites', 'github', 'social', 'logo_path']].copy()
         df_proj_dropdown = df_proj_dropdown.rename(columns={'name': 'owner_project'})
+        df_proj_dropdown = df_proj_dropdown.sort_values('display_name', key=lambda s: s.str.lower()).reset_index(drop=True)
         project_dropdown_list = df_proj_dropdown.to_dict(orient='records')
         dict_proj_dropdown = {"dropdown_values": project_dropdown_list}
         dict_proj_dropdown = fix_dict_nan(dict_proj_dropdown, 'project_dropdown', send_notification=True)
