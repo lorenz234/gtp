@@ -1,5 +1,6 @@
 import time
 import pandas as pd
+from datetime import datetime
 
 from src.adapters.abstract_adapters import AbstractAdapter
 from src.main_config import get_main_config
@@ -76,6 +77,34 @@ class AdapterCoingecko(AbstractAdapter):
                 ,granularity=self.granularity
                 ,load_type='direct'
                 )
+        elif self.load_type == 'apps':
+            metric_keys = load_params['metric_keys']
+            days = load_params['days']
+            vs_currencies = load_params['vs_currencies']
+
+            if self.granularity != 'daily':
+                raise ValueError("load_type apps only supports granularity='daily'")
+
+            ## maps owner_project to coingecko_id
+            app_mapping = load_params.get('app_mapping', {
+                "chainlink": "chainlink",
+                "uniswap": "uniswap",
+                "aave": "aave",
+                "makerdao": "sky",
+                "0xpolygon": "polygon-ecosystem-token",
+                "ethena": "ethena",
+                "pancakeswap": "pancakeswap-token",
+                "layer-zero": "layerzero",
+                "mantle": "mantle",
+            })
+
+            df = self.extract_apps(
+                app_mapping=app_mapping,
+                vs_currencies=vs_currencies,
+                days=days,
+                base_url=self.base_url,
+                metric_keys=metric_keys,
+            )
         else:
             raise ValueError(f"load_type {self.load_type} not supported")      
 
@@ -90,6 +119,9 @@ class AdapterCoingecko(AbstractAdapter):
             else:
                 self.db_connector.upsert_table('fact_kpis_granular', df)
                 print_load(self.name, df.shape[0], 'fact_kpis_granular')
+        elif self.load_type == 'apps':
+            upserted = self.db_connector.upsert_table('fact_kpis_apps', df) or 0
+            print_load(self.name, upserted, 'fact_kpis_apps')
         else:
             raise ValueError(f"load_type {self.load_type} not supported")        
 
@@ -156,7 +188,7 @@ class AdapterCoingecko(AbstractAdapter):
                     print(f"...{self.name} {origin_key} failed for {currency} with url {url}")
                     send_discord_message(f"Failed to load {origin_key} for {currency} with url {url}")
 
-                time.sleep(1) #only 10-50 calls allowed per minute with free tier
+                time.sleep(0.5) #only 10-50 calls allowed per minute with free tier
 
         ## Date prep
         # Ensure datetimelike dtype even when dfMain is empty or object-typed.
@@ -176,4 +208,50 @@ class AdapterCoingecko(AbstractAdapter):
             ## remove duplicates and set index
             dfMain.drop_duplicates(subset=['metric_key', 'origin_key', 'date'], inplace=True)
             dfMain.set_index(['metric_key', 'origin_key', 'date'], inplace=True)
+        return dfMain
+
+    def extract_apps(self, app_mapping:dict, vs_currencies:list, days:str, base_url:str, metric_keys:list):
+        dfMain = pd.DataFrame(columns=['date', 'metric_key', 'owner_project', 'value'])
+
+        for owner_project, coingecko_id in app_mapping.items():
+            if days == 'auto':
+                day_val = 730
+            else:
+                day_val = int(days)
+
+            if day_val >= 730:
+                day_val = 730
+                print(f"... days set to 730 days (more isn't possible)")
+
+            for currency in vs_currencies:
+                url = f"{base_url}{coingecko_id}/market_chart?vs_currency={currency}&days={day_val}&interval=daily"
+
+                response_json = api_get_call(url, sleeper=10, retries=10, header=self.headers)
+                if response_json:
+                    dfAllFi = pd.json_normalize(response_json)
+                    for fi in metric_keys:
+                        match fi:
+                            case 'price':
+                                series = dfAllFi['prices'].explode()
+                            case 'volume':
+                                series = dfAllFi['total_volumes'].explode()
+                            case 'market_cap':
+                                series = dfAllFi['market_caps'].explode()
+                        df = pd.DataFrame(columns=['date', 'value'], data=series.to_list())
+                        df['date'] = pd.to_datetime(df['date'], unit='ms')
+                        df['metric_key'] = f"{fi}_{currency}"
+                        df['owner_project'] = owner_project
+                        df['value'] = df['value'].fillna(0)
+                        dfMain = pd.concat([dfMain, df], ignore_index=True)
+                        print(f"...{self.name} {owner_project} ({coingecko_id}) done for {currency} and {fi}. Shape: {df.shape}")
+                else:
+                    print(f"...{self.name} {owner_project} ({coingecko_id}) failed for {currency} with url {url}")
+                    send_discord_message(f"Failed to load app {owner_project} ({coingecko_id}) for {currency} with url {url}")
+
+                time.sleep(0.5)  # API call throttling
+
+        dfMain['date'] = pd.to_datetime(dfMain['date'], errors='coerce', utc=True).dt.date
+        dfMain.drop_duplicates(subset=['metric_key', 'owner_project', 'date'], inplace=True)
+        dfMain.set_index(['metric_key', 'owner_project', 'date'], inplace=True)
+
         return dfMain
