@@ -2525,10 +2525,11 @@ class JSONCreation():
             'weighted_value': 'sum',
             'txcount_weight': 'sum'
         })
-        df_success_rate['value'] = np.where(
-            df_success_rate['txcount_weight'] > 0,
-            df_success_rate['weighted_value'] / df_success_rate['txcount_weight'],
-            0
+        df_success_rate['value'] = 0.0
+        valid_weights = df_success_rate['txcount_weight'] > 0
+        df_success_rate.loc[valid_weights, 'value'] = (
+            df_success_rate.loc[valid_weights, 'weighted_value']
+            / df_success_rate.loc[valid_weights, 'txcount_weight']
         )
         df_success_rate = df_success_rate[['date', 'unix', 'metric_key', 'value']]
 
