@@ -96,6 +96,16 @@ class AdapterCoingecko(AbstractAdapter):
                 "pancakeswap": "pancakeswap-token",
                 "layer-zero": "layerzero",
                 "mantle": "mantle",
+                "curve": "curve-dao-token",
+                "aerodrome-finance": "aerodrome-finance",
+                "lighter-xyz": "lighter",
+                "maple-labs": "syrup",
+                "pyth-network": "pyth-network",
+                "lido": "lido-dao",
+                "ensdomains": "ethereum-name-service",
+                "sandbox": "the-sandbox",
+                "pendle-finance": "pendle",
+                "axieinfinity": "axie-infinity",
             })
 
             df = self.extract_apps(
@@ -241,6 +251,7 @@ class AdapterCoingecko(AbstractAdapter):
                         df['date'] = pd.to_datetime(df['date'], unit='ms')
                         df['metric_key'] = f"{fi}_{currency}"
                         df['owner_project'] = owner_project
+                        df['origin_key'] = "all"
                         df['value'] = df['value'].fillna(0)
                         dfMain = pd.concat([dfMain, df], ignore_index=True)
                         print(f"...{self.name} {owner_project} ({coingecko_id}) done for {currency} and {fi}. Shape: {df.shape}")
@@ -251,7 +262,7 @@ class AdapterCoingecko(AbstractAdapter):
                 time.sleep(0.5)  # API call throttling
 
         dfMain['date'] = pd.to_datetime(dfMain['date'], errors='coerce', utc=True).dt.date
-        dfMain.drop_duplicates(subset=['metric_key', 'owner_project', 'date'], inplace=True)
-        dfMain.set_index(['metric_key', 'owner_project', 'date'], inplace=True)
+        dfMain.drop_duplicates(subset=['metric_key', 'owner_project', 'origin_key', 'date'], inplace=True)
+        dfMain.set_index(['metric_key', 'owner_project', 'origin_key', 'date'], inplace=True)
 
         return dfMain

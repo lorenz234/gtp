@@ -2371,7 +2371,7 @@ class JSONCreation():
         
         return result
 
-    def load_app_data(self, owner_project:str, chains:list):
+    def load_app_data(self, owner_project:str, chains:list, incl_fact_apps:bool=True):
         chains_str = ', '.join([f"'{chain}'" for chain in chains])
 
         exec_string = f"""
@@ -2423,6 +2423,25 @@ class JSONCreation():
 
         ## unpivot table to have one row per date, origin_key and metric_key
         df = df.melt(id_vars=['origin_key', 'date'], var_name='metric_key', value_name='value')
+        
+        if incl_fact_apps:
+            ## get data from fact_apps for the app and merge with df
+            exec_string_fact_apps = f"""
+                SELECT 
+                    origin_key,
+                    date,
+                    metric_key,
+                    value
+                FROM fact_kpis_apps
+                WHERE owner_project = '{owner_project}'
+                    AND origin_key IN ('all', {chains_str})
+                    AND date < current_date
+            """
+            with self.db_connector.engine.connect() as connection:
+                df_fact_apps = pd.read_sql(exec_string_fact_apps, connection)
+
+            df_fact_apps['date'] = pd.to_datetime(df_fact_apps['date']).dt.tz_localize('UTC')
+            df = pd.concat([df, df_fact_apps], ignore_index=True)
 
         ## datetime to unix timestamp using timestamp() function
         df['unix'] = df['date'].apply(lambda x: x.timestamp() * 1000)
@@ -2501,7 +2520,7 @@ class JSONCreation():
         return val
     
     def create_kpi_cards_dict(self, df: pd.DataFrame):
-        ordered_metrics = ['txcount', 'daa', 'gas_fees', 'success_rate']
+        ordered_metrics = ['txcount', 'daa', 'gas_fees', 'success_rate', 'market_cap', 'token_price', 'token_volume']
         
         kpi_cards_dict = {}
         start_date = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
@@ -2518,19 +2537,21 @@ class JSONCreation():
             on=['date', 'unix', 'origin_key'],
             how='left'
         )
-        df_success_rate['txcount_weight'] = df_success_rate['txcount_weight'].fillna(0)
+        df_success_rate['value'] = pd.to_numeric(df_success_rate['value'], errors='coerce').fillna(0.0)
+        df_success_rate['txcount_weight'] = pd.to_numeric(df_success_rate['txcount_weight'], errors='coerce').fillna(0.0)
         df_success_rate['weighted_value'] = df_success_rate['value'] * df_success_rate['txcount_weight']
 
         df_success_rate = df_success_rate.groupby(['date', 'unix', 'metric_key'], as_index=False).agg({
             'weighted_value': 'sum',
             'txcount_weight': 'sum'
         })
-        df_success_rate['value'] = 0.0
-        valid_weights = df_success_rate['txcount_weight'] > 0
-        df_success_rate.loc[valid_weights, 'value'] = (
-            df_success_rate.loc[valid_weights, 'weighted_value']
-            / df_success_rate.loc[valid_weights, 'txcount_weight']
-        )
+        df_success_rate['weighted_value'] = pd.to_numeric(df_success_rate['weighted_value'], errors='coerce').fillna(0.0)
+        df_success_rate['txcount_weight'] = pd.to_numeric(df_success_rate['txcount_weight'], errors='coerce').fillna(0.0)
+        df_success_rate['value'] = np.where(
+            df_success_rate['txcount_weight'] > 0,
+            df_success_rate['weighted_value'] / df_success_rate['txcount_weight'],
+            0.0
+        ).astype(float)
         df_success_rate = df_success_rate[['date', 'unix', 'metric_key', 'value']]
 
         df_other_metrics = df[df['metric_key'] != 'success_rate'].groupby(
@@ -2541,25 +2562,40 @@ class JSONCreation():
         df = pd.concat([df_other_metrics, df_success_rate], ignore_index=True)
         df = df[df['date'] >= start_date]
         df = df.sort_values(by='date', ascending=True)
-        
+
         for metric_id in ordered_metrics:
-            if metric_id == 'gas_fees':
-                df_tmp = df[df['metric_key'].isin(['fees_paid_eth', 'fees_paid_usd'])][['unix', 'metric_key', 'value']].copy()
-                
-                ## pivot df to have one row per date and columns for eth and usd
-                df_tmp = df_tmp.pivot(index='unix', columns='metric_key', values='value').reset_index()
-                df_tmp = df_tmp.rename(columns={'fees_paid_eth': 'eth', 'fees_paid_usd': 'usd'})
-                
-                current_value_eth = df_tmp['eth'].iloc[-1]
-                current_value_usd = df_tmp['usd'].iloc[-1]
-                current_values = [current_value_usd, current_value_eth]
+            metric_cfg = self.app_metrics.get(metric_id, {})
+            metric_keys = metric_cfg.get('metric_keys', [])
+            value_types = list(metric_cfg.get('units', {}).keys()) or ['value']
+
+            df_metric = df[df['metric_key'].isin(metric_keys)][['unix', 'metric_key', 'value']].copy()
+            if df_metric.empty:
+                continue
+
+            if value_types == ['value']:
+                df_tmp = df_metric[['unix', 'value']].copy()
             else:
-                df_tmp = df[df['metric_key'] == metric_id][['unix', 'value']].copy()
-                
-                current_values = [df_tmp['value'].iloc[-1]]
-                
+                key_to_type = {}
+                for value_type in value_types:
+                    matching_keys = [mk for mk in metric_keys if mk.endswith(f"_{value_type}")]
+                    if matching_keys:
+                        key_to_type[matching_keys[0]] = value_type
+
+                df_tmp = df_metric.pivot(index='unix', columns='metric_key', values='value').reset_index()
+                df_tmp = df_tmp.rename(columns=key_to_type)
+
+                available_value_types = [value_type for value_type in value_types if value_type in df_tmp.columns]
+                if not available_value_types:
+                    continue
+
+                value_types = available_value_types
+                df_tmp = df_tmp[['unix'] + value_types]
+                df_tmp[value_types] = df_tmp[value_types].fillna(0.0)
+
+            df_tmp = df_tmp.sort_values(by='unix', ascending=True)
             daily_cols = df_tmp.columns.tolist()
             daily_list = df_tmp.values.tolist()
+            current_values = [float(val) if pd.notna(val) else 0.0 for val in daily_list[-1][1:]]
             
             wow_change = 0.00
             if len(daily_list) > 8:
@@ -2567,7 +2603,7 @@ class JSONCreation():
                 wow_data = [(x - y) / y if y != 0 else 0 for x, y in zip(current_values, last_week_values)]
                 wow_change = {'types': daily_cols[1:], 'data': wow_data}
             else:
-                wow_change = {'types': ["value"], 'data': [0.0]}
+                wow_change = {'types': daily_cols[1:], 'data': [0.0] * len(daily_cols[1:])}
 
             
             kpi_cards_dict[metric_id] = {
