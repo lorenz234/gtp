@@ -1,4 +1,5 @@
 import time
+from wsgiref import headers
 import pandas as pd
 from datetime import datetime
 
@@ -115,6 +116,8 @@ class AdapterCoingecko(AbstractAdapter):
                 base_url=self.base_url,
                 metric_keys=metric_keys,
             )
+        elif self.load_type == 'coins_list':
+            df = self.extract_coins_list()
         else:
             raise ValueError(f"load_type {self.load_type} not supported")      
 
@@ -132,12 +135,28 @@ class AdapterCoingecko(AbstractAdapter):
         elif self.load_type == 'apps':
             upserted = self.db_connector.upsert_table('fact_kpis_apps', df) or 0
             print_load(self.name, upserted, 'fact_kpis_apps')
+        elif self.load_type == 'coins_list':
+            self.db_connector.upsert_table('coingecko_coins_list', df)
+            print_load(self.name, df.shape[0], 'coingecko_coins_list')
         else:
             raise ValueError(f"load_type {self.load_type} not supported")        
 
 
     ## ----------------- Helper functions --------------------
-
+    
+    def extract_coins_list(self):
+        url = f"{self.base_url}list"
+        response_json = api_get_call(url, sleeper=10, retries=10, header=self.headers)
+        if response_json:
+            df = pd.DataFrame(response_json)
+            print(f"...coins list extracted with shape {df.shape}")
+            df.set_index('id', inplace=True)
+            return df
+        else:
+            print(f"...failed to extract coins list with url {url}")
+            send_discord_message(f"Failed to extract coins list with url {url}")
+            return pd.DataFrame()
+    
     def extract_projects(self, projects_to_load, vs_currencies, days, base_url, metric_keys, granularity='daily', load_type='project'):
         if granularity == 'hourly':
             if days == 'auto':
