@@ -470,12 +470,11 @@ gtp_metrics_new = {
                 'monthly_agg': 'sum',
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
-                'icon_name': 'gtp-metrics-transactioncount',
                 'hourly_available': False
             }
             ,'daa': {
                 'name': 'Active Addresses',
-                'icon': 'metrics-active-addresses',
+                'icon': 'metrics-activeaddresses',
                 'category': 'activity',
                 'fundamental': True,
                 'metric_keys': ['daa'],
@@ -487,7 +486,6 @@ gtp_metrics_new = {
                 'monthly_agg': 'maa',
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
-                'icon_name': 'gtp-metrics-activeaddresses',
                 'hourly_available': False
             }
             ,'gas_fees': {
@@ -505,7 +503,6 @@ gtp_metrics_new = {
                 'monthly_agg': 'sum',
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
-                'icon_name': 'gtp-metrics-transactioncosts',
                 'hourly_available': False
             }
             ,'success_rate': {
@@ -522,7 +519,57 @@ gtp_metrics_new = {
                 'monthly_agg': 'avg',
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
-                'icon_name': 'gtp-rank',
+                'hourly_available': False
+            }
+            ,'market_cap': {
+                'name': 'Market Cap',
+                'icon': 'metrics-marketcap',
+                'category': 'market',
+                'fundamental': False,
+                'metric_keys': ['market_cap_usd', 'market_cap_eth'],
+                'units': {
+                    'usd': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': True}, 
+                    'eth': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'avg',
+                'max_date_fill' : False,
+                'source': ['coingecko'],
+                'hourly_available': False
+            }
+            ,'token_volume': {
+                'name': 'Token Trading Volume',
+                'icon': 'tokentransfers',
+                'category': 'market',
+                'fundamental': False,
+                'metric_keys': ['volume_usd', 'volume_eth'],
+                'units': {
+                    'usd': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': True}, 
+                    'eth': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'avg',
+                'max_date_fill' : False,
+                'source': ['coingecko'],
+                'hourly_available': False
+            }
+            ,'token_price': {
+                'name': 'Token Price',
+                'icon': 'monitor',
+                'category': 'market',
+                'fundamental': False,
+                'metric_keys': ['price_usd', 'price_eth'],
+                'units': {
+                    'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}, 
+                    'eth': {'decimals': 8, 'decimals_tooltip': 8, 'agg_tooltip': True}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'avg',
+                'max_date_fill' : False,
+                'source': ['coingecko'],
                 'hourly_available': False
             }
         }
