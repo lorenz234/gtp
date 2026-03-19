@@ -87,27 +87,9 @@ class AdapterCoingecko(AbstractAdapter):
                 raise ValueError("load_type apps only supports granularity='daily'")
 
             ## maps owner_project to coingecko_id
-            app_mapping = load_params.get('app_mapping', {
-                "chainlink": "chainlink",
-                "uniswap": "uniswap",
-                "aave": "aave",
-                "makerdao": "sky",
-                "0xpolygon": "polygon-ecosystem-token",
-                "ethena-labs": "ethena",
-                "pancakeswap": "pancakeswap-token",
-                "layer-zero": "layerzero",
-                "mantlenetworkio": "mantle",
-                "curve": "curve-dao-token",
-                "aerodrome-finance": "aerodrome-finance",
-                "lighter-xyz": "lighter",
-                "maple-labs": "syrup",
-                "pyth-network": "pyth-network",
-                "lido": "lido-dao",
-                "ensdomains": "ethereum-name-service",
-                "sandbox": "the-sandbox",
-                "pendle-finance": "pendle",
-                "axieinfinity": "axie-infinity",
-            })
+            app_mapping = load_params.get('app_mapping', self.load_app_coingecko_ids())
+            
+            print(f"Loading apps with the following mapping of owner_project to coingecko_id: {app_mapping}")
 
             df = self.extract_apps(
                 app_mapping=app_mapping,
@@ -143,6 +125,15 @@ class AdapterCoingecko(AbstractAdapter):
 
 
     ## ----------------- Helper functions --------------------
+    
+    def load_app_coingecko_ids(self):
+        # This function returns a mapping of owner_project to coingecko_id for all projects in our db that have a coingecko id specified
+        query = """
+        SELECT name, token_coingecko_api_id FROM oli_oss_directory WHERE token_coingecko_api_id IS NOT NULL
+        """
+        df = self.db_connector.execute_query(query, load_df=True)
+        mapping = dict(zip(df['name'], df['token_coingecko_api_id']))
+        return mapping
     
     def extract_coins_list(self):
         url = f"{self.base_url}list"
