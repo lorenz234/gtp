@@ -210,19 +210,19 @@ def etl():
         cat = api.table(AIRTABLE_BASE_ID, 'Sub Categories')
         df_cat = at.read_airtable(cat)
         df = df.replace({'usage_category': df_cat.set_index('category_id')['id']})
-        df['usage_category'] = df['usage_category'].apply(lambda x: [x])
+        df['usage_category'] = df['usage_category'].apply(lambda x: [x] if pd.notna(x) else None)
 
         # exchange the project with the id & make it a list
         proj = api.table(AIRTABLE_BASE_ID, 'OSS Projects')
         df_proj = at.read_airtable(proj)
         df = df.replace({'owner_project': df_proj.set_index('Name')['id']})
-        df['owner_project'] = df['owner_project'].apply(lambda x: [x])
+        df['owner_project'] = df['owner_project'].apply(lambda x: [x] if pd.notna(x) else None)
 
         # exchange the chain origin_key with the id & make it a list
         chains = api.table(AIRTABLE_BASE_ID, 'Chains')
         df_chains = at.read_airtable(chains)
         df = df.replace({'origin_key': df_chains.set_index('origin_key')['id']})
-        df['origin_key'] = df['origin_key'].apply(lambda x: [x])
+        df['origin_key'] = df['origin_key'].apply(lambda x: [x] if pd.notna(x) else None)
 
         # write to airtable
         at.push_to_airtable(table, df)
