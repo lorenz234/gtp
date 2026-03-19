@@ -2461,17 +2461,20 @@ class JSONCreation():
                     main_category_key,
                     sub_category_key,
                     origin_key, 
+                    vc.address IS NOT NULL AS verified,
                     SUM(txcount) as txcount,
                     SUM(fees_paid_eth) AS fees_paid_eth,
                     SUM(fees_paid_usd) AS fees_paid_usd
                 FROM vw_apps_contract_level_materialized AS fact
+                LEFT JOIN mv_verified_contracts vc USING (address)
                 WHERE 
                     owner_project = '{owner_project}'
                     AND fact.origin_key IN ({chains_str})
                     and fact.date < current_date
                     and fact.date >= current_date - interval '{days} days'
-                GROUP BY 1,2,3,4,5
+                GROUP BY 1,2,3,4,5,6
             )
+            
             select 
                 fact.*,
                 greatest(aa.daa, 1) AS daa
