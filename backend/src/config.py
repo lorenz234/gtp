@@ -366,6 +366,23 @@ gtp_metrics_new = {
                 'log_default': False,
                 'hourly_available': False
             }
+            
+             ,'blob_size': {
+                'name': 'Blob Size',
+                'fundamental': False, ## not a fundamental metric
+                'metric_keys': ['blob_size_bytes'],
+                'units': {
+                    'value': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True, 'suffix': 'GB'}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'ranking_bubble': False,
+                'ranking_landing': False,
+                'log_default': False,
+                'hourly_available': False
+            }
         },
         
         ## DA Layer Metrics
