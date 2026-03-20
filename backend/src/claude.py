@@ -50,7 +50,7 @@ class ClaudeTask:
 class ClaudeAgent:
     BASE_URL = "https://api.github.com"
 
-    def __init__(self, token=os.getenv("GITHUB_GROWTHEPAI_TOKEN"), repo='growthepie/gtp-backend', workflow='claude-task.yml', ref='main'):
+    def __init__(self, token=os.getenv("GITHUB_GROWTHEPAI_TOKEN"), repo='growthepie/gtp-backend', workflow='claude-pr.yml', ref='main'):
         self.token = token
         self.repo = repo
         self.workflow = workflow
