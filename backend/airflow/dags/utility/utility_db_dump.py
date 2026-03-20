@@ -45,7 +45,7 @@ def backup_db_to_hetzner():
                 if not os.getenv("DB_PORT"):
                     db_port = port_part
 
-        bucket_name = os.getenv("S3_LONG_TERM_BUCKET") or "gtp-archive"
+        bucket_name = os.getenv("HETZNER_BUCKET_NAME")
         prefix = "db_backups"
         retention_days = 10
         hetzner_access_key = os.getenv("HETZNER_ACCESS_KEY_ID")
