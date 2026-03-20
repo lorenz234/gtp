@@ -12,19 +12,20 @@ from src.misc.airflow_utils import alert_via_webhook
         "on_failure_callback": lambda context: alert_via_webhook(context, user="mseidl"),
     },
     dag_id="utility_db_dump",
-    description="Daily full PostgreSQL backup to GCS via pg_dump.",
+    description="Daily full PostgreSQL backup to Hetzner Object Storage via pg_dump.",
     tags=["utility", "backup", "daily"],
     start_date=datetime(2026, 3, 12),
     schedule="00 20 * * *",
 )
-def backup_db_to_gcs():
+def backup_db_to_hetzner():
     @task()
     def run_backup():
+        import boto3
         import os
         import re
         import subprocess
         import tempfile
-        from src.adapters.rpc_funcs.gcs_utils import connect_to_gcs
+        from src.misc.helper_functions import upload_file_to_s3
 
         db_user = "db_backup"
         db_passwd = os.getenv("DB_PASSWORD_BACKUP")
@@ -44,25 +45,34 @@ def backup_db_to_gcs():
                 if not os.getenv("DB_PORT"):
                     db_port = port_part
 
-        gcs, default_bucket = connect_to_gcs()
-        bucket_name =  "gtp-archive"
+        bucket_name = os.getenv("S3_LONG_TERM_BUCKET") or "gtp-archive"
         prefix = "db_backups"
         retention_days = 10
+        hetzner_access_key = os.getenv("HETZNER_ACCESS_KEY_ID")
+        hetzner_secret_key = os.getenv("HETZNER_SECRET_ACCESS_KEY")
+
+        if not all([hetzner_access_key, hetzner_secret_key]):
+            raise ValueError(
+                "Missing required Hetzner env vars: HETZNER_ACCESS_KEY_ID, HETZNER_SECRET_ACCESS_KEY"
+            )
 
         env = os.environ.copy()
         env["PGPASSWORD"] = db_passwd
 
-
         db_names = ["fun", "oli", "web3"]
-
-        bucket = gcs.bucket(bucket_name)
+        s3 = boto3.client(
+            "s3",
+            endpoint_url="https://fsn1.your-objectstorage.com",
+            aws_access_key_id=hetzner_access_key,
+            aws_secret_access_key=hetzner_secret_key,
+        )
 
         for name in db_names:
             ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
             filename = f"{name}_{ts}.dump"
             blob_path = f"{prefix}/{name}/date={ts[:10]}/{filename}"
             
-            print(f"Starting backup for database '{name}' to gs://{bucket_name}/{blob_path}...")
+            print(f"Starting backup for database '{name}' to s3://{bucket_name}/{blob_path}...")
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 dump_path = os.path.join(tmpdir, filename)
@@ -102,30 +112,47 @@ def backup_db_to_gcs():
                         print(f"pg_dump stderr:\n{exc.stderr}")
                     raise
 
-                blob = bucket.blob(blob_path)
-                blob.upload_from_filename(dump_path)
+                upload_file_to_s3(
+                    bucket_name,
+                    blob_path,
+                    dump_path,
+                    empty_cf_cache=False,
+                    destination="hetzner",
+                )
 
-                print(f"Uploaded backup to gs://{bucket_name}/{blob_path}")
+                print(f"Uploaded backup to s3://{bucket_name}/{blob_path}")
 
         cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
         date_re = re.compile(r"/date=(\d{4}-\d{2}-\d{2})/")
         for name in db_names:
             delete_prefix = f"{prefix}/{name}/"
-            for blob in bucket.list_blobs(prefix=delete_prefix):
-                match = date_re.search(blob.name)
-                if not match:
-                    continue
-                try:
-                    blob_date = datetime.strptime(match.group(1), "%Y-%m-%d").replace(
-                        tzinfo=timezone.utc
-                    )
-                except ValueError:
-                    continue
-                if blob_date < cutoff:
-                    print(f"Deleting old backup: gs://{bucket_name}/{blob.name}")
-                    blob.delete()
+            continuation_token = None
+            while True:
+                list_kwargs = {"Bucket": bucket_name, "Prefix": delete_prefix}
+                if continuation_token:
+                    list_kwargs["ContinuationToken"] = continuation_token
+
+                response = s3.list_objects_v2(**list_kwargs)
+                for obj in response.get("Contents", []):
+                    key = obj["Key"]
+                    match = date_re.search(key)
+                    if not match:
+                        continue
+                    try:
+                        blob_date = datetime.strptime(match.group(1), "%Y-%m-%d").replace(
+                            tzinfo=timezone.utc
+                        )
+                    except ValueError:
+                        continue
+                    if blob_date < cutoff:
+                        print(f"Deleting old backup: s3://{bucket_name}/{key}")
+                        s3.delete_object(Bucket=bucket_name, Key=key)
+
+                if not response.get("IsTruncated"):
+                    break
+                continuation_token = response.get("NextContinuationToken")
 
     run_backup()
 
 
-backup_db_to_gcs()
+backup_db_to_hetzner()

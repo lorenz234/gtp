@@ -664,13 +664,22 @@ def empty_cloudfront_cache(distribution_id, path):
         #print("Invalidation created successfully with Id: " + invalidation_id)
         return invalidation_id
 
-def upload_file_to_s3(bucket, path_name, local_path, cf_distribution_id, empty_cf_cache=True, access_key=None, secret_key=None):
+def upload_file_to_s3(bucket, path_name, local_path, cf_distribution_id=None, empty_cf_cache=True, destination='aws'):
     # Initialize S3 client
-    s3 = boto3.client(
-        "s3",
-        aws_access_key_id=access_key or os.getenv("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=secret_key or os.getenv("AWS_SECRET_ACCESS_KEY")
-    )
+    if destination == 'aws':
+        s3 = boto3.client(
+            "s3",
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
+        )
+    elif destination == 'hetzner':
+        s3 = boto3.client(
+            "s3",
+            endpoint_url="https://fsn1.your-objectstorage.com",  # Hetzner endpoint
+            aws_access_key_id=os.getenv("HETZNER_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("HETZNER_SECRET_ACCESS_KEY"),
+        )
+        
     # Upload the file to S3
     s3.upload_file(local_path, bucket, path_name)
 
