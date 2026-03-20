@@ -1680,13 +1680,13 @@ class DbConnector:
                 else:
                         exec_string = """
                                 SELECT 
-                                        "name", 
-                                        display_name, 
-                                        description, 
-                                        replace((github->0->>'url'), 'https://github.com/', '') AS main_github,
-                                        replace(replace((social->'twitter'->0->>'url'), 'https://twitter.com/', ''),'https://x.com/', '') AS twitter,
-                                        (websites->0->>'url') AS website,
-                                        logo_path,
+                                        ood."name", 
+                                        ood.display_name, 
+                                        ood.description, 
+                                        replace((ood.github->0->>'url'), 'https://github.com/', '') AS main_github,
+                                        replace(replace((ood.social->'twitter'->0->>'url'), 'https://twitter.com/', ''),'https://x.com/', '') AS twitter,
+                                        (ood.websites->0->>'url') AS website,
+                                        ood.logo_path,
                                         upper(cg.symbol) AS token_symbol
                                 FROM public.oli_oss_directory ood
                                 LEFT JOIN coingecko_coins_list cg
