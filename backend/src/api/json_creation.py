@@ -59,6 +59,14 @@ class JSONCreation():
         self.da_metrics = gtp_metrics_new['data_availability']
         self.app_metrics = gtp_metrics_new['apps']
         self.eim_metrics = gtp_metrics_new['eim']
+        # Merge all metrics dictionaries with duplicate key detection
+        self.metrics_all = {}
+        for dict_name, dict_obj in [('metrics', self.metrics), ('da_metrics', self.da_metrics), ('app_metrics', self.app_metrics), ('eim_metrics', self.eim_metrics)]:
+            for key in dict_obj:
+                # if key in self.metrics_all:
+                #     warnings.warn(f"Duplicate metric key '{key}' found in {dict_name}. Previous value will be overwritten.")
+                self.metrics_all[key] = dict_obj[key]
+                self.metrics_all[key]['metric_type'] = dict_name
         
         self.fees_types = gtp_fees_types
         self.fees_timespans = gtp_fees_timespans
@@ -164,6 +172,22 @@ class JSONCreation():
             return self.app_metrics
         else:
             raise ValueError(f"ERROR: metric type {metric_type} is not implemented")
+        
+    def get_metric_id_from_metric_key(self, metric_key):
+        for metric_id, metric_info in self.metrics.items():
+            if metric_key in metric_info['metric_keys']:
+                return metric_id
+        for metric_id, metric_info in self.da_metrics.items():
+            if metric_key in metric_info['metric_keys']:
+                return metric_id
+        for metric_id, metric_info in self.eim_metrics.items():
+            if metric_key in metric_info['metric_keys']:
+                return metric_id
+        for metric_id, metric_info in self.app_metrics.items():
+            if metric_key in metric_info['metric_keys']:
+                return metric_id
+        
+        raise ValueError(f"ERROR: could not find metric_id for metric_key {metric_key}")
 
     def df_rename(self, df, metric_id, tmp_metrics_dict, col_name_removal=False):
         if col_name_removal:
@@ -1767,7 +1791,17 @@ class JSONCreation():
 
         df = df[(df['origin_key'] == origin_key) & (df['metric_key'] == metric_key)]
         df = df[(df['date'] >= start_date)]
-        val = df['value'].sum()
+        
+        ## find metric_key in self.metrics and check aggregation method, if sum then sum the values, if avg then take the average of the values, if distinct then count the distinct values
+        metric_id = self.get_metric_id_from_metric_key(metric_key)
+        
+        if self.metrics_all[metric_id]['monthly_agg'] == 'sum':
+            val = df['value'].sum()
+        elif self.metrics_all[metric_id]['monthly_agg'] == 'avg':
+            val = df['value'].mean()
+        else:
+            print(f'..for {origin_key} - {metric_key}. No valid aggregation method found -> use SUM.')
+            val = df['value'].sum()
         return val
 
     def gen_da_metric_dict(self, df, metric, origin_key):
@@ -2632,47 +2666,52 @@ class JSONCreation():
             }
 
             for metric in self.app_metrics:
-                if self.app_metrics[metric]['fundamental']:
-                    app_dict['metrics'][metric] = {
-                        'metric_name': self.app_metrics[metric]['name'],
-                        'avg': self.app_metrics[metric]['avg'],
-                        'over_time': {},
-                        'aggregated': {
-                            'types': list(self.app_metrics[metric]['units'].keys()),
-                            'data': {}
-                        }
+                #if self.app_metrics[metric]['fundamental']:
+                app_dict['metrics'][metric] = {
+                    'metric_name': self.app_metrics[metric]['name'],
+                    'avg': self.app_metrics[metric]['avg'],
+                    'over_time': {},
+                    'aggregated': {
+                        'types': list(self.app_metrics[metric]['units'].keys()),
+                        'data': {}
                     }
+                }
 
-                    for origin_key in self.chains_list_in_api_apps:
-                        ## check if origin_key is in df
-                        if origin_key in df.origin_key.unique():
-                            mk_list = self.generate_daily_list(df, metric, origin_key, metric_type='app')
-                            mk_list_int = mk_list[0]
-                            mk_list_columns = mk_list[1]
+                if self.app_metrics[metric]['chain_specific']:
+                    chains_list = self.chains_list_in_api_apps
+                else:
+                    chains_list = ['all']
+                    
+                for origin_key in chains_list:
+                    ## check if origin_key is in df
+                    if origin_key in df.origin_key.unique():
+                        mk_list = self.generate_daily_list(df, metric, origin_key, metric_type='app')
+                        mk_list_int = mk_list[0]
+                        mk_list_columns = mk_list[1]
 
-                            app_dict['metrics'][metric]['over_time'][origin_key] = {
-                                'daily': {
-                                    'types' : mk_list_columns,
-                                    'data' : mk_list_int
-                                }
+                        app_dict['metrics'][metric]['over_time'][origin_key] = {
+                            'daily': {
+                                'types' : mk_list_columns,
+                                'data' : mk_list_int
                             }
+                        }
 
-                            app_dict['metrics'][metric]['aggregated']['data'][origin_key] = {}
-                            for timeframe in timeframes:  
-                                data_list = []
-                                timeframe_key = f'{timeframe}d' if timeframe != 'max' else 'max'
-                                days = timeframe if timeframe != 'max' else 9999
+                        app_dict['metrics'][metric]['aggregated']['data'][origin_key] = {}
+                        for timeframe in timeframes:  
+                            data_list = []
+                            timeframe_key = f'{timeframe}d' if timeframe != 'max' else 'max'
+                            days = timeframe if timeframe != 'max' else 9999
 
-                                ##for active addresses we cannot just sum up the values, we need to pull the hll data for each timeframe from our db
-                                if metric == 'daa':
-                                    val = self.get_active_addresses_val(project, origin_key, days)
+                            ##for active addresses we cannot just sum up the values, we need to pull the hll data for each timeframe from our db
+                            if metric == 'daa':
+                                val = self.get_active_addresses_val(project, origin_key, days)
+                                data_list.append(val)
+                            else:
+                                for metric_key in self.app_metrics[metric]['metric_keys']:
+                                    val = self.aggregate_metric(df, origin_key, metric_key, days)
                                     data_list.append(val)
-                                else:
-                                    for metric_key in self.app_metrics[metric]['metric_keys']:
-                                        val = self.aggregate_metric(df, origin_key, metric_key, days)
-                                        data_list.append(val)
-                            
-                                app_dict['metrics'][metric]['aggregated']['data'][origin_key][timeframe_key] = data_list
+                        
+                            app_dict['metrics'][metric]['aggregated']['data'][origin_key][timeframe_key] = data_list
 
             ## Contracts NEW
             app_dict['contracts_table'] = {}

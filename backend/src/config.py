@@ -470,7 +470,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'sum',
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': True
             }
             ,'daa': {
                 'name': 'Active Addresses',
@@ -486,7 +487,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'maa',
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': True
             }
             ,'gas_fees': {
                 'name': 'Fees Paid',
@@ -503,7 +505,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'sum',
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': True
             }
             ,'success_rate': {
                 'name': 'Success Rate',
@@ -519,7 +522,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'avg',
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': True
             }
             ,'market_cap': {
                 'name': 'Market Cap',
@@ -536,7 +540,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'avg',
                 'max_date_fill' : False,
                 'source': ['coingecko'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': False
             }
             ,'token_volume': {
                 'name': 'Token Trading Volume',
@@ -553,7 +558,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'avg',
                 'max_date_fill' : False,
                 'source': ['coingecko'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': False
             }
             ,'token_price': {
                 'name': 'Token Price',
@@ -570,7 +576,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'avg',
                 'max_date_fill' : False,
                 'source': ['coingecko'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': False
             }
         }
         
