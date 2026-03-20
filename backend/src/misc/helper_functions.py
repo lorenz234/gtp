@@ -664,18 +664,19 @@ def empty_cloudfront_cache(distribution_id, path):
         #print("Invalidation created successfully with Id: " + invalidation_id)
         return invalidation_id
 
-def upload_file_to_cf_s3(bucket, path_name, local_path, cf_distribution_id):
+def upload_file_to_s3(bucket, path_name, local_path, cf_distribution_id, empty_cf_cache=True, access_key=None, secret_key=None):
     # Initialize S3 client
     s3 = boto3.client(
         "s3",
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
+        aws_access_key_id=access_key or os.getenv("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=secret_key or os.getenv("AWS_SECRET_ACCESS_KEY")
     )
     # Upload the file to S3
     s3.upload_file(local_path, bucket, path_name)
 
     print(f'..uploaded to {path_name}')
-    empty_cloudfront_cache(cf_distribution_id, f'/{path_name}')
+    if empty_cf_cache:
+        empty_cloudfront_cache(cf_distribution_id, f'/{path_name}')
 
 def upload_json_to_cf_s3(
     bucket: str,
