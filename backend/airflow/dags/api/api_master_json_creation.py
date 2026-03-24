@@ -28,7 +28,7 @@ def json_creation():
         from src.da_config import get_da_config
         from src.db_connector import DbConnector
         from src.api.json_creation import JSONCreation
-        from src.misc.helper_functions import upload_file_to_cf_s3
+        from src.misc.helper_functions import upload_file_to_s3
 
         # Get the api_version from DAG parameters
         api_version = kwargs['params'].get('api_version', 'v1')
@@ -38,7 +38,7 @@ def json_creation():
         main_conf = get_main_config(db_connector=db_connector, source='github')
         with open("main_conf.pkl", "wb") as file:
             pickle.dump(main_conf, file)
-        upload_file_to_cf_s3(os.getenv("S3_CF_BUCKET"), f"{api_version}/main_conf.pkl", "main_conf.pkl", os.getenv("CF_DISTRIBUTION_ID"))
+        upload_file_to_s3(os.getenv("S3_CF_BUCKET"), f"{api_version}/main_conf.pkl", "main_conf.pkl", os.getenv("CF_DISTRIBUTION_ID"))
 
         ## Update sys_main_conf table in database
         df_main_conf = pd.DataFrame([vars(project) for project in main_conf])
@@ -49,7 +49,7 @@ def json_creation():
         da_conf = get_da_config(source='github')
         with open("da_conf.pkl", "wb") as file:
             pickle.dump(da_conf, file)
-        upload_file_to_cf_s3(os.getenv("S3_CF_BUCKET"), f"{api_version}/da_conf.pkl", "da_conf.pkl", os.getenv("CF_DISTRIBUTION_ID"))
+        upload_file_to_s3(os.getenv("S3_CF_BUCKET"), f"{api_version}/da_conf.pkl", "da_conf.pkl", os.getenv("CF_DISTRIBUTION_ID"))
 
         ## Create master json
         json_creator = JSONCreation(os.getenv("S3_CF_BUCKET"), os.getenv("CF_DISTRIBUTION_ID"), db_connector, api_version)

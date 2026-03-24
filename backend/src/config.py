@@ -366,6 +366,23 @@ gtp_metrics_new = {
                 'log_default': False,
                 'hourly_available': False
             }
+            
+             ,'blob_size': {
+                'name': 'Blob Size',
+                'fundamental': False, ## not a fundamental metric
+                'metric_keys': ['blob_size_bytes'],
+                'units': {
+                    'value': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True, 'suffix': 'GB'}
+                },
+                'avg': True,
+                'all_l2s_aggregate': 'sum',
+                'monthly_agg': 'sum',
+                'max_date_fill' : False,
+                'ranking_bubble': False,
+                'ranking_landing': False,
+                'log_default': False,
+                'hourly_available': False
+            }
         },
         
         ## DA Layer Metrics
@@ -470,7 +487,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'sum',
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': True
             }
             ,'daa': {
                 'name': 'Active Addresses',
@@ -486,7 +504,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'maa',
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': True
             }
             ,'gas_fees': {
                 'name': 'Fees Paid',
@@ -503,7 +522,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'sum',
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': True
             }
             ,'success_rate': {
                 'name': 'Success Rate',
@@ -519,7 +539,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'avg',
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': True
             }
             ,'market_cap': {
                 'name': 'Market Cap',
@@ -536,7 +557,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'avg',
                 'max_date_fill' : False,
                 'source': ['coingecko'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': False
             }
             ,'token_volume': {
                 'name': 'Token Trading Volume',
@@ -553,7 +575,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'avg',
                 'max_date_fill' : False,
                 'source': ['coingecko'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': False
             }
             ,'token_price': {
                 'name': 'Token Price',
@@ -570,7 +593,8 @@ gtp_metrics_new = {
                 'monthly_agg': 'avg',
                 'max_date_fill' : False,
                 'source': ['coingecko'],
-                'hourly_available': False
+                'hourly_available': False,
+                'chain_specific': False
             }
         }
         
