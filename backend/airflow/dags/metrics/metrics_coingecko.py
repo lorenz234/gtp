@@ -42,6 +42,57 @@ def etl():
         df = ad.extract(load_params)
         # load
         ad.load(df)
+        
+    @task()
+    def run_apps():
+        from src.db_connector import DbConnector
+        db_connector = DbConnector()
+        from src.adapters.adapter_coingecko import AdapterCoingecko
+        import os
+
+        adapter_params = {
+            'api_key' : os.getenv("COINGECKO_API")
+        }
+
+        load_params = {
+            'load_type' : 'apps',
+            'granularity': 'daily',
+            'metric_keys' : ['price', 'volume', 'market_cap'],
+            'days' : 'auto',
+            'vs_currencies' : ['usd', 'eth'],
+            #'app_mapping' : None,
+        }
+
+        # initialize adapter
+        ad = AdapterCoingecko(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+        # load
+        ad.load(df)
+        
+    @task()
+    def run_coins_list():
+        from src.db_connector import DbConnector
+        db_connector = DbConnector()
+        from src.adapters.adapter_coingecko import AdapterCoingecko
+        import os
+
+        adapter_params = {
+            'api_key' : os.getenv("COINGECKO_API")
+        }
+
+        load_params = {
+            'load_type' : 'coins_list',
+        }
+
+        # initialize adapter
+        ad = AdapterCoingecko(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+        # load
+        ad.load(df)
     
     run_direct()
+    run_apps()
+    run_coins_list()
 etl()

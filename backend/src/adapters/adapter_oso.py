@@ -65,7 +65,7 @@ class AdapterOSO(AbstractAdapter):
                         df = pd.concat([df, df_temp], ignore_index=True)
 
         # prepare df_projects for inserting into our db table 'oli_oss_directory'
-        df = df[['name', 'display_name', 'description', 'github', 'websites', 'npm', 'social']]
+        df = df[['name', 'display_name', 'description', 'github', 'websites', 'npm', 'social', 'token_coingecko_api_id']]
         df['active'] = True # project is marked active because it is in the OSS directory
         df['source'] = 'OSS_DIRECTORY'
 
@@ -118,7 +118,7 @@ class AdapterOSO(AbstractAdapter):
     ## This function compares df_oss and df_db and adds a timestamp to rows in df_oss that have changed compared to df_db
     def add_timestamp_for_changes(self, df_oss, df_db):
         # Columns to check if data was updated (excluding 'name' which is the merge key)
-        CHECK_COLS = ['display_name', 'description', 'github', 'websites', 'npm', 'social', 'active', 'source']
+        CHECK_COLS = ['display_name', 'description', 'github', 'websites', 'npm', 'social', 'active', 'source', 'token_coingecko_api_id']
         df_oss_temp = df_oss.copy()
         df_db_temp = df_db.copy()
         df_oss_temp[CHECK_COLS] = df_oss_temp[CHECK_COLS].fillna("NAN")
