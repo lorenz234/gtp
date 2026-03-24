@@ -55,6 +55,11 @@ def etl():
                     'query_id': 6776075,
                     'params': {'days': 3}
                 },
+                {
+                    'name': 'arbitrum_timeboost_qb',
+                    'query_id': 5200169,
+                    'params': {'days': 3}
+                },
             ],
             'prepare_df': 'prepare_df_metric_daily',
             'load_type': 'fact_kpis'
