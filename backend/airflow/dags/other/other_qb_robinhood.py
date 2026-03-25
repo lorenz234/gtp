@@ -1,6 +1,6 @@
 from datetime import datetime,timedelta,timezone
 from airflow.sdk import dag, task
-from src.misc.airflow_utils import alert_via_webhook
+from src.misc.airflow_utils import alert_via_webhook, claude_fix_on_failure
 from airflow.operators.empty import EmptyOperator
 from airflow.utils.trigger_rule import TriggerRule
 
@@ -10,7 +10,7 @@ from airflow.utils.trigger_rule import TriggerRule
         'retries' : 1,
         'email_on_failure': False,
         'retry_delay' : timedelta(minutes=2),
-        'on_failure_callback': alert_via_webhook
+        'on_failure_callback': [alert_via_webhook, claude_fix_on_failure]
     },
     dag_id='other_qb_robinhood',
     description='Data for Robinhood stock tracker.',
