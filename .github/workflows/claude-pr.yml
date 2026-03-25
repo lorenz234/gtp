@@ -49,6 +49,8 @@ jobs:
       - name: Run Claude
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DUNE_API_KEY: ${{ secrets.DUNE_API }}
+          DISCORD_ALERTS: ${{ secrets.DISCORD_ALERTS }}
         run: |
           claude -p "${{ github.event.inputs.task }}" \
             --allowedTools "Read,Write,Edit,Bash(git add *),Bash(git diff *),Bash(npm *),Bash(python *)" \
@@ -66,12 +68,33 @@ jobs:
         run: git push origin ${{ steps.branch.outputs.branch }}
  
       - name: Open PR
+        id: pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr create \
+          PR_URL=$(gh pr create \
             --title "${{ github.event.inputs.pr_title }}" \
             --body "$(printf '> 🤖 Automated PR created by [growthepAI](https://github.com/growthepAI) via Claude Code.\n\n**Task prompt:**\n```\n${{ github.event.inputs.task }}\n```')" \
             --base ${{ github.event.inputs.base_branch }} \
-            --head ${{ steps.branch.outputs.branch }} \
-            --label ${{ github.event.inputs.labels }}
+            --head ${{ steps.branch.outputs.branch }})
+          # Apply labels if provided, creating them if they don't exist
+          if [ -n "${{ github.event.inputs.labels }}" ]; then
+            IFS=',' read -ra LABELS <<< "${{ github.event.inputs.labels }}"
+            for label in "${LABELS[@]}"; do
+              label=$(echo "$label" | xargs)
+              gh label create "$label" --force 2>/dev/null || true
+              gh pr edit "$PR_URL" --add-label "$label"
+            done
+          fi
+          echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+
+      - name: Notify Discord
+        env:
+          DISCORD_ALERTS: ${{ secrets.DISCORD_ALERTS }}
+          PR_TITLE: ${{ github.event.inputs.pr_title }}
+          PR_URL: ${{ steps.pr.outputs.pr_url }}
+        run: |
+          cd backend
+          pip install requests -q
+          export MSG=$(printf "🤖 growthepAI opened a new PR: **%s**\n%s" "$PR_TITLE" "$PR_URL")
+          python -c "import sys,os; sys.path.insert(0,'.'); from src.misc.helper_functions import send_discord_message; send_discord_message(os.environ['MSG'])"
