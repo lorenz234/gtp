@@ -471,8 +471,30 @@ def etl():
         db_connector = DbConnector()
         ad = AdapterDune(adapter_params, db_connector)
         df = ad.extract(load_params)
-        for i, row in df.iterrows():
+
+        if df.empty:
+            return
+
+        for _, row in df.iterrows():
             send_discord_message(f"<@790276642660548619> The economics mapping function for **{row.l2}** has changed. Details: settlement on {row.settlement_layer}, {row.no_of_trx} trx per day, from_address: {row.from_address}, to_address: {row.to_address}, method: {row.method}.", os.getenv('DISCORD_ALERTS'))
+
+        from src.claude import ClaudeAgent, ClaudeTask
+        agent = ClaudeAgent(repo='growthepie/gtp-dna', workflow='claude-pr.yml')
+
+        changed_chains = "\n".join(
+            f"- {row.l2}: settlement_layer={row.settlement_layer}, from_address={row.from_address}, to_address={row.to_address}, method={row.method}"
+            for _, row in df.iterrows()
+        )
+        task = ClaudeTask(
+            instruction=(
+                f"The following L2 chains might have updated their contracts on how they settle to L1. "
+                f"Update the economics mapping in `economics_da/economics_mapping.yml` for those chains.\n\n"
+                f"{changed_chains}"
+            ),
+            files_hint=["economics_da/economics_mapping.yml"],
+            pr_title=f"fix: update economics mapping for {', '.join(df['l2'].tolist())}",
+        )
+        agent.dispatch(task)
 
 
     run_fact_kpis()
