@@ -846,6 +846,58 @@ class DbConnector:
                                 connection.execute(text(exec_string))
                 print(f"HLL hashes on contract level for {chain} and {days} days loaded into fact_active_addresses_contract_hll.")
                
+        def aggregate_unique_addresses_contracts_hll_hourly(self, chain:str, hours:int, hours_end:int=None):   
+                if hours_end is None:
+                        hours_end_string = "DATE_TRUNC('hour', NOW())"
+                else:
+                        if hours_end > hours:
+                                raise ValueError("hours_end must be smaller than days * 24")
+                        hours_end_string = f"DATE_TRUNC('hour', NOW() - INTERVAL '{hours_end} hours')"
+                
+                
+                if chain in ['megaeth', 'polygon_pos', 'starknet', 'ronin']:
+                        exec_string= f'''
+                        INSERT INTO fact_active_addresses_contract_hourly_hll (address, origin_key, hour, hll_addresses)
+                                SELECT 
+                                        address,
+                                        origin_key,
+                                        hour,
+                                        hll_add_agg(hll_hash_bytea(from_address), 17,5,-1,1)        
+                                FROM fact_active_addresses_contract_hourly
+                                WHERE 
+                                        hour < {hours_end_string}
+                                        and hour >= DATE_TRUNC('hour', NOW() - INTERVAL '{hours} hours')
+                                        and origin_key = '{chain}'
+                                GROUP BY 1,2,3
+                        ON CONFLICT (address, origin_key, hour)
+                        DO UPDATE SET hll_addresses = EXCLUDED.hll_addresses;
+                        '''     
+                ## Having clause: not worth it to add addresses that where only called by one from_address (which is the case for 90% of to_addresses)
+                else:
+                        exec_string = f'''
+                                INSERT INTO fact_active_addresses_contract_hourly_hll (address, origin_key, hour, hll_addresses)
+                                        SELECT 
+                                                to_address as address,
+                                                '{chain}' as origin_key,
+                                                date_trunc('hour', block_timestamp) as hour,
+                                                hll_add_agg(hll_hash_bytea(from_address), 17,5,-1,1)        
+                                        FROM {chain}_tx
+                                        WHERE 
+                                                to_address is not null
+                                                AND block_timestamp < {hours_end_string}
+                                                AND block_timestamp >= DATE_TRUNC('hour', NOW() - INTERVAL '{hours} hours')
+                                        GROUP BY 1,2,3
+                                        HAVING COUNT(DISTINCT from_address) > 1
+                                ON CONFLICT (address, origin_key, hour)
+                                DO UPDATE SET hll_addresses = EXCLUDED.hll_addresses;
+                        '''
+
+                with self.engine.connect() as connection:
+                        with connection.begin():
+                                connection.execute(text(exec_string))
+                print(f"HLL hashes on contract level for {chain} and {hours} hours loaded into fact_active_addresses_contract_hourly_hll.")
+               
+        
         def get_total_supply_blocks(self, origin_key, days):
                 ## changed to Min instead of Max on July 29th, 2025 (to run it earlier in the day)
                 exec_string = f'''
@@ -1003,7 +1055,6 @@ class DbConnector:
                         with connection.begin():
                                 connection.execute(text(exec_string))
                 print(f"...data inserted successfully for {chain} and {hours} hours.")
-
         
         # This function is used to get the native_transfer daily aggregate per chain. The data will be loaded into fact_sub_category_level table        
         def get_blockspace_native_transfers(self, chain, days):
