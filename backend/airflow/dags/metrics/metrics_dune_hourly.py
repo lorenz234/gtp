@@ -279,8 +279,14 @@ def etl():
         db_connector.upsert_table('fact_active_addresses_contract_hourly', df_contract_aa)
         
     run_fundamentals_hourly()
+    
     run_starknet_contract_level_hourly()
+    run_starknet_contract_aa_hourly()
+    
     run_megaeth_contract_level_hourly()
+    run_megaeth_contract_aa_hourly()
+    
     run_polygon_pos_contract_level_hourly()
+    run_polygon_contract_aa_hourly()
     
 etl()

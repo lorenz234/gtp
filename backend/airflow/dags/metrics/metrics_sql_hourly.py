@@ -34,6 +34,19 @@ def etl():
                 db_connector.get_blockspace_contracts_hourly(chain.origin_key, hours)
                 
     @task()
+    def run_active_addresses_agg_hourly():
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_sql import AdapterSQL
+        
+        ad = AdapterSQL({}, DbConnector())
+        df = ad.extract({
+            "load_type": "active_addresses_agg_hourly",
+            "hours": 5,
+            "origin_keys": None,
+            "metric_keys": None,
+        })
+                
+    @task()
     def run_fundamentals_hourly():
         from src.db_connector import DbConnector
         db_connector = DbConnector()
@@ -94,5 +107,7 @@ def etl():
     run_fundamentals_hourly_dependent() >> run_eth_to_usd()        
     run_blockspace_hourly()
     run_fundamentals_hourly()
+    
+    run_active_addresses_agg_hourly()
 
 etl()
