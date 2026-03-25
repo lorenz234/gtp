@@ -95,6 +95,43 @@ def etl():
         ad.load(df)
         
     @task()
+    def run_starknet_contract_aa_hourly():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'starknet_aa',
+                    'query_id': 6905476,
+                    'params': {'hours': 3}
+                }
+            ],
+            'prepare_df': 'prepare_df_contract_level_aa_hourly',
+            'load_type': 'CUSTOM'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+
+        print(f"Loaded {df.shape[0]} rows for starknet active addresses on contract level.")
+
+        # prepare for fact_active_addresses_contract
+        df_contract_aa = df.copy()
+        df_contract_aa = df_contract_aa[df_contract_aa.address != '<nil>']
+
+        df_contract_aa['origin_key'] = 'starknet'
+        df_contract_aa.set_index(['address', 'hour', 'origin_key', 'from_address'], inplace=True)
+        db_connector.upsert_table('fact_active_addresses_contract_hourly', df_contract_aa)
+        
+    @task()
     def run_megaeth_contract_level_hourly():
         import os
         from src.db_connector import DbConnector
@@ -131,6 +168,43 @@ def etl():
         ad.load(df)
         
     @task()
+    def run_megaeth_contract_aa_hourly():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'megaeth_aa',
+                    'query_id': 6905371,
+                    'params': {'hours': 3}
+                }
+            ],
+            'prepare_df': 'prepare_df_contract_level_aa_hourly',
+            'load_type': 'CUSTOM'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+
+        print(f"Loaded {df.shape[0]} rows for megaeth active addresses on contract level.")
+
+        # prepare for fact_active_addresses_contract
+        df_contract_aa = df.copy()
+        df_contract_aa = df_contract_aa[df_contract_aa.address != '<nil>']
+
+        df_contract_aa['origin_key'] = 'megaeth'
+        df_contract_aa.set_index(['address', 'hour', 'origin_key', 'from_address'], inplace=True)
+        db_connector.upsert_table('fact_active_addresses_contract_hourly', df_contract_aa)
+        
+    @task()
     def run_polygon_pos_contract_level_hourly():
         import os
         from src.db_connector import DbConnector
@@ -165,6 +239,44 @@ def etl():
 
         # load
         ad.load(df)
+        
+    @task()
+    def run_polygon_contract_aa_hourly():
+        import os
+        from src.db_connector import DbConnector
+        from src.adapters.adapter_dune import AdapterDune
+
+        adapter_params = {
+            'api_key' : os.getenv("DUNE_API")
+        }
+        load_params = {
+            'queries': [
+                {
+                    'name': 'polygon_aa',
+
+                    'query_id': 6905433,
+                    'params': {'hours': 3}
+                }
+            ],
+            'prepare_df': 'prepare_df_contract_level_aa_hourly',
+            'load_type': 'CUSTOM'
+        }
+
+        # initialize adapter
+        db_connector = DbConnector()
+        ad = AdapterDune(adapter_params, db_connector)
+        # extract
+        df = ad.extract(load_params)
+
+        print(f"Loaded {df.shape[0]} rows for polygon active addresses on contract level.")
+
+        # prepare for fact_active_addresses_contract
+        df_contract_aa = df.copy()
+        df_contract_aa = df_contract_aa[df_contract_aa.address != '<nil>']
+
+        df_contract_aa['origin_key'] = 'polygon_pos'
+        df_contract_aa.set_index(['address', 'hour', 'origin_key', 'from_address'], inplace=True)
+        db_connector.upsert_table('fact_active_addresses_contract_hourly', df_contract_aa)
         
     run_fundamentals_hourly()
     run_starknet_contract_level_hourly()
