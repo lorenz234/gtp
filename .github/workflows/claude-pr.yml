@@ -94,7 +94,9 @@ jobs:
           PR_TITLE: ${{ github.event.inputs.pr_title }}
           PR_URL: ${{ steps.pr.outputs.pr_url }}
         run: |
-          cd backend
           pip install requests -q
-          export MSG=$(printf "🤖 growthepAI opened a new PR: **%s**\n%s" "$PR_TITLE" "$PR_URL")
-          python -c "import sys,os; sys.path.insert(0,'.'); from src.misc.helper_functions import send_discord_message; send_discord_message(os.environ['MSG'])"
+          python -c "
+          import os, requests
+          msg = '🤖 growthepAI opened a new PR: **{}**\n{}'.format(os.environ['PR_TITLE'], os.environ['PR_URL'])
+          requests.post(os.environ['DISCORD_ALERTS'], json={'content': msg})
+          "
