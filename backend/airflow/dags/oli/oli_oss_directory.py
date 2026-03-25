@@ -1,6 +1,6 @@
 from datetime import datetime,timedelta
 from airflow.sdk import dag, task
-from src.misc.airflow_utils import alert_via_webhook
+from src.misc.airflow_utils import alert_via_webhook, claude_fix_on_failure
 
 @dag(
     default_args={
@@ -8,7 +8,7 @@ from src.misc.airflow_utils import alert_via_webhook
         'retries' : 1,
         'email_on_failure': False,
         'retry_delay' : timedelta(minutes=1),
-        'on_failure_callback': lambda context: alert_via_webhook(context, user='lorenz')
+        'on_failure_callback': [alert_via_webhook, claude_fix_on_failure]
     },
     dag_id='oli_oss_directory',
     description='Loads project data from the OSS Directory API',
