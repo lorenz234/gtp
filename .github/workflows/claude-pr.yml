@@ -54,7 +54,7 @@ jobs:
         run: |
           claude -p "${{ github.event.inputs.task }}" \
             --allowedTools "Read,Write,Edit,Bash(git add *),Bash(git diff *),Bash(npm *),Bash(python *)" \
-            --output-format json
+            --output-format json > claude_output.json
  
       - name: Commit changes
         run: |
@@ -87,6 +87,14 @@ jobs:
             done
           fi
           echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ steps.pr.outputs.pr_url }}
+        run: |
+          COMMENT=$(jq -r '.result // "No summary available."' claude_output.json)
+          gh pr comment "$PR_URL" --body "$(printf '### 🤖 What I changed and why\n\n%s' "$COMMENT")"
 
       - name: Notify Discord
         env:
