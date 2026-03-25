@@ -1,5 +1,5 @@
 from src.adapters.abstract_adapters import AbstractAdapter
-from src.misc.helper_functions import upload_file_to_cf_s3
+from src.misc.helper_functions import upload_file_to_s3
 from src.misc.helper_functions import print_init
 import polars as pl
 import requests
@@ -132,10 +132,10 @@ class Adapter4Bytes(AbstractAdapter):
         if s3_bucket is None or cf_distribution_id is None:
             raise ValueError("S3_CF_BUCKET and CF_DISTRIBUTION_ID must be provided in load_params")
         # Upload to S3 & invalidate
-        upload_file_to_cf_s3(s3_bucket, s3_path_parquet, self.save_path_parquet, cf_distribution_id)
+        upload_file_to_s3(s3_bucket, s3_path_parquet, self.save_path_parquet, cf_distribution_id)
         print(f"Uploaded 4bytes.parquet to S3: {s3_path_parquet}")
         # Upload pickle file as well
-        upload_file_to_cf_s3(s3_bucket, s3_path_lookup, self.save_path_lookup, cf_distribution_id)
+        upload_file_to_s3(s3_bucket, s3_path_lookup, self.save_path_lookup, cf_distribution_id)
         print(f"Uploaded four_byte_lookup.pkl to S3: {s3_path_lookup}")
 
 

@@ -547,7 +547,8 @@ def etl():
         db_connector = DbConnector()
         materialized_views = [
             'vw_oli_label_pool_gold_v2',
-            'vw_oli_label_pool_gold_pivoted_v2'
+            'vw_oli_label_pool_gold_pivoted_v2',
+            'mv_verified_contracts'
         ]
         for view in materialized_views:
             db_connector.refresh_materialized_view(view)
