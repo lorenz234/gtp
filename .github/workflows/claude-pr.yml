@@ -106,5 +106,7 @@ jobs:
           python -c "
           import os, requests
           msg = '🤖 growthepAI opened a new PR: **{}**\n{}'.format(os.environ['PR_TITLE'], os.environ['PR_URL'])
-          requests.post(os.environ['DISCORD_ALERTS'], json={'content': msg})
+          r = requests.post(os.environ['DISCORD_ALERTS'], json={'content': msg})
+          print('Discord response:', r.status_code, r.text)
+          r.raise_for_status()
           "
