@@ -113,7 +113,7 @@ def get_archive_window_by_date(
         Query start date: either from override or min DB date (origin-specific)
     """
     today = datetime.now().date()
-    if table_name.endswith("_hourly"):
+    if table_name.endswith("_hourly") or table_name.endswith("_hourly_hll"):
         archival_date = today - timedelta(days=keep_postgres_days_hourly)
     else:
         archival_date = today - timedelta(days=keep_postgres_days)
@@ -214,7 +214,7 @@ def get_db_count_by_date(
     """
         Return count of rows in DB table between archival_date and query_start_date for origin_key.
     """
-    if table_name.endswith("_hourly"):
+    if table_name.endswith("_hourly") or table_name.endswith("_hourly_hll"):
         query = f""" 
         SELECT 
             COUNT(*)
@@ -314,7 +314,7 @@ def get_db_min_date_by_origin(
         Return None if no rows found.
         Why? To know from which date we can start comparing with BQ.
     """
-    if table_name.endswith("_hourly"):
+    if table_name.endswith("_hourly") or table_name.endswith("_hourly_hll"):
         query = f"""  
         SELECT  
             MIN(date_trunc('day', hour)::date) as date 
@@ -400,7 +400,7 @@ def delete_rows_by_date(
             origin_key,
         )
 
-        if table_name.endswith("_hourly"):
+        if table_name.endswith("_hourly") or table_name.endswith("_hourly_hll"):
             date_filter = f"date_trunc('day', hour) = '{current_date}'"
         else:
             date_filter = f"date = '{current_date}'"

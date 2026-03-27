@@ -373,7 +373,7 @@ class DbConnector:
                         ok_string = "AND tkd.origin_key in ('" + "', '".join(origin_keys) + "')"
                 
                 if incl_profit:
-                        profit_string = ",SUM(CASE WHEN metric_key = 'fees_paid_eth' THEN value END) - SUM(CASE WHEN metric_key in ('ethereum_blobs_eth', 'celestia_blobs_eth', 'cost_l1_raw_eth', 'l1_settlement_custom_eth') THEN value END) AS profit_eth"
+                        profit_string = ",SUM(CASE WHEN metric_key = 'fees_paid_eth' THEN value END) - SUM(CASE WHEN metric_key in ('ethereum_blobs_eth', 'celestia_blobs_eth', 'eigenda_blobs_eth', 'cost_l1_raw_eth', 'l1_settlement_custom_eth') THEN value END) AS profit_eth"
                 else:
                         profit_string = ''
 

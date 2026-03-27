@@ -132,7 +132,7 @@ def get_archive_dates(
     min_date_override: Optional[date] = None,
 ) -> List[date]:
     
-    if table_name.endswith("_hourly"):
+    if table_name.endswith("_hourly") or table_name.endswith("_hourly_hll"):
         query = f"""
             SELECT MIN(date_trunc('day', hour)) AS min_date
             FROM {table_name}
@@ -283,7 +283,7 @@ def archive_table_by_date(
     )
     db_connector = DbConnector()
 
-    if table_name.endswith("_hourly"):
+    if table_name.endswith("_hourly") or table_name.endswith("_hourly_hll"):
         archival_date = datetime.now().date() - timedelta(days=keep_postgres_days_hourly)
     else:
         archival_date = datetime.now().date() - timedelta(days=keep_postgres_days)
@@ -311,7 +311,7 @@ def archive_table_by_date(
         return
 
     for archive_date in dates:
-        if table_name.endswith("_hourly"):
+        if table_name.endswith("_hourly") or table_name.endswith("_hourly_hll"):
             query = f"""
                 SELECT *,  date_trunc('day', hour) AS date
                 FROM {table_name}
