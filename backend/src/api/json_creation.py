@@ -349,6 +349,57 @@ class JSONCreation():
         
         return mk_list_int, df_tmp.columns.to_list()
     
+    # this method returns a list of lists with the unix timestamp and all associated values for a certain metric_id and chain_id
+    def generate_hourly_list(self, df, metric_id, origin_key, start_date = None, metric_type='default'):
+        tmp_metrics_dict = self.get_metric_dict(metric_type)            
+
+        mks = tmp_metrics_dict[metric_id]['metric_keys']
+        df_tmp = df.loc[(df.origin_key==origin_key) & (df.metric_key.isin(mks)), ["unix", "value", "metric_key", "hour"]]
+
+        ## if start_date is not None, filter df_tmp date to only values after start date
+        if start_date is not None:
+            df_tmp = df_tmp.loc[(df_tmp.hour >= start_date), ["unix", "value", "metric_key", "hour"]]
+
+        expected_columns = ["unix"]
+        if 'usd' in tmp_metrics_dict[metric_id]['units'] or 'eth' in tmp_metrics_dict[metric_id]['units']:
+            expected_columns += ["usd", "eth"]
+        else:
+            expected_columns += ["value"]
+
+        if df_tmp.empty:
+            print(f"DataFrame is empty for metric_id {metric_id} and origin_key {origin_key}.")
+            return [], expected_columns
+
+        ## trim leading zeros
+        df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
+        df_tmp = (
+            df_tmp.groupby('metric_key', group_keys=True)
+                .apply(self.trim_leading_zeros)
+                .reset_index(level=0)
+                .reset_index(drop=True)
+        )
+
+        if 'metric_key' not in df_tmp.columns:
+            print(f"metric_key column is missing in df_tmp for metric_id {metric_id} and origin_key {origin_key}.")
+            return [], expected_columns
+
+        df_tmp.drop(columns=['hour'], inplace=True)
+        df_tmp = df_tmp.pivot(index='unix', columns='metric_key', values='value').reset_index()
+        df_tmp.sort_values(by=['unix'], inplace=True, ascending=True)
+        
+        df_tmp = self.df_rename(df_tmp, metric_id, tmp_metrics_dict, col_name_removal=True)
+
+        mk_list = df_tmp.values.tolist() ## creates a list of lists
+
+        if len(tmp_metrics_dict[metric_id]['units']) == 1:
+            mk_list_int = [[int(i[0]),i[1]] for i in mk_list] ## convert the first element of each list to int (unix timestamp)
+        elif len(tmp_metrics_dict[metric_id]['units']) == 2:
+            mk_list_int = [[int(i[0]),i[1], i[2]] for i in mk_list] ## convert the first element of each list to int (unix timestamp)
+        else:
+            raise NotImplementedError("Only 1 or 2 units are supported")
+        
+        return mk_list_int, df_tmp.columns.to_list()
+    
     # this method returns a list of lists with the unix timestamp (first day of month) and all associated values for a certain metric_id and chain_id
     def generate_monthly_list(self, df, metric_id, origin_key, start_date = None, metric_type='default'):
         tmp_metrics_dict = self.get_metric_dict(metric_type)   
@@ -2484,6 +2535,83 @@ class JSONCreation():
         
         return df
     
+    def load_app_data_hourly(self, owner_project:str, chains:list, incl_fact_apps:bool=True):
+        chains_str = ', '.join([f"'{chain}'" for chain in chains])
+
+        exec_string = f"""
+            with metrics_raw as (
+                SELECT 
+                    origin_key,
+                    hour, 
+                    SUM(txcount) as txcount,
+                    SUM(gas_fees_eth) AS fees_paid_eth,
+                    SUM(gas_fees_usd) AS fees_paid_usd,
+                    SUM(txcount * success_rate)/SUM(txcount) as success_rate
+                FROM blockspace_fact_contract_level_hourly AS fact
+                JOIN vw_oli_label_pool_gold_pivoted_v2 oli USING (address, origin_key)
+                LEFT JOIN oli_categories cat ON oli.usage_category = cat.category_id::text
+                WHERE 
+                    oli.owner_project = '{owner_project}'
+                AND fact.origin_key IN ({chains_str})
+                AND hour >= date_trunc('hour', now()) - interval '14 days'
+                GROUP BY 1,2
+            ),
+            
+            daa as (
+                SELECT 
+                    hour,
+                    origin_key,
+                    coalesce(hll_cardinality(hll_union_agg(hll_addresses))::int, 0) as daa
+                FROM public.fact_active_addresses_contract_hourly_hll fact
+                JOIN vw_oli_label_pool_gold_pivoted_v2 oli USING (address, origin_key)
+                WHERE 
+                    owner_project = '{owner_project}'
+                    AND fact.origin_key IN ({chains_str})	
+                    AND hour >= date_trunc('hour', now()) - interval '14 days'
+                group by 1,2
+            )
+
+            select 
+                r.*,
+                daa
+            from metrics_raw r
+            left join daa using (hour, origin_key)
+        """
+        with self.db_connector.engine.connect() as connection:
+            df = pd.read_sql(exec_string, connection)
+
+        ## date to datetime column in UTC
+        df['hour'] = pd.to_datetime(df['hour'], utc=True)
+
+        ## unpivot table to have one row per date, origin_key and metric_key
+        df = df.melt(id_vars=['origin_key', 'hour'], var_name='metric_key', value_name='value')
+        
+        # if incl_fact_apps:
+        #     ## get data from fact_apps for the app and merge with df
+        #     exec_string_fact_apps = f"""
+        #         SELECT 
+        #             origin_key,
+        #             date,
+        #             metric_key,
+        #             value
+        #         FROM fact_kpis_apps_granular
+        #         WHERE owner_project = '{owner_project}'
+        #             AND origin_key IN ('all', {chains_str})
+        #             AND date < current_date
+        #     """
+        #     with self.db_connector.engine.connect() as connection:
+        #         df_fact_apps = pd.read_sql(exec_string_fact_apps, connection)
+
+        #     df_fact_apps['date'] = pd.to_datetime(df_fact_apps['date']).dt.tz_localize('UTC')
+        #     df = pd.concat([df, df_fact_apps], ignore_index=True)
+
+        ## datetime to unix timestamp using timestamp() function
+        df['unix'] = df['hour'].apply(lambda x: x.timestamp() * 1000)
+        # fill NaN values with 0
+        df['value'] = df['value'].fillna(0)
+        
+        return df
+    
     def get_app_contracts(self, owner_project:str, chains:list, days:int):
         chains_str = ', '.join([f"'{chain}'" for chain in chains])
 
@@ -2653,6 +2781,8 @@ class JSONCreation():
 
     def create_app_details_json(self, project:str, timeframes, is_all=False):
         df = self.load_app_data(project, self.chains_list_in_api_apps)
+        df_hourly = self.load_app_data_hourly(project, self.chains_list_in_api_apps)
+        
         if len(df) > 0:
             df_first_seen = df.groupby('origin_key').agg({'date': 'min'}).copy()
             df_first_seen = df_first_seen.sort_values(by='date', ascending=True)
@@ -2685,15 +2815,26 @@ class JSONCreation():
                 for origin_key in chains_list:
                     ## check if origin_key is in df
                     if origin_key in df.origin_key.unique():
+                        app_dict['metrics'][metric]['over_time'][origin_key] = {
+                            'daily': {},
+                            'hourly': {}
+                        }                        
                         mk_list = self.generate_daily_list(df, metric, origin_key, metric_type='app')
                         mk_list_int = mk_list[0]
                         mk_list_columns = mk_list[1]
 
-                        app_dict['metrics'][metric]['over_time'][origin_key] = {
-                            'daily': {
-                                'types' : mk_list_columns,
-                                'data' : mk_list_int
-                            }
+                        app_dict['metrics'][metric]['over_time'][origin_key]['daily'] = {
+                            'types' : mk_list_columns,
+                            'data' : mk_list_int
+                        }
+                        
+                        mk_list = self.generate_hourly_list(df_hourly, metric, origin_key, metric_type='app')
+                        mk_list_int = mk_list[0]
+                        mk_list_columns = mk_list[1]
+
+                        app_dict['metrics'][metric]['over_time'][origin_key]['hourly'] = {
+                            'types' : mk_list_columns,
+                            'data' : mk_list_int
                         }
 
                         app_dict['metrics'][metric]['aggregated']['data'][origin_key] = {}
