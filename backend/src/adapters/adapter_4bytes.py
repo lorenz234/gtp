@@ -79,6 +79,9 @@ class Adapter4Bytes(AbstractAdapter):
                         'count': 1
                     })
             # Create DataFrames and aggregate
+            if not all_with_params:
+                print(f"No function signatures found in {f}, skipping.")
+                continue
             df_with_params = pl.DataFrame(all_with_params).group_by(['4byte', 'signature']).agg(pl.col('count').sum())
             # Save DataFrames to Parquet
             df_with_params = df_with_params.sort('count', descending=True)
@@ -143,7 +146,7 @@ class Adapter4Bytes(AbstractAdapter):
 
     def get_master_json(self):
         """Get the master.json from {provider} api endpoint"""
-        url = f"{self.base_url}/manifest.json"
+        url = f"{self.base_url}manifest.json"
         response = requests.get(url)
         
         if response.status_code == 200:
