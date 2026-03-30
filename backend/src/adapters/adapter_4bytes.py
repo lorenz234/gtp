@@ -27,13 +27,13 @@ class Adapter4Bytes(AbstractAdapter):
         sys_user = getpass.getuser()
         if sys_user == 'ubuntu':
             # we are in ec2 instance
-            self.save_path = f'/home/{sys_user}/gtp/{self.save_path}' if self.save_path[0] != '/' else self.save_path
+            self.save_path = f'/home/{sys_user}/gtp/{self.save_path}' if not self.save_path or self.save_path[0] != '/' else self.save_path
         else:
             # we are already in backend/ folder
             self.save_path = self.save_path.replace('backend/', '')
             
-        self.save_path_parquet = self.save_path + "/4bytes.parquet" if self.save_path[-1] != '/' else self.save_path + "4bytes.parquet"
-        self.save_path_lookup = self.save_path + "/four_byte_lookup.pkl" if self.save_path[-1] != '/' else self.save_path + "four_byte_lookup.pkl"
+        self.save_path_parquet = os.path.join(self.save_path, "4bytes.parquet") if self.save_path else "4bytes.parquet"
+        self.save_path_lookup = os.path.join(self.save_path, "four_byte_lookup.pkl") if self.save_path else "four_byte_lookup.pkl"
 
         # only two provider of smart contracts are available here: "sourcify" or "verifieralliance", default is "sourcify"
         self.provider = extract_params.get('provider', 'sourcify')
@@ -79,6 +79,9 @@ class Adapter4Bytes(AbstractAdapter):
                         'count': 1
                     })
             # Create DataFrames and aggregate
+            if not all_with_params:
+                print(f"No function signatures found in {f}, skipping.")
+                continue
             df_with_params = pl.DataFrame(all_with_params).group_by(['4byte', 'signature']).agg(pl.col('count').sum())
             # Save DataFrames to Parquet
             df_with_params = df_with_params.sort('count', descending=True)
@@ -143,7 +146,7 @@ class Adapter4Bytes(AbstractAdapter):
 
     def get_master_json(self):
         """Get the master.json from {provider} api endpoint"""
-        url = f"{self.base_url}/manifest.json"
+        url = f"{self.base_url}manifest.json"
         response = requests.get(url)
         
         if response.status_code == 200:

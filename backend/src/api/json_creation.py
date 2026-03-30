@@ -2782,6 +2782,9 @@ class JSONCreation():
     def create_app_details_json(self, project:str, timeframes, is_all=False):
         df = self.load_app_data(project, self.chains_list_in_api_apps)
         df_hourly = self.load_app_data_hourly(project, self.chains_list_in_api_apps)
+
+        df_txcount_30d = df[(df["metric_key"] == "txcount") & (df["date"] >= datetime.now(timezone.utc) - timedelta(days=30))]
+        origin_keys_ordered = df_txcount_30d.groupby('origin_key')['value'].sum().sort_values(ascending=False).index.tolist()
         
         if len(df) > 0:
             df_first_seen = df.groupby('origin_key').agg({'date': 'min'}).copy()
@@ -2792,7 +2795,8 @@ class JSONCreation():
 
             app_dict = {
                 'metrics': {},
-                'first_seen': df_first_seen_dict
+                'first_seen': df_first_seen_dict,
+                'chains_by_size': origin_keys_ordered
             }
 
             for metric in self.app_metrics:

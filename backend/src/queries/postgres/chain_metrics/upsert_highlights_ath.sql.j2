@@ -57,10 +57,11 @@ next_t AS (
     a.value,
     a.prior_max,
     (
-      SELECT MIN(tm.threshold)
+      SELECT MAX(tm.threshold)
       FROM thresholds_map tm
       WHERE tm.metric_key = a.metric_key
         AND tm.threshold > COALESCE(a.prior_max, -1e100)
+        AND tm.threshold <= a.value
     ) AS next_threshold
   FROM aths a
 )
