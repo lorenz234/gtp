@@ -27,13 +27,13 @@ class Adapter4Bytes(AbstractAdapter):
         sys_user = getpass.getuser()
         if sys_user == 'ubuntu':
             # we are in ec2 instance
-            self.save_path = f'/home/{sys_user}/gtp/{self.save_path}' if self.save_path[0] != '/' else self.save_path
+            self.save_path = f'/home/{sys_user}/gtp/{self.save_path}' if not self.save_path or self.save_path[0] != '/' else self.save_path
         else:
             # we are already in backend/ folder
             self.save_path = self.save_path.replace('backend/', '')
             
-        self.save_path_parquet = self.save_path + "/4bytes.parquet" if self.save_path[-1] != '/' else self.save_path + "4bytes.parquet"
-        self.save_path_lookup = self.save_path + "/four_byte_lookup.pkl" if self.save_path[-1] != '/' else self.save_path + "four_byte_lookup.pkl"
+        self.save_path_parquet = os.path.join(self.save_path, "4bytes.parquet") if self.save_path else "4bytes.parquet"
+        self.save_path_lookup = os.path.join(self.save_path, "four_byte_lookup.pkl") if self.save_path else "four_byte_lookup.pkl"
 
         # only two provider of smart contracts are available here: "sourcify" or "verifieralliance", default is "sourcify"
         self.provider = extract_params.get('provider', 'sourcify')
