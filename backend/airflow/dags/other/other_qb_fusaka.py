@@ -471,9 +471,9 @@ def run_dag():
                             )
                         )
                     AS BIGINT) * blob_gas_used / 1e18 as old_blob_fee_eth,
-                    -- 4-hour time bucket (14400 seconds)
+                    -- daily time bucket (86400 seconds)
                     to_timestamp(
-                        floor(extract(epoch FROM "timestamp") / 14400) * 14400
+                        floor(extract(epoch FROM "timestamp") / 86400) * 86400
                     ) AS ts_4h
                 FROM cum_gas_calc
             )

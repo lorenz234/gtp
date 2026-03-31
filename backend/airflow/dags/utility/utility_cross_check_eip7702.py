@@ -10,7 +10,7 @@ from src.misc.airflow_utils import alert_via_webhook
         'retry_delay': timedelta(minutes=5),
         'on_failure_callback': lambda context: alert_via_webhook(context, user='lorenz')
     },
-    dag_id='other_EIP7702_cross_check',
+    dag_id='utility_cross_check_eip7702',
     description='Cross-check EIP-7702 authorization_list for chains from Dune to our db',
     tags=['utility'],
     start_date=datetime(2025,9,16),
