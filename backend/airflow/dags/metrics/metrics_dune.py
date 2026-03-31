@@ -31,7 +31,7 @@ def etl():
         load_params = {
             'queries': [
                 {
-                    'name': 'economics_da',
+                    'name': 'economics_da', # blobs & calldata totals, blobs rent per chain, l1 rent per chain
                     'query_id': 4046209,
                     'params': {'days': 3}
                 },
@@ -72,35 +72,6 @@ def etl():
         df = ad.extract(load_params)
         # load
         ad.load(df)
-
-    # @task()
-    # def run_inscriptions():
-    #     import os
-    #     from src.db_connector import DbConnector
-    #     from src.adapters.adapter_dune import AdapterDune
-
-    #     adapter_params = {
-    #         'api_key' : os.getenv("DUNE_API")
-    #     }
-    #     load_params = {
-    #         'queries': [
-    #             {
-    #                 'name': 'inscriptions',
-    #                 'query_id': 3346613,
-    #                 'params': {'days': 1000}
-    #             }
-    #         ],
-    #         'prepare_df': 'prepare_df_incriptions',
-    #         'load_type': 'inscription_addresses'
-    #     }
-
-    #     # initialize adapter
-    #     db_connector = DbConnector()
-    #     ad = AdapterDune(adapter_params, db_connector)
-    #     # extract
-    #     df = ad.extract(load_params)
-    #     # load
-    #     ad.load(df)
     
     #######################
     ### MegaETH tasks
