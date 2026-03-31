@@ -89,13 +89,6 @@ rpc_config = {
         "sleeper": 5,
         "calc_fees": True,
     },
-    "swell": {
-        "name": "Swell",
-        "processors": "evm",
-        "stack": "op_stack",
-        "sleeper": 3,
-        "calc_fees": True,
-    },
     "towns": {
         "name": "Towns",
         "processors": "evm",
@@ -206,19 +199,11 @@ rpc_config = {
         "sleeper": 6,
         "calc_fees": True,
     },
-    
     "manta": {
         "name": "Manta Pacific",
         "processors": "evm",
         "sleeper": 3,
         "calc_fees": False,
-    },
-    
-    "zircuit": {
-        "name": "Zircuit",
-        "processors": "evm",
-        "sleeper": 3,
-        "calc_fees": True,
     },
     
     "jovay": {
