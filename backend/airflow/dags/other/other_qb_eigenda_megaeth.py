@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description="Quick Bite on EigenDA & MegaETH blob throughput",
     tags=["other"],
     start_date=datetime(2026, 3, 31),
-    schedule="52 6 * * *",  # At 06:52 every day
+    schedule="52 6 * * *",  # At 06:52 every day, needs to run after metrics_eigenda
 )
 def run_dag():
 
