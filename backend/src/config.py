@@ -478,6 +478,7 @@ gtp_metrics_new = {
                 'icon': 'metrics-transaction-count',
                 'category': 'activity',
                 'fundamental': True,
+                'description': 'Number of transactions sent to contracts that are mapped to the application.',
                 'metric_keys': ['txcount'],
                 'units': {
                     'value': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}
@@ -488,13 +489,15 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
                 'hourly_available': False,
-                'chain_specific': True
+                'chain_specific': True,
+                'toggles': ['absolute', 'stacked', 'percentage']
             }
             ,'daa': {
                 'name': 'Active Addresses',
                 'icon': 'metrics-activeaddresses',
                 'category': 'activity',
                 'fundamental': True,
+                'description': 'Number of unique addresses that have interacted with the application.',
                 'metric_keys': ['daa'],
                 'units': {
                     'value': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': False}
@@ -505,13 +508,15 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
                 'hourly_available': False,
-                'chain_specific': True
+                'chain_specific': True,
+                'toggles': ['absolute', 'stacked', 'percentage']
             }
             ,'gas_fees': {
                 'name': 'Fees Paid',
                 'icon': 'metrics-revenue',
                 'category': 'activity',
                 'fundamental': True,
+                'description': 'Gas fees paid by users interacting with the application contracts.',
                 'metric_keys': ['fees_paid_usd', 'fees_paid_eth'],
                 'units': {
                     'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}, 
@@ -523,13 +528,15 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
                 'hourly_available': False,
-                'chain_specific': True
+                'chain_specific': True,
+                'toggles': ['absolute', 'stacked', 'percentage']
             }
             ,'success_rate': {
                 'name': 'Success Rate',
                 'icon': 'rank',
                 'category': 'activity',
                 'fundamental': False,
+                'description': 'Percentage of transactions to the application that were successful.',
                 'metric_keys': ['success_rate'],
                 'units': {
                     'value': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': False}
@@ -540,13 +547,15 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'source': ['RPC', 'OLI'],
                 'hourly_available': False,
-                'chain_specific': True
+                'chain_specific': True,
+                'toggles': ['absolute']
             }
             ,'market_cap': {
                 'name': 'Market Cap',
                 'icon': 'metrics-marketcap',
                 'category': 'market',
                 'fundamental': False,
+                'description': 'Market capitalization of the application token.',
                 'metric_keys': ['market_cap_usd', 'market_cap_eth'],
                 'units': {
                     'usd': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': True}, 
@@ -558,13 +567,15 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'source': ['coingecko'],
                 'hourly_available': False,
-                'chain_specific': False
+                'chain_specific': False,
+                'toggles': ['absolute', 'stacked', 'percentage']
             }
             ,'token_volume': {
                 'name': 'Token Trading Volume',
                 'icon': 'tokentransfers',
                 'category': 'market',
                 'fundamental': False,
+                'description': 'Trading volume of the application token.',
                 'metric_keys': ['volume_usd', 'volume_eth'],
                 'units': {
                     'usd': {'decimals': 0, 'decimals_tooltip': 0, 'agg_tooltip': True}, 
@@ -576,13 +587,15 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'source': ['coingecko'],
                 'hourly_available': False,
-                'chain_specific': False
+                'chain_specific': False,
+                'toggles': ['absolute', 'stacked', 'percentage']
             }
             ,'token_price': {
                 'name': 'Token Price',
                 'icon': 'monitor',
                 'category': 'market',
                 'fundamental': False,
+                'description': 'Price of the application token.',
                 'metric_keys': ['price_usd', 'price_eth'],
                 'units': {
                     'usd': {'decimals': 2, 'decimals_tooltip': 2, 'agg_tooltip': True}, 
@@ -594,7 +607,8 @@ gtp_metrics_new = {
                 'max_date_fill' : False,
                 'source': ['coingecko'],
                 'hourly_available': False,
-                'chain_specific': False
+                'chain_specific': False,
+                'toggles': ['absolute']
             }
         }
         

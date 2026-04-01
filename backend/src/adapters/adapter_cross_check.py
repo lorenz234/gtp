@@ -144,6 +144,8 @@ class AdapterCrossCheck(AbstractAdapter):
                 threshold = 0.6
             elif row['origin_key'] in ['arbitrum_nova']:
                 threshold = 0.12 # 12% discrepancy allowed because comp dataset is weird
+            elif row['origin_key'] in ['megaeth']:
+                threshold = 0.05 # 5% discrepancy allowed because comp dataset is weird
             else:
                 threshold = 0.03 ## max 3% discrepancy
 
