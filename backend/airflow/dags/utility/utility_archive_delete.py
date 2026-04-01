@@ -236,11 +236,11 @@ def get_db_count_by_date(
         result = connection.execute(text(query))
         return int(result.scalar() or 0)
 
-
 def get_bq_max_block(
     client: bigquery.Client,
     table_name: str,
     archival_date: datetime.date,
+    query_start_date: datetime.date,
 ) -> Optional[int]:
     """
         Return max block number in BQ table up to archival_date.
@@ -253,6 +253,7 @@ def get_bq_max_block(
         MAX(block_number) AS max_block
     FROM `growthepie.gtp_archive.{table_name}` 
     WHERE date <= '{archival_date}'
+      AND date >= '{query_start_date}'
     """
     try:
         results = client.query(query).result()
@@ -462,7 +463,7 @@ def run_check_and_delete(
         send_discord_message(message)
         return
 
-    max_block = get_bq_max_block(bq_client, table_name, archival_date)
+    max_block = get_bq_max_block(bq_client, table_name, archival_date, query_start_date)
     if max_block is None:
         logger.info("No max block found for %s; skipping deletion.", table_name)
         return
