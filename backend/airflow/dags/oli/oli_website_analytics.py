@@ -31,13 +31,13 @@ def main():
         import os
         s3_bucket = os.getenv("S3_CF_BUCKET")
         cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
-        db_connector = DbConnector()
+        db_connector_oli = DbConnector('oli')
 
 
         ### Attester analytics
         # get all attesters
         query_parameters = {}
-        df = execute_jinja_query(db_connector, "oli/analytics_all_attesters.sql.j2", query_parameters, return_df=True)
+        df = execute_jinja_query(db_connector_oli, "oli/analytics_all_attesters.sql.j2", query_parameters, return_df=True)
         # get timestamp of 2 days ago
         threshold_time = datetime.now().astimezone() - timedelta(days=2)
         # Now compare datetime to datetime
@@ -46,9 +46,9 @@ def main():
         # iterate over each attester in df and create custom json file for each attester
         for i, row in df.iterrows():
             query_parameters = {"attester": row['attester']}
-            df_att = execute_jinja_query(db_connector, "oli/analytics_count_by_attester.sql.j2", query_parameters, return_df=True)
+            df_att = execute_jinja_query(db_connector_oli, "oli/analytics_count_by_attester.sql.j2", query_parameters, return_df=True)
             query_parameters = {"attester": row['attester'], "take": 25}
-            df_att_latest = execute_jinja_query(db_connector, "oli/analytics_latest_by_attester.sql.j2", query_parameters, return_df=True)
+            df_att_latest = execute_jinja_query(db_connector_oli, "oli/analytics_latest_by_attester.sql.j2", query_parameters, return_df=True)
             # turn time_created into unix timestamp
             df_att_latest['time_created'] = df_att_latest['time_created'].apply(lambda x: int(x.timestamp()) if x is not None else None)
             data_dict = {
@@ -88,7 +88,7 @@ def main():
 
         ### Totals by chain & tag id
         query_parameters = {}
-        df_totals = execute_jinja_query(db_connector, "oli/analytics_count_chain_tag_id.sql.j2", query_parameters, return_df=True)
+        df_totals = execute_jinja_query(db_connector_oli, "oli/analytics_count_chain_tag_id.sql.j2", query_parameters, return_df=True)
         data_dict = {
             "data": {
                 "timestamp": int(datetime.now().timestamp()),
@@ -111,7 +111,7 @@ def main():
 
         ### Totals overall
         query_parameters = {}
-        df_totals = execute_jinja_query(db_connector, "oli/analytics_totals.j2", query_parameters, return_df=True)
+        df_totals = execute_jinja_query(db_connector_oli, "oli/analytics_totals.j2", query_parameters, return_df=True)
         data_dict = {
             "data": {
                 "timestamp": int(datetime.now().timestamp()),
