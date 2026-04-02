@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from airflow.sdk import dag, task
 from src.misc.airflow_utils import alert_via_webhook
 
+# INFO: for ipfs we use the platform "filebase" (console.filebase.com)
+
 NUM_WORKERS = 5  # number of parallel Airflow tasks
 
 @dag(
