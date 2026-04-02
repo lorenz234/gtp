@@ -68,11 +68,20 @@ class AdapterDune(AbstractAdapter):
 
                 query_date = None
                 if prep_df == 'prepare_df_contract_level_aa_daily':
-                    query_params = getattr(query, 'params', []) or []
-                    query_date = next(
-                        (param.value for param in query_params if getattr(param, 'name', None) == 'date'),
-                        None,
-                    )
+                    if hasattr(query, 'parameters'):
+                        query_params = query.parameters()
+                    else:
+                        query_params = getattr(query, 'params', []) or []
+
+                    if isinstance(query_params, dict):
+                        query_date = query_params.get('date')
+                    else:
+                        query_date = next(
+                            (param.value for param in query_params if getattr(param, 'key', None) == 'date'),
+                            None,
+                        )
+
+                    print(f"Extracted query_date {query_date} for {query.name} to prepare contract level active addresses daily dataframe.")
 
                 if query_date is not None:
                     df = prepare_df(df, query_date)
