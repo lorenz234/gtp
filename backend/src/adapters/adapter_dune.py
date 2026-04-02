@@ -58,8 +58,18 @@ class AdapterDune(AbstractAdapter):
             
             # Prepare df if set in load_params
             prep_df = self.load_params.get('prepare_df')
-            if prep_df != None:
-                df = eval(f"self.{prep_df}(df)")
+            if prep_df is not None:
+                if not isinstance(prep_df, str) or not prep_df.startswith('prepare_'):
+                    raise ValueError(f"Invalid prepare_df method name: {prep_df}")
+
+                prepare_df = getattr(self, prep_df, None)
+                if not callable(prepare_df):
+                    raise AttributeError(f"prepare_df method not found: {prep_df}")
+
+                if prep_df == 'prepare_df_contract_level_aa_daily' and 'date' in query.params:
+                    df = prepare_df(df, query.params['date'].value)
+                else:
+                    df = prepare_df(df)
             
             # Concatenate dataframes into one
             df_main = pd.concat([df_main, df])
