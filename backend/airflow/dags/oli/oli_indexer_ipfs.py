@@ -32,17 +32,17 @@ def main():
         from src.db_connector import DbConnector
 
         db_connector = DbConnector(db_name='oli')
-        query = """
-            SELECT uid, table_name
+        query = f"""
+            SELECT uid, raw, schema_info, table_name
             FROM (
-                SELECT uid, time, 'attestations' AS table_name
+                SELECT uid, time, raw, schema_info, ipfs_hash, 'attestations' AS table_name
                 FROM public.attestations
-                WHERE is_offchain = true AND (ipfs_hash IS NULL OR ipfs_hash = '')
                 UNION ALL
-                SELECT uid, time, 'trust_lists' AS table_name
+                SELECT uid, time, raw, schema_info, ipfs_hash, 'trust_lists' AS table_name
                 FROM trust_lists
-                WHERE is_offchain = true AND (ipfs_hash IS NULL OR ipfs_hash = '')
             ) AS combined_tables
+            WHERE is_offchain = true
+                AND (ipfs_hash IS NULL OR ipfs_hash = '')
             ORDER BY time
             LIMIT {MAX_RECORDS}
         """
@@ -53,11 +53,10 @@ def main():
             return [[] for _ in range(NUM_WORKERS)]
 
         df['uid'] = df['uid'].apply(lambda x: '0x' + x.hex())
-        records = df[['uid', 'table_name']].to_dict('records')
+        records = df[['uid', 'raw', 'schema_info', 'table_name']].to_dict('records')
 
-        # Split evenly across workers
         chunks = [records[i::NUM_WORKERS] for i in range(NUM_WORKERS)]
-        print(f'Fetched {len(records)} / {MAX_RECORDS} estimated-capacity records, split across {NUM_WORKERS} workers')
+        print(f'Fetched {len(records)} / {MAX_RECORDS} records, split across {NUM_WORKERS} workers')
         return chunks
 
     @task()
@@ -75,7 +74,6 @@ def main():
         bucket = 'oli-offchain-attestations'
         start_time = time.time()
 
-        # Process in batches of BATCH_SIZE (~1 min each), upsert after each batch
         for batch_start in range(0, len(chunk), BATCH_SIZE):
             if time.time() - start_time >= MAX_RUNTIME:
                 print('60 min reached, stopping.')
@@ -83,24 +81,6 @@ def main():
 
             batch = chunk[batch_start:batch_start + BATCH_SIZE]
 
-            # Fetch full data for this batch
-            uids_by_table: dict[str, list[str]] = {}
-            for record in batch:
-                uids_by_table.setdefault(record['table_name'], []).append(record['uid'])
-
-            rows_to_process = []
-            for table_name, uids in uids_by_table.items():
-                uid_array = ', '.join(f"decode('{uid[2:]}', 'hex')" for uid in uids)
-                query = f"""
-                    SELECT uid, raw, schema_info, '{table_name}' AS table_name
-                    FROM public.{table_name}
-                    WHERE uid = ANY(ARRAY[{uid_array}]::bytea[])
-                """
-                df = db_connector.execute_query(query, load_df=True)
-                df['uid'] = df['uid'].apply(lambda x: '0x' + x.hex())
-                rows_to_process.extend(df.to_dict('records'))
-
-            # Upload concurrently
             def upload_row(row):
                 path_name = f'{row["table_name"]}/{row["schema_info"]}/{row["uid"]}.json'
                 cid = upload_json_to_filebase_ipfs(bucket, path_name, row['raw'])
@@ -108,14 +88,13 @@ def main():
 
             results = []
             with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-                futures = {executor.submit(upload_row, row): row for row in rows_to_process}
+                futures = {executor.submit(upload_row, row): row for row in batch}
                 for future in concurrent.futures.as_completed(futures):
                     try:
                         results.append(future.result())
                     except Exception as e:
                         print(f'Upload error: {e}')
 
-            # Upsert to DB
             if results:
                 results_by_table: dict[str, list] = {}
                 for result in results:
