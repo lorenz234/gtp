@@ -31,7 +31,7 @@ def main():
         import os
         s3_bucket = os.getenv("S3_CF_BUCKET")
         cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
-        db_connector_oli = DbConnector('oli')
+        db_connector_oli = DbConnector(db_name='oli')
 
 
         ### Attester analytics
