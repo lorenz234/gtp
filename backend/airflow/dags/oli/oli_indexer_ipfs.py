@@ -16,7 +16,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Uploads offchain OLI attestations to IPFS and updates the database with the IPFS hashes',
     tags=['oli'],
     start_date=datetime(2025, 10, 27),
-    schedule='*/30 * * * *',  # Runs every 30 minutes
+    schedule='0 * * * *',  # Runs every hour
     catchup=False  # Prevents backfilling
 )
 
@@ -127,7 +127,7 @@ def main():
                     print(f'Updated {len(table_results)} rows in table {table_name}')
 
             ## break the loop if time reached ##
-            if start_time + (29 * 60) < time.time():  # 29 minutes
+            if time.time() - start_time >= 59 * 60:  # 59 minutes
                 print("⏰ Approaching task timeout, exiting loop to allow for graceful restart.")
                 break
 
