@@ -44,9 +44,9 @@ def main():
                 WHERE is_offchain = true AND (ipfs_hash IS NULL OR ipfs_hash = '')
             ) AS combined_tables
             ORDER BY time
-            LIMIT %(limit)s
+            LIMIT {MAX_RECORDS}
         """
-        df = db_connector.execute_query(query, params={'limit': MAX_RECORDS}, load_df=True)
+        df = db_connector.execute_query(query, load_df=True)
 
         if df.empty:
             print('No pending records.')
