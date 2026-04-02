@@ -66,8 +66,16 @@ class AdapterDune(AbstractAdapter):
                 if not callable(prepare_df):
                     raise AttributeError(f"prepare_df method not found: {prep_df}")
 
-                if prep_df == 'prepare_df_contract_level_aa_daily' and 'date' in query.params:
-                    df = prepare_df(df, query.params['date'].value)
+                query_date = None
+                if prep_df == 'prepare_df_contract_level_aa_daily':
+                    query_params = getattr(query, 'params', []) or []
+                    query_date = next(
+                        (param.value for param in query_params if getattr(param, 'name', None) == 'date'),
+                        None,
+                    )
+
+                if query_date is not None:
+                    df = prepare_df(df, query_date)
                 else:
                     df = prepare_df(df)
             
