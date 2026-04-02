@@ -116,7 +116,7 @@ class AdapterDune(AbstractAdapter):
         df = df.set_index(['metric_key', 'origin_key', 'timestamp', 'granularity'])
         return df
     
-    def prepare_df_contract_level_aa_daily(self, df):
+    def prepare_df_contract_level_aa_daily(self, df, query_date:str=None):
         print(f"Preparing df with {df.shape[0]} (compact) rows for contract level active addresses daily...")
         
         # 1) parse "[0x.. 0x..]" -> ["0x..", "0x.."]
@@ -141,8 +141,13 @@ class AdapterDune(AbstractAdapter):
         
         print(f"Exploded to {df.shape[0]} rows for contract level active addresses daily...")
 
-        # 3) rename column, format address
-        df = df.rename(columns={"day": "date"})
+        # 3) check if day column is present, if yes rename to date. If not, create date column with query_date
+        if 'day' in df.columns:
+            df = df.rename(columns={"day": "date"})
+        else:
+            df['date'] = query_date
+
+        # 4) rename column, format address
         df['address'] = df['address'].str.replace('0x', '\\x', regex=False)
         df['from_address'] = df['from_address'].str.replace('0x', '\\x', regex=False)
         return df
