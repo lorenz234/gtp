@@ -3,10 +3,11 @@ from airflow.sdk import dag, task
 from src.misc.airflow_utils import alert_via_webhook
 
 # Define the DAG and task using decorators
+# for ipfs we use the platform "filebase"
 @dag(
     default_args={
         'owner': 'lorenz',
-        'retries': 2,
+        'retries': 1,
         'email_on_failure': False,
         'retry_delay': timedelta(minutes=5),
         'on_failure_callback': lambda context: alert_via_webhook(context, user='lorenz')
@@ -15,7 +16,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description='Uploads offchain OLI attestations to IPFS and updates the database with the IPFS hashes',
     tags=['oli'],
     start_date=datetime(2025, 10, 27),
-    schedule='*/30 * * * *',  # Runs every 30 minutes
+    schedule='0 * * * *',  # Runs every hour
     catchup=False  # Prevents backfilling
 )
 
@@ -31,10 +32,10 @@ def main():
 
         db_connector = DbConnector(db_name='oli')
 
-        while True:
+        ## track time ##
+        start_time = time.time()
 
-            ## track time ##
-            start_time = time.time()
+        while True:
 
             ## fetch data to upload ##
             query_select = """
@@ -126,7 +127,7 @@ def main():
                     print(f'Updated {len(table_results)} rows in table {table_name}')
 
             ## break the loop if time reached ##
-            if start_time + (29 * 60) < time.time():  # 29 minutes
+            if time.time() - start_time >= 59 * 60:  # 59 minutes
                 print("⏰ Approaching task timeout, exiting loop to allow for graceful restart.")
                 break
 
