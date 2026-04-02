@@ -3,10 +3,11 @@ from airflow.sdk import dag, task
 from src.misc.airflow_utils import alert_via_webhook
 
 # Define the DAG and task using decorators
+# for ipfs we use the platform "filebase"
 @dag(
     default_args={
         'owner': 'lorenz',
-        'retries': 2,
+        'retries': 1,
         'email_on_failure': False,
         'retry_delay': timedelta(minutes=5),
         'on_failure_callback': lambda context: alert_via_webhook(context, user='lorenz')
@@ -31,10 +32,10 @@ def main():
 
         db_connector = DbConnector(db_name='oli')
 
-        while True:
+        ## track time ##
+        start_time = time.time()
 
-            ## track time ##
-            start_time = time.time()
+        while True:
 
             ## fetch data to upload ##
             query_select = """
