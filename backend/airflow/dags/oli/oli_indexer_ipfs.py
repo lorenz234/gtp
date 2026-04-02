@@ -35,14 +35,14 @@ def main():
         query = f"""
             SELECT uid, raw, schema_info, table_name
             FROM (
-                SELECT uid, time, raw, schema_info, ipfs_hash, 'attestations' AS table_name
+                SELECT uid, time, raw, schema_info, 'attestations' AS table_name
                 FROM public.attestations
+                WHERE is_offchain = true AND (ipfs_hash IS NULL OR ipfs_hash = '')
                 UNION ALL
-                SELECT uid, time, raw, schema_info, ipfs_hash, 'trust_lists' AS table_name
+                SELECT uid, time, raw, schema_info, 'trust_lists' AS table_name
                 FROM trust_lists
+                WHERE is_offchain = true AND (ipfs_hash IS NULL OR ipfs_hash = '')
             ) AS combined_tables
-            WHERE is_offchain = true
-                AND (ipfs_hash IS NULL OR ipfs_hash = '')
             ORDER BY time
             LIMIT {MAX_RECORDS}
         """
