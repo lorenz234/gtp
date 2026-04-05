@@ -64,11 +64,22 @@ jobs:
           # Only commit if there are actual changes
           git diff --staged --quiet || git commit -m "${{ github.event.inputs.pr_title }}"
  
+      - name: Check for changes
+        id: changes
+        run: |
+          if git log ${{ github.event.inputs.base_branch }}..${{ steps.branch.outputs.branch }} --oneline | grep -q .; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Push branch
+        if: steps.changes.outputs.has_changes == 'true'
         run: git push origin ${{ steps.branch.outputs.branch }}
- 
+
       - name: Open PR
         id: pr
+        if: steps.changes.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -89,6 +100,7 @@ jobs:
           echo "pr_url=$PR_URL" >> $GITHUB_OUTPUT
 
       - name: Comment on PR
+        if: steps.changes.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ steps.pr.outputs.pr_url }}
@@ -96,7 +108,8 @@ jobs:
           COMMENT=$(jq -r '.result // "No summary available."' claude_output.json)
           gh pr comment "$PR_URL" --body "$(printf '### 🤖 What I changed and why\n\n%s' "$COMMENT")"
 
-      - name: Notify Discord
+      - name: Notify Discord (PR created)
+        if: steps.changes.outputs.has_changes == 'true'
         env:
           DISCORD_ALERTS: ${{ secrets.DISCORD_ALERTS }}
           PR_TITLE: ${{ github.event.inputs.pr_title }}
@@ -106,6 +119,27 @@ jobs:
           python -c "
           import os, requests
           msg = '🤖 growthepAI opened a new PR: **{}**\n{}'.format(os.environ['PR_TITLE'], os.environ['PR_URL'])
+          r = requests.post(os.environ['DISCORD_ALERTS'], json={'content': msg})
+          print('Discord response:', r.status_code, r.text)
+          r.raise_for_status()
+          "
+
+      - name: Notify Discord (no changes)
+        if: steps.changes.outputs.has_changes == 'false'
+        env:
+          DISCORD_ALERTS: ${{ secrets.DISCORD_ALERTS }}
+          PR_TITLE: ${{ github.event.inputs.pr_title }}
+        run: |
+          pip install requests -q
+          python -c "
+          import os, requests, json
+          summary = 'No summary available.'
+          try:
+            with open('claude_output.json') as f:
+              summary = json.load(f).get('result') or summary
+          except Exception:
+            pass
+          msg = '⚠️ growthepAI found no changes to commit for task: **{}**\n\n**Claude summary:**\n{}'.format(os.environ['PR_TITLE'], summary)
           r = requests.post(os.environ['DISCORD_ALERTS'], json={'content': msg})
           print('Discord response:', r.status_code, r.text)
           r.raise_for_status()
