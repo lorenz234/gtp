@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 from airflow.sdk import dag, task
 from src.misc.airflow_utils import alert_via_webhook
 from src.db_connector import DbConnector
-db_connector = DbConnector()
 from src.main_config import get_main_config
 ## DAG Configuration Variables
 # batch_size: Number of blocks to process in a single task run
@@ -46,7 +45,8 @@ def backfiller_dag():
             continue  # skip zkevm as it contains many empty blocks and is slow to backfill
         
         @task(task_id=f'new_backfill_{chain}', execution_timeout=timedelta(minutes=90))
-        def run_backfill_task(chain_name, db_connector, backfill_start_date, backfill_end_date, batch_size):
+        def run_backfill_task(chain_name, backfill_start_date, backfill_end_date, batch_size):
+            db_connector = DbConnector()
             active_rpc_configs, batch_size = get_chain_config(db_connector, chain_name)
             w3 = None
 
@@ -78,11 +78,10 @@ def backfiller_dag():
                 raise
 
         batch_size = settings['batch_size']
-        db_connector = DbConnector()
 
         start_date = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
         end_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
 
-        run_backfill_task(chain_name=chain, db_connector=db_connector, backfill_start_date=start_date, backfill_end_date=end_date, batch_size=batch_size)
+        run_backfill_task(chain_name=chain, backfill_start_date=start_date, backfill_end_date=end_date, batch_size=batch_size)
 
 backfiller_dag_instance = backfiller_dag()
