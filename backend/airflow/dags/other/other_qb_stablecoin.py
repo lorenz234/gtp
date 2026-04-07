@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook
     description="",
     tags=["other"],
     start_date=datetime(2026, 1, 22),
-    schedule="21 2 * * *",  # Every day at 2:21 AM
+    schedule="21 2 * * *",  # Every day at 2:21 AM, needs to run after metrics_stables_v2
 )
 def run_dag():
 
@@ -234,6 +234,169 @@ def run_dag():
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/stablecoins/dropdown-projects', dict_proj_dropdown, cf_distribution_id, invalidate=False)
 
     @task
+    def create_jsons_fiat_qb():
+        from src.misc.jinja_helper import execute_jinja_query
+        from src.db_connector import DbConnector
+        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
+        import pandas as pd
+        import os
+
+        db_connector = DbConnector()
+        s3_bucket = os.getenv("S3_CF_BUCKET")
+        cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
+
+        df_stables_meta = db_connector.get_table("sys_stables_v2")
+        token_color_map = df_stables_meta.set_index('token_id')['color_hex'].to_dict()
+        token_symbol_map = df_stables_meta.set_index('token_id')['symbol'].to_dict()
+
+        ### overall fiat timeseries (single query — all fiats, total value by date)
+        df_total = execute_jinja_query(db_connector, "api/quick_bites/stables_fiat_total_timeseries.sql.j2", {}, True)
+
+        dt_total = pd.to_datetime(df_total['date'], errors="raise", utc=True)
+        df_total['unix_timestamp'] = (
+            (dt_total - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta("1ms")
+        ).astype("int64")
+
+        fiat_list_total = sorted(df_total['fiat'].unique().tolist())
+
+        # Deterministic colors for each fiat derived from its uppercase key
+        def _fiat_color(fiat_code: str) -> str:
+            import hashlib
+            h = int(hashlib.md5(fiat_code.upper().encode()).hexdigest(), 16)
+            return "#{:06X}".format(h & 0xFFFFFF)
+
+        fiat_colors_total = [_fiat_color(f) for f in fiat_list_total]
+
+        pivot_total = (
+            df_total
+            .pivot_table(index='unix_timestamp', columns='fiat', values='total_value_usd', aggfunc='first')
+            .reindex(columns=fiat_list_total)
+            .sort_index()
+        )
+        pivot_total = pivot_total.mask(pivot_total == 0)
+        values_total = [
+            [int(unix_ts)] + [None if pd.isna(v) else float(v) for v in row.tolist()]
+            for unix_ts, row in pivot_total.iterrows()
+        ]
+
+        data_dict_total = {
+            "data": {
+                "timeseries": {
+                    "types": fiat_list_total,
+                    "values": values_total
+                },
+                "colors": fiat_colors_total
+            }
+        }
+        data_dict_total = fix_dict_nan(data_dict_total, 'stablecoins_fiat_total', send_notification=False)
+        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/stablecoins/fiat/timeseries', data_dict_total, cf_distribution_id, invalidate=False)
+
+        ### per-fiat token timeseries (single query for all fiats)
+        df_token = execute_jinja_query(db_connector, "api/quick_bites/stables_fiat_token_timeseries.sql.j2", {}, True)
+
+        dt_token = pd.to_datetime(df_token['date'], errors="raise", utc=True)
+        df_token['unix_timestamp'] = (
+            (dt_token - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta("1ms")
+        ).astype("int64")
+
+        fiats = df_token['fiat'].dropna().unique().tolist()
+
+        for fiat in fiats:
+            print(f"Processing stablecoin token timeseries for fiat: {fiat}")
+
+            df = df_token[df_token['fiat'] == fiat].copy()
+            if df.empty:
+                continue
+
+            # Determine top 12 tokens by value at the latest date; collapse the rest into 'other'
+            latest_date = df['date'].max()
+            top_tokens = (
+                df[df['date'] == latest_date]
+                .groupby('token_id')['total_value_usd'].sum()
+                .nlargest(12)
+                .index.tolist()
+            )
+            if df['token_id'].nunique() > 12:
+                df['token_id'] = df['token_id'].where(df['token_id'].isin(top_tokens), other='other')
+                df = df.groupby(['date', 'fiat', 'token_id', 'unix_timestamp'], as_index=False)['total_value_usd'].sum()
+
+            df = df.sort_values(['date', 'token_id']).reset_index(drop=True)
+
+            token_list = sorted([t for t in df['token_id'].unique() if t != 'other'])
+            if 'other' in df['token_id'].values:
+                token_list.append('other')
+
+            pivot = (
+                df
+                .pivot_table(index='unix_timestamp', columns='token_id', values='total_value_usd', aggfunc='first')
+                .reindex(columns=token_list)
+                .sort_index()
+            )
+            pivot = pivot.mask(pivot == 0)
+            values = [
+                [int(unix_ts)] + [None if pd.isna(v) else float(v) for v in row.tolist()]
+                for unix_ts, row in pivot.iterrows()
+            ]
+
+            colors = ['#FFFFFF' if token == 'other' else token_color_map.get(token) for token in token_list]
+            symbols = ['other' if token == 'other' else token_symbol_map.get(token) for token in token_list]
+
+            data_dict = {
+                "data": {
+                    "timeseries": {
+                        "types": token_list,
+                        "values": values
+                    },
+                    "colors": colors,
+                    "symbols": symbols,
+                    "fiat": fiat
+                }
+            }
+
+            data_dict = fix_dict_nan(data_dict, f'stablecoins_fiat_{fiat}', send_notification=False)
+            upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/fiat/{fiat}', data_dict, cf_distribution_id, invalidate=False)
+
+        ### per-fiat table (single query for all fiats)
+        df_table = execute_jinja_query(db_connector, "api/quick_bites/stables_fiat_table.sql.j2", {}, True)
+        fiat_table_columns = list(df_table.columns)
+        df_table['date'] = df_table['date'].astype(str)
+
+        for fiat in fiats:
+            print(f"Processing stablecoin table for fiat: {fiat}")
+
+            df = df_table[df_table['fiat'] == fiat].copy()
+            if df.empty:
+                print(f"  No table data for fiat {fiat}, skipping.")
+                continue
+
+            df = df.sort_values('value_usd', ascending=False).reset_index(drop=True)
+            rows_data = df.values.tolist()
+
+            data_dict = {
+                "data": {
+                    "table": {
+                        "columns": fiat_table_columns,
+                        "rows": rows_data
+                    }
+                }
+            }
+
+            data_dict = fix_dict_nan(data_dict, f'stablecoins_fiat_table_{fiat}', send_notification=False)
+            upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/fiat/table_{fiat}', data_dict, cf_distribution_id, invalidate=False)
+
+        ### fiat dropdown (fiats present in DB)
+        fiat_dropdown_list = []
+        for fiat in sorted(fiats):
+            fiat_dropdown_list.append({
+                "fiat": fiat,
+            })
+
+        dict_fiat_dropdown = {"dropdown_values": fiat_dropdown_list}
+        dict_fiat_dropdown = fix_dict_nan(dict_fiat_dropdown, 'fiat_dropdown', send_notification=False)
+        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/stablecoins/dropdown-fiat', dict_fiat_dropdown, cf_distribution_id, invalidate=False)
+
+
+    @task
     def invalidate_cloudfront_cache():
         from src.misc.helper_functions import empty_cloudfront_cache
         import os
@@ -241,6 +404,6 @@ def run_dag():
         cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
         empty_cloudfront_cache(cf_distribution_id, '/v1/quick-bites/stablecoins/*')
 
-    create_jsons_chain_qb() >> create_jsons_project_qb() >> invalidate_cloudfront_cache()
+    create_jsons_chain_qb() >> create_jsons_project_qb() >> create_jsons_fiat_qb() >> invalidate_cloudfront_cache()
 
 run_dag()
