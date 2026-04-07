@@ -239,15 +239,7 @@ def run_dag():
         from src.db_connector import DbConnector
         from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
         import pandas as pd
-        import requests
         import os
-
-        fiat_meta_resp = requests.get(
-            "https://raw.githubusercontent.com/growthepie/gtp-frontend/9e76d838d5bca892f835fa1afcb15e3458528cdd/public/dicts/fiat.json",
-            timeout=10,
-        )
-        fiat_meta_resp.raise_for_status()
-        FIAT_META = fiat_meta_resp.json()  # keys are uppercase, e.g. "CHF"
 
         db_connector = DbConnector()
         s3_bucket = os.getenv("S3_CF_BUCKET")
@@ -288,10 +280,12 @@ def run_dag():
                 row.append(float(fiat_value.iloc[0]) if len(fiat_value) > 0 else 0.0)
             values_total.append(row)
 
+        types_total = ["unix"] + fiat_list_total
+
         data_dict_total = {
             "data": {
                 "timeseries": {
-                    "types": fiat_list_total,
+                    "types": types_total,
                     "values": values_total
                 },
                 "colors": fiat_colors_total
@@ -395,17 +389,11 @@ def run_dag():
             data_dict = fix_dict_nan(data_dict, f'stablecoins_fiat_table_{fiat}', send_notification=False)
             upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/fiat/table_{fiat}', data_dict, cf_distribution_id, invalidate=False)
 
-        ### fiat dropdown (fiats present in DB, filtered to those known in fiat.json)
+        ### fiat dropdown (fiats present in DB)
         fiat_dropdown_list = []
         for fiat in sorted(fiats):
-            meta = FIAT_META.get(fiat.upper())
-            if meta is None:
-                continue
             fiat_dropdown_list.append({
                 "fiat": fiat,
-                "name": meta["name"],
-                "symbol": meta["symbol"],
-                "country": meta["country"],
             })
 
         dict_fiat_dropdown = {"dropdown_values": fiat_dropdown_list}
