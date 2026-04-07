@@ -257,10 +257,7 @@ def run_dag():
             (dt_total - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta("1ms")
         ).astype("int64")
 
-        df_total['total_value_usd'] = df_total['total_value_usd'].fillna(0)
-
         fiat_list_total = sorted(df_total['fiat'].unique().tolist())
-        unique_dates_total = sorted(df_total['date'].unique())
 
         # Deterministic colors for each fiat derived from its uppercase key
         def _fiat_color(fiat_code: str) -> str:
@@ -270,22 +267,22 @@ def run_dag():
 
         fiat_colors_total = [_fiat_color(f) for f in fiat_list_total]
 
-        values_total = []
-        for date in unique_dates_total:
-            date_data = df_total[df_total['date'] == date]
-            unix_ts = int(date_data['unix_timestamp'].iloc[0])
-            row = [unix_ts]
-            for fiat in fiat_list_total:
-                fiat_value = date_data[date_data['fiat'] == fiat]['total_value_usd']
-                row.append(float(fiat_value.iloc[0]) if len(fiat_value) > 0 else 0.0)
-            values_total.append(row)
-
-        types_total = ["unix"] + fiat_list_total
+        pivot_total = (
+            df_total
+            .pivot_table(index='unix_timestamp', columns='fiat', values='total_value_usd', aggfunc='first')
+            .reindex(columns=fiat_list_total)
+            .sort_index()
+        )
+        pivot_total = pivot_total.mask(pivot_total == 0)
+        values_total = [
+            [int(unix_ts)] + [None if pd.isna(v) else float(v) for v in row.tolist()]
+            for unix_ts, row in pivot_total.iterrows()
+        ]
 
         data_dict_total = {
             "data": {
                 "timeseries": {
-                    "types": types_total,
+                    "types": fiat_list_total,
                     "values": values_total
                 },
                 "colors": fiat_colors_total
@@ -311,8 +308,6 @@ def run_dag():
             if df.empty:
                 continue
 
-            df['total_value_usd'] = df['total_value_usd'].fillna(0)
-
             # Determine top 12 tokens by value at the latest date; collapse the rest into 'other'
             latest_date = df['date'].max()
             top_tokens = (
@@ -327,29 +322,29 @@ def run_dag():
 
             df = df.sort_values(['date', 'token_id']).reset_index(drop=True)
 
-            unique_dates = df['date'].unique()
             token_list = sorted([t for t in df['token_id'].unique() if t != 'other'])
             if 'other' in df['token_id'].values:
                 token_list.append('other')
 
-            values = []
-            for date in unique_dates:
-                date_data = df[df['date'] == date]
-                unix_ts = int(date_data['unix_timestamp'].iloc[0])
-                row = [unix_ts]
-                for token in token_list:
-                    token_value = date_data[date_data['token_id'] == token]['total_value_usd']
-                    row.append(float(token_value.iloc[0]) if len(token_value) > 0 else 0.0)
-                values.append(row)
+            pivot = (
+                df
+                .pivot_table(index='unix_timestamp', columns='token_id', values='total_value_usd', aggfunc='first')
+                .reindex(columns=token_list)
+                .sort_index()
+            )
+            pivot = pivot.mask(pivot == 0)
+            values = [
+                [int(unix_ts)] + [None if pd.isna(v) else float(v) for v in row.tolist()]
+                for unix_ts, row in pivot.iterrows()
+            ]
 
-            types = ["unix"] + token_list
             colors = ['#FFFFFF' if token == 'other' else token_color_map.get(token) for token in token_list]
             symbols = ['other' if token == 'other' else token_symbol_map.get(token) for token in token_list]
 
             data_dict = {
                 "data": {
                     "timeseries": {
-                        "types": types,
+                        "types": token_list,
                         "values": values
                     },
                     "colors": colors,
