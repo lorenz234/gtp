@@ -1,6 +1,8 @@
 {# 
     A query to calculate total stablecoin supply in USD, adjusted for bridged L2 supplies.
 
+    Note: vw_fact_stables_mcap_v2 already has the bridged L2 supplies subtracted from the total_supply on L1, so we can simply sum value_usd over all origin_keys.
+
     Parameters:
     - origin_keys: The key of the chain to filter the data by.
     - days: default = 7

@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook, claude_fix_on_failure
     description='Load Stablecoin balances via RPCs',
     tags=['metrics', 'daily'],
     start_date=datetime(2024,4,21),
-    schedule='15 01 * * *'
+    schedule='15 01 * * *' # runs at 1:15 am every day
 )
 
 def etl():

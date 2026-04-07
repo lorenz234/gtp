@@ -1,0 +1,65 @@
+WITH latest AS (
+    SELECT DISTINCT ON (fiat, origin_key, token_id)
+        "date",
+        fiat,
+        origin_key,
+        token_id,
+        MAX(logo)   AS logo,
+        MAX(symbol) AS symbol,
+        SUM(value)     AS value,
+        SUM(value_usd) AS value_usd
+    FROM public.vw_fact_stables_mcap_v2
+    WHERE metric_key IN ('total_supply', 'track_on_l1')
+    GROUP BY "date", fiat, origin_key, token_id
+    ORDER BY fiat, origin_key, token_id, "date" DESC
+),
+ago_30d AS (
+    SELECT DISTINCT ON (fiat, origin_key, token_id)
+        fiat,
+        origin_key,
+        token_id,
+        SUM(value_usd) AS value_usd_30d
+    FROM public.vw_fact_stables_mcap_v2
+    WHERE metric_key IN ('total_supply', 'track_on_l1')
+      AND "date" <= (CURRENT_DATE - INTERVAL '30 days')
+    GROUP BY "date", fiat, origin_key, token_id
+    ORDER BY fiat, origin_key, token_id, "date" DESC
+),
+ago_365d AS (
+    SELECT DISTINCT ON (fiat, origin_key, token_id)
+        fiat,
+        origin_key,
+        token_id,
+        SUM(value_usd) AS value_usd_365d
+    FROM public.vw_fact_stables_mcap_v2
+    WHERE metric_key IN ('total_supply', 'track_on_l1')
+      AND "date" <= (CURRENT_DATE - INTERVAL '365 days')
+    GROUP BY "date", fiat, origin_key, token_id
+    ORDER BY fiat, origin_key, token_id, "date" DESC
+)
+SELECT
+    l."date",
+    l.fiat,
+    l.origin_key,
+    l.token_id,
+    l.logo,
+    l.symbol,
+    ROUND(l.value::numeric, 2)     AS value,
+    ROUND(l.value_usd::numeric, 2) AS value_usd,
+    CASE
+        WHEN p30.value_usd_30d IS NULL OR p30.value_usd_30d = 0 THEN NULL
+        ELSE ROUND(((l.value_usd - p30.value_usd_30d) / p30.value_usd_30d * 100)::numeric, 2)
+    END AS "30d_supply_change",
+    CASE
+        WHEN p365.value_usd_365d IS NULL OR p365.value_usd_365d = 0 THEN NULL
+        ELSE ROUND(((l.value_usd - p365.value_usd_365d) / p365.value_usd_365d * 100)::numeric, 2)
+    END AS "365d_supply_change"
+FROM latest l
+LEFT JOIN ago_30d  p30  ON p30.fiat = l.fiat AND p30.origin_key = l.origin_key AND p30.token_id = l.token_id
+LEFT JOIN ago_365d p365 ON p365.fiat = l.fiat AND p365.origin_key = l.origin_key AND p365.token_id = l.token_id
+WHERE l."date" = (
+    SELECT MAX("date")
+    FROM public.vw_fact_stables_mcap_v2
+    WHERE metric_key IN ('total_supply', 'track_on_l1')
+)
+ORDER BY fiat, value_usd DESC;

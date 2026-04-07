@@ -1,0 +1,7 @@
+SELECT
+    "date",
+    fiat,
+    SUM(value_usd) AS total_value_usd
+FROM public.vw_fact_stables_mcap_v2
+GROUP BY "date", fiat
+ORDER BY "date", fiat;
