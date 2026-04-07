@@ -42,6 +42,8 @@ SELECT
     l.fiat,
     l.origin_key,
     l.token_id,
+    s.owner_project,
+    oss.display_name                  AS owner_project_display_name,
     l.logo,
     l.symbol,
     ROUND(l.value::numeric, 2)     AS value,
@@ -55,6 +57,8 @@ SELECT
         ELSE ROUND(((l.value_usd - p365.value_usd_365d) / p365.value_usd_365d * 100)::numeric, 2)
     END AS "365d_supply_change"
 FROM latest l
+LEFT JOIN public.sys_stables_v2 s ON s.token_id = l.token_id
+LEFT JOIN public.oli_oss_directory oss ON oss.name = s.owner_project
 LEFT JOIN ago_30d  p30  ON p30.fiat = l.fiat AND p30.origin_key = l.origin_key AND p30.token_id = l.token_id
 LEFT JOIN ago_365d p365 ON p365.fiat = l.fiat AND p365.origin_key = l.origin_key AND p365.token_id = l.token_id
 WHERE l."date" = (
