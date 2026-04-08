@@ -2,7 +2,8 @@ SELECT
     "date",
     fiat,
     token_id,
-    SUM(value_usd) AS total_value_usd
+    SUM(value_usd) AS total_value_usd,
+    SUM(value) AS total_value_native
 FROM public.vw_fact_stables_mcap_v2
 GROUP BY "date", fiat, token_id
 ORDER BY "date", fiat, token_id;
