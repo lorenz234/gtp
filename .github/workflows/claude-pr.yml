@@ -51,8 +51,9 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DUNE_API_KEY: ${{ secrets.DUNE_API }}
           DISCORD_ALERTS: ${{ secrets.DISCORD_ALERTS }}
+          CLAUDE_TASK: ${{ github.event.inputs.task }}
         run: |
-          claude -p "${{ github.event.inputs.task }}" \
+          claude -p "$CLAUDE_TASK" \
             --allowedTools "Read,Write,Edit,Bash(git add *),Bash(git diff *),Bash(npm *),Bash(python *)" \
             --output-format json > claude_output.json
  
@@ -139,7 +140,7 @@ jobs:
               summary = json.load(f).get('result') or summary
           except Exception:
             pass
-          msg = '⚠️ growthepAI found no changes to commit for task: **{}**\n\n**Claude summary:**\n{}'.format(os.environ['PR_TITLE'], summary)
+          msg = '🤖 growthepAI found no changes to commit for task: **{}**\n\n**Claude summary:**\n{}'.format(os.environ['PR_TITLE'], summary)
           r = requests.post(os.environ['DISCORD_ALERTS'], json={'content': msg})
           print('Discord response:', r.status_code, r.text)
           r.raise_for_status()
