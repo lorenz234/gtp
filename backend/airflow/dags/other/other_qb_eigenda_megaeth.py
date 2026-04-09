@@ -37,17 +37,22 @@ def run_dag():
                     target_blob_gas
                 FROM public.ethereum_blocks
                 WHERE
-                    number >= 19426587
+                    block_date >= '2025-04-01'
                     AND block_date < CURRENT_DATE
             )
-
             SELECT
                 block_date                                          AS time,
                 SUM(blob_gas_used)/24/60/60/1024/1024               AS blob_mib_per_second,
-                SUM(target_blob_gas)/24/60/60/1024/1024             AS target_blob_mib_per_second
+                SUM(target_blob_gas)/24/60/60/1024/1024             AS target_blob_mib_per_second,
+                SUM(target_blob_gas)/24/60/60/1024/1024 * 4000      AS max_tps_megaeth,
+                t.value / 86400.0                                   AS tps
             FROM data
-            GROUP BY block_date
-            ORDER BY time;
+            LEFT JOIN public.fact_kpis t
+                ON  t."date"      = data.block_date
+                AND t.origin_key  = 'megaeth'
+                AND t.metric_key  = 'txcount'
+            GROUP BY block_date, t.value
+            ORDER BY time DESC;
         """
         df_eth = db_connector.execute_query(query_eth_blobs, load_df=True)
         df_eth['unix_timestamp'] = df_eth['time'].apply(lambda x: int(pd.Timestamp(x).timestamp() * 1000))
@@ -56,7 +61,9 @@ def run_dag():
             [
                 row['unix_timestamp'],
                 float(row['blob_mib_per_second']),
-                float(row['target_blob_mib_per_second'])
+                float(row['target_blob_mib_per_second']),
+                float(row['max_tps_megaeth']),
+                float(row['tps']) if pd.notna(row['tps']) else None
             ]
             for _, row in df_eth.iterrows()
         ]
@@ -66,7 +73,9 @@ def run_dag():
                     "types": [
                         "unix",
                         "blob_mib_per_second",
-                        "target_blob_mib_per_second"
+                        "target_blob_mib_per_second",
+                        "max_tps_megaeth",
+                        "tps"
                     ],
                     "values": eth_values
                 }
@@ -163,6 +172,7 @@ def run_dag():
                 ON  t."date"      = l.time
                 AND t.origin_key  = 'megaeth'
                 AND t.metric_key  = 'txcount'
+            WHERE l.time >= '2025-04-01'
             ORDER BY l.time DESC;
         """
         df_capacity = db_connector.execute_query(query_eigenda_capacity, load_df=True)
