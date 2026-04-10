@@ -10,7 +10,7 @@ WITH latest AS (
         SUM(value_usd) AS value_usd
     FROM public.vw_fact_stables_mcap_v2
     WHERE metric_key IN ('total_supply', 'track_on_l1')
-    {% if chains %}AND origin_key = ANY(ARRAY[{{ chains | map('tojson') | join(', ') }}]::varchar[]){% endif %}
+    {% if chains %}AND origin_key = ANY(ARRAY[{{ chains | join("', '") }}]::varchar[]){% endif %}
     GROUP BY "date", fiat, origin_key, token_id
     ORDER BY fiat, origin_key, token_id, "date" DESC
 ),
@@ -23,7 +23,7 @@ ago_30d AS (
     FROM public.vw_fact_stables_mcap_v2
     WHERE metric_key IN ('total_supply', 'track_on_l1')
       AND "date" <= (CURRENT_DATE - INTERVAL '30 days')
-    {% if chains %}AND origin_key = ANY(ARRAY[{{ chains | map('tojson') | join(', ') }}]::varchar[]){% endif %}
+    {% if chains %}AND origin_key = ANY(ARRAY[{{ chains | join("', '") }}]::varchar[]){% endif %}
     GROUP BY "date", fiat, origin_key, token_id
     ORDER BY fiat, origin_key, token_id, "date" DESC
 ),
@@ -36,7 +36,7 @@ ago_365d AS (
     FROM public.vw_fact_stables_mcap_v2
     WHERE metric_key IN ('total_supply', 'track_on_l1')
       AND "date" <= (CURRENT_DATE - INTERVAL '365 days')
-    {% if chains %}AND origin_key = ANY(ARRAY[{{ chains | map('tojson') | join(', ') }}]::varchar[]){% endif %}
+    {% if chains %}AND origin_key = ANY(ARRAY[{{ chains | join("', '") }}]::varchar[]){% endif %}
     GROUP BY "date", fiat, origin_key, token_id
     ORDER BY fiat, origin_key, token_id, "date" DESC
 )
