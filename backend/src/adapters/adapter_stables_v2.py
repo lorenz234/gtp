@@ -1,7 +1,7 @@
 import os
 import asyncio
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from web3 import Web3
 from starknet_py.net.full_node_client import FullNodeClient # Starknet w3 equivalent
@@ -11,7 +11,8 @@ from src.misc.adapter_SupplyReader import SupplyReaderAdapter
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 #!# Logic requires 'first_block_of_day' data to be available in fact_kpis.
-#!# If chains is '*', then only pulls data for chains that are flagged as ['PROD', 'ZIRCUIT', 'DEV']
+#!# Everytime adapter is inititated, sys_stables_v2 table is updated
+#!# If chains is ['*'], then only pulls data for chains that are flagged as ['PROD', 'ZIRCUIT', 'DEV']
 #!# Tracking totalSupply through Dune events is not reliable for total_supply, as some developers decided not to emit events to save on gas.
 
 class AdapterStablecoinSupply(AbstractAdapter):
@@ -227,14 +228,20 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
             # Yes, use SupplyReader :)
             if use_supply_reader:
-                try:
+                try: 
+                    # skip rpc call if max_date is reached for that token_id only
+                    db_progress_filtered_temp = db_progress_filtered[~(pd.to_datetime(db_progress_filtered['max_date']) < pd.to_datetime(date))]
+                    if db_progress_filtered_temp.empty:
+                        #print(f"- Skipping SupplyReader for all token_ids on {date} as they have all reached their max_date.")
+                        continue
+
                     supplies = self.read_total_supplies_SupplyReader(
                         chain=chain,
-                        token_addresses=db_progress_filtered['address'].tolist(),
+                        token_addresses=db_progress_filtered_temp['address'].tolist(),
                         block_number=block_number,
                     )
-                    print(f"- Used SupplyReader for {len(db_progress_filtered)} token_ids, chain {chain}, {date} = block {block_number}: {supplies}")
-                    df_supplies = db_progress_filtered[['origin_key', 'token_id', 'address', 'decimals']].copy()
+                    print(f"- Used SupplyReader for {len(db_progress_filtered_temp)} token_ids, chain {chain}, {date} = block {block_number}: {supplies}")
+                    df_supplies = db_progress_filtered_temp[['origin_key', 'token_id', 'address', 'decimals']].copy()
                     df_supplies['value'] = supplies / (10 ** df_supplies['decimals'])
                     df_supplies['date'] = date
                     df_supplies_all = pd.concat([df_supplies_all, df_supplies], ignore_index=True)
@@ -251,6 +258,12 @@ class AdapterStablecoinSupply(AbstractAdapter):
                         db_progress_filtered = db_progress_filtered[db_progress_filtered['date'] < date - timedelta(days=1)]
                         print(f"- Removed {len(to_be_removed_coins)} coin(s) from db_progress_filtered based on date: {to_be_removed_coins['token_id'].tolist()}")
                         db_progress_filtered = db_progress_filtered.reset_index(drop=True)
+                    # remove coins from db_progress_filtered if min_date is reached
+                    to_be_removed_coins = db_progress_filtered[pd.to_datetime(db_progress_filtered['min_date']) >= pd.to_datetime(date)]
+                    if len(to_be_removed_coins) > 0:
+                        db_progress_filtered = db_progress_filtered[~db_progress_filtered['token_id'].isin(to_be_removed_coins['token_id'])]
+                        print(f"- Removed {len(to_be_removed_coins)} coin(s) from db_progress_filtered based on min_date: {to_be_removed_coins['token_id'].tolist()}")
+                        db_progress_filtered = db_progress_filtered.reset_index(drop=True)
                     # break if db_progress_filtered is empty after removals
                     if len(db_progress_filtered) == 0:
                         print("- All coins fully processed, exiting loop.")
@@ -265,6 +278,12 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 token_id = row['token_id']
                 address = row['address']
                 decimals = row['decimals']
+
+                # skip rpc call if max_date is reached for that token_id only
+                if pd.notna(row['max_date']) and pd.to_datetime(date) > pd.to_datetime(row['max_date']):
+                    #print(f"- Skipping RPC call for {token_id} on {date} as it has reached its max_date ({row['max_date']}).")
+                    continue
+
                 try:
                     supply = self.read_total_supply_rpc(
                         chain=chain,
@@ -290,6 +309,10 @@ class AdapterStablecoinSupply(AbstractAdapter):
                     elif db_progress_filtered[db_progress_filtered['token_id'] == token_id]['date'].max() >= date - timedelta(days=1):
                         db_progress_filtered = db_progress_filtered[db_progress_filtered['token_id'] != token_id]
                         print(f"- Removed {token_id} from db_progress_filtered for chain {chain} on date {date} due to backfill date reached.")
+                    # remove coin from db_progress_filtered if min_date is reached
+                    elif pd.notna(db_progress_filtered[db_progress_filtered['token_id'] == token_id]['min_date'].iloc[0]) and db_progress_filtered[db_progress_filtered['token_id'] == token_id]['min_date'].iloc[0] >= date:
+                        db_progress_filtered = db_progress_filtered[db_progress_filtered['token_id'] != token_id]
+                        print(f"- Removed {token_id} from db_progress_filtered for chain {chain} on date {date} due to min_date reached.")
                     # break if db_progress_filtered is empty after removals
                     if len(db_progress_filtered) == 0:
                         print("- All coins fully processed, exiting loop.")
@@ -595,11 +618,20 @@ class AdapterStablecoinSupply(AbstractAdapter):
             'token_id': new_coins,
             'address': [self.address_mapping[chain][token]['address'].lower() for token in new_coins],
             'decimals': [self.address_mapping[chain][token]['decimals'] for token in new_coins],
-            'value': [None] * len(new_coins)
+            'value': [None] * len(new_coins),
         })], ignore_index=True)
         # filter out coins which are already at yesterdays date (= up to date)
         date_yesterday = (datetime.now() - timedelta(days=1)).date()
         db_progress_filtered = db_progress_filtered[db_progress_filtered['date'] != date_yesterday]
+        # add two columns to keep track of the max and min date for backfilling, defined in address_mapping
+        db_progress_filtered['max_date'] = None
+        db_progress_filtered['min_date'] = None
+        db_progress_filtered['max_date'] = db_progress_filtered.apply(lambda row: self.address_mapping[chain][row['token_id']]['max_date'] if pd.isna(row['max_date']) and row['token_id'] in self.address_mapping[chain] and 'max_date' in self.address_mapping[chain][row['token_id']] else row['max_date'], axis=1)
+        db_progress_filtered['min_date'] = db_progress_filtered.apply(lambda row: self.address_mapping[chain][row['token_id']]['min_date'] if pd.isna(row['min_date']) and row['token_id'] in self.address_mapping[chain] and 'min_date' in self.address_mapping[chain][row['token_id']] else row['min_date'], axis=1)
+        db_progress_filtered['max_date'] = pd.to_datetime(db_progress_filtered['max_date']).dt.date
+        db_progress_filtered['min_date'] = pd.to_datetime(db_progress_filtered['min_date']).dt.date
+        # filter out already fully backfilled coins based on max_date
+        db_progress_filtered = db_progress_filtered[~((db_progress_filtered['date'] >= db_progress_filtered['max_date']) & (pd.notna(db_progress_filtered['max_date'])))]
         return db_progress_filtered
 
     def get_track_on_l1_progress(self, chain: str, address_mapping: dict):
