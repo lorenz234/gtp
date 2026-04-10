@@ -6,6 +6,7 @@ currency conversion functionality for non-USD stablecoins.
 """
 
 import pandas as pd
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Dict, Optional, Tuple, List
 
@@ -326,6 +327,60 @@ class AdapterCurrencyConversion(AbstractAdapter):
         if not df.empty:
             df = df.set_index(['metric_key', 'origin_key', 'date'])
         return df
+
+    def _fetch_isk_from_nationalbanken(self) -> pd.DataFrame:
+        """
+        Fetch ISK/USD daily rate from Danmarks Nationalbank XML API.
+
+        The API returns rates as DKK per 100 units of each foreign currency.
+        ISK/USD is calculated as: isk_rate / usd_rate.
+
+        Returns:
+            pd.DataFrame: Indexed by ['metric_key', 'origin_key', 'date'] with a 'value' column.
+        """
+        url = "https://www.nationalbanken.dk/api/currencyratesxml?lang=en"
+        try:
+            response_data = api_get_call(url, sleeper=1, retries=RATE_FETCH_CONFIG['max_retries'], as_json=False)
+        except Exception as e:
+            print(f"Nationalbanken API error: {e}")
+            return pd.DataFrame()
+
+        if not response_data:
+            print("Nationalbanken API returned empty response.")
+            return pd.DataFrame()
+
+        try:
+            root = ET.fromstring(response_data)
+            daily = root.find('dailyrates')
+            if daily is None:
+                print("Nationalbanken XML: no <dailyrates> element found.")
+                return pd.DataFrame()
+
+            rate_date = pd.to_datetime(daily.attrib['id']).date()
+            rates = {c.attrib['code']: float(c.attrib['rate']) for c in daily.findall('currency')}
+
+            usd_rate = rates.get('USD')
+            isk_rate = rates.get('ISK')
+
+            if usd_rate is None or isk_rate is None:
+                print(f"Nationalbanken XML: missing USD ({usd_rate}) or ISK ({isk_rate}) rate.")
+                return pd.DataFrame()
+
+            isk_usd = isk_rate / usd_rate
+            print(f"Fetched ISK/USD from Nationalbanken ({rate_date}): {isk_usd:.6f}")
+
+            df = pd.DataFrame([{
+                'date': rate_date,
+                'metric_key': 'price_usd',
+                'origin_key': 'fiat_isk',
+                'value': isk_usd
+            }])
+            df = df.set_index(['metric_key', 'origin_key', 'date'])
+            return df
+
+        except Exception as e:
+            print(f"Nationalbanken XML parse error: {e}")
+            return pd.DataFrame()
 
     def get_exchange_rates_dataframe(self, base_currency: str, target_currency: str = 'usd', days: int = 30) -> pd.DataFrame:
         """

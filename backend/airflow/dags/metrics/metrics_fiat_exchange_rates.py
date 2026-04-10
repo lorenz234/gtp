@@ -72,8 +72,14 @@ def etl():
         if frames:
             df = pd.concat(frames)
             ad.load(pd.concat(frames))
-            
+
             print(f"Loaded {len(df)} rows of current fiat rates.")
+
+        # Fetch ISK/USD daily from Danmarks Nationalbank
+        df_isk = ad._fetch_isk_from_nationalbanken()
+        if not df_isk.empty:
+            ad.load(df_isk)
+            print(f"Loaded ISK/USD rate from Nationalbanken.")
 
     load_rates()
 
