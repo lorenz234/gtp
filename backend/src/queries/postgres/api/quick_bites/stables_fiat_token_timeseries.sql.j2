@@ -5,5 +5,6 @@ SELECT
     SUM(value_usd) AS total_value_usd,
     SUM(value) AS total_value_native
 FROM public.vw_fact_stables_mcap_v2
+{% if chains %}WHERE origin_key = ANY(ARRAY[{{ chains | map('tojson') | join(', ') }}]::varchar[]){% endif %}
 GROUP BY "date", fiat, token_id
 ORDER BY "date", fiat, token_id;

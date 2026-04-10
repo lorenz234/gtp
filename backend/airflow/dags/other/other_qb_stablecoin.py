@@ -16,6 +16,9 @@ from src.misc.airflow_utils import alert_via_webhook
     start_date=datetime(2026, 1, 22),
     schedule="21 2 * * *",  # Every day at 2:21 AM, needs to run after metrics_stables_v2
 )
+
+# INFO: We filter down to only show chains that are L2/L1 and the flag is set to PROD in sys_main_conf
+
 def run_dag():
 
     @task
@@ -139,12 +142,17 @@ def run_dag():
         s3_bucket = os.getenv("S3_CF_BUCKET")
         cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
 
+        config = db_connector.get_table("sys_main_conf")
+        config = config[config['chain_type'].isin(['L1', 'L2'])]
+        config = config[config['api_deployment_flag'] == 'PROD']
+        chains = config['origin_key'].tolist()
+
         df_stables_meta = db_connector.get_table("sys_stables_v2")
         token_color_map = df_stables_meta.set_index('token_id')['color_hex'].to_dict()
         token_symbol_map = df_stables_meta.set_index('token_id')['symbol'].to_dict()
 
         ### timeseries data per project (single query for all projects)
-        df_all_proj = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_project_timeseries.sql.j2", {}, True)
+        df_all_proj = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_project_timeseries.sql.j2", {"chains": chains}, True)
 
         dt_proj = pd.to_datetime(df_all_proj['date'], errors="raise", utc=True)
         df_all_proj['unix_timestamp'] = (
@@ -196,7 +204,7 @@ def run_dag():
             upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/projects/{project}', data_dict, cf_distribution_id, invalidate=False)
 
         ### table data per project (single query for all projects)
-        df_all_proj_table = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_project_table.sql.j2", {}, True)
+        df_all_proj_table = execute_jinja_query(db_connector, "api/quick_bites/stables_top_per_project_table.sql.j2", {"chains": chains}, True)
         proj_table_columns = list(df_all_proj_table.columns)
         df_all_proj_table['date'] = df_all_proj_table['date'].astype(str)
 
@@ -245,12 +253,17 @@ def run_dag():
         s3_bucket = os.getenv("S3_CF_BUCKET")
         cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
 
+        config = db_connector.get_table("sys_main_conf")
+        config = config[config['chain_type'].isin(['L1', 'L2'])]
+        config = config[config['api_deployment_flag'] == 'PROD']
+        chains = config['origin_key'].tolist()
+
         df_stables_meta = db_connector.get_table("sys_stables_v2")
         token_color_map = df_stables_meta.set_index('token_id')['color_hex'].to_dict()
         token_symbol_map = df_stables_meta.set_index('token_id')['symbol'].to_dict()
 
         ### overall fiat timeseries (single query — all fiats, total value by date)
-        df_total = execute_jinja_query(db_connector, "api/quick_bites/stables_fiat_total_timeseries.sql.j2", {}, True)
+        df_total = execute_jinja_query(db_connector, "api/quick_bites/stables_fiat_total_timeseries.sql.j2", {"chains": chains}, True)
 
         dt_total = pd.to_datetime(df_total['date'], errors="raise", utc=True)
         df_total['unix_timestamp'] = (
@@ -292,7 +305,7 @@ def run_dag():
         upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/stablecoins/fiat/timeseries', data_dict_total, cf_distribution_id, invalidate=False)
 
         ### per-fiat token timeseries (single query for all fiats)
-        df_token = execute_jinja_query(db_connector, "api/quick_bites/stables_fiat_token_timeseries.sql.j2", {}, True)
+        df_token = execute_jinja_query(db_connector, "api/quick_bites/stables_fiat_token_timeseries.sql.j2", {"chains": chains}, True)
 
         dt_token = pd.to_datetime(df_token['date'], errors="raise", utc=True)
         df_token['unix_timestamp'] = (
@@ -412,7 +425,7 @@ def run_dag():
             upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/stablecoins/fiat/{fiat}_native', data_dict, cf_distribution_id, invalidate=False)
 
         ### per-fiat table (single query for all fiats)
-        df_table = execute_jinja_query(db_connector, "api/quick_bites/stables_fiat_table.sql.j2", {}, True)
+        df_table = execute_jinja_query(db_connector, "api/quick_bites/stables_fiat_table.sql.j2", {"chains": chains}, True)
         fiat_table_columns = list(df_table.columns)
         df_table['date'] = df_table['date'].astype(str)
 

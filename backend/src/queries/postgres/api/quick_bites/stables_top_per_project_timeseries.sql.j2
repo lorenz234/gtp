@@ -5,6 +5,9 @@ SELECT
     ROUND(SUM(value)::numeric, 2)     AS value,
     ROUND(SUM(value_usd)::numeric, 2) AS value_usd
 FROM public.vw_fact_stables_mcap_v2
+{% if chains %}
+WHERE origin_key = ANY(ARRAY[{{ chains | map('tojson') | join(', ') }}]::varchar[])
+{% endif %}
 GROUP BY
     "date",
     owner_project,
