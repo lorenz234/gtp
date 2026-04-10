@@ -3,6 +3,6 @@ SELECT
     fiat,
     SUM(value_usd) AS total_value_usd
 FROM public.vw_fact_stables_mcap_v2
-{% if chains %}WHERE origin_key = ANY(ARRAY[{{ chains | join("', '") }}]::varchar[]){% endif %}
+{% if chains %}WHERE origin_key = ANY(ARRAY['{{ chains | join("', '") }}']::varchar[]){% endif %}
 GROUP BY "date", fiat
 ORDER BY "date", fiat;
