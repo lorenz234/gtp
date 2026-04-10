@@ -11,6 +11,7 @@ from src.misc.adapter_SupplyReader import SupplyReaderAdapter
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 #!# Logic requires 'first_block_of_day' data to be available in fact_kpis.
+#!# If chains is '*', then only pulls data for chains that are flagged as ['PROD', 'ZIRCUIT', 'DEV']
 #!# Tracking totalSupply through Dune events is not reliable for total_supply, as some developers decided not to emit events to save on gas.
 
 class AdapterStablecoinSupply(AbstractAdapter):
@@ -59,7 +60,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         
         Args:
             extract_params (dict): Dictionary containing the parameters for extraction. Expected keys are:
-            - origin_keys (list): List of chain names to extract data for.  Use ['*'] for all (chains that are in PROD or ZIRCUIT).
+            - origin_keys (list): List of chain names to extract data for.  Use ['*'] for all (chains that are in PROD, DEV or ZIRCUIT).
             - token_ids (list): List of token_ids to extract data for. Use ['*'] for all.
             - metric_keys (list): List of metric_keys to extract data for. Use ['*'] for all. Options are 'total_supply'
         """
@@ -82,7 +83,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             chains_not_in_conf = list(set(chains_mapping) - set(chains_conf))
             chains_not_in_mapping = list(set(chains_conf) - set(chains_mapping))
             if len(chains_not_in_conf) > 0:
-                print(f"The following chains are in address_mapping but 'ARCHIVE'd in main_config and will be skipped: {chains_not_in_conf}. If these chains should be pulled in, please check gtp_dna github and set the column api_deployment_flag to ('PROD' or 'DEV').")
+                print(f"The following chains are in address_mapping but 'ARCHIVE'd in main_config and will be skipped: {chains_not_in_conf}. If these chains should be pulled in, please check gtp_dna github and set the column api_deployment_flag to ('PROD', 'DEV' or 'ZIRCUIT').")
             if len(chains_not_in_mapping) > 0:
                 print(f"The following chains are in main_config but not in the address_mapping: {chains_not_in_mapping}. Please add them to the mapping in src/stables_config_v2.py.")
         # exchange '*' for all token_ids in mapping
