@@ -1156,26 +1156,26 @@ def highlights_prep(df, gtp_metrics):
                 ath_val = ath_val / 1_000_000
             
             if ath_val >= 1_000_000_000:
-                ath_multiple = f"{ath_val / 1_000_000_000:.1f}B"
+                ath_multiple = f"{ath_val / 1_000_000_000:.2f}B"
             elif ath_val >= 1_000_000:
-                ath_multiple = f"{ath_val / 1_000_000:.1f}M"
+                ath_multiple = f"{ath_val / 1_000_000:.2f}M"
             elif ath_val > 1_000:
-                ath_multiple = f"{ath_val / 1_000:.1f}K"
+                ath_multiple = f"{ath_val / 1_000:.2f}K"
             else:
                 ath_multiple = f"{ath_val:,}"
-            highlight_text = f"New all-time high, surpassing {prefix}{ath_multiple}{suffix} for the first time"
+            highlight_text = f"New All-Time High, surpassing {prefix}{ath_multiple}{suffix} for the first time"
             header = 'All-Time High'
         elif highlight_type == 'ath_regular':
             prev_ath_val = int(row['ath_prior_max'])
             if prev_ath_val > 1_000_000_000:
-                prev_ath = f"{prev_ath_val / 1_000_000_000:.1f}B"
+                prev_ath = f"{prev_ath_val / 1_000_000_000:.2f}B"
             elif prev_ath_val > 1_000_000:
-                prev_ath = f"{prev_ath_val / 1_000_000:.1f}M"
+                prev_ath = f"{prev_ath_val / 1_000_000:.2f}M"
             elif prev_ath_val > 1_000:
-                prev_ath = f"{prev_ath_val / 1_000:.1f}K"
+                prev_ath = f"{prev_ath_val / 1_000:.2f}K"
             else:
                 prev_ath = f"{prev_ath_val:,.2f}"
-            highlight_text = f"New all-time high, surpassing previous All-Time High of {prefix}{prev_ath}{suffix}"
+            highlight_text = f"New All-Time High, surpassing previous All-Time High of {prefix}{prev_ath}{suffix}"
             header = 'All-Time High'
         elif highlight_type.startswith('growth_'):
             period = highlight_type.split('_')[1]
