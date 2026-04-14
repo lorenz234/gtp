@@ -12,6 +12,7 @@ class AdapterDune(AbstractAdapter):
     def __init__(self, adapter_params:dict, db_connector):
         super().__init__("Dune", adapter_params, db_connector)
         self.api_key = adapter_params['api_key']
+        self.query_speed = adapter_params.get('query_speed', 'large')  # e.g. 'medium', 'large'
         self.client = DuneClient(self.api_key)
         print_init(self.name, self.adapter_params)
 
@@ -45,7 +46,7 @@ class AdapterDune(AbstractAdapter):
         for query in self.queries:
             try:
                 print(f"...start loading {query.name} with query_id: {query.query_id} and params: {query.params}")
-                df = self.client.refresh_into_dataframe(query)
+                df = self.client.refresh_into_dataframe(query, performance=self.query_speed)
                 print(f"...finished loading {query.name}. Loaded {df.shape[0]} rows")
             except Exception as e:
                 print(f"Error loading {query.name}: {e}")
@@ -335,3 +336,82 @@ class AdapterDune(AbstractAdapter):
         df = df.melt(id_vars=['date', 'contract_address'], var_name='metric_key', value_name='value')
         df = df.set_index(['contract_address', 'date', 'metric_key'])
         return df
+
+    ## ----------------- Dune table upload functions --------------------
+
+    def create_table(self, table_name: str, schema: list, description: str = "", is_private: bool = False, namespace: str = "growthepie"):
+        """
+        Create a table on Dune Analytics. Safe to call if the table already exists.
+
+        Parameters:
+            table_name  : Dune table name (e.g. 'l2beat_tokens')
+            schema      : List of {"name": ..., "type": ...} dicts (Dune column types: varchar, bigint, double, boolean, timestamp)
+            description : Optional human-readable description shown in Dune UI
+            is_private  : Whether the table should be private (default False)
+            namespace   : Dune namespace/team (default 'growthepie')
+        """
+        import requests
+        url = "https://api.dune.com/api/v1/table/create"
+        headers = {
+            "X-DUNE-API-KEY": self.api_key,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "namespace": namespace,
+            "table_name": table_name,
+            "description": description,
+            "is_private": is_private,
+            "schema": schema,
+        }
+        response = requests.post(url, json=payload, headers=headers)
+        result = response.json()
+        # Treat "already exists" as success
+        if not response.ok and 'already exists' not in str(result).lower():
+            raise RuntimeError(f"Dune API table creation failed: {result}")
+        print(f"Table {namespace}.{table_name} ready: {result}")
+
+    def clear_table(self, table_name: str, namespace: str = "growthepie"):
+        """
+        Clear all rows from a Dune table without dropping it.
+
+        Parameters:
+            table_name : Dune table name (e.g. 'l2beat_tokens')
+            namespace  : Dune namespace/team (default 'growthepie')
+        """
+        import requests
+        url = f"https://api.dune.com/api/v1/table/{namespace}/{table_name}/clear"
+        headers = {"X-DUNE-API-KEY": self.api_key}
+        response = requests.post(url, headers=headers)
+        if not response.ok:
+            raise RuntimeError(f"Dune API table clear failed: {response.json()}")
+        print(f"Table {namespace}.{table_name} cleared.")
+
+    def upload_to_table(self, table_name: str, df: pd.DataFrame, namespace: str = "growthepie"):
+        """
+        Clear a Dune table and upload a fresh DataFrame as CSV.
+
+        Parameters:
+            table_name : Dune table name (e.g. 'l2beat_tokens')
+            df         : DataFrame whose columns match the table schema
+            namespace  : Dune namespace/team (default 'growthepie')
+        """
+        import requests
+        import io
+
+        headers = {"X-DUNE-API-KEY": self.api_key}
+
+        # Clear existing rows
+        self.clear_table(table_name, namespace)
+
+        # Serialize DataFrame to CSV and upload
+        csv_buffer = io.StringIO()
+        df.to_csv(csv_buffer, index=False)
+        csv_bytes = csv_buffer.getvalue().encode("utf-8")
+
+        url_insert = f"https://api.dune.com/api/v1/table/{namespace}/{table_name}/insert"
+        upload_headers = {**headers, "Content-Type": "text/csv"}
+        response = requests.post(url_insert, data=csv_bytes, headers=upload_headers)
+        result = response.json()
+        if not response.ok or "error" in result:
+            raise RuntimeError(f"Dune API upload failed: {result}")
+        print(f"Uploaded {len(df)} rows to {namespace}.{table_name} on Dune.")
