@@ -106,7 +106,10 @@ def run_dag():
             '0x7cf9a80db3b29ee8efe3710aadb7b95270572d47',  # NIL
             '0x090185f2135308bad17527004364ebcc2d37e5f6',  # Linea
             '0x1789e0043623282d5dcc7f213d703c6d8bafbb04',  # SPELL
-            '0x62b9c7356a2dc64a1969e19c23e4f579f9810aa7' # cvxCRV
+            '0x62b9c7356a2dc64a1969e19c23e4f579f9810aa7', # cvxCRV
+            '0xA2085073878152aC3090eA13D1e41bD69e60Dc99', # ELG
+            '0xfB5c6815cA3AC72Ce9F5006869AE67f18bF77006', # PSTAKE
+            '0xA0b73E1Ff0B80914AB6fe0444E65848C4C34450b' # CRO
         }
 
         df = pd.DataFrame(rows)
