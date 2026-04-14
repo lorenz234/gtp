@@ -443,6 +443,9 @@ def etl():
         ad = AdapterDune(adapter_params, db_connector)
         df = ad.extract(load_params)
 
+        if df.empty:
+            return
+
         # remove rows which are known false positives e.g. withdrawBond for taiko
         df = df[~((df.l2 == 'taiko') & (df.method == '0xc3daab96'))]
 
