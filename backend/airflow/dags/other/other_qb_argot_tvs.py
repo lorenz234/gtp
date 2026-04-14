@@ -265,9 +265,11 @@ def run_dag():
             (QUERY_CT,  'v1/quick-bites/argot/solc_ct_timeseries',  'ethereum_solc_ct'),
         ]:
             df = pd.read_sql(query, db_connector.engine)
-            df['date'] = df['date'].astype(str)
-            cols = ['solc_major_version', 'date', 'value']
-            payload = {'data': {'types': cols, 'values': df[cols].values.tolist()}}
+            df['date'] = pd.to_datetime(df['date']).astype('datetime64[ms]').astype('int64')
+            df = df.pivot(index='date', columns='solc_major_version', values='value').reset_index().sort_values('date')
+            df.columns.name = None
+            cols = df.columns.tolist()
+            payload = {'data': {'types': cols, 'values': df.values.tolist()}}
             payload = fix_dict_nan(payload, label, send_notification=False)
             upload_json_to_cf_s3(s3_bucket, s3_key, payload, cf_distribution_id, invalidate=False)
             print(f"Uploaded {len(df)} rows to S3: {s3_key}")
@@ -322,9 +324,11 @@ def run_dag():
             (QUERY_CT,  'v1/quick-bites/argot/vyper_ct_timeseries',  'ethereum_vyper_ct'),
         ]:
             df = pd.read_sql(query, db_connector.engine)
-            df['date'] = df['date'].astype(str)
-            cols = ['vyper_major_version', 'date', 'value']
-            payload = {'data': {'types': cols, 'values': df[cols].values.tolist()}}
+            df['date'] = pd.to_datetime(df['date']).astype('datetime64[ms]').astype('int64')
+            df = df.pivot(index='date', columns='vyper_major_version', values='value').reset_index().sort_values('date')
+            df.columns.name = None
+            cols = df.columns.tolist()
+            payload = {'data': {'types': cols, 'values': df.values.tolist()}}
             payload = fix_dict_nan(payload, label, send_notification=False)
             upload_json_to_cf_s3(s3_bucket, s3_key, payload, cf_distribution_id, invalidate=False)
             print(f"Uploaded {len(df)} rows to S3: {s3_key}")
@@ -366,13 +370,16 @@ def run_dag():
         s3_bucket = os.getenv("S3_CF_BUCKET")
         cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
 
-        for query, s3_key, label, cols in [
-            (QUERY_CT,  'v1/quick-bites/argot/compiler_ct_timeseries',  'ethereum_compiler_ct',  ['date', 'compiler', 'value']),
-            (QUERY_TVS, 'v1/quick-bites/argot/compiler_tvs_timeseries', 'ethereum_compiler_tvs', ['compiler', 'date', 'value']),
+        for query, s3_key, label in [
+            (QUERY_CT,  'v1/quick-bites/argot/compiler_ct_timeseries',  'ethereum_compiler_ct'),
+            (QUERY_TVS, 'v1/quick-bites/argot/compiler_tvs_timeseries', 'ethereum_compiler_tvs'),
         ]:
             df = pd.read_sql(query, db_connector.engine)
-            df['date'] = df['date'].astype(str)
-            payload = {'data': {'types': cols, 'values': df[cols].values.tolist()}}
+            df['date'] = pd.to_datetime(df['date']).astype('datetime64[ms]').astype('int64')
+            df = df.pivot(index='date', columns='compiler', values='value').reset_index().sort_values('date')
+            df.columns.name = None
+            cols = df.columns.tolist()
+            payload = {'data': {'types': cols, 'values': df.values.tolist()}}
             payload = fix_dict_nan(payload, label, send_notification=False)
             upload_json_to_cf_s3(s3_bucket, s3_key, payload, cf_distribution_id, invalidate=False)
             print(f"Uploaded {len(df)} rows to S3: {s3_key}")
