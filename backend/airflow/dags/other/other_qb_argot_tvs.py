@@ -3,7 +3,7 @@ from airflow.sdk import dag, task
 from pendulum import now
 from src.misc.airflow_utils import alert_via_webhook, claude_fix_on_failure
 
-# configured to run monthly on the 1st
+# configured to run monthly on the 2nd
 # will not backfill automatically
 
 @dag(
@@ -18,7 +18,7 @@ from src.misc.airflow_utils import alert_via_webhook, claude_fix_on_failure
     description='Monthly update to the quick-bite around sourcify.',
     tags=['other', 'monthly'],
     start_date=datetime(2026, 4, 1),
-    schedule='0 11 1 * *'  # 1st of every month at 11:00 UTC
+    schedule='0 11 2 * *'  # 2nd of every month at 11:00 UTC
 )
 def run_dag():
 
@@ -212,7 +212,7 @@ def run_dag():
         s3_bucket = os.getenv("S3_CF_BUCKET")
         cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
         upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/argot/table_{snapshot_date}', table_dict, cf_distribution_id, invalidate=False)
-        #upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/argot/table_latest', table_dict, cf_distribution_id, invalidate=False)
+        upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/argot/table_latest', table_dict, cf_distribution_id, invalidate=False)
         print(f"Uploaded to S3: v1/quick-bites/argot/table_{snapshot_date}")
 
     @task()
