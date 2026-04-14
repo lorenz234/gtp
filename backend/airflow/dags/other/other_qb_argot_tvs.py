@@ -100,17 +100,18 @@ def run_dag():
                     'exclude_from_total':   token.get('excludeFromTotal'),
                 })
 
-        # we exclude the following, otherwise they would skew the TVL for certain dates
+        # we exclude the following, otherwise they would skew the TVL for certain dates (LOWERCASE!)
 
         EXCLUDED_ADDRESSES = {
             '0x7cf9a80db3b29ee8efe3710aadb7b95270572d47',  # NIL
             '0x090185f2135308bad17527004364ebcc2d37e5f6',  # Linea
             '0x1789e0043623282d5dcc7f213d703c6d8bafbb04',  # SPELL
             '0x62b9c7356a2dc64a1969e19c23e4f579f9810aa7', # cvxCRV
-            '0xA2085073878152aC3090eA13D1e41bD69e60Dc99', # ELG
-            '0xfB5c6815cA3AC72Ce9F5006869AE67f18bF77006', # PSTAKE
-            '0xA0b73E1Ff0B80914AB6fe0444E65848C4C34450b' # CRO
+            '0xa2085073878152ac3090ea13d1e41bd69e60dc99', # ELG
+            '0xfb5c6815ca3ac72ce9f5006869ae67f18bf77006', # PSTAKE
+            '0xa0b73e1ff0b80914ab6fe0444e65848c4c34450b' # CRO
         }
+
 
         df = pd.DataFrame(rows)
         df = df[df['address'].notna()]
