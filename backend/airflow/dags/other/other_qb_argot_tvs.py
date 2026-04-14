@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from airflow.sdk import dag, task
 from pendulum import now
-from src.misc.airflow_utils import alert_via_webhook
+from src.misc.airflow_utils import alert_via_webhook, claude_fix_on_failure
 
 # configured to run monthly on the 1st
 # will not backfill automatically
@@ -12,7 +12,7 @@ from src.misc.airflow_utils import alert_via_webhook
         'retries': 2,
         'email_on_failure': False,
         'retry_delay': timedelta(minutes=5),
-        'on_failure_callback': alert_via_webhook
+        'on_failure_callback': [alert_via_webhook, claude_fix_on_failure]
     },
     dag_id='other_qb_argot_tvs',
     description='Monthly update to the quick-bite around sourcify.',
