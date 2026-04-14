@@ -15,10 +15,10 @@ from src.misc.airflow_utils import alert_via_webhook
         'on_failure_callback': alert_via_webhook
     },
     dag_id='other_qb_argot_tvs',
-    description='Daily scrape of L2Beat token list and upload to Dune Analytics (growthepie.l2beat_tokens).',
-    tags=['other', 'daily'],
-    start_date=datetime(2025, 1, 1),
-    schedule='0 2 * * *'  # Every day at 02:00 UTC
+    description='Monthly update to the quick-bite around sourcify.',
+    tags=['other', 'monthly'],
+    start_date=datetime(2026, 4, 1),
+    schedule='0 11 1 * *'  # 1st of every month at 11:00 UTC
 )
 def run_dag():
 
