@@ -220,8 +220,29 @@ def run_dag():
         upserted = db_connector.upsert_table('fact_kpis', df_kpis)
         print(f"Upserted {upserted} rows into fact_kpis.")
 
+        # --- enrich df with owner_project ---
+        df_owner = db_connector.execute_query("""
+            SELECT
+                '0x' || encode(t.address, 'hex') AS address,
+                t.tag_value,
+                d.display_name
+            FROM (
+                SELECT DISTINCT ON (address)
+                    address,
+                    tag_value
+                FROM public.vw_oli_label_pool_gold_v2
+                WHERE
+                    caip2 IN ('eip155:any', 'eip155:1')
+                    AND tag_id = 'owner_project'
+                ORDER BY address, confidence DESC
+            ) t
+            LEFT JOIN public.oli_oss_directory d ON d.name = t.tag_value
+        """, load_df=True)
+        df_owner = df_owner.rename(columns={'tag_value': 'owner_project'})
+        df = df.merge(df_owner, on='address', how='left')
+
         # --- table JSON upload ---
-        cols = ['address', 'total_balance_usd', 'compiler', 'version', 'name', 'fully_qualified_name']
+        cols = ['address', 'total_balance_usd', 'compiler', 'version', 'name', 'fully_qualified_name', 'owner_project', 'display_name']
         table_dict = {}
         table_dict["data"] = {
             "types": cols,
@@ -372,6 +393,7 @@ def run_dag():
             WHERE
                 metric_key IN ('cmp_solc_ct','cmp_vyper_ct','cmp_unverified_ct')
                 AND origin_key = 'ethereum'
+                AND "date" >= '2018-01-01'
             ORDER BY 1 DESC
         """
 
@@ -384,6 +406,7 @@ def run_dag():
             WHERE
                 metric_key IN ('cmp_solc_usd','cmp_vyper_usd','cmp_unverified_usd')
                 AND origin_key = 'ethereum'
+                AND "date" >= '2018-01-01'
             ORDER BY 2 DESC
         """
 
