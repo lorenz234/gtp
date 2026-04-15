@@ -125,6 +125,22 @@ def run_dag():
         ad = AdapterDune({'api_key': os.getenv("DUNE_API")}, db_connector)
         ad.upload_to_table("l2beat_tokens", df)
 
+        # --- Upload token metadata JSON to S3 ---
+        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
+
+        df_eth = df[df['network'] == 'ethereum']
+        symbols = sorted(df_eth['symbol'].dropna().unique().tolist() + ['ETH'])
+        meta = {
+            'token_count': len(df_eth) + 1,
+            'symbols': symbols,
+        }
+        meta = fix_dict_nan(meta, 'tvs_token_metadata', send_notification=False)
+
+        s3_bucket = os.getenv("S3_CF_BUCKET")
+        cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
+        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/argot/tvs_token_metadata', meta, cf_distribution_id, invalidate=False)
+        print(f"Uploaded token metadata to S3: token_count={len(df_eth)}, unique symbols={len(symbols)}")
+
     @task()
     def clear_dune_table():
         """Clear all rows from the l2beat_tokens Dune table before re-uploading."""
