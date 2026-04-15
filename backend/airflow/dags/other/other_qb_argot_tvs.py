@@ -125,6 +125,22 @@ def run_dag():
         ad = AdapterDune({'api_key': os.getenv("DUNE_API")}, db_connector)
         ad.upload_to_table("l2beat_tokens", df)
 
+        # --- Upload token metadata JSON to S3 ---
+        from src.misc.helper_functions import upload_json_to_cf_s3, fix_dict_nan
+
+        df_eth = df[df['network'] == 'ethereum']
+        symbols = sorted(df_eth['symbol'].dropna().unique().tolist() + ['ETH'])
+        meta = {
+            'token_count': len(df_eth) + 1,
+            'symbols': symbols,
+        }
+        meta = fix_dict_nan(meta, 'tvs_token_metadata', send_notification=False)
+
+        s3_bucket = os.getenv("S3_CF_BUCKET")
+        cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
+        upload_json_to_cf_s3(s3_bucket, 'v1/quick-bites/argot/tvs_token_metadata', meta, cf_distribution_id, invalidate=False)
+        print(f"Uploaded token metadata to S3: token_count={len(df_eth)}, unique symbols={len(symbols)}")
+
     @task()
     def clear_dune_table():
         """Clear all rows from the l2beat_tokens Dune table before re-uploading."""
@@ -204,8 +220,29 @@ def run_dag():
         upserted = db_connector.upsert_table('fact_kpis', df_kpis)
         print(f"Upserted {upserted} rows into fact_kpis.")
 
+        # --- enrich df with owner_project ---
+        df_owner = db_connector.execute_query("""
+            SELECT
+                '0x' || encode(t.address, 'hex') AS address,
+                t.tag_value,
+                d.display_name
+            FROM (
+                SELECT DISTINCT ON (address)
+                    address,
+                    tag_value
+                FROM public.vw_oli_label_pool_gold_v2
+                WHERE
+                    caip2 IN ('eip155:any', 'eip155:1')
+                    AND tag_id = 'owner_project'
+                ORDER BY address, confidence DESC
+            ) t
+            LEFT JOIN public.oli_oss_directory d ON d.name = t.tag_value
+        """, load_df=True)
+        df_owner = df_owner.rename(columns={'tag_value': 'owner_project'})
+        df = df.merge(df_owner, on='address', how='left')
+
         # --- table JSON upload ---
-        cols = ['address', 'total_balance_usd', 'compiler', 'version', 'name', 'fully_qualified_name']
+        cols = ['address', 'total_balance_usd', 'compiler', 'version', 'name', 'fully_qualified_name', 'owner_project', 'display_name']
         table_dict = {}
         table_dict["data"] = {
             "types": cols,
@@ -356,6 +393,7 @@ def run_dag():
             WHERE
                 metric_key IN ('cmp_solc_ct','cmp_vyper_ct','cmp_unverified_ct')
                 AND origin_key = 'ethereum'
+                AND "date" >= '2018-01-01'
             ORDER BY 1 DESC
         """
 
@@ -368,6 +406,7 @@ def run_dag():
             WHERE
                 metric_key IN ('cmp_solc_usd','cmp_vyper_usd','cmp_unverified_usd')
                 AND origin_key = 'ethereum'
+                AND "date" >= '2018-01-01'
             ORDER BY 2 DESC
         """
 
