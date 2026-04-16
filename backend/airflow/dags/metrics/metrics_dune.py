@@ -464,9 +464,20 @@ def etl():
         )
         task = ClaudeTask(
             instruction=(
-                f"The following L2 chains might have updated their contracts on how they settle to L1. "
-                f"Update the economics mapping in `economics_da/economics_mapping.yml` for those chains.\n\n"
-                f"{changed_chains}"
+                f"A Dune monitoring query has detected that the following economics mapping entries have stopped or "
+                f"significantly reduced their on-chain activity. Each entry below is ALREADY in the mapping — it is "
+                f"the KNOWN address that appears to be deprecated or rotated away from.\n\n"
+                f"Alerted entries (existing mapping entries that went inactive):\n{changed_chains}\n\n"
+                f"YOUR TASK: For each chain, use the update-chain-economics-mapping skill to find what NEW contract "
+                f"or EOA has taken over. The alerted address being in the mapping is expected — do NOT conclude "
+                f"'already mapped, nothing to do'. Instead:\n"
+                f"1. Treat the alerted from_address/to_address/method as the DEPRECATED entry.\n"
+                f"2. Run Dune queries for the same from_address to find new to_address destinations it is now using, "
+                f"OR for the same to_address to find new from_address EOAs sending to it.\n"
+                f"3. Check L2Beat contracts for recently added addresses not yet in the mapping.\n"
+                f"4. Add any confirmed new entries. Never remove the old entries.\n"
+                f"5. If Dune shows the alerted address is still active at normal volume with no replacement, "
+                f"it may be a transient outage — report that finding instead of making changes."
             ),
             files_hint=["economics_da/economics_mapping.yml"],
             pr_title=f"fix: update economics mapping for {', '.join(df['l2'].tolist())}",
