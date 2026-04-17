@@ -77,14 +77,24 @@ def run_dag():
         s3_bucket = os.getenv("S3_CF_BUCKET")
         cf_distribution_id = os.getenv("CF_DISTRIBUTION_ID")
 
-        def pivot_to_dict(df_pivot):
-            """Convert pivoted MultiIndex-column DataFrame to flat list of records with unix ms timestamps."""
-            df_flat = df_pivot.copy()
-            df_flat.columns = [f'{col_val}_{metric}' for metric, col_val in df_flat.columns]
-            df_flat = df_flat.reset_index()
-            df_flat['week'] = (pd.to_datetime(df_flat['week']).astype('int64') // 10**6)
-            df_flat = df_flat.rename(columns={'week': 'date'})
-            return df_flat.to_dict(orient='records')
+        METRICS = ['total_gas_fees_eth', 'total_gas_fees_usd', 'total_txcount']
+
+        def pivot_to_dict_per_metric(df_pivot):
+            """Return dict of {metric: list_of_records} with simplified key names and unix ms date."""
+            result = {}
+            for metric in METRICS:
+                df_m = df_pivot[metric].copy()
+                df_m.columns = [str(c) for c in df_m.columns]
+                df_m = df_m.reset_index()
+                df_m['week'] = (pd.to_datetime(df_m['week']).astype('int64') // 10**6)
+                df_m = df_m.rename(columns={'week': 'date'})
+                result[metric] = df_m.to_dict(orient='records')
+            return result
+
+        def upload_weekly(df_pivot, s3_prefix, label):
+            for metric, records in pivot_to_dict_per_metric(df_pivot).items():
+                payload = fix_dict_nan({"data": records}, f'{label}_{metric}', send_notification=False)
+                upload_json_to_cf_s3(s3_bucket, f'{s3_prefix}_{metric}', payload, cf_distribution_id, invalidate=False)
 
         chains = df['origin_key'].unique().tolist()
 
@@ -105,10 +115,9 @@ def run_dag():
 
             df_grouped_pivot = df_grouped.pivot(index='week', columns='code_language', values=['total_gas_fees_eth', 'total_gas_fees_usd', 'total_txcount'])
 
-            compiler_weekly = {"data": pivot_to_dict(df_grouped_pivot)}
             compiler_total = {"data": df_total.to_dict(orient='records')}
 
-            upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/sourcify/{chain}_compiler_weekly', fix_dict_nan(compiler_weekly, f'{chain}_compiler_weekly', send_notification=False), cf_distribution_id, invalidate=False)
+            upload_weekly(df_grouped_pivot, f'v1/quick-bites/sourcify/{chain}_compiler_weekly', f'{chain}_compiler_weekly')
             upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/sourcify/{chain}_compiler_total', fix_dict_nan(compiler_total, f'{chain}_compiler_total', send_notification=False), cf_distribution_id, invalidate=False)
             print(f"[{chain}] Uploaded compiler weekly & total.")
 
@@ -128,10 +137,9 @@ def run_dag():
 
                 df_sol_pivot = df_sol_grouped.pivot(index='week', columns='code_version', values=['total_gas_fees_eth', 'total_gas_fees_usd', 'total_txcount'])
 
-                sol_weekly = {"data": pivot_to_dict(df_sol_pivot)}
                 sol_total = {"data": df_sol_total.to_dict(orient='records')}
 
-                upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/sourcify/{chain}_solidity_version_weekly', fix_dict_nan(sol_weekly, f'{chain}_solidity_version_weekly', send_notification=False), cf_distribution_id, invalidate=False)
+                upload_weekly(df_sol_pivot, f'v1/quick-bites/sourcify/{chain}_solidity_version_weekly', f'{chain}_solidity_version_weekly')
                 upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/sourcify/{chain}_solidity_version_total', fix_dict_nan(sol_total, f'{chain}_solidity_version_total', send_notification=False), cf_distribution_id, invalidate=False)
                 print(f"[{chain}] Uploaded solidity version weekly & total.")
 
@@ -151,10 +159,9 @@ def run_dag():
 
                 df_vyper_pivot = df_vyper_grouped.pivot(index='week', columns='code_version', values=['total_gas_fees_eth', 'total_gas_fees_usd', 'total_txcount'])
 
-                vyper_weekly = {"data": pivot_to_dict(df_vyper_pivot)}
                 vyper_total = {"data": df_vyper_total.to_dict(orient='records')}
 
-                upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/sourcify/{chain}_vyper_version_weekly', fix_dict_nan(vyper_weekly, f'{chain}_vyper_version_weekly', send_notification=False), cf_distribution_id, invalidate=False)
+                upload_weekly(df_vyper_pivot, f'v1/quick-bites/sourcify/{chain}_vyper_version_weekly', f'{chain}_vyper_version_weekly')
                 upload_json_to_cf_s3(s3_bucket, f'v1/quick-bites/sourcify/{chain}_vyper_version_total', fix_dict_nan(vyper_total, f'{chain}_vyper_version_total', send_notification=False), cf_distribution_id, invalidate=False)
                 print(f"[{chain}] Uploaded vyper version weekly & total.")
 
