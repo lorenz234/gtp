@@ -14,7 +14,7 @@ from src.misc.airflow_utils import alert_via_webhook, claude_fix_on_failure
     dag_id='other_qb_sourcify',
     description='Quick-bite around Sourcify contract verification data across chains.',
     tags=['other', 'weekly'],
-    start_date=datetime(2026, 4, 1),
+    start_date=datetime(2026, 4, 18),
     schedule='0 9 * * 2'  # Every Tuesday at 09:00 UTC
 )
 def run_dag():
