@@ -93,7 +93,7 @@ def run_dag():
                 col_names = [str(c) for c in df_m.columns]
                 df_m.columns = col_names
                 df_m = df_m.reset_index()
-                df_m['week'] = pd.to_datetime(df_m['week']).astype('datetime64[ms]').astype('int64')
+                df_m['week'] = pd.to_datetime(df_m['week']).dt.tz_localize(None).astype('datetime64[ms]').astype('int64')
                 types = ['unix'] + col_names
                 values = df_m[['week'] + col_names].values.tolist()
                 result[metric] = {"types": types, "values": values}
