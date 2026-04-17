@@ -81,8 +81,14 @@ def run_dag():
 
         def pivot_to_dict_per_metric(df_pivot):
             """Return dict of {metric: list_of_records} with simplified key names and unix ms date."""
+            if df_pivot.empty or not isinstance(df_pivot.columns, pd.MultiIndex):
+                return {metric: [] for metric in METRICS}
+            available = set(df_pivot.columns.get_level_values(0))
             result = {}
             for metric in METRICS:
+                if metric not in available:
+                    result[metric] = []
+                    continue
                 df_m = df_pivot[metric].copy()
                 df_m.columns = [str(c) for c in df_m.columns]
                 df_m = df_m.reset_index()
@@ -99,7 +105,8 @@ def run_dag():
         chains = df['origin_key'].unique().tolist()
 
         for chain in chains:
-            df_chain = df[df['origin_key'] == chain]
+            df_chain = df[df['origin_key'] == chain].copy()
+            df_chain['code_language'] = df_chain['code_language'].fillna('unverified')
 
             # --- compiler (code_language) breakdown ---
             df_grouped = df_chain.groupby(['code_language', 'week']).agg({
