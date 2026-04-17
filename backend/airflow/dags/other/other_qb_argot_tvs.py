@@ -15,7 +15,7 @@ from src.misc.airflow_utils import alert_via_webhook, claude_fix_on_failure
         'on_failure_callback': [alert_via_webhook, claude_fix_on_failure]
     },
     dag_id='other_qb_argot_tvs',
-    description='Monthly update to the quick-bite around sourcify.',
+    description='Top TVS contracts which are verified.',
     tags=['other', 'monthly'],
     start_date=datetime(2026, 4, 1),
     schedule='0 11 2 * *'  # 2nd of every month at 11:00 UTC
