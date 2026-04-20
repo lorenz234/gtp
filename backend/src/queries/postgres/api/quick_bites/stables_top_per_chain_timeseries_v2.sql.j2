@@ -15,10 +15,11 @@ latest_day_ranking AS (
     SELECT
         origin_key,
         token_id,
-        RANK() OVER (PARTITION BY origin_key ORDER BY SUM(value_usd) DESC) AS rnk
+        RANK() OVER (PARTITION BY origin_key ORDER BY SUM(value_usd) DESC NULLS LAST) AS rnk
     FROM public.vw_fact_stables_mcap_v2
     WHERE "date" = (SELECT MAX("date") FROM public.vw_fact_stables_mcap_v2)
     GROUP BY origin_key, token_id
+    HAVING SUM(value_usd) IS NOT NULL -- exclude tokens with no USD value
 )
 SELECT
     d."date",
@@ -32,4 +33,4 @@ GROUP BY
     d."date",
     d.origin_key,
     CASE WHEN COALESCE(r.rnk, 9999) <= 8 THEN d.token_id ELSE 'other' END
-ORDER BY 1 DESC, 2
+ORDER BY 1 DESC, 2;
