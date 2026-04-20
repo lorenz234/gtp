@@ -92,7 +92,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             token_ids = [coin['token_id'] for coin in self.coin_mapping]
         # exchange '*' for all metric_keys
         if metric_keys == ['*']:
-            metric_keys = ['total_supply', 'track_on_l1'] # 'volume' and 'transactions' ... not implemented yet
+            metric_keys = ['total_supply', 'exclude_balances', 'track_on_l1'] # 'volume' and 'transactions' ... not implemented yet
 
         # get db_progress, DataFrame that keeps track of which coins, chains and metric_keys are up to date. Used to determine from which day onwards to pull data.
         db_progress = self.get_db_progress()
@@ -170,6 +170,18 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 df['metric_key'] = 'total_supply'
                 df_all = pd.concat([df_all, df], ignore_index=True)
 
+            ## extract data for 'exclude_balances'
+            if metric_key == 'exclude_balances':
+
+                # pull exclude_balances from RPCs (100% reliable method)
+                df = self.exclude_balances_from_rpc(chain, token_ids, db_progress, pretend_today_is=pretend_today_is)
+
+                # merge df into df_all
+                if df.empty:
+                    continue
+                df['metric_key'] = 'exclude_balances'
+                df_all = pd.concat([df_all, df], ignore_index=True)
+
             ## extract data for 'track_on_l1'
             if metric_key == 'track_on_l1':
 
@@ -188,7 +200,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         return df_all
                 
     def total_supply_from_rpc(self, chain, token_ids, db_progress, pretend_today_is=None):
-        # first we check if chain mapping is defined with 'total_supply', if not skip
+        # first we check if chain mapping is defined with 'total_supply' (or 'track_on_l1'), if not skip
         if 'total_supply' != self.check_supply_mapping_for_chain(chain, self.address_mapping):
             return pd.DataFrame()
         
@@ -199,7 +211,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         is_supplyreader_deployed_date = (pd.to_datetime(supplyreader_deployed_raw).date() if is_supplyreader_deployed else None)
 
         # create specific chain db_progress df (includes new coins and removes already upto-date coins)
-        db_progress_filtered = self.get_db_progress_filtered(chain, 'total_supply', token_ids, db_progress)
+        db_progress_filtered = self.get_total_supply_progress(chain, token_ids, db_progress)
         if db_progress_filtered.empty:
             print(f"WARNING {chain}: No token_ids found or already fully backfilled. Continuing.")
             return pd.DataFrame()
@@ -334,6 +346,33 @@ class AdapterStablecoinSupply(AbstractAdapter):
             df_supplies_all['method'] = 'rpc'
             print(f"Successfully pulled stablecoin supply data for chain '{chain}' using RPC calls for {len(df_supplies_all)} records.")
         return df_supplies_all
+    
+    def exclude_balances_from_rpc(self, chain, token_ids, db_progress, pretend_today_is=None):
+        # check if chain mapping has any token_ids with 'exclude_balances', if not skip
+        if 'total_supply' != self.check_supply_mapping_for_chain(chain, self.address_mapping):
+            exclude_balances = next(
+                (
+                    token_data['exclude_balances']
+                    for token_data in self.address_mapping.get(chain, {}).values()
+                    if 'exclude_balances' in token_data
+                ),
+                None
+            )
+            if exclude_balances is None:
+                return pd.DataFrame()
+
+        # check if SupplyReader is deployed on the chain
+        chain_config = self.config[self.config['origin_key'] == chain]
+        supplyreader_deployed_raw = chain_config['deployed_supplyreader'].iloc[0]
+        is_supplyreader_deployed = pd.notna(supplyreader_deployed_raw) and supplyreader_deployed_raw != ''
+        is_supplyreader_deployed_date = (pd.to_datetime(supplyreader_deployed_raw).date() if is_supplyreader_deployed else None)
+
+        # create specific chain db_progress df (includes new coins and removes already upto-date coins)
+        db_progress_filtered = self.get_exclude_balances_progress(chain, token_ids, db_progress)
+        if db_progress_filtered.empty:
+            print(f"WARNING {chain}: No token_ids found or already fully backfilled. Continuing.")
+            return pd.DataFrame()
+        print(f"Pulling 'exclude_balances' on {chain} for token_ids: {db_progress_filtered['token_id'].tolist()}")
     
 
     def track_on_l1_from_rpc_or_dune(self, chain, token_ids, db_progress, min_amount=9999, pretend_today_is=None):
@@ -603,9 +642,9 @@ class AdapterStablecoinSupply(AbstractAdapter):
         else:
             return 'total_supply'
 
-    def get_db_progress_filtered(self, chain: str, metric_key: str, token_ids: list, db_progress: pd.DataFrame):
+    def get_total_supply_progress(self, chain: str, token_ids: list, db_progress: pd.DataFrame):
         # filter db_progress for specific chain and metric_key
-        db_progress_filtered = db_progress[(db_progress['origin_key'] == chain) & (db_progress['metric_key'] == metric_key)]
+        db_progress_filtered = db_progress[(db_progress['origin_key'] == chain) & (db_progress['metric_key'] == 'total_supply')]
         # filter token_ids down to what is actully deployed on this chain
         chain_token_ids = [token for token in self.address_mapping[chain] if token in token_ids]
         # see if we have new coins
@@ -614,12 +653,57 @@ class AdapterStablecoinSupply(AbstractAdapter):
         db_progress_filtered = pd.concat([db_progress_filtered, pd.DataFrame({
             'date': [None] * len(new_coins),
             'origin_key': [chain] * len(new_coins),
-            'metric_key': [metric_key] * len(new_coins),
+            'metric_key': ['total_supply'] * len(new_coins),
             'token_id': new_coins,
             'address': [self.address_mapping[chain][token]['address'].lower() for token in new_coins],
             'decimals': [self.address_mapping[chain][token]['decimals'] for token in new_coins],
             'value': [None] * len(new_coins),
         })], ignore_index=True)
+        # filter out coins which are already at yesterdays date (= up to date)
+        date_yesterday = (datetime.now() - timedelta(days=1)).date()
+        db_progress_filtered = db_progress_filtered[db_progress_filtered['date'] != date_yesterday]
+        # add two columns to keep track of the max and min date for backfilling, defined in address_mapping
+        db_progress_filtered['max_date'] = None
+        db_progress_filtered['min_date'] = None
+        db_progress_filtered['max_date'] = db_progress_filtered.apply(lambda row: self.address_mapping[chain][row['token_id']]['max_date'] if pd.isna(row['max_date']) and row['token_id'] in self.address_mapping[chain] and 'max_date' in self.address_mapping[chain][row['token_id']] else row['max_date'], axis=1)
+        db_progress_filtered['min_date'] = db_progress_filtered.apply(lambda row: self.address_mapping[chain][row['token_id']]['min_date'] if pd.isna(row['min_date']) and row['token_id'] in self.address_mapping[chain] and 'min_date' in self.address_mapping[chain][row['token_id']] else row['min_date'], axis=1)
+        db_progress_filtered['max_date'] = pd.to_datetime(db_progress_filtered['max_date']).dt.date
+        db_progress_filtered['min_date'] = pd.to_datetime(db_progress_filtered['min_date']).dt.date
+        # filter out already fully backfilled coins based on max_date
+        db_progress_filtered = db_progress_filtered[~((db_progress_filtered['date'] >= db_progress_filtered['max_date']) & (pd.notna(db_progress_filtered['max_date'])))]
+        return db_progress_filtered
+    
+    def get_exclude_balances_progress(self, chain: str, token_ids: list, db_progress: pd.DataFrame):
+        # filter db_progress for specific chain and metric_key
+        db_progress_filtered = db_progress[(db_progress['origin_key'] == chain) & (db_progress['metric_key'] == 'exclude_balances')]
+        # filter token_ids down to what is actully deployed on this chain
+        chain_token_ids = [token for token in self.address_mapping[chain] if token in token_ids and 'exclude_balances' in self.address_mapping[chain][token]]
+        # build one row per (token_id, exclude_balance address)
+        new_rows = []
+        for token in chain_token_ids:
+            token_data = self.address_mapping[chain][token]
+            for exclude_address in token_data['exclude_balances']:
+                # skip if this (token_id, address) combo already exists in db_progress
+                already_exists = (
+                    (db_progress_filtered['token_id'] == token) &
+                    (db_progress_filtered['address'] == exclude_address.lower())
+                ).any()
+                if not already_exists:
+                    new_rows.append({
+                        'date': None,
+                        'origin_key': chain,
+                        'metric_key': 'exclude_balances',
+                        'token_id': token,
+                        'address': exclude_address.lower(),
+                        'decimals': token_data['decimals'],
+                        'method': token_data.get('method', 'rpc'),
+                        'value': None,
+                    })
+        if new_rows:
+            db_progress_filtered = pd.concat(
+                [db_progress_filtered, pd.DataFrame(new_rows)],
+                ignore_index=True
+            )
         # filter out coins which are already at yesterdays date (= up to date)
         date_yesterday = (datetime.now() - timedelta(days=1)).date()
         db_progress_filtered = db_progress_filtered[db_progress_filtered['date'] != date_yesterday]
