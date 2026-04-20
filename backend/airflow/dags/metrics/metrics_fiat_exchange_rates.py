@@ -76,8 +76,12 @@ def etl():
             print(f"Loaded {len(df)} rows of current fiat rates.")
 
         # Fetch ISK/USD daily from Danmarks Nationalbank
+        # Use today's date so weekends/holidays get covered with the latest available rate
         df_isk = ad._fetch_isk_from_nationalbanken()
         if not df_isk.empty:
+            df_isk = df_isk.reset_index()
+            df_isk['date'] = end
+            df_isk = df_isk.set_index(['metric_key', 'origin_key', 'date'])
             ad.load(df_isk)
             print(f"Loaded ISK/USD rate from Nationalbanken.")
 
