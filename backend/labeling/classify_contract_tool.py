@@ -183,18 +183,16 @@ async def enrich_single(address: str, origin_key: str, session: aiohttp.ClientSe
             print(f"      [warn] transactions failed: {e}")
             return []
 
-    # PROTOTYPING: address log fetching disabled to conserve Blockscout credits
-    # async def _get_logs():
-    #     try:
-    #         return await blockscout.get_address_logs(address, chain_id, limit=50)
-    #     except Exception as e:
-    #         print(f"      [warn] address logs failed: {e}")
-    #         return []
+    async def _get_logs():
+        try:
+            return await blockscout.get_address_logs(address, chain_id, limit=50)
+        except Exception as e:
+            print(f"      [warn] address logs failed: {e}")
+            return []
 
-    bs_info, txs = await asyncio.gather(
-        _get_info(), _get_txs()
+    bs_info, txs, address_logs = await asyncio.gather(
+        _get_info(), _get_txs(), _get_logs()
     )
-    address_logs = []
 
     all_hashes = [t['hash'] for t in txs if t.get('hash')]
     sample_hashes = random.sample(all_hashes, min(5, len(all_hashes)))

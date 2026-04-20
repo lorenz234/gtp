@@ -385,15 +385,13 @@ async def enrich_contract(
         _skip_logs = not bs_info.get('is_verified') and not bs_info.get('contract_name')
 
         async def _get_logs():
-            # PROTOTYPING: address log fetching disabled to conserve Blockscout credits
-            return []
-            # if _skip_logs:
-            #     return []
-            # try:
-            #     return await blockscout.get_address_logs(address, chain_id, limit=20)
-            # except Exception as e:
-            #     logger.debug(f"[Blockscout] get_address_logs failed for {address}: {e}")
-            #     return []
+            if _skip_logs:
+                return []
+            try:
+                return await blockscout.get_address_logs(address, chain_id, limit=20)
+            except Exception as e:
+                logger.debug(f"[Blockscout] get_address_logs failed for {address}: {e}")
+                return []
 
         txs, address_logs = await asyncio.gather(_get_txs(), _get_logs())
 
