@@ -29,7 +29,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         
         # Store stablecoin metadata and mapping
         import requests
-        _url = "https://raw.githubusercontent.com/lorenz234/gtp-dna/main/stables/stables_config_v2.py"
+        _url = "https://raw.githubusercontent.com/growthepie/gtp-dna/main/stables/stables_config_v2.py"
         _response = requests.get(_url)
         _response.raise_for_status()
         _config = {}
