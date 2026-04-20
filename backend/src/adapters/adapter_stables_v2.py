@@ -374,6 +374,138 @@ class AdapterStablecoinSupply(AbstractAdapter):
             return pd.DataFrame()
         print(f"Pulling 'exclude_balances' on {chain} for token_ids: {db_progress_filtered['token_id'].tolist()}")
     
+        # replace NaN with a dummy old date
+        db_progress_filtered = db_progress_filtered.fillna({'date': pd.Timestamp('2000-01-01').date()})
+        block_date_mapping = self.get_last_block_of_day_from_db(chain, db_progress_filtered['date'].min().isoformat())
+        if pretend_today_is is not None:
+            block_date_mapping = block_date_mapping[block_date_mapping['date'] <= pretend_today_is]
+        # send warning & return if no block_date_mapping is found
+        if len(block_date_mapping) == 0: # raise error if we have no 'first_block_of_day' data for the chain
+            print(f"ERROR: Missing dates in block date mapping for chain {chain}. Can't pull in stablecoin supply via RPC. Please backfill 'first_block_of_day' first.")
+            return pd.DataFrame()
+        
+        # keep track of everything
+        df_balances_all = pd.DataFrame()
+
+        # going from newest to oldest date
+        for index, row in block_date_mapping.iterrows():
+            block_number = row['value']
+            date = row['date']
+
+            # can we use SupplyReader for this date to pull data?
+            use_supply_reader = (is_supplyreader_deployed and is_supplyreader_deployed_date <= pd.to_datetime(date).date())
+
+            # Yes, use SupplyReader :)
+            if use_supply_reader:
+                try: 
+                    # skip rpc call if max_date is reached for that token_id only
+                    db_progress_filtered_temp = db_progress_filtered[~(pd.to_datetime(db_progress_filtered['max_date']) < pd.to_datetime(date))]
+                    if db_progress_filtered_temp.empty:
+                        #print(f"- Skipping SupplyReader for all token_ids on {date} as they have all reached their max_date.")
+                        continue
+
+                    supplies = self.read_tokenBalances_SupplyReader(
+                        chain=chain,
+                        addresses=db_progress_filtered_temp['address'].tolist(), # EOAs to exclude
+                        token_address=[self.address_mapping[chain][token_id]['address'] for token_id in db_progress_filtered_temp['token_id'].tolist()], # erc20 token address
+                        block_number=block_number,
+                    )
+                    print(f"- Used SupplyReader for {len(db_progress_filtered_temp)} token_ids, chain {chain}, {date} = block {block_number}: {supplies}")
+                    df_supplies = db_progress_filtered_temp[['origin_key', 'token_id', 'address', 'decimals']].copy()
+                    df_supplies['value'] = supplies / (10 ** df_supplies['decimals'])
+                    df_supplies['date'] = date
+                    df_balances_all = pd.concat([df_balances_all, df_supplies], ignore_index=True)
+
+                    # remove coins from db_progress_filtered if supply is 0
+                    if 0 in supplies:
+                        to_be_removed_coins = db_progress_filtered[db_progress_filtered['token_id'].isin([db_progress_filtered['token_id'].iloc[i] for i, s in enumerate(supplies) if s == 0])]
+                        db_progress_filtered = db_progress_filtered[~db_progress_filtered['token_id'].isin(to_be_removed_coins['token_id'])]
+                        print(f"- Removed {len(to_be_removed_coins)} coin(s) with 0 supply from db_progress_filtered: {to_be_removed_coins['token_id'].tolist()}")
+                        db_progress_filtered = db_progress_filtered.reset_index(drop=True)
+                    # remove coins from db_progress_filtered if backfill date is reached
+                    if db_progress_filtered['date'].max() >= date - timedelta(days=1):
+                        to_be_removed_coins = db_progress_filtered[db_progress_filtered['date'] >= date - timedelta(days=1)]
+                        db_progress_filtered = db_progress_filtered[db_progress_filtered['date'] < date - timedelta(days=1)]
+                        print(f"- Removed {len(to_be_removed_coins)} coin(s) from db_progress_filtered based on date: {to_be_removed_coins['token_id'].tolist()}")
+                        db_progress_filtered = db_progress_filtered.reset_index(drop=True)
+                    # remove coins from db_progress_filtered if min_date is reached
+                    to_be_removed_coins = db_progress_filtered[pd.to_datetime(db_progress_filtered['min_date']) >= pd.to_datetime(date)]
+                    if len(to_be_removed_coins) > 0:
+                        db_progress_filtered = db_progress_filtered[~db_progress_filtered['token_id'].isin(to_be_removed_coins['token_id'])]
+                        print(f"- Removed {len(to_be_removed_coins)} coin(s) from db_progress_filtered based on min_date: {to_be_removed_coins['token_id'].tolist()}")
+                        db_progress_filtered = db_progress_filtered.reset_index(drop=True)
+                    # break if db_progress_filtered is empty after removals
+                    if len(db_progress_filtered) == 0:
+                        print("- All coins fully processed, exiting loop.")
+                        break
+                    continue
+                except Exception as e:
+                    print(f"SupplyReader failed for chain {chain} on block {block_number} and date {date}. Falling back to single RPC calls: {e}")
+
+            # No, single RPC calls :(
+            for index, row in db_progress_filtered.iterrows():
+                origin_key = row['origin_key']
+                token_id = row['token_id']
+                address = row['address']
+                decimals = row['decimals']
+
+                # skip rpc call if max_date is reached for that token_id only
+                if pd.notna(row['max_date']) and pd.to_datetime(date) > pd.to_datetime(row['max_date']):
+                    #print(f"- Skipping RPC call for {token_id} on {date} as it has reached its max_date ({row['max_date']}).")
+                    continue
+
+                try:
+                    supply = self.read_balance_rpc(
+                        chain=chain,
+                        address=address,
+                        token_address=self.address_mapping[chain][token_id]['address'],
+                        block_number=block_number,
+                        decimals=decimals,
+                    )
+                    df_balances_all = pd.concat([df_balances_all, pd.DataFrame({
+                        'origin_key': [origin_key],
+                        'token_id': [token_id],
+                        'address': [address],
+                        'decimals': [decimals],
+                        'value': [supply],
+                        'date': [date]
+                    })], ignore_index=True)
+                    print(f"- Used single RPC call for {token_id}, chain {origin_key}, {date} = block {block_number}: {supply}")
+
+                    # remove coin from db_progress_filtered if supply is 0
+                    if supply == 0:
+                        db_progress_filtered = db_progress_filtered[db_progress_filtered['token_id'] != token_id]
+                        print(f"- Removed {token_id} from db_progress_filtered for chain {chain} on date {date} due to 0 supply.")
+                    # remove coin from db_progress_filtered if backfill date is reached
+                    elif db_progress_filtered[db_progress_filtered['token_id'] == token_id]['date'].max() >= date - timedelta(days=1):
+                        db_progress_filtered = db_progress_filtered[db_progress_filtered['token_id'] != token_id]
+                        print(f"- Removed {token_id} from db_progress_filtered for chain {chain} on date {date} due to backfill date reached.")
+                    # remove coin from db_progress_filtered if min_date is reached
+                    elif pd.notna(db_progress_filtered[db_progress_filtered['token_id'] == token_id]['min_date'].iloc[0]) and db_progress_filtered[db_progress_filtered['token_id'] == token_id]['min_date'].iloc[0] >= date:
+                        db_progress_filtered = db_progress_filtered[db_progress_filtered['token_id'] != token_id]
+                        print(f"- Removed {token_id} from db_progress_filtered for chain {chain} on date {date} due to min_date reached.")
+                    # break if db_progress_filtered is empty after removals
+                    if len(db_progress_filtered) == 0:
+                        print("- All coins fully processed, exiting loop.")
+                        break
+                except Exception as e:
+                    # remove coins from db_progress_filtered if contract not yet deployed
+                    if self._is_contract_not_deployed_error(e):
+                        print(f"- Removed {token_id} from db_progress_filtered for chain {chain} on date {date} due to contract not deployed yet.")
+                        db_progress_filtered = db_progress_filtered[db_progress_filtered['token_id'] != token_id]
+                        if len(db_progress_filtered) == 0:
+                            break
+                    else:
+                        print(f"RPC call failed for chain {chain}, token {token_id} on block {block_number} and date {date}: {e}")
+
+        # return and print report
+        if df_balances_all.empty:
+            print(f"No new stablecoin balance data for chain '{chain}' found using RPC calls.")
+        else:
+            df_balances_all['method'] = 'rpc'
+            print(f"Successfully pulled stablecoin balance data for chain '{chain}' using RPC calls for {len(df_balances_all)} records.")
+        return df_balances_all
+
 
     def track_on_l1_from_rpc_or_dune(self, chain, token_ids, db_progress, min_amount=9999, pretend_today_is=None):
         # first we check if chain mapping is defined with 'track_on_l1', if not skip
@@ -443,7 +575,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 date = row['date']
 
                 # pull in with RPC using SupplyReader
-                balances = self.read_balances_SupplyReader('ethereum', bridge, token_address_df['address'].tolist(), block_number)
+                balances = self.read_tokensBalance_SupplyReader('ethereum', bridge, token_address_df['address'].tolist(), block_number)
                 token_address_df['value'] = balances
                 token_address_df['value'] = token_address_df['value']/(10 ** token_address_df['decimals'])
                 token_address_df = token_address_df[token_address_df['value'] > min_amount].reset_index(drop=True) # minimum threshold for it to start be tracked 100
@@ -515,13 +647,23 @@ class AdapterStablecoinSupply(AbstractAdapter):
 
         return self._call_with_rpc_failover(chain, _call_fn)
 
-    def read_balances_SupplyReader(self, chain: str, address: str, token_addresses: list, block_number: int = None):
+    def read_tokensBalance_SupplyReader(self, chain: str, address: str, token_addresses: list, block_number: int = None):
         """
         Read raw total supplies using the SupplyReader contract with RPC failover.
         """
         def _call_fn(w3):
             self.SupplyReader = SupplyReaderAdapter(w3)
             return self.SupplyReader.tokens_balance(address, token_addresses, block_number)
+
+        return self._call_with_rpc_failover(chain, _call_fn)
+
+    def read_tokenBalances_SupplyReader(self, chain: str, addresses: str, token_address: list, block_number: int = None):
+        """
+        Read raw total supplies using the SupplyReader contract with RPC failover.
+        """
+        def _call_fn(w3):
+            self.SupplyReader = SupplyReaderAdapter(w3)
+            return self.SupplyReader.token_balances(addresses, token_address, block_number)
 
         return self._call_with_rpc_failover(chain, _call_fn)
 
@@ -544,7 +686,27 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 total_supply = contract.functions.totalSupply().call(block_identifier=block_number)
                 return total_supply / (10 ** decimals)
             return self._call_with_rpc_failover(chain, _call_fn)
-        
+
+    def read_balance_rpc(self, chain: str, address: str, token_address: str, block_number: int, decimals: int = 18) -> float:
+        """
+        Read token balanceOf via direct ERC20 contract call with RPC failover.
+        """
+        if chain == 'starknet': # special case for starknet!
+            def _call_fn(w3):
+                async def _read_balance():
+                    contract = await Contract.from_address(address=int(token_address, 16), provider=w3)
+                    result = await contract.functions["balanceOf"].call(int(address, 16), block_number=block_number)
+                    value = result[0] if isinstance(result, (list, tuple)) else result
+                    return value / (10 ** decimals)
+                return asyncio.run(_read_balance())
+            return self._call_with_rpc_failover(chain, _call_fn)
+        else: # all other evm chains
+            def _call_fn(w3):
+                contract = w3.eth.contract(address=Web3.to_checksum_address(token_address), abi=self.erc20_abi)
+                balance = contract.functions.balanceOf(Web3.to_checksum_address(address)).call(block_identifier=block_number)
+                return balance / (10 ** decimals)
+            return self._call_with_rpc_failover(chain, _call_fn)
+
     def get_new_w3(self, chain: str, rotate: bool = False):
         """
         Create a new Web3 instance for a chain and optionally rotate to the next RPC.
