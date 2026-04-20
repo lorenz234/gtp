@@ -1,3 +1,4 @@
+# TODO: remove this and map all to [fiat.json](https://raw.githubusercontent.com/growthepie/gtp-frontend/a570d6bf4856df66734eb6b4ddc6e2cdc164a71f/public/dicts/fiat.json)
 # Currency Configuration for Non-USD Stablecoins
 # This file manages fiat currency mappings and exchange rate sources for converting
 # non-USD stablecoin supplies to USD values for consistent reporting.
