@@ -326,6 +326,85 @@ def etl():
             print(f'No attestations since {yesterday}.')
 
     @task()
+    def airtable_write_protocol_likely_to_reattest():
+        """
+        Writes contracts flagged as 'protocol-contract-likely' by the automated labeler to
+        'Label Pool Reattest' so a human reviewer can assign a real owner_project slug.
+
+        The automated labeler attests owner_project = 'protocol-contract-likely' as a sentinel.
+        Because the standard extract_labels_for_review.sql.j2 excludes the automated attester,
+        this separate task uses extract_automated_protocol_likely.sql.j2 to surface these rows.
+
+        Rows are written with a blank owner_project field and a _comment explaining the signal,
+        so the reviewer knows to fill in a real project slug before approval.
+        """
+        import pandas as pd
+        from eth_utils import to_checksum_address
+        from src.db_connector import DbConnector
+        import src.misc.airtable_functions as at
+        from pyairtable import Api
+        import os
+
+        db_connector = DbConnector()
+
+        df = db_connector.execute_jinja('/oli/extract_automated_protocol_likely.sql.j2', {}, load_into_df=True)
+
+        if df.empty:
+            print('No protocol-likely contracts to surface for owner_project review.')
+            return
+
+        AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
+        AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
+        api = Api(AIRTABLE_API_KEY)
+        table = api.table(AIRTABLE_BASE_ID, 'Label Pool Reattest')
+
+        # Normalise address to checksum format
+        df['address'] = df.apply(
+            lambda row: to_checksum_address('0x' + bytes(row['address']).hex())
+            if isinstance(row['address'], (bytes, bytearray, memoryview))
+            else to_checksum_address(row['address'])
+            if row['chain_id'].startswith('eip155') else row['address'],
+            axis=1
+        )
+
+        # Dedup against existing 'Label Pool Reattest' rows (address + chain_id)
+        df_existing = at.read_airtable(table)
+        if not df_existing.empty and 'address' in df_existing.columns and 'chain_id' in df_existing.columns:
+            existing_keys = set(zip(df_existing['address'].str.lower(), df_existing['chain_id']))
+            df = df[~df.apply(lambda r: (r['address'].lower(), r['chain_id']) in existing_keys, axis=1)]
+
+        if df.empty:
+            print('All protocol-likely contracts already in Label Pool Reattest.')
+            return
+
+        # Map usage_category → Airtable Sub Categories record ID
+        cat = api.table(AIRTABLE_BASE_ID, 'Sub Categories')
+        df_cat = at.read_airtable(cat)
+        df = df.replace({'usage_category': df_cat.set_index('category_id')['id']})
+        df['usage_category'] = df['usage_category'].apply(lambda x: [x] if pd.notna(x) and str(x).startswith('rec') else [])
+
+        # Map chain_id (caip2) → Airtable Chains record ID, rename to origin_key
+        chains = api.table(AIRTABLE_BASE_ID, 'Chains')
+        df_chains = at.read_airtable(chains)
+        df = df.replace({'chain_id': df_chains.set_index('caip2')['id']})
+        df['chain_id'] = df['chain_id'].apply(lambda x: [x] if pd.notna(x) and str(x).startswith('rec') else [])
+        df = df.rename(columns={'chain_id': 'origin_key'})
+
+        # owner_project stays blank — reviewer must assign a real project slug
+        df['owner_project'] = [[] for _ in range(len(df))]
+
+        # _comment tells the reviewer why this row appeared
+        df['_comment'] = 'Protocol-likely: automated labeler detected strong protocol signals. Please assign owner_project.'
+
+        # Drop sentinel column — do not write 'protocol-contract-likely' to Airtable
+        df = df.drop(columns=['owner_project_sentinel'] if 'owner_project_sentinel' in df.columns else [], errors='ignore')
+        # attester column (bytes) is not needed in Airtable
+        df = df.drop(columns=[c for c in ['attester', 'owner_project'] if c in df.columns], errors='ignore')
+
+        at.push_to_airtable(table, df)
+        print(f'Wrote {len(df)} protocol-likely contracts to Label Pool Reattest.')
+
+    @task()
     def airtable_write_depreciated_owner_project():
         """
         This task writes the remap owner project table to Airtable.
@@ -426,6 +505,66 @@ def etl():
                 print(f"Successfully attested label for {address} on {chain_id}: {response}")
             # at the end delete just uploaded rows from airtable
             at.delete_airtable_ids(table, ids)
+
+    @task()
+    def airtable_read_automated_labels():
+        """
+        Reads approved rows from 'Label Pool Automated', re-attests them with the high-trust
+        OLI_gtp_pk key (supplemented with any existing gold-table tags), then deletes them from Airtable.
+        """
+        from src.db_connector import DbConnector
+        import src.misc.airtable_functions as at
+        from pyairtable import Api
+        from oli import OLI  # v2.0.4
+        import pandas as pd
+        import os
+
+        AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
+        AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
+        api = Api(AIRTABLE_API_KEY)
+        table = api.table(AIRTABLE_BASE_ID, 'Label Pool Automated')
+
+        df = at.read_all_label_pool_reattest(api, AIRTABLE_BASE_ID, table, approved=True)
+        if df is None or df.empty:
+            print('No approved automated labels to re-attest.')
+            return
+
+        db_connector = DbConnector()
+        oli = OLI(private_key=os.getenv("OLI_gtp_pk"), api_key=os.getenv("OLI_API_KEY"))
+
+        df = df.drop_duplicates(subset=['address', 'chain_id'])
+        ids = df['id'].tolist()
+
+        # Melt to tag_id/value pairs (owner_project absent — automated labeler never sets it)
+        df = df[['address', 'chain_id', 'contract_name', 'usage_category']]
+        df = df.melt(id_vars=['address', 'chain_id'], var_name='tag_id', value_name='value')
+        df['address'] = df['address'].str.lower()
+        df = df[df['value'].notnull()]
+
+        for group in df.groupby(['address', 'chain_id']):
+            df_auto = group[1].copy()
+            df_auto['source'] = 'automated'
+            # Fill in any missing tags from the gold table (OLI_gtp_pk prior attestations)
+            df_gold = db_connector.get_all_prior_attested_labels(
+                group[0][0], group[0][1], "0xA725646C05E6BB813D98C5ABB4E72DF4BCF00B56")
+            if not df_gold.empty:
+                df_gold = df_gold[['address', 'caip2', 'tag_id', 'value']].rename(
+                    columns={'caip2': 'chain_id'})
+                df_gold['source'] = 'gold_table'
+                df_merged = pd.concat([df_auto, df_gold], ignore_index=True)
+            else:
+                df_merged = df_auto
+            df_merged = df_merged.drop_duplicates(
+                subset=['address', 'chain_id', 'tag_id'], keep='first')
+            df_merged = df_merged.drop(columns=['source'])
+
+            tags = df_merged.set_index('tag_id')['value'].to_dict()
+            address = group[0][0].replace('\\x', '0x')
+            chain_id = group[0][1]
+            response = oli.submit_label(address, chain_id, tags)
+            print(f'Re-attested {address} on {chain_id}: {response}')
+
+        at.delete_airtable_ids(table, ids)
 
     @task()
     def airtable_read_depreciated_owner_project():
@@ -563,9 +702,10 @@ def etl():
 
     ## Read in new labels from airtable and attest to label pool
     read_contracts = airtable_read_contracts()  ## read in contracts from airtable and attest
-    read_pool = airtable_read_label_pool_reattest() ## read in approved labels from airtable and attest 
+    read_pool = airtable_read_label_pool_reattest() ## read in approved labels from airtable and attest
+    read_automated = airtable_read_automated_labels() ## read in approved automated labels and re-attest with gtp key
     read_remap = airtable_read_depreciated_owner_project() ## read in remap owner project from airtable and attest
-    
+
     ## Refresh materialized views
     refresh_views = refresh_materialized_views()
 
@@ -573,12 +713,15 @@ def etl():
     write_contracts = airtable_write_contracts()  ## write contracts from DB to airtable
     write_pool = airtable_write_label_pool_reattest() ## write label pool reattest from DB to airtable
     write_remap = airtable_write_depreciated_owner_project() ## write remap owner project from DB to airtable
-    
+    write_protocol_likely = airtable_write_protocol_likely_to_reattest() ## write protocol-likely contracts to Label Pool Reattest
+
     ## Revoke old attestations from label pool
     revoke_onchain = revoke_old_attestations() ## revoke old attestations from the label pool
 
     # Define execution order
-    sync_categories >> sync_chains >> read_contracts >> read_pool >> read_remap >> refresh_views >> write_contracts >> write_pool >> write_remap >> revoke_onchain
+    # read_automated runs in parallel with read_pool; write side is handled by oli_automated_labeler DAG
+    # write_protocol_likely runs in parallel with write_pool and write_remap after view refresh
+    sync_categories >> sync_chains >> read_contracts >> [read_pool, read_automated] >> read_remap >> refresh_views >> write_contracts >> [write_pool, write_protocol_likely] >> write_remap >> revoke_onchain
     
 etl()
 

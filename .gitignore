@@ -32,6 +32,8 @@ standalone_admin_password.txt
 warnings.txt
 
 
+*.log
+
 backend/adapter_starknet_test.py
 backend/adapter_gtp_test.py
 backend/adapter_celestia_test.py
