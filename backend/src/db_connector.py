@@ -15,7 +15,6 @@ import os
 db_user = os.getenv("DB_USERNAME")
 db_passwd = os.getenv("DB_PASSWORD")
 db_host = os.getenv("DB_HOST")
-db_port = os.getenv("DB_PORT", "5432")
 db_name = os.getenv("DB_DATABASE")
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
@@ -29,9 +28,9 @@ class DbConnector:
         def _coerce_text(statement):
                 return text(statement) if isinstance(statement, str) else statement
 
-        def __init__(self, db_user=db_user, db_passwd=db_passwd, db_host=db_host, db_name=db_name, db_port=db_port):
-            self.url = f"postgresql+psycopg2://{db_user}:{db_passwd}@{db_host}:{db_port}/{db_name}"
-            self.uri = f"postgresql://{db_user}:{db_passwd}@{db_host}:{db_port}/{db_name}"
+        def __init__(self, db_user=db_user, db_passwd=db_passwd, db_host=db_host, db_name=db_name):
+            self.url = f"postgresql+psycopg2://{db_user}:{db_passwd}@{db_host}/{db_name}"
+            self.uri = f"postgresql://{db_user}:{db_passwd}@{db_host}/{db_name}"
             self.engine = sqlalchemy.create_engine(
                 self.url,
                 connect_args={
@@ -1545,7 +1544,6 @@ class DbConnector:
                                 bcm.main_category_id as main_category_key,
                                 bcm.main_category_name,
                         """
-                        automated_labeler_exclusion = ''
                 else:
                         main_category_string = 'and bcm.main_category_id is null'
                         sub_main_string = """
@@ -1554,52 +1552,21 @@ class DbConnector:
                                 'unlabeled' as main_category_key,
                                 'Unlabeled' as main_category_name,
                         """
-                        # Also exclude contracts already attested by the automated labeler.
-                        # Its attestations never reach the gold view (no owner_project), so
-                        # we check public.labels directly via the caip2 → origin_key mapping.
-                        automated_labeler_exclusion = """
-                                AND NOT EXISTS (
-                                    SELECT 1 FROM public.labels lbl
-                                    JOIN sys_main_conf smc ON lbl.chain_id = smc.caip2
-                                    WHERE lbl.address = '0x' || encode(cl.address, 'hex')
-                                      AND smc.origin_key = cl.origin_key
-                                      AND lbl.attester = decode('aDbf2b56995b57525Aa9a45df19091a2C5a2A970', 'hex')
-                                )"""
-                
+
 
                 exec_string = f'''
-                        with chain_totals as (
-                                -- chain-level median tx fee over the same date window (all contracts)
-                                -- median is more robust than mean — not skewed by a handful of heavy MEV contracts
-                                SELECT
-                                        origin_key,
-                                        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY median_tx_fee) as median_tx_fee
-                                FROM public.blockspace_fact_contract_level
-                                WHERE date < DATE_TRUNC('day', NOW())
-                                  AND origin_key IN ('{"','".join(origin_keys)}')
-                                  {date_string}
-                                  AND median_tx_fee IS NOT NULL
-                                GROUP BY origin_key
-                                ),
-
-                        top_contracts as (
+                        with top_contracts as (
                                 SELECT
                                         cl.address,
                                         cl.origin_key,
                                         UPPER(LEFT(bl.contract_name , 1)) || SUBSTRING(bl.contract_name FROM 2) as contract_name,
                                         oss.display_name as project_name,
                                         {sub_main_string}
-                                        sum(cl.gas_fees_eth) as gas_fees_eth,
-                                        sum(cl.gas_fees_usd) as gas_fees_usd,
-                                        sum(cl.txcount) as txcount,
-                                        round(avg(cl.daa)) as daa,
-                                        round(sum(cl.success_rate * cl.txcount)::numeric / nullif(sum(cl.txcount), 0), 3) as success_rate,
-                                        round(
-                                            (PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY cl.median_tx_fee)
-                                            / nullif(ct.median_tx_fee, 0))::numeric
-                                        , 3) as rel_cost
+                                        sum(gas_fees_eth) as gas_fees_eth,
+                                        sum(gas_fees_usd) as gas_fees_usd,
+                                        sum(txcount) as txcount,
+                                        round(avg(daa)) as daa
                                 FROM public.blockspace_fact_contract_level cl
-                                left join chain_totals ct on cl.origin_key = ct.origin_key
                                 left join vw_oli_label_pool_gold_pivoted_v2 bl on cl.address = bl.address and cl.origin_key = bl.origin_key
                                 left join vw_oli_category_mapping bcm on lower(bl.usage_category) = lower(bcm.category_id)
                                 left join oli_oss_directory oss on bl.owner_project = oss.name
@@ -1608,14 +1575,13 @@ class DbConnector:
                                         and cl.origin_key IN ('{"','".join(origin_keys)}')
                                         {date_string}
                                         {main_category_string}
-                                        {automated_labeler_exclusion}
-                                group by 1,2,3,4,5,6,7,8,ct.median_tx_fee
+                                group by 1,2,3,4,5,6,7,8
                                 order by gas_fees_eth desc
                                 ),
 
                         top_contracts_category_and_origin_key_by_gas as (
                                 SELECT
-                                        address,origin_key,contract_name,project_name,sub_category_key,sub_category_name,main_category_key,main_category_name,gas_fees_eth,gas_fees_usd,txcount,daa,success_rate,rel_cost
+                                        address,origin_key,contract_name,project_name,sub_category_key,sub_category_name,main_category_key,main_category_name,gas_fees_eth,gas_fees_usd,txcount,daa
                                 FROM (
                                         SELECT
                                                 ROW_NUMBER() OVER (PARTITION BY sub_category_key, origin_key ORDER BY gas_fees_eth desc) AS r,
@@ -1628,7 +1594,7 @@ class DbConnector:
 
                         top_contracts_category_and_origin_key_by_txcount as (
                                 SELECT
-                                        address,origin_key,contract_name,project_name,sub_category_key,sub_category_name,main_category_key,main_category_name,gas_fees_eth,gas_fees_usd,txcount,daa,success_rate,rel_cost
+                                        address,origin_key,contract_name,project_name,sub_category_key,sub_category_name,main_category_key,main_category_name,gas_fees_eth,gas_fees_usd,txcount,daa
                                 FROM (
                                         SELECT
                                                 ROW_NUMBER() OVER (PARTITION BY sub_category_key, origin_key ORDER BY txcount desc) AS r,

@@ -62,6 +62,27 @@ from concurrent_contract_analyzer import (
     rate_limit_manager,
 )
 from ai_classifier import classify_contract, CHAIN_TO_EIP155, _oli_cache
+import ai_classifier as _ai_classifier
+
+
+def _load_chain_config() -> None:
+    """Populate Config and ai_classifier chain mappings from sys_main_conf."""
+    try:
+        for _p in [str(_BACKEND_DIR)]:
+            if _p not in sys.path:
+                sys.path.insert(0, _p)
+        from src.db_connector import DbConnector
+        db = DbConnector()
+        Config.load_from_db(db.engine)
+        _ai_classifier.CHAIN_TO_EIP155.update({
+            ok: f"eip155:{chain_id}"
+            for ok, chain_id in Config.SUPPORTED_CHAINS.items()
+        })
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Could not load chain config from DB: {e}")
+
+
+_load_chain_config()
 
 
 def _ssl_ctx():

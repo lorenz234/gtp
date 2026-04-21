@@ -100,16 +100,20 @@ except ImportError:
     _HAS_OLI = False
 
 # ── EIP-155 chain ID mapping ─────────────────────────────────────────────────
-# origin_key (DB) → numeric chain_id used by Blockscout/Tenderly
-ORIGIN_KEY_TO_CHAIN_ID: dict[str, int] = {
-    k: v for k, v in Config.SUPPORTED_CHAINS.items()
-}
-# Add underscored variants
-ORIGIN_KEY_TO_CHAIN_ID.update({
-    "zksync_era": 324,
-    "arbitrum_nova": 42170,
-    "polygon_zkevm": 1101,
-})
+# Populated by _load_chain_config() after DB init — do not add hardcoded entries.
+ORIGIN_KEY_TO_CHAIN_ID: dict[str, int] = {}
+
+
+def _load_chain_config(engine) -> None:
+    """Load chain mappings from sys_main_conf into Config and ai_classifier."""
+    import ai_classifier
+    Config.load_from_db(engine)
+    ai_classifier.CHAIN_TO_EIP155.update({
+        ok: caip2
+        for ok, chain_id in Config.SUPPORTED_CHAINS.items()
+        for caip2 in [f"eip155:{chain_id}"]
+    })
+    ORIGIN_KEY_TO_CHAIN_ID.update(Config.SUPPORTED_CHAINS)
 
 
 def _ssl_ctx():
@@ -142,6 +146,7 @@ def fetch_unlabeled_contracts(
         )
 
     db = DbConnector()
+    _load_chain_config(db.engine)
     main_conf = get_main_config()
 
     if not origin_keys:
@@ -964,6 +969,12 @@ async def reclassify_from_airtable(args):
     except ImportError as e:
         logger.error(f"[Reclassify] Missing dependency: {e}")
         return
+
+    if _HAS_DB:
+        try:
+            _load_chain_config(DbConnector().engine)
+        except Exception as e:
+            logger.warning(f"[Reclassify] Could not load chain config from DB: {e}")
 
     api_key = os.getenv("AIRTABLE_API_KEY")
     base_id = os.getenv("AIRTABLE_BASE_ID")

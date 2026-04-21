@@ -208,31 +208,10 @@ def _format_trace_for_prompt(trace: dict, index: int) -> str:
 
 
 # ─── Chain mapping ────────────────────────────────────────────────────────────
+# Populated at runtime from sys_main_conf by automated_labeler.py / classify_contract_tool.py.
+# Do not add hardcoded entries here — use load_chain_to_eip155() instead.
 
-CHAIN_TO_EIP155: dict[str, str] = {
-    "ethereum": "eip155:1",
-    "base": "eip155:8453",
-    "arbitrum": "eip155:42161",
-    "optimism": "eip155:10",
-    "zksync_era": "eip155:324",
-    "zksync": "eip155:324",
-    "polygon_zkevm": "eip155:1101",
-    "scroll": "eip155:534352",
-    "linea": "eip155:59144",
-    "mantle": "eip155:5000",
-    "mode": "eip155:34443",
-    "taiko": "eip155:167000",
-    "unichain": "eip155:130",
-    "arbitrum_nova": "eip155:42170",
-    "zora": "eip155:7777777",
-    "celo": "eip155:42220",
-    "swell": "eip155:1923",
-    "redstone": "eip155:690",
-    "megaeth": "eip155:4326",
-    "starknet": "eip155:23448594291968334",
-    "zircuit": "eip155:48900",
-    "polygon": "eip155:137",
-}
+CHAIN_TO_EIP155: dict[str, str] = {}
 
 
 # ─── Log Signal Decoder ───────────────────────────────────────────────────────

@@ -270,14 +270,9 @@ class Config:
     # Set TENDERLY_ACCESS_KEY in .env. Without it, the range fallback is skipped.
     TENDERLY_ACCESS_KEY = os.getenv("TENDERLY_ACCESS_KEY")
 
-    # Blockscout API Keys — pro key covers all chains
-    _pro_key = os.getenv("BLOCKSCOUT_API_KEY_PRO")
-    BLOCKSCOUT_API_KEYS = {
-        1: _pro_key, 10: _pro_key, 8453: _pro_key, 42161: _pro_key,
-        534352: _pro_key, 137: _pro_key, 130: _pro_key, 42220: _pro_key,
-        4326: _pro_key, 34443: _pro_key
-    }
-    
+    # Blockscout API Keys — populated by load_from_db(); single pro key covers all chains
+    BLOCKSCOUT_API_KEYS: dict = {}
+
     EXCLUDED_REPOS = [
         "HelayLiu/utils_download",
         "KeystoneHQ/Smart-Contract-Metadata-Registry",
@@ -294,19 +289,14 @@ class Config:
         "edgex-Tech/go-ethereum"
     ]
     
-    SUPPORTED_CHAINS = {
-        "ethereum": 1,
-        "optimism": 10,
-        "base": 8453,
-        "arbitrum": 42161,
-        "scroll": 534352,
-        "polygon": 137,
-        "unichain": 130,
-        "celo": 42220,
-        "megaeth": 4326,
-        "mode": 34443,
-    }
-    
+    # Chains the automated labeler supports (must have Blockscout Pro API access).
+    # origin_key → chain_id populated by load_from_db(); only the keys list is configured here.
+    SUPPORTED_ORIGIN_KEYS: list = [
+        "ethereum", "optimism", "base", "arbitrum", "scroll",
+        "polygon", "unichain", "celo", "megaeth", "mode",
+    ]
+    SUPPORTED_CHAINS: dict = {}  # populated by load_from_db()
+
     CHAIN_NAME_ALIASES = {
         "op mainnet": "optimism",
         "optimism mainnet": "optimism",
@@ -327,19 +317,49 @@ class Config:
         "mega-eth": "megaeth"
     }
     
-    CHAIN_EXPLORER_CONFIG = {
-        # Chains on api.blockscout.com — use centralized URL with ?apikey= param
-        1:       {"name": "Ethereum",      "urls": ["https://api.blockscout.com/1/api/v2/"],      "auth_type": "param", "requires_auth": True},
-        10:      {"name": "Optimism",      "urls": ["https://api.blockscout.com/10/api/v2/"],     "auth_type": "param", "requires_auth": True},
-        8453:    {"name": "Base",          "urls": ["https://api.blockscout.com/8453/api/v2/"],   "auth_type": "param", "requires_auth": True},
-        42161:   {"name": "Arbitrum One",  "urls": ["https://api.blockscout.com/42161/api/v2/"],  "auth_type": "param", "requires_auth": True},
-        534352:  {"name": "Scroll",        "urls": ["https://api.blockscout.com/534352/api/v2/"], "auth_type": "param", "requires_auth": True},
-        137:     {"name": "Polygon PoS",   "urls": ["https://api.blockscout.com/137/api/v2/"],    "auth_type": "param", "requires_auth": True},
-        130:     {"name": "Unichain",      "urls": ["https://api.blockscout.com/130/api/v2/"],   "auth_type": "param", "requires_auth": True},
-        42220:   {"name": "Celo",          "urls": ["https://api.blockscout.com/42220/api/v2/"],  "auth_type": "param", "requires_auth": True},
-        4326:    {"name": "MegaETH",       "urls": ["https://api.blockscout.com/4326/api/v2/"],   "auth_type": "param", "requires_auth": True},
-        34443:   {"name": "Mode",          "urls": ["https://api.blockscout.com/34443/api/v2/"], "auth_type": "param", "requires_auth": True},
-    }
+    # Chain explorer config — populated by load_from_db(); URL pattern derived from chain_id.
+    CHAIN_EXPLORER_CONFIG: dict = {}
+
+    @classmethod
+    def load_from_db(cls, engine) -> None:
+        """Populate SUPPORTED_CHAINS, BLOCKSCOUT_API_KEYS, and CHAIN_EXPLORER_CONFIG from sys_main_conf."""
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            rows = conn.execute(text(
+                "SELECT origin_key, caip2, name FROM sys_main_conf "
+                "WHERE caip2 IS NOT NULL AND caip2 LIKE 'eip155:%'"
+            )).fetchall()
+
+        caip2_map = {r[0]: (r[1], r[2]) for r in rows}
+        pro_key = os.getenv("BLOCKSCOUT_API_KEY_PRO")
+
+        supported_chains = {}
+        blockscout_api_keys = {}
+        chain_explorer_config = {}
+
+        for origin_key in cls.SUPPORTED_ORIGIN_KEYS:
+            if origin_key not in caip2_map:
+                logger.warning(f"[Config] origin_key '{origin_key}' not found in sys_main_conf — skipping")
+                continue
+            caip2, display_name = caip2_map[origin_key]
+            try:
+                chain_id = int(caip2.split(":")[1])
+            except (IndexError, ValueError):
+                logger.warning(f"[Config] Cannot parse chain_id from caip2='{caip2}' for {origin_key} — skipping")
+                continue
+            supported_chains[origin_key] = chain_id
+            blockscout_api_keys[chain_id] = pro_key
+            chain_explorer_config[chain_id] = {
+                "name": display_name or origin_key,
+                "urls": [f"https://api.blockscout.com/{chain_id}/api/v2/"],
+                "auth_type": "param",
+                "requires_auth": True,
+            }
+
+        cls.SUPPORTED_CHAINS = supported_chains
+        cls.BLOCKSCOUT_API_KEYS = blockscout_api_keys
+        cls.CHAIN_EXPLORER_CONFIG = chain_explorer_config
+        logger.info(f"[Config] Loaded {len(supported_chains)} chains from DB: {list(supported_chains)}")
 
     @classmethod
     def validate_config(cls) -> bool:
