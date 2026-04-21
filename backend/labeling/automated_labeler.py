@@ -756,6 +756,11 @@ def _write_attested_to_airtable(rows: list[dict]) -> None:
 async def run_pipeline(args):
     # 1. Fetch contracts
     if args.input_json:
+        if _HAS_DB:
+            try:
+                _load_chain_config(DbConnector().engine)
+            except Exception as e:
+                logger.warning(f"Could not load chain config from DB: {e}")
         contracts = load_contracts_from_json(args.input_json)
     else:
         contracts = fetch_unlabeled_contracts(
