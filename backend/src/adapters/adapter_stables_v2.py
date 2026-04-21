@@ -463,7 +463,6 @@ class AdapterStablecoinSupply(AbstractAdapter):
             print(f"Successfully pulled stablecoin balance data for chain '{chain}' using RPC calls for {len(df_balances_all)} records.")
         return df_balances_all
 
-
     def track_on_l1_from_rpc_or_dune(self, chain, token_ids, db_progress, min_amount=9999, pretend_today_is=None):
         # first we check if chain mapping is defined with 'track_on_l1', if not skip
         if 'track_on_l1' != self.check_supply_mapping_for_chain(chain, self.address_mapping):
@@ -514,6 +513,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             return df
         
         # use rpc to backfill recent dates
+        print(f"Pulling 'track_on_l1' on {chain} for bridge addresses: {db_progress_filtered['address'].tolist()} and token_ids: {token_address_df['token_id'].tolist()}")
         for index, row in db_progress_filtered.iterrows():
             bridge = row['address']
 
