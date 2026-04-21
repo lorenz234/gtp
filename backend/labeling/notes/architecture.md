@@ -459,6 +459,57 @@ PATH G2 unverified — check these BEFORE defaulting to trading:
 
 This requires logs to be re-enabled (W1 in Known Issues) for full signal coverage. With logs disabled, only trace-based signals (#1, bridge contracts in trace) are available.
 
+**Status:** Fixed in `ai_classifier.py` PATH G2 prompt — lending/bridge/ERC-4337/governance overrides added. Confirmed working: EtherFi lending contract (0x7ca0, optimism) correctly labeled `lending` in 2026-04-21 eval.
+
+---
+
+### W5 — Transparent proxy hides underlying contract identity (medium severity)
+
+**Problem:** Contracts deployed as `OptimizedTransparentUpgradeableProxy` (or any generic proxy pattern) surface only the proxy name to the classifier — the underlying implementation is never resolved. PATH A/B name matching fails because "OptimizedTransparentUpgradeableProxy" has no category signal. The contract falls through to PATH G based on caller diversity and trace content alone.
+
+**Observed:** LayerZero Endpoint on Unichain (0x3c22...) — proxy with `setPrice()` in traces → classified `other` by PATH G1. Human review: `bridge` (LZEndpoint).
+
+**Root cause:** `_BRIDGE_PROTOCOLS` list in the classifier prompt does not include LayerZero endpoint contract names, and the proxy wrapper obscures the contract identity that would otherwise trigger PATH B (calls into bridge protocols).
+
+**Planned fix (prompt-only):**
+```
+PATH A — add proxy resolution step:
+  IF contract is a known proxy pattern (TransparentUpgradeableProxy,
+     OptimizedTransparentUpgradeableProxy, ERC1967Proxy):
+    Look for implementation address in trace (DELEGATECALL target).
+    Use the implementation contract name instead of the proxy name
+    for all subsequent PATH A/B matching.
+
+PATH B — extend _BRIDGE_PROTOCOLS to include:
+  LayerZero: "Endpoint", "LZEndpoint", "EndpointV2", "LayerZeroEndpoint"
+  Stargate: "StargateRouter", "StargateBridge"
+  Also match callee names containing "LayerZero" or "LZEndpoint".
+```
+
+**Signals already available:** `traces` contain DELEGATECALL targets with their resolved names (via Tenderly). No new Python signal extraction needed.
+
+---
+
+### W6 — fungible_tokens / stablecoin confusion on claim/distribution contracts (low severity)
+
+**Problem:** PATH A matches `verified=True` contracts by name + trace content. If the name is a non-token name (e.g. `DiamondClaim`) but the traces show transfers of a known stablecoin token (Tether, USDC, DAI), the classifier defaults to `fungible_tokens` instead of `stablecoin`. The category should reflect the *asset type being handled*, not the contract mechanism.
+
+**Observed:** DiamondClaim on Celo (0xb1fd...) — transfers `TetherTokenCeloExtension` → classified `fungible_tokens`. Human review: `stablecoin`.
+
+**Root cause:** PATH A prompt does not check callee token names for stablecoin keywords before assigning `fungible_tokens`. The stablecoin subcategory is currently only triggered by contracts that *are* the stablecoin token (USDT/USDC ERC20 itself), not contracts that *distribute* stablecoins.
+
+**Planned fix (prompt-only):**
+```
+PATH A — add stablecoin token name check before fungible_tokens:
+  IF traces contain transfers involving known stablecoin token names
+     (Tether, TetherToken, USDC, USDT, DAI, TerraUSD, TUSD, BUSD,
+      or any token name containing "Stablecoin" or "USD"):
+    AND contract's primary function is distribution/claiming (claim,
+        claimDirect, distribute, airdrop in top-level trace)
+    → stablecoin (the contract's purpose is stablecoin distribution)
+  ELSE → fungible_tokens
+```
+
 ---
 
 ## Optimization Room

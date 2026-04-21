@@ -370,6 +370,10 @@ IF source_verified=True AND blockscout_name != "unknown":
       *DVN, *Dvn → cc_communication  (LayerZero verifier network)
       MayanSwift*, Mayan*Bridge → bridge
       *Router without clear DEX context → examine trace, do NOT default to dex
+  → Stablecoin token check (W6): if the contract name is a distribution/claim mechanism
+    (Claim, DiamondClaim, Distributor, Airdrop, Vesting) AND traces show transfers of known
+    stablecoin tokens (Tether, TetherToken, USDT, USDC, FiatToken, DAI, BUSD, TUSD, or any
+    token name containing "USD" or "Stablecoin") → stablecoin, NOT fungible_tokens.
 
 ### PATH B — Proxy Delegating to Named Implementation
 IF "this contract itself delegates to (named)" != "none":
@@ -379,7 +383,12 @@ IF "this contract itself delegates to (named)" != "none":
   → FiatToken / USDC / ERC20 → stablecoin or fungible_tokens
   → RangoDiamond, Rango* → bridge
   → Relay*Router, RelayRouter* → bridge
+  → Endpoint, EndpointV2, LZEndpoint → bridge (LayerZero endpoint proxy)
   → Apply same protocol-specific corrections from PATH A for any ambiguous delegate names
+  NOTE (W5): Generic proxy names (TransparentUpgradeableProxy, OptimizedTransparentUpgradeableProxy,
+  ERC1967Proxy, etc.) are stripped before reaching this path — they are treated as "unknown" name.
+  The DELEGATECALL target name IS available in traces as "this contract itself delegates to".
+  Always prefer the delegate target name over the proxy wrapper name.
 
 ### PATH C — Calls Official DEX Router (depth ≤1)
 IF "Direct calls into official DEX routers" list is non-empty:
@@ -562,6 +571,7 @@ async def classify_contract(
         'erc1967proxy', 'transparentupgradeableproxy', 'beaconproxy',
         'adminupgradeabilityproxy', 'uuproxy', 'proxy', 'upgradeable proxy',
         'minimal proxy', 'eip1167', 'clone',
+        'optimizedtransparentupgradeableproxy',  # W5: OpenZeppelin optimized variant
     }
     raw_bs_name = blockscout.get('contract_name') or ''
     bs_name_is_generic = raw_bs_name.lower().replace(' ', '') in {n.replace(' ', '') for n in _GENERIC_PROXY_NAMES}
@@ -650,7 +660,7 @@ async def classify_contract(
         'rangodiamond', 'rangobridge',
         'mayanswift', 'mayanbridge',
         'debridgerouter', 'debridgegate',
-        'lzendpoint', 'lzreceiver',           # LayerZero
+        'lzendpoint', 'lzreceiver', 'endpoint', 'endpointv2',  # LayerZero
         'stargatebridge', 'stargatepool',
         'hopbridge', 'hopl2bridge',
         'connextdiamond',
