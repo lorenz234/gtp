@@ -426,6 +426,16 @@ IF trace contains ONLY STATICCALL/SLOAD ops AND calls are exclusively slot0/pric
   → Distinguish from oracle consumers: oracle consumers call Chainlink feeds (EACAggregatorProxy);
     Searchers call AMM pool slot0 across many different pools to compare prices
 
+### PATH O — Oracle Infrastructure
+IF "Oracle function calls detected" list is non-empty:
+  → This contract calls or delegates to oracle-specific functions (storkPublicKey, latestRoundData,
+    updatePriceFeed, parsePriceFeedUpdates, etc.). These functions only exist on oracle infrastructure.
+  → usage_category = oracle
+  → Name: "[Protocol]Oracle", "[Protocol]PriceFeed", or "[Protocol]OracleProxy" depending on trace depth.
+    If DELEGATECALL to oracle → it IS the oracle (proxy). If CALL → it USES the oracle (consumer — fall through if only 1 oracle call and other DeFi context dominates).
+  → Override even for unverified contracts with PRIVATE callers — a single-operator oracle updater
+    is still oracle infrastructure, not a trading bot.
+
 ### PATH G1 — Private Callers (PRIVATE diversity ≤20%)
 IF caller_diversity_label = "PRIVATE" AND no prior path matched:
   **CRITICAL: This path applies even when traces are raw opcodes only and identity is unknown.
@@ -667,6 +677,16 @@ async def classify_contract(
         'acrossspokepool',
         'ccipbridge', 'cciptokenpool',         # Chainlink CCIP
     }
+    # Oracle function names — detected even when contract names are unknown/unverified.
+    # A contract that calls or delegates to these functions is oracle infrastructure.
+    _ORACLE_FUNCTION_NAMES = {
+        'storkpublickey', 'getstorkpublickey',   # Stork oracle
+        'latestanswer', 'latestrounddata',        # Chainlink AggregatorV3
+        'getprice', 'getlatestprice',             # generic oracle getters
+        'updatepricefeed', 'updatepricefeeds',    # Pyth-style push oracle
+        'parsepricefeedsupdates',                 # Pyth
+        'verifyandattest', 'verifyandstore',      # Stork attestation
+    }
     # Known swap selectors on pool contracts (state-changing, not reads like slot0)
     _SWAP_SELECTORS = {
         '0x128acb08',  # UniswapV3Pool / CL Pool swap(address,bool,int256,uint160,bytes)
@@ -681,6 +701,7 @@ async def classify_contract(
     matched_lending: list[str] = []
     matched_staking: list[str] = []
     matched_bridges: list[str] = []
+    matched_oracle_fns: list[str] = []   # oracle function names detected in any call/delegate
     this_contract_delegates_to: str = ''   # named target if this contract itself delegates
     this_contract_raw_delegate = False     # True if this contract has a raw-addr delegate
     all_traces_empty = True
@@ -737,6 +758,12 @@ async def classify_contract(
                         matched_staking.append(cname or cname_raw)
                     if any(b in cname_raw for b in _BRIDGE_PROTOCOLS):
                         matched_bridges.append(cname or cname_raw)
+
+            # Oracle function detection — works even when contract name is unknown/unverified
+            for c in calls:
+                fn_lower = (c.get('function') or '').lower().replace(' ', '').replace('_', '')
+                if fn_lower in _ORACLE_FUNCTION_NAMES:
+                    matched_oracle_fns.append(c.get('function') or fn_lower)
 
     named_contracts_summary = ', '.join(sorted(n for n in named_contracts_in_traces if n and not n.startswith('0x'))[:20]) or 'none'
 
@@ -840,6 +867,7 @@ Direct calls into AMM pool swap functions [depth≤1, state-changing]: {calls_in
 Direct calls into lending protocols [depth≤1] (Aave, Compound, Morpho, etc.) (empty=none): {sorted(set(matched_lending))}
 Direct calls into staking/gauge contracts [depth≤1] (Gauge, Voter, MasterChef, etc.) (empty=none): {sorted(set(matched_staking))}
 Direct calls into bridge protocols [depth≤1] (Relay, Rango, LayerZero, Stargate, etc.) (empty=none): {sorted(set(matched_bridges))}
+Oracle function calls detected (any depth, works even when unverified) (empty=none): {sorted(set(matched_oracle_fns))}
 This contract itself delegates to (named): {this_contract_delegates_to or "none"}
 This contract has raw-address DELEGATE (EIP-1167 clone): {this_contract_raw_delegate}
 All trace call graphs empty: {all_traces_empty}

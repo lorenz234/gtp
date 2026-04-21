@@ -542,9 +542,11 @@ def _is_protocol_likely(label: dict, blockscout: dict, log_signals: dict, metric
     if success_rate < 0.40:
         return False
 
-    # Fast-pass for categories produced by G2 protocol-signal overrides (bridge/lending/erc4337).
-    # These come from pre-computed callee matches, not model guesses, so lower confidence is reliable.
-    if category in ('bridge', 'lending', 'erc4337', 'cc_communication', 'derivative'):
+    # Fast-pass: categories that are always public protocol contracts.
+    # bridge/lending/erc4337 come from pre-computed callee matches (W4 fix).
+    # dex/stablecoin/oracle are confirmed protocol-only from human review data.
+    if category in ('bridge', 'lending', 'erc4337', 'cc_communication', 'derivative',
+                    'dex', 'stablecoin', 'oracle'):
         return True
 
     # Strong positive signals — one is sufficient
