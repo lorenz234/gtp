@@ -90,6 +90,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 print(f"The following chains are in address_mapping but 'ARCHIVE'd in main_config and will be skipped: {chains_not_in_conf}. If these chains should be pulled in, please check gtp_dna github and set the column api_deployment_flag to ('PROD', 'DEV' or 'ZIRCUIT').")
             if len(chains_not_in_mapping) > 0:
                 print(f"The following chains are in main_config but not in the address_mapping: {chains_not_in_mapping}. Please add them to the mapping in src/stables_config_v2.py.")
+            print(f"Final list of chains to be pulled: {chains}")
         # exchange '*' for all token_ids in mapping
         if token_ids == ['*']:
             token_ids = [coin['token_id'] for coin in self.coin_mapping]
@@ -462,7 +463,6 @@ class AdapterStablecoinSupply(AbstractAdapter):
             print(f"Successfully pulled stablecoin balance data for chain '{chain}' using RPC calls for {len(df_balances_all)} records.")
         return df_balances_all
 
-
     def track_on_l1_from_rpc_or_dune(self, chain, token_ids, db_progress, min_amount=9999, pretend_today_is=None):
         # first we check if chain mapping is defined with 'track_on_l1', if not skip
         if 'track_on_l1' != self.check_supply_mapping_for_chain(chain, self.address_mapping):
@@ -477,7 +477,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
         # fill in missing dates with '2025-01-01'
         #db_progress_filtered = db_progress_filtered.fillna({'date': '2026-01-01'})
 
-        token_address_df = db_progress[db_progress['origin_key'] == 'ethereum'][['token_id', 'address', 'decimals']]
+        token_address_df = db_progress[(db_progress['origin_key'] == 'ethereum') & (db_progress['metric_key'] == 'total_supply')][['token_id', 'address', 'decimals']]
         token_address_df = token_address_df[token_address_df['token_id'].isin(token_ids)].reset_index(drop=True)
 
         # use dune to backfill old data (where date in db_progress_filtered is null)
@@ -513,6 +513,7 @@ class AdapterStablecoinSupply(AbstractAdapter):
             return df
         
         # use rpc to backfill recent dates
+        print(f"Pulling 'track_on_l1' on {chain} for bridge addresses: {db_progress_filtered['address'].tolist()} and token_ids: {token_address_df['token_id'].tolist()}")
         for index, row in db_progress_filtered.iterrows():
             bridge = row['address']
 
@@ -530,8 +531,15 @@ class AdapterStablecoinSupply(AbstractAdapter):
                 block_number = row['value']
                 date = row['date']
 
-                # pull in with RPC using SupplyReader
-                balances = self.read_tokensBalance_SupplyReader('ethereum', bridge, token_address_df['address'].tolist(), block_number)
+                # pull in with RPC using SupplyReader, fall back to individual balanceOf calls
+                try:
+                    balances = self.read_tokensBalance_SupplyReader('ethereum', bridge, token_address_df['address'].tolist(), block_number)
+                except Exception as e:
+                    print(f"SupplyReader failed for track_on_l1 on ethereum (bridge {bridge}, block {block_number}): {e}. Falling back to individual RPC calls.")
+                    balances = [
+                        int(self.read_balance_rpc('ethereum', bridge, token_addr, block_number, decimals) * (10 ** decimals))
+                        for token_addr, decimals in zip(token_address_df['address'].tolist(), token_address_df['decimals'].tolist())
+                    ]
                 token_address_df['value'] = balances
                 token_address_df['value'] = token_address_df['value']/(10 ** token_address_df['decimals'])
                 token_address_df = token_address_df[token_address_df['value'] > min_amount].reset_index(drop=True) # minimum threshold for it to start be tracked 100
