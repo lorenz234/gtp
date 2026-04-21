@@ -1955,6 +1955,10 @@ class DbConnector:
                                 WHERE
                                         pg.usage_category IS NULL
                                         AND cl.date >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
+                                        -- Exclude contracts already attested by the automated labeler.
+                                        -- Automated attestations never reach vw_oli_label_pool_gold_pivoted_v2
+                                        -- (no owner_project), so pg.usage_category IS NULL stays true for them.
+                                        -- Without this filter the pipeline would re-process its own output every run.
                                         AND NOT EXISTS (
                                                 SELECT 1 FROM public.labels lbl
                                                 JOIN sys_main_conf smc2 ON lbl.chain_id = smc2.caip2
