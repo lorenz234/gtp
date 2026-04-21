@@ -534,6 +534,12 @@ def _is_protocol_likely(label: dict, blockscout: dict, log_signals: dict, metric
     if success_rate is None:
         success_rate = 1.0
 
+    # Novel protocol tokens in every tx override trading exclusion.
+    # A contract that interacts with specific protocol tokens on ≥50% of traces
+    # is protocol-specific infrastructure even when classified as trading.
+    if label.get('novel_tokens'):
+        return True
+
     # Hard exclusions (only applies when NOT verified)
     if category in ('trading', 'other'):
         return False

@@ -963,6 +963,8 @@ Category hints from events: {', '.join(log_signals['category_hints']) or 'none'}
                     args['usage_category'] = fallback_id
                 args.setdefault('confidence', 0.5)
                 args.setdefault('reasoning', '')
+                # Attach novel_tokens so sentinel can use them without re-computing
+                args['novel_tokens'] = novel_tokens
                 return args
             logger.warning(f"[Classifier] Could not parse Gemini response for {address}: {raw[:120]!r}")
 
@@ -979,6 +981,7 @@ Category hints from events: {', '.join(log_signals['category_hints']) or 'none'}
         'usage_category': fallback_id,
         'confidence': 0.0,
         'reasoning': 'Classification failed — using fallback.',
+        'novel_tokens': novel_tokens,
     }
 
 
