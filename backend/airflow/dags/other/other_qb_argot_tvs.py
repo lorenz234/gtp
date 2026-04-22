@@ -180,19 +180,60 @@ def run_dag():
         df = ad.extract(load_params)
         print(f"Fetched {len(df)} rows from Dune query 6997383.")
 
-        df = df[['address', 'total_balance_usd', 'compiler', 'version', 'name', 'fully_qualified_name']]
-        df = df.replace('<nil>', None)
-        import re
-        def _extract_version(v):
-            if not isinstance(v, str):
-                return 'unknown'
-            m = re.search(r'\d+\.\d+\.\d+', v)
-            return m.group(0) if m else 'unknown'
-        df['version_short'] = df['version'].apply(_extract_version)
+        # dune returns two columns
+        df = df[['address', 'total_balance_usd']]
+
+        # left join sourcify data to df based on address
+        sourcify_data = db_connector.execute_query("""
+            WITH sourcify_attestations AS (
+                SELECT DISTINCT ON (chain_id, recipient)
+                    chain_id,
+                    recipient,
+                    tags_json->>'code_compiler' AS code_compiler,
+                    tags_json->>'code_language' AS code_language
+                FROM attestations
+                WHERE
+                    attester = decode('8DBAE854E53AEDFC3B8D78F7C1ADD53935939192', 'hex')
+                    AND revoked = false
+                    AND chain_id = 'eip155:1'
+                ORDER BY chain_id, recipient, time DESC
+            )
+            SELECT
+                a.recipient AS address,
+                a.code_language AS compiler,
+                a.code_compiler AS version,
+                substring(split_part(a.code_compiler, '-', 2) FROM '^\d+\.\d+') AS version_short
+            FROM sourcify_attestations a
+            INNER JOIN sys_main_conf mc ON a.chain_id = mc.caip2
+        """, load_df=True)
+        df = df.merge(sourcify_data, on='address', how='left')
 
         rows = []
 
         # --- compiler aggregation → sourcify_top1000_compiler_{compiler}_count/usd_total ---
+        df['compiler'] = df['compiler'].fillna('unverified')
+
+        # Dune fallback lookup for addresses not found in sourcify
+        unknown = df[df['compiler'] == 'unverified']['address'].to_list()
+        if unknown:
+            unknown_str = "|".join(unknown)
+            dune_lookup = ad.extract({
+                'queries': [
+                    {
+                        'name': 'argot-address-compiler-lookup',
+                        'query_id': 7357764,
+                        'params': {'addresses': unknown_str}
+                    }
+                ]
+            })
+            dune_found = dune_lookup[dune_lookup['compiler'] != '<nil>'][['address', 'compiler']]
+            if not dune_found.empty:
+                dune_map = dune_found.set_index('address')['compiler']
+                df.loc[df['compiler'] == 'unverified', 'compiler'] = (
+                    df.loc[df['compiler'] == 'unverified', 'address'].map(dune_map).fillna('unverified')
+                )
+                print(f"Dune lookup resolved {len(dune_found)} previously unverified addresses.")
+
         df_compiler = df.groupby('compiler').agg(
             total_usd=('total_balance_usd', 'sum'),
             count=('total_balance_usd', 'count')
@@ -220,29 +261,22 @@ def run_dag():
         upserted = db_connector.upsert_table('fact_kpis', df_kpis)
         print(f"Upserted {upserted} rows into fact_kpis.")
 
-        # --- enrich df with owner_project ---
-        df_owner = db_connector.execute_query("""
+        # --- enrich df with owner_project & contract_name ---
+        gtp_labels = db_connector.execute_query("""
             SELECT
-                '0x' || encode(t.address, 'hex') AS address,
-                t.tag_value,
+                '0x' || encode(address, 'hex') AS address,
+                contract_name AS name,
+                owner_project,
                 d.display_name
-            FROM (
-                SELECT DISTINCT ON (address)
-                    address,
-                    tag_value
-                FROM public.vw_oli_label_pool_gold_v2
-                WHERE
-                    caip2 IN ('eip155:any', 'eip155:1')
-                    AND tag_id = 'owner_project'
-                ORDER BY address, confidence DESC
-            ) t
-            LEFT JOIN public.oli_oss_directory d ON d.name = t.tag_value
+            FROM public.vw_oli_label_pool_gold_pivoted_v2
+            LEFT JOIN public.oli_oss_directory d ON d.name = owner_project
+            WHERE caip2 = 'eip155:1'
         """, load_df=True)
-        df_owner = df_owner.rename(columns={'tag_value': 'owner_project'})
-        df = df.merge(df_owner, on='address', how='left')
+        gtp_labels = gtp_labels.rename(columns={'tag_value': 'owner_project'})
+        df = df.merge(gtp_labels, on='address', how='left')
 
         # --- table JSON upload ---
-        cols = ['address', 'total_balance_usd', 'compiler', 'version', 'name', 'fully_qualified_name', 'owner_project', 'display_name']
+        cols = ['address', 'total_balance_usd', 'compiler', 'version', 'name', 'owner_project', 'display_name']
         table_dict = {}
         table_dict["data"] = {
             "types": cols,
