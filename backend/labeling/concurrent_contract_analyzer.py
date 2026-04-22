@@ -291,62 +291,53 @@ class Config:
     
     # Chains the automated labeler supports (must have Blockscout Pro API access).
     # origin_key → chain_id populated by load_from_db(); only the keys list is configured here.
+    # Use exact origin_keys as they appear in sys_main_conf (e.g. "polygon_pos" not "polygon").
     SUPPORTED_ORIGIN_KEYS: list = [
         "ethereum", "optimism", "base", "arbitrum", "scroll",
-        "polygon", "unichain", "celo", "megaeth", "mode",
+        "polygon_pos", "unichain", "celo", "megaeth", "mode",
     ]
     SUPPORTED_CHAINS: dict = {}  # populated by load_from_db()
 
-    CHAIN_NAME_ALIASES = {
-        "op mainnet": "optimism",
-        "optimism mainnet": "optimism",
-        "ethereum mainnet": "ethereum",
-        "eth mainnet": "ethereum",
-        "mainnet": "ethereum",
-        "arbitrum one": "arbitrum",
-        "arbitrum mainnet": "arbitrum",
-        "base mainnet": "base",
-        "base chain": "base",
-        "mode network": "mode",
-        "celo mainnet": "celo",
-        "polygon pos": "polygon",
-        "polygon_pos": "polygon",
-        "polygon mainnet": "polygon",
-        "matic": "polygon",
-        "mega eth": "megaeth",
-        "mega-eth": "megaeth"
-    }
-    
+    # chain_id → (tenderly_network_slug, avg_block_time_seconds)
+    # Populated by load_from_db() from sys_main_conf.labeling_tenderly_slug + labeling_avg_block_time_seconds.
+    CHAIN_TO_NODE: dict = {}
+
     # Chain explorer config — populated by load_from_db(); URL pattern derived from chain_id.
     CHAIN_EXPLORER_CONFIG: dict = {}
 
     @classmethod
     def load_from_db(cls, engine) -> None:
-        """Populate SUPPORTED_CHAINS, BLOCKSCOUT_API_KEYS, and CHAIN_EXPLORER_CONFIG from sys_main_conf."""
+        """Populate SUPPORTED_CHAINS, BLOCKSCOUT_API_KEYS, CHAIN_EXPLORER_CONFIG,
+        and CHAIN_TO_NODE from sys_main_conf."""
         from sqlalchemy import text
         with engine.connect() as conn:
             rows = conn.execute(text(
-                "SELECT origin_key, caip2, name FROM sys_main_conf "
+                "SELECT origin_key, caip2, name, "
+                "       labeling_tenderly_slug, labeling_avg_block_time_seconds "
+                "FROM sys_main_conf "
                 "WHERE caip2 IS NOT NULL AND caip2 LIKE 'eip155:%'"
             )).fetchall()
 
-        caip2_map = {r[0]: (r[1], r[2]) for r in rows}
+        # r: (origin_key, caip2, name, tenderly_slug, block_time)
+        caip2_map = {r[0]: r for r in rows}
         pro_key = os.getenv("BLOCKSCOUT_API_KEY_PRO")
 
         supported_chains = {}
         blockscout_api_keys = {}
         chain_explorer_config = {}
+        chain_to_node = {}
 
         for origin_key in cls.SUPPORTED_ORIGIN_KEYS:
             if origin_key not in caip2_map:
                 logger.warning(f"[Config] origin_key '{origin_key}' not found in sys_main_conf — skipping")
                 continue
-            caip2, display_name = caip2_map[origin_key]
+            _, caip2, display_name, tenderly_slug, block_time = caip2_map[origin_key]
             try:
                 chain_id = int(caip2.split(":")[1])
             except (IndexError, ValueError):
                 logger.warning(f"[Config] Cannot parse chain_id from caip2='{caip2}' for {origin_key} — skipping")
                 continue
+
             supported_chains[origin_key] = chain_id
             blockscout_api_keys[chain_id] = pro_key
             chain_explorer_config[chain_id] = {
@@ -356,10 +347,17 @@ class Config:
                 "requires_auth": True,
             }
 
+            if tenderly_slug and block_time is not None:
+                chain_to_node[chain_id] = (tenderly_slug, float(block_time))
+
         cls.SUPPORTED_CHAINS = supported_chains
         cls.BLOCKSCOUT_API_KEYS = blockscout_api_keys
         cls.CHAIN_EXPLORER_CONFIG = chain_explorer_config
-        logger.info(f"[Config] Loaded {len(supported_chains)} chains from DB: {list(supported_chains)}")
+        cls.CHAIN_TO_NODE = chain_to_node
+        logger.info(
+            f"[Config] Loaded {len(supported_chains)} chains from DB: {list(supported_chains)}  "
+            f"tenderly_nodes={len(chain_to_node)}"
+        )
 
     @classmethod
     def validate_config(cls) -> bool:
@@ -655,7 +653,7 @@ class BlockscoutAPI_Async:
         return parsed_txs
 
     async def get_contract_info(self, address: str, chain_id: int) -> Dict:
-        """Fetch contract metadata from Blockscout: name, is_verified, is_proxy."""
+        """Fetch contract metadata from Blockscout: name, is_verified, is_proxy, impl_address."""
         chain_conf = self.chain_config.get(chain_id)
         if not chain_conf:
             return {}
@@ -670,18 +668,56 @@ class BlockscoutAPI_Async:
         is_verified = bool(data.get('is_verified'))
         is_proxy = bool(data.get('is_proxy'))
         impl_name = ''
+        impl_address = ''
         if is_proxy:
             impl = data.get('implementations')
             if isinstance(impl, list) and impl:
                 impl_name = impl[0].get('name', '')
+                impl_address = impl[0].get('address', '')
             elif isinstance(impl, dict):
                 impl_name = impl.get('name', '')
+                impl_address = impl.get('address', '')
 
         return {
             'contract_name': impl_name or name,
             'is_verified': is_verified,
             'is_proxy': is_proxy,
+            'impl_address': impl_address,
         }
+
+    async def get_token_transfers(self, address: str, chain_id: int, limit: int = 20) -> list:
+        """Fetch recent ERC20/NFT token transfers involving this address.
+
+        Returns deduplicated list of {token_name, token_symbol, token_type} dicts.
+        Used to enrich novel_tokens / common_tokens signals without relying on Tenderly traces.
+        """
+        chain_conf = self.chain_config.get(chain_id)
+        if not chain_conf:
+            return []
+
+        data = await self._try_endpoints(
+            chain_id,
+            "{url_base}/addresses/{address}/token-transfers",
+            address=address,
+        )
+        if not data:
+            return []
+
+        items = data.get('items') or []
+        seen, result = set(), []
+        for item in items[:limit]:
+            if not isinstance(item, dict):
+                continue
+            token = item.get('token') or {}
+            name = token.get('name') or ''
+            symbol = token.get('symbol') or ''
+            token_type = token.get('type') or ''
+            if name and name not in seen:
+                seen.add(name)
+                result.append({'token_name': name, 'token_symbol': symbol, 'token_type': token_type})
+
+        logger.debug(f"[{chain_conf['name']}] Got {len(result)} unique token transfers for {address}")
+        return result
 
     @staticmethod # Can be static as it doesn't depend on self
     def _get_linea_transactions_simplified(address: str, limit: int = 5) -> List[Dict]:
@@ -960,23 +996,6 @@ class TenderlyAPI_Async:
             logger.debug(f"[Tenderly] Error tracing tx {tx_hash}: {e}")
             return {}
 
-    # chain_id → (tenderly_network_slug, avg_block_time_seconds)
-    _CHAIN_TO_NODE = {
-        1:      ('mainnet',      12.0),
-        10:     ('optimism',      2.0),
-        42161:  ('arbitrum',      0.25),
-        8453:   ('base',          2.0),
-        534352: ('scroll',        3.0),
-        137:    ('polygon',       2.0),
-        324:    ('zksync-era',    1.0),
-        7777777:('zora',          2.0),
-        1101:   ('polygon-zkevm', 4.0),
-        1301:   ('unichain',      1.0),
-        42170:  ('arbitrum-nova', 1.0),
-        5000:   ('mantle',        2.0),
-        167000: ('taiko',         12.0),
-    }
-
     async def get_transactions_range(
         self,
         address: str,
@@ -994,7 +1013,7 @@ class TenderlyAPI_Async:
         Returns a list of tx hashes (up to target_hashes).
         Requires TENDERLY_ACCESS_KEY — returns [] when not configured.
         """
-        node_info = self._CHAIN_TO_NODE.get(chain_id)
+        node_info = Config.CHAIN_TO_NODE.get(chain_id)
         if not node_info:
             logger.debug(f"[Tenderly] No node config for chain {chain_id}, skipping range search")
             return []

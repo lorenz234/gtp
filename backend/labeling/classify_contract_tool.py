@@ -188,7 +188,7 @@ async def enrich_single(address: str, origin_key: str, session: aiohttp.ClientSe
     )
     tenderly = TenderlyAPI_Async(session=session)
 
-    print(f"\n[1/5] Blockscout — fetching info + transactions + logs in parallel...")
+    print(f"\n[1/5] Blockscout — fetching info + transactions + logs + token-transfers in parallel...")
 
     async def _get_info():
         try:
@@ -211,15 +211,23 @@ async def enrich_single(address: str, origin_key: str, session: aiohttp.ClientSe
             print(f"      [warn] address logs failed: {e}")
             return []
 
-    bs_info, txs, address_logs = await asyncio.gather(
-        _get_info(), _get_txs(), _get_logs()
+    async def _get_token_transfers():
+        try:
+            return await blockscout.get_token_transfers(address, chain_id, limit=20)
+        except Exception as e:
+            print(f"      [warn] token_transfers failed: {e}")
+            return []
+
+    bs_info, txs, address_logs, token_transfers = await asyncio.gather(
+        _get_info(), _get_txs(), _get_logs(), _get_token_transfers()
     )
 
     all_hashes = [t['hash'] for t in txs if t.get('hash')]
     sample_hashes = random.sample(all_hashes, min(5, len(all_hashes)))
     print(f"      name={bs_info.get('contract_name', 'n/a')!r}  "
           f"verified={bs_info.get('is_verified')}  proxy={bs_info.get('is_proxy')}")
-    print(f"      sampled {len(sample_hashes)} tx hashes  |  {len(address_logs)} logs fetched")
+    print(f"      sampled {len(sample_hashes)} tx hashes  |  {len(address_logs)} logs  |  "
+          f"{len(token_transfers)} token-transfer types")
 
     print(f"\n[2/5] GitHub — searching contract address...")
     has_repo, repo_count = False, 0
@@ -251,6 +259,7 @@ async def enrich_single(address: str, origin_key: str, session: aiohttp.ClientSe
         'github': {'has_valid_repo': has_repo, 'repo_count': repo_count},
         'traces': traces,
         'address_logs': address_logs,
+        'token_transfers': token_transfers,
     }
 
 
@@ -288,6 +297,10 @@ def print_result(address: str, origin_key: str, enriched: dict, label: dict, met
         print(f"  Log events      : {ls['summary']}")
         hints = ', '.join(ls['category_hints']) if ls['category_hints'] else 'none'
         print(f"  Event hints     : {hints}")
+    token_xfers = enriched.get('token_transfers', [])
+    if token_xfers:
+        names = ', '.join(f"{t['token_name']}({t.get('token_symbol','')})" for t in token_xfers[:8])
+        print(f"  Token transfers : {names}")
 
     if metrics.get('txcount'):
         print(f"\n  METRICS (provided)")
@@ -315,11 +328,6 @@ def print_result(address: str, origin_key: str, enriched: dict, label: dict, met
 async def run(args):
     address = args.address.lower()
     origin_key = args.chain.lower()
-
-    # Normalise chain aliases
-    alias = Config.CHAIN_NAME_ALIASES.get(origin_key)
-    if alias:
-        origin_key = alias
 
     print(f"\n[0/4] DB — fetching metrics for last {args.days} days...")
     db_metrics = fetch_metrics_from_db(address, origin_key, args.days)
@@ -362,6 +370,7 @@ async def run(args):
             traces=enriched['traces'],
             session=session,
             address_logs=enriched.get('address_logs', []),
+            token_transfers=enriched.get('token_transfers', []),
         )
 
     print_result(address, origin_key, enriched, label, metrics)

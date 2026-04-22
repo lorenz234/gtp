@@ -376,7 +376,7 @@ async def enrich_contract(
         async def _get_txs():
             for attempt in range(2):
                 try:
-                    result = await blockscout.get_transactions(address, chain_id, limit=15)
+                    result = await blockscout.get_transactions(address, chain_id, limit=50)
                     if result:
                         return result
                 except Exception as e:
@@ -398,7 +398,28 @@ async def enrich_contract(
                 logger.debug(f"[Blockscout] get_address_logs failed for {address}: {e}")
                 return []
 
-        txs, address_logs = await asyncio.gather(_get_txs(), _get_logs())
+        async def _get_token_transfers():
+            try:
+                return await blockscout.get_token_transfers(address, chain_id, limit=20)
+            except Exception as e:
+                logger.debug(f"[Blockscout] get_token_transfers failed for {address}: {e}")
+                return []
+
+        txs, address_logs, token_transfers = await asyncio.gather(
+            _get_txs(), _get_logs(), _get_token_transfers()
+        )
+
+        # Proxy impl lookup: when proxy has no resolved name, fetch the implementation
+        # contract directly — costs 20 credits but resolves the identity for PATH B.
+        if bs_info.get('is_proxy') and not bs_info.get('contract_name') and bs_info.get('impl_address'):
+            try:
+                impl_info = await blockscout.get_contract_info(bs_info['impl_address'], chain_id)
+                if impl_info.get('contract_name'):
+                    bs_info['contract_name'] = impl_info['contract_name']
+                    bs_info['impl_verified'] = impl_info.get('is_verified', False)
+                    logger.debug(f"[Blockscout] Resolved proxy impl for {address}: {impl_info['contract_name']!r}")
+            except Exception as e:
+                logger.debug(f"[Blockscout] proxy impl lookup failed for {address}: {e}")
 
         # Prefer successful txs — Tenderly has better trace data for non-reverted calls.
         # Fall back to all txs if there are no successes (e.g., pure MEV bot with high fail rate).
@@ -449,6 +470,7 @@ async def enrich_contract(
         contract['github'] = {'has_valid_repo': has_repo, 'repo_count': repo_count}
         contract['traces'] = traces
         contract['address_logs'] = address_logs
+        contract['token_transfers'] = token_transfers
         # avg_gas_per_tx is derived from DB metrics (success_rate already set from DB)
         m = contract.setdefault('metrics', {})
         txcount = m.get('txcount', 0)
@@ -837,6 +859,7 @@ async def run_pipeline(args):
                     traces=contract.get('traces', []),
                     session=session,
                     address_logs=contract.get('address_logs', []),
+                    token_transfers=contract.get('token_transfers', []),
                 )
                 contract['label'] = label
                 logger.info(
@@ -1101,6 +1124,7 @@ async def reclassify_from_airtable(args):
                     traces=contract.get('traces', []),
                     session=session,
                     address_logs=contract.get('address_logs', []),
+                    token_transfers=contract.get('token_transfers', []),
                 )
                 contract['label'] = label
                 logger.info(

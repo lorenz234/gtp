@@ -552,6 +552,7 @@ async def classify_contract(
     traces: list[dict],
     session: aiohttp.ClientSession,
     address_logs: list[dict] | None = None,
+    token_transfers: list[dict] | None = None,
     anthropic_client=None,  # kept for API compat, unused
 ) -> dict:
     """Classify a single contract using Gemini with function calling.
@@ -805,8 +806,33 @@ async def classify_contract(
     )
     novel_tokens   = [t for t in dominant_all if t.lower() not in _COMMON_TOKENS][:5]
     common_tokens  = [t for t in dominant_all if t.lower() in _COMMON_TOKENS][:4]
+
+    # Augment with Blockscout token-transfer names (higher reliability than trace decoding).
+    bs_token_display: list[str] = []
+    if token_transfers:
+        for tt in token_transfers:
+            name = tt.get('token_name', '').strip()
+            if not name:
+                continue
+            sym = tt.get('token_symbol', '').strip()
+            tok_type = tt.get('token_type', '').strip()
+            label_str = f"{name}({sym})" if sym else name
+            if tok_type:
+                label_str = f"{label_str} [{tok_type}]"
+            bs_token_display.append(label_str)
+            nl = name.lower()
+            if nl not in _COMMON_TOKENS:
+                if name not in novel_tokens:
+                    novel_tokens.append(name)
+            else:
+                if name not in common_tokens:
+                    common_tokens.append(name)
+        novel_tokens = novel_tokens[:5]
+        common_tokens = common_tokens[:4]
+
     novel_tokens_str  = ', '.join(novel_tokens)  if novel_tokens  else 'none'
     common_tokens_str = ', '.join(common_tokens) if common_tokens else 'none'
+    bs_tokens_str = ', '.join(bs_token_display[:8]) if bs_token_display else 'none'
 
     # No meaningful on-chain identity: unverified + no Blockscout name.
     # GitHub presence just means the address appears in some repo — it gives no protocol name.
@@ -861,6 +887,7 @@ Gas-per-tx signal: {"HIGH COMPLEXITY (rel_cost >5x chain avg) — heavy multi-ho
 Named contracts seen anywhere in traces: {named_contracts_summary}
 Novel ERC20 tokens (≥50% of traces, NOT common infra): {novel_tokens_str}  [HIGH SIGNAL — unknown token = likely a specific new protocol]
 Common ERC20 tokens (≥50% of traces, well-known infra): {common_tokens_str}  [low signal — ubiquitous reward/stable/wrapped tokens]
+Blockscout token transfers (tokens flowing through this contract, direct API — more reliable than trace): {bs_tokens_str}  [HIGH SIGNAL if novel names present]
 Direct calls into official DEX routers [depth≤1] (empty=none): {sorted(set(matched_routers))}
 Direct calls into AMM pools [depth≤1] (empty=none): {sorted(set(matched_dex_pools))}
 Direct calls into AMM pool swap functions [depth≤1, state-changing]: {calls_into_dex_pool_swap}
