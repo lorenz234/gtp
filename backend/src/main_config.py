@@ -48,6 +48,9 @@ class MainConfig(BaseModel):
     aliases_defillama: Optional[str] = Field(alias="aliases_defillama", default=None)
     aliases_dune: Optional[str] = Field(alias="aliases_dune", default=None)
 
+    labeling_tenderly_slug: Optional[str] = Field(alias="labeling_tenderly_slug", default=None)
+    labeling_avg_block_time_seconds: Optional[float] = Field(alias="labeling_avg_block_time_seconds", default=None)
+
     ## DEPLOYMENTS
     deployed_supplyreader: Optional[str] = Field(alias="deployed_supplyreader", default=None)
 

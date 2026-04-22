@@ -1537,7 +1537,7 @@ class DbConnector:
         def get_contracts_category_comparison(self, main_category, days, origin_keys:list):
                 date_string = f"and date >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')" if days != 'max' else ''
                 if main_category.lower() != 'unlabeled':
-                        main_category_string = f"and bcm.main_category_id = lower('{main_category}')" 
+                        main_category_string = f"and bcm.main_category_id = lower('{main_category}')"
                         sub_main_string = """
                                 bl.usage_category as sub_category_key,
                                 bcm.category_name as sub_category_name,
@@ -1552,11 +1552,11 @@ class DbConnector:
                                 'unlabeled' as main_category_key,
                                 'Unlabeled' as main_category_name,
                         """
-                
+
 
                 exec_string = f'''
                         with top_contracts as (
-                                SELECT 
+                                SELECT
                                         cl.address,
                                         cl.origin_key,
                                         UPPER(LEFT(bl.contract_name , 1)) || SUBSTRING(bl.contract_name FROM 2) as contract_name,
@@ -1567,10 +1567,10 @@ class DbConnector:
                                         sum(txcount) as txcount,
                                         round(avg(daa)) as daa
                                 FROM public.blockspace_fact_contract_level cl
-                                left join vw_oli_label_pool_gold_pivoted_v2 bl on cl.address = bl.address and cl.origin_key = bl.origin_key 
-                                left join vw_oli_category_mapping bcm on lower(bl.usage_category) = lower(bcm.category_id) 
+                                left join vw_oli_label_pool_gold_pivoted_v2 bl on cl.address = bl.address and cl.origin_key = bl.origin_key
+                                left join vw_oli_category_mapping bcm on lower(bl.usage_category) = lower(bcm.category_id)
                                 left join oli_oss_directory oss on bl.owner_project = oss.name
-                                where 
+                                where
                                         date < DATE_TRUNC('day', NOW())
                                         and cl.origin_key IN ('{"','".join(origin_keys)}')
                                         {date_string}
@@ -1578,7 +1578,7 @@ class DbConnector:
                                 group by 1,2,3,4,5,6,7,8
                                 order by gas_fees_eth desc
                                 ),
-                                
+
                         top_contracts_category_and_origin_key_by_gas as (
                                 SELECT
                                         address,origin_key,contract_name,project_name,sub_category_key,sub_category_name,main_category_key,main_category_name,gas_fees_eth,gas_fees_usd,txcount,daa
@@ -1604,7 +1604,7 @@ class DbConnector:
                                 WHERE
                                 x.r <= 20
                                 )
-                                
+
                         select * from (select * from top_contracts order by gas_fees_eth desc limit 50) a
                         union select * from top_contracts_category_and_origin_key_by_gas
                         union select * from top_contracts_category_and_origin_key_by_txcount
@@ -1952,9 +1952,23 @@ class DbConnector:
                                         ROW_NUMBER() OVER (PARTITION BY cl.origin_key ORDER BY SUM(daa) DESC) AS row_num_daa
                                 FROM public.blockspace_fact_contract_level cl 
                                 LEFT JOIN pivoted_gold pg ON cl.address = pg.address AND cl.origin_key = pg.origin_key 
-                                WHERE 
-                                        pg.usage_category IS NULL 
+                                WHERE
+                                        pg.usage_category IS NULL
                                         AND cl.date >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
+                                        -- Exclude contracts already attested by the automated labeler.
+                                        -- Automated attestations never reach vw_oli_label_pool_gold_pivoted_v2
+                                        -- (no owner_project), so pg.usage_category IS NULL stays true for them.
+                                        -- Without this filter the pipeline would re-process its own output every run.
+                                        AND NOT EXISTS (
+                                                SELECT 1 FROM public.labels lbl
+                                                JOIN sys_main_conf smc2 ON lbl.chain_id = smc2.caip2
+                                                WHERE lbl.address = '0x' || encode(cl.address, 'hex')
+                                                  AND smc2.origin_key = cl.origin_key
+                                                  AND lbl.attester IN (
+                                                        decode('aDbf2b56995b57525Aa9a45df19091a2C5a2A970', 'hex'),
+                                                        decode('ab81887E560e7C7b5993cE45D1c584d7FC22e898', 'hex')
+                                                  )
+                                        )
                                 GROUP BY 1,2
                         ),
                         chain_txcost AS(
@@ -1991,7 +2005,130 @@ class DbConnector:
                 df['day_range'] = int(days)
                 return df
 
-        
+        def get_unlabelled_contracts_v2(self, days, origin_keys=None):
+                """
+                Returns top unlabeled contracts per chain using a relative txcount threshold (0.1% of
+                total chain txcount over the window) instead of an absolute floor.
+
+                At most 10 contracts per chain are returned, ranked by txcount descending, from those
+                that pass the 0.1% threshold. Contracts already attested by the automated labeler
+                (0xaDbf...) are excluded directly from public.labels to avoid view-refresh lag.
+
+                Args:
+                    days: lookback window in days
+                    origin_keys: list of origin_key strings to restrict to; None = all chains
+                """
+                origin_key_filter = ""
+                origin_key_filter_noalias = ""
+                if origin_keys:
+                        keys_str = "','".join(origin_keys)
+                        origin_key_filter = f"AND cl.origin_key IN ('{keys_str}')"
+                        origin_key_filter_noalias = f"AND origin_key IN ('{keys_str}')"
+
+                exec_string = f'''
+                        WITH chain_totals AS (
+                                SELECT
+                                        origin_key,
+                                        SUM(txcount) AS total_txcount
+                                FROM public.blockspace_fact_contract_level
+                                WHERE date >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
+                                  AND date < DATE_TRUNC('day', NOW())
+                                  {origin_key_filter_noalias}
+                                GROUP BY origin_key
+                        ),
+                        pivoted_gold AS (
+                                SELECT
+                                        address,
+                                        caip2,
+                                        MAX(origin_key) AS origin_key,
+                                        MAX(CASE WHEN tag_id = 'contract_name' THEN tag_value END) AS contract_name,
+                                        MAX(CASE WHEN tag_id = 'is_proxy' THEN tag_value END) AS is_proxy,
+                                        MAX(CASE WHEN tag_id = 'owner_project' THEN tag_value END) AS owner_project,
+                                        MAX(CASE WHEN tag_id = 'usage_category' THEN tag_value END) AS usage_category,
+                                        MAX(CASE WHEN tag_id = '_comment' THEN tag_value END) AS _comment
+                                FROM public.vw_oli_label_pool_gold_v2
+                                GROUP BY address, caip2
+                        ),
+                        ranked_contracts AS (
+                                SELECT
+                                        cl.address,
+                                        cl.origin_key,
+                                        MAX(pg._comment) AS _comment,
+                                        MAX(pg.contract_name) AS name,
+                                        bool_and(
+                                                CASE
+                                                        WHEN pg.is_proxy = 'true' THEN true
+                                                        WHEN pg.is_proxy = 'false' THEN false
+                                                        ELSE NULL
+                                                END) AS is_proxy,
+                                        MAX(pg.owner_project) AS owner_project,
+                                        MAX(pg.usage_category) AS usage_category,
+                                        SUM(cl.gas_fees_eth) AS gas_eth,
+                                        SUM(cl.txcount) AS txcount,
+                                        ROUND(AVG(cl.daa)) AS avg_daa,
+                                        AVG(cl.success_rate) AS avg_success,
+                                        SUM(cl.gas_fees_eth) / NULLIF(SUM(cl.txcount), 0) AS avg_contract_txcost_eth,
+                                        SUM(cl.txcount)::numeric / NULLIF(ct.total_txcount, 0) AS chain_share,
+                                        ROW_NUMBER() OVER (
+                                                PARTITION BY cl.origin_key
+                                                ORDER BY SUM(cl.txcount) DESC
+                                        ) AS rn
+                                FROM public.blockspace_fact_contract_level cl
+                                LEFT JOIN pivoted_gold pg ON cl.address = pg.address AND cl.origin_key = pg.origin_key
+                                JOIN chain_totals ct ON cl.origin_key = ct.origin_key
+                                WHERE
+                                        pg.usage_category IS NULL
+                                        AND cl.date >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
+                                        AND cl.date < DATE_TRUNC('day', NOW())
+                                        {origin_key_filter}
+                                        AND NOT EXISTS (
+                                                SELECT 1 FROM public.labels lbl
+                                                JOIN sys_main_conf smc2 ON lbl.chain_id = smc2.caip2
+                                                WHERE lbl.address = '0x' || encode(cl.address, 'hex')
+                                                  AND smc2.origin_key = cl.origin_key
+                                                  AND lbl.attester IN (
+                                                        decode('aDbf2b56995b57525Aa9a45df19091a2C5a2A970', 'hex'),
+                                                        decode('ab81887E560e7C7b5993cE45D1c584d7FC22e898', 'hex')
+                                                  )
+                                        )
+                                GROUP BY cl.address, cl.origin_key, ct.total_txcount
+                                HAVING SUM(cl.txcount)::numeric / NULLIF(ct.total_txcount, 0) >= 0.001
+                        ),
+                        chain_txcost AS (
+                                SELECT
+                                        origin_key,
+                                        AVG(value) AS avg_chain_txcost_median_eth
+                                FROM public.fact_kpis
+                                WHERE
+                                        metric_key = 'txcosts_median_eth'
+                                        AND "date" >= DATE_TRUNC('day', NOW() - INTERVAL '{days} days')
+                                GROUP BY origin_key
+                        )
+                        SELECT
+                                rc.address,
+                                rc.origin_key,
+                                smc.caip2,
+                                rc._comment,
+                                rc.name AS contract_name,
+                                rc.is_proxy,
+                                rc.owner_project,
+                                rc.usage_category,
+                                rc.gas_eth,
+                                rc.txcount,
+                                rc.avg_daa,
+                                rc.avg_success,
+                                rc.chain_share,
+                                rc.avg_contract_txcost_eth / NULLIF(mc.avg_chain_txcost_median_eth, 0) - 1 AS rel_cost
+                        FROM ranked_contracts rc
+                        LEFT JOIN chain_txcost mc ON rc.origin_key = mc.origin_key
+                        LEFT JOIN sys_main_conf smc ON rc.origin_key = smc.origin_key
+                        WHERE rc.rn <= 10
+                        ORDER BY rc.origin_key, rc.rn
+                '''
+                df = pd.read_sql(exec_string, self.engine.connect())
+                df['day_range'] = int(days)
+                return df
+
 
         ## This function is used to generate the API endpoints for the OLI labels
         def get_oli_labels(self, chain_id='origin_key'):
