@@ -213,6 +213,7 @@ def run_dag():
 
         # --- compiler aggregation → sourcify_top1000_compiler_{compiler}_count/usd_total ---
         df['compiler'] = df['compiler'].fillna('unknown')
+        df['compiler'] = df['compiler'].replace('solc', 'solidity')
 
         # Dune fallback lookup for addresses not found in sourcify
         unknown = df[df['compiler'] == 'unknown']['address'].to_list()
@@ -303,32 +304,32 @@ def run_dag():
 
         QUERY_TVS = """
             SELECT
-                substring(metric_key FROM 'cmp_solc_(\\d+\\.\\d+)\\.\\d+_usd') AS solc_major_version,
+                substring(metric_key FROM 'cmp_solidity_(\\d+\\.\\d+)\\.\\d+_usd') AS solc_major_version,
                 "date",
                 SUM(value) AS value
             FROM public.fact_kpis
             WHERE
-                metric_key NOT IN ('cmp_solc_usd','cmp_vyper_usd','cmp_unknown_usd','cmp_solc_ct','cmp_vyper_ct','cmp_unknown_ct')
-                AND metric_key LIKE 'cmp_solc_%%'
+                metric_key NOT IN ('cmp_solidity_usd','cmp_vyper_usd','cmp_unknown_usd','cmp_solidity_ct','cmp_vyper_ct','cmp_unknown_ct')
+                AND metric_key LIKE 'cmp_solidity_%%'
                 AND metric_key LIKE '%%_usd'
                 AND origin_key = 'ethereum'
-                AND substring(metric_key FROM 'cmp_solc_(\\d+\\.\\d+)\\.\\d+_usd') IS NOT NULL
+                AND substring(metric_key FROM 'cmp_solidity_(\\d+\\.\\d+)\\.\\d+_usd') IS NOT NULL
             GROUP BY 1, 2
             ORDER BY 2 DESC
         """
 
         QUERY_CT = """
             SELECT
-                substring(metric_key FROM 'cmp_solc_(\\d+\\.\\d+)\\.\\d+_ct') AS solc_major_version,
+                substring(metric_key FROM 'cmp_solidity_(\\d+\\.\\d+)\\.\\d+_ct') AS solc_major_version,
                 "date",
                 SUM(value) AS value
             FROM public.fact_kpis
             WHERE
-                metric_key NOT IN ('cmp_solc_usd','cmp_vyper_usd','cmp_unknown_usd','cmp_solc_ct','cmp_vyper_ct','cmp_unknown_ct')
-                AND metric_key LIKE 'cmp_solc_%%'
+                metric_key NOT IN ('cmp_solidity_usd','cmp_vyper_usd','cmp_unknown_usd','cmp_solidity_ct','cmp_vyper_ct','cmp_unknown_ct')
+                AND metric_key LIKE 'cmp_solidity_%%'
                 AND metric_key LIKE '%%_ct'
                 AND origin_key = 'ethereum'
-                AND substring(metric_key FROM 'cmp_solc_(\\d+\\.\\d+)\\.\\d+_ct') IS NOT NULL
+                AND substring(metric_key FROM 'cmp_solidity_(\\d+\\.\\d+)\\.\\d+_ct') IS NOT NULL
             GROUP BY 1, 2
             ORDER BY 2 DESC
         """
