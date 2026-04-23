@@ -304,7 +304,7 @@ def run_dag():
 
         QUERY_TVS = """
             SELECT
-                substring(metric_key FROM 'cmp_solidity_(\\d+\\.\\d+)\\.\\d+_usd') AS solc_major_version,
+                substring(metric_key FROM 'cmp_solidity_(\\d+\\.\\d+)_usd') AS solc_major_version,
                 "date",
                 SUM(value) AS value
             FROM public.fact_kpis
@@ -313,14 +313,14 @@ def run_dag():
                 AND metric_key LIKE 'cmp_solidity_%%'
                 AND metric_key LIKE '%%_usd'
                 AND origin_key = 'ethereum'
-                AND substring(metric_key FROM 'cmp_solidity_(\\d+\\.\\d+)\\.\\d+_usd') IS NOT NULL
+                AND substring(metric_key FROM 'cmp_solidity_(\\d+\\.\\d+)_usd') IS NOT NULL
             GROUP BY 1, 2
             ORDER BY 2 DESC
         """
 
         QUERY_CT = """
             SELECT
-                substring(metric_key FROM 'cmp_solidity_(\\d+\\.\\d+)\\.\\d+_ct') AS solc_major_version,
+                substring(metric_key FROM 'cmp_solidity_(\\d+\\.\\d+)_ct') AS solc_major_version,
                 "date",
                 SUM(value) AS value
             FROM public.fact_kpis
@@ -329,7 +329,7 @@ def run_dag():
                 AND metric_key LIKE 'cmp_solidity_%%'
                 AND metric_key LIKE '%%_ct'
                 AND origin_key = 'ethereum'
-                AND substring(metric_key FROM 'cmp_solidity_(\\d+\\.\\d+)\\.\\d+_ct') IS NOT NULL
+                AND substring(metric_key FROM 'cmp_solidity_(\\d+\\.\\d+)_ct') IS NOT NULL
             GROUP BY 1, 2
             ORDER BY 2 DESC
         """
@@ -363,7 +363,7 @@ def run_dag():
 
         QUERY_TVS = """
             SELECT
-                substring(metric_key FROM 'cmp_vyper_(\\d+\\.\\d+)\\.\\d+_usd') AS vyper_major_version,
+                substring(metric_key FROM 'cmp_vyper_(\\d+\\.\\d+)_usd') AS vyper_major_version,
                 "date",
                 SUM(value) AS value
             FROM public.fact_kpis
@@ -372,14 +372,14 @@ def run_dag():
                 AND metric_key LIKE 'cmp_vyper_%%'
                 AND metric_key LIKE '%%_usd'
                 AND origin_key = 'ethereum'
-                AND substring(metric_key FROM 'cmp_vyper_(\\d+\\.\\d+)\\.\\d+_usd') IS NOT NULL
+                AND substring(metric_key FROM 'cmp_vyper_(\\d+\\.\\d+)_usd') IS NOT NULL
             GROUP BY 1, 2
             ORDER BY 2 DESC
         """
 
         QUERY_CT = """
             SELECT
-                substring(metric_key FROM 'cmp_vyper_(\\d+\\.\\d+)\\.\\d+_ct') AS vyper_major_version,
+                substring(metric_key FROM 'cmp_vyper_(\\d+\\.\\d+)_ct') AS vyper_major_version,
                 "date",
                 SUM(value) AS value
             FROM public.fact_kpis
@@ -388,7 +388,7 @@ def run_dag():
                 AND metric_key LIKE 'cmp_vyper_%%'
                 AND metric_key LIKE '%%_ct'
                 AND origin_key = 'ethereum'
-                AND substring(metric_key FROM 'cmp_vyper_(\\d+\\.\\d+)\\.\\d+_ct') IS NOT NULL
+                AND substring(metric_key FROM 'cmp_vyper_(\\d+\\.\\d+)_ct') IS NOT NULL
             GROUP BY 1, 2
             ORDER BY 2 DESC
         """
@@ -427,7 +427,7 @@ def run_dag():
                 value
             FROM public.fact_kpis
             WHERE
-                metric_key IN ('cmp_solc_ct','cmp_vyper_ct','cmp_unknown_ct')
+                metric_key IN ('cmp_solidity_ct','cmp_vyper_ct','cmp_unknown_ct')
                 AND origin_key = 'ethereum'
                 AND "date" >= '2018-01-01'
             ORDER BY 1 DESC
@@ -440,7 +440,7 @@ def run_dag():
                 value
             FROM public.fact_kpis
             WHERE
-                metric_key IN ('cmp_solc_usd','cmp_vyper_usd','cmp_unknown_usd')
+                metric_key IN ('cmp_solidity_usd','cmp_vyper_usd','cmp_unknown_usd')
                 AND origin_key = 'ethereum'
                 AND "date" >= '2018-01-01'
             ORDER BY 2 DESC
