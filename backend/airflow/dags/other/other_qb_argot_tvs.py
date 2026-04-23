@@ -111,6 +111,7 @@ def run_dag():
             '0xfb5c6815ca3ac72ce9f5006869ae67f18bf77006', # PSTAKE
             '0xa0b73e1ff0b80914ab6fe0444e65848c4c34450b', # CRO
             '0x0ab87046fBb341D058F17CBC4c1133F25a20a52f', # gOHM
+            '0x383518188C0C6d7730D91b2c03a03C837814a899', # OHM
         }
 
 
