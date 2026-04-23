@@ -512,7 +512,7 @@ gtp_metrics_new = {
                 'toggles': ['absolute', 'stacked', 'percentage']
             }
             ,'gas_fees': {
-                'name': 'Gas Fees Generated',
+                'name': 'Gas Fees Paid',
                 'icon': 'metrics-revenue',
                 'category': 'activity',
                 'fundamental': True,
