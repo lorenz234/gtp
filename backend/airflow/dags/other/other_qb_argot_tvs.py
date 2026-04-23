@@ -103,13 +103,14 @@ def run_dag():
         # we exclude the following, otherwise they would skew the TVL for certain dates (LOWERCASE!)
 
         EXCLUDED_ADDRESSES = {
-            '0x7cf9a80db3b29ee8efe3710aadb7b95270572d47',  # NIL
-            '0x090185f2135308bad17527004364ebcc2d37e5f6',  # Linea
-            '0x1789e0043623282d5dcc7f213d703c6d8bafbb04',  # SPELL
+            '0x7cf9a80db3b29ee8efe3710aadb7b95270572d47', # NIL
+            '0x090185f2135308bad17527004364ebcc2d37e5f6', # Linea
+            '0x1789e0043623282d5dcc7f213d703c6d8bafbb04', # SPELL
             '0x62b9c7356a2dc64a1969e19c23e4f579f9810aa7', # cvxCRV
             '0xa2085073878152ac3090ea13d1e41bd69e60dc99', # ELG
             '0xfb5c6815ca3ac72ce9f5006869ae67f18bf77006', # PSTAKE
-            '0xa0b73e1ff0b80914ab6fe0444e65848c4c34450b' # CRO
+            '0xa0b73e1ff0b80914ab6fe0444e65848c4c34450b', # CRO
+            '0x0ab87046fBb341D058F17CBC4c1133F25a20a52f', # gOHM
         }
 
 
@@ -211,10 +212,10 @@ def run_dag():
         rows = []
 
         # --- compiler aggregation → sourcify_top1000_compiler_{compiler}_count/usd_total ---
-        df['compiler'] = df['compiler'].fillna('unverified')
+        df['compiler'] = df['compiler'].fillna('unknown')
 
         # Dune fallback lookup for addresses not found in sourcify
-        unknown = df[df['compiler'] == 'unverified']['address'].to_list()
+        unknown = df[df['compiler'] == 'unknown']['address'].to_list()
         if unknown:
             unknown_str = "|".join(unknown)
             dune_lookup = ad.extract({
@@ -228,11 +229,11 @@ def run_dag():
             })
             dune_found = dune_lookup[dune_lookup['compiler'] != '<nil>'][['address', 'compiler']]
             if not dune_found.empty:
-                dune_map = dune_found.set_index('address')['compiler']
-                df.loc[df['compiler'] == 'unverified', 'compiler'] = (
-                    df.loc[df['compiler'] == 'unverified', 'address'].map(dune_map).fillna('unverified')
+                dune_map = dune_found.drop_duplicates(subset='address').set_index('address')['compiler']
+                df.loc[df['compiler'] == 'unknown', 'compiler'] = (
+                    df.loc[df['compiler'] == 'unknown', 'address'].map(dune_map).fillna('unknown')
                 )
-                print(f"Dune lookup resolved {len(dune_found)} previously unverified addresses.")
+                print(f"Dune lookup resolved {len(dune_found)} previously unknown addresses.")
 
         df_compiler = df.groupby('compiler').agg(
             total_usd=('total_balance_usd', 'sum'),
@@ -307,7 +308,7 @@ def run_dag():
                 SUM(value) AS value
             FROM public.fact_kpis
             WHERE
-                metric_key NOT IN ('cmp_solc_usd','cmp_vyper_usd','cmp_unverified_usd','cmp_solc_ct','cmp_vyper_ct','cmp_unverified_ct')
+                metric_key NOT IN ('cmp_solc_usd','cmp_vyper_usd','cmp_unknown_usd','cmp_solc_ct','cmp_vyper_ct','cmp_unknown_ct')
                 AND metric_key LIKE 'cmp_solc_%%'
                 AND metric_key LIKE '%%_usd'
                 AND origin_key = 'ethereum'
@@ -323,7 +324,7 @@ def run_dag():
                 SUM(value) AS value
             FROM public.fact_kpis
             WHERE
-                metric_key NOT IN ('cmp_solc_usd','cmp_vyper_usd','cmp_unverified_usd','cmp_solc_ct','cmp_vyper_ct','cmp_unverified_ct')
+                metric_key NOT IN ('cmp_solc_usd','cmp_vyper_usd','cmp_unknown_usd','cmp_solc_ct','cmp_vyper_ct','cmp_unknown_ct')
                 AND metric_key LIKE 'cmp_solc_%%'
                 AND metric_key LIKE '%%_ct'
                 AND origin_key = 'ethereum'
@@ -366,7 +367,7 @@ def run_dag():
                 SUM(value) AS value
             FROM public.fact_kpis
             WHERE
-                metric_key NOT IN ('cmp_vyper_usd','cmp_unverified_usd','cmp_vyper_ct','cmp_unverified_ct')
+                metric_key NOT IN ('cmp_vyper_usd','cmp_unknown_usd','cmp_vyper_ct','cmp_unknown_ct')
                 AND metric_key LIKE 'cmp_vyper_%%'
                 AND metric_key LIKE '%%_usd'
                 AND origin_key = 'ethereum'
@@ -382,7 +383,7 @@ def run_dag():
                 SUM(value) AS value
             FROM public.fact_kpis
             WHERE
-                metric_key NOT IN ('cmp_vyper_usd','cmp_unverified_usd','cmp_vyper_ct','cmp_unverified_ct')
+                metric_key NOT IN ('cmp_vyper_usd','cmp_unknown_usd','cmp_vyper_ct','cmp_unknown_ct')
                 AND metric_key LIKE 'cmp_vyper_%%'
                 AND metric_key LIKE '%%_ct'
                 AND origin_key = 'ethereum'
@@ -410,7 +411,7 @@ def run_dag():
 
     @task()
     def create_compiler_jsons():
-        """Query fact_kpis for top-level compiler totals (solc/vyper/unverified) and upload JSONs to S3."""
+        """Query fact_kpis for top-level compiler totals (solc/vyper/unknown) and upload JSONs to S3."""
         import os
         import pandas as pd
         from src.db_connector import DbConnector
@@ -425,7 +426,7 @@ def run_dag():
                 value
             FROM public.fact_kpis
             WHERE
-                metric_key IN ('cmp_solc_ct','cmp_vyper_ct','cmp_unverified_ct')
+                metric_key IN ('cmp_solc_ct','cmp_vyper_ct','cmp_unknown_ct')
                 AND origin_key = 'ethereum'
                 AND "date" >= '2018-01-01'
             ORDER BY 1 DESC
@@ -438,7 +439,7 @@ def run_dag():
                 value
             FROM public.fact_kpis
             WHERE
-                metric_key IN ('cmp_solc_usd','cmp_vyper_usd','cmp_unverified_usd')
+                metric_key IN ('cmp_solc_usd','cmp_vyper_usd','cmp_unknown_usd')
                 AND origin_key = 'ethereum'
                 AND "date" >= '2018-01-01'
             ORDER BY 2 DESC
